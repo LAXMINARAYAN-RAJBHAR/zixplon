@@ -3,17 +3,15 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import App from "./App";
 import reportWebVitals from "./reportWebVitals";
-import { BrowserRouter, HashRouter } from "react-router-dom";
-
-const isGitHubPages = window.location.hostname.includes("github.io");
-const Router = isGitHubPages ? HashRouter : BrowserRouter;
+import { BrowserRouter } from "react-router-dom";
+import { HashRouter as Router } from 'react-router-dom';
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <Router>
+    <BrowserRouter basename="/rollamroll-frontend">
       <App />
-    </Router>
+    </BrowserRouter>
   </React.StrictMode>,
 );
 

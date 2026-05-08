@@ -736,16 +736,55 @@ const ReelItem = ({ reel }) => {
 const Reels = () => {
   const location = useLocation();
 
+  // ADD THIS
   useEffect(() => {
-    const reelId = location.state?.reelId;
-    if (!reelId) return;
-
-    setTimeout(() => {
-      const el = document.getElementById(`reel-${reelId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "instant" }); // ✅ instant is better than smooth here
+    const handleKeyDown = (e) => {
+      if (["Space", "ArrowUp", "ArrowDown"].includes(e.code)) {
+        e.preventDefault(); // ✅ stops footer appearing + stops page scroll
+        e.stopPropagation();
       }
-    }, 100);
+
+      if (e.code === "ArrowDown") {
+        // Scroll to next reel
+        const reelItems = document.querySelectorAll(".reel_item");
+        for (let i = 0; i < reelItems.length; i++) {
+          const rect = reelItems[i].getBoundingClientRect();
+          if (rect.top >= 10) {
+            // find first reel not yet fully scrolled past
+            reelItems[i].scrollIntoView({ behavior: "smooth" });
+            break;
+          }
+        }
+      }
+
+      if (e.code === "ArrowUp") {
+        // Scroll to prev reel
+        const reelItems = document.querySelectorAll(".reel_item");
+        for (let i = reelItems.length - 1; i >= 0; i--) {
+          const rect = reelItems[i].getBoundingClientRect();
+          if (rect.top < -10) {
+            // find last reel scrolled above viewport
+            reelItems[i].scrollIntoView({ behavior: "smooth" });
+            break;
+          }
+        }
+      }
+
+      if (e.code === "Space") {
+        // Pause/play the currently visible video
+        const videos = document.querySelectorAll(".reel_video");
+        videos.forEach((vid) => {
+          const rect = vid.getBoundingClientRect();
+          const isVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+          if (isVisible) {
+            vid.paused ? vid.play() : vid.pause();
+          }
+        });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   return (

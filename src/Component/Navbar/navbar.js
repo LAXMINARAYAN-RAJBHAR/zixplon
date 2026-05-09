@@ -6,12 +6,12 @@ import SearchIcon from "@mui/icons-material/Search";
 import KeyboardVoiceIcon from "@mui/icons-material/KeyboardVoice";
 import VideoCameraFrontIcon from "@mui/icons-material/VideoCameraFront";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import Login from "../Login/login";
 import VideoLibraryIcon from "@mui/icons-material/VideoLibrary";
 import YouTubeIcon from "@mui/icons-material/YouTube";
 
-// ✅ Outside component — pure functions only (no hooks)
+// ✅ Outside component — pure functions only
 const getSuggestions = (q) => {
   if (!q.trim()) return [];
   const base = [
@@ -32,42 +32,29 @@ const getNotifStyle = (type) => {
   }
 };
 
-// ✅ Component starts here
-const Navbar = ({ setSideNavbarFunc, sideNavbar }) => {
+// ✅ Component
+const Navbar = ({ setSideNavbarFunc, sideNavbar, notifications, setNotifications }) => {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // — existing state —
   const [userPic] = useState(
     "https://athenabpo.com/wp-content/uploads/2016/09/Headshot-Blank-Person-Circle-300x300.gif"
   );
-  const [navbarModal, setNavbarModal]     = useState(false);
-  const [login, setLogin]                 = useState(false);
-  const [searchQuery, setSearchQuery]     = useState("");
-  const [suggestions, setSuggestions]     = useState([]);
-  const [showDropdown, setShowDropdown]   = useState(false);
-  const [activeIndex, setActiveIndex]     = useState(-1);
-  const [isListening, setIsListening]     = useState(false);
-
-  // — notification state (moved inside) —
-  const [notifications, setNotifications] = useState([
-    { id: 1, type: "upload",     message: "TechWorld uploaded: 'React 19 Features'",    time: "2m ago",  read: false, avatar: "T" },
-    { id: 2, type: "like",       message: "Alex liked your video 'My Portfolio Tour'",  time: "10m ago", read: false, avatar: "A" },
-    { id: 3, type: "comment",    message: "Sara commented: 'Great content! 🔥'",        time: "25m ago", read: false, avatar: "S" },
-    { id: 4, type: "subscriber", message: "John subscribed to your channel",            time: "1h ago",  read: false, avatar: "J" },
-    { id: 5, type: "upload",     message: "CodeWithMe uploaded: 'Node.js Crash Course'",time: "2h ago",  read: true,  avatar: "C" },
-    { id: 6, type: "like",       message: "Priya liked your video 'CSS Animations'",    time: "3h ago",  read: true,  avatar: "P" },
-  ]);
+  const [navbarModal, setNavbarModal]   = useState(false);
+  const [login, setLogin]               = useState(false);
+  const [searchQuery, setSearchQuery]   = useState("");
+  const [suggestions, setSuggestions]   = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [activeIndex, setActiveIndex]   = useState(-1);
+  const [isListening, setIsListening]   = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // — refs —
-  const dropdownRef = useRef(null);
-  const notifRef    = useRef(null);
+  const dropdownRef    = useRef(null);
+  const notifRef       = useRef(null);
   const recognitionRef = useRef(null);
 
-  // — derived —
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  // — notification helpers —
   const markAllRead = () =>
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
 
@@ -76,29 +63,32 @@ const Navbar = ({ setSideNavbarFunc, sideNavbar }) => {
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
 
-  // — close search dropdown on outside click —
+  // ✅ Auto-close all dropdowns on route change
+  useEffect(() => {
+    setShowNotifications(false);
+    setNavbarModal(false);
+  }, [location.pathname]);
+
+  // ✅ Close search dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
         setShowDropdown(false);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // — close notif dropdown on outside click —
+  // ✅ Close notif dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) {
+      if (notifRef.current && !notifRef.current.contains(e.target))
         setShowNotifications(false);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // — existing handlers —
   const sideNavbarFunc = () => setSideNavbarFunc(!sideNavbar);
 
   const handleprofile = () => {
@@ -138,15 +128,14 @@ const Navbar = ({ setSideNavbarFunc, sideNavbar }) => {
       if (e.key === "Enter") doSearch(searchQuery);
       return;
     }
-    if (e.key === "ArrowDown") {
+    if (e.key === "ArrowDown")
       setActiveIndex((prev) => Math.min(prev + 1, suggestions.length - 1));
-    } else if (e.key === "ArrowUp") {
+    else if (e.key === "ArrowUp")
       setActiveIndex((prev) => Math.max(prev - 1, -1));
-    } else if (e.key === "Enter") {
+    else if (e.key === "Enter")
       activeIndex >= 0 ? doSearch(suggestions[activeIndex]) : doSearch(searchQuery);
-    } else if (e.key === "Escape") {
+    else if (e.key === "Escape")
       setShowDropdown(false);
-    }
   };
 
   const speak = (text, callback) => {
@@ -204,6 +193,7 @@ const Navbar = ({ setSideNavbarFunc, sideNavbar }) => {
 
   return (
     <div className="navbar">
+
       {/* LEFT */}
       <div className="navbar-left">
         <div className="navbarHamberger" onClick={sideNavbarFunc}>
@@ -289,8 +279,10 @@ const Navbar = ({ setSideNavbarFunc, sideNavbar }) => {
           <VideoCameraFrontIcon sx={{ fontSize: "30px", color: "white" }} />
         </span>
 
-        {/* NOTIFICATIONS */}
+        {/* ✅ NOTIFICATIONS — fully self-contained */}
         <div ref={notifRef} style={{ position: "relative" }}>
+
+          {/* Bell icon + badge */}
           <div
             onClick={() => setShowNotifications((prev) => !prev)}
             style={{ position: "relative", cursor: "pointer", display: "flex" }}
@@ -316,21 +308,28 @@ const Navbar = ({ setSideNavbarFunc, sideNavbar }) => {
             )}
           </div>
 
+          {/* Dropdown panel */}
           {showNotifications && (
             <div style={{
               position: "absolute", top: "42px", right: "-10px", width: "360px",
               background: "#212121", borderRadius: "12px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.8)", zIndex: 99999,
-              border: "1px solid #333", overflow: "hidden",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
+              zIndex: 99999, border: "1px solid #333", overflow: "hidden",
             }}>
+
               {/* Header */}
               <div style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center",
                 padding: "14px 16px", borderBottom: "1px solid #333",
               }}>
-                <span style={{ color: "white", fontWeight: "600", fontSize: "16px" }}>Notifications</span>
+                <span style={{ color: "white", fontWeight: "600", fontSize: "16px" }}>
+                  Notifications
+                </span>
                 {unreadCount > 0 && (
-                  <span onClick={markAllRead} style={{ color: "#3ea6ff", fontSize: "13px", cursor: "pointer", fontWeight: "500" }}>
+                  <span
+                    onClick={markAllRead}
+                    style={{ color: "#3ea6ff", fontSize: "13px", cursor: "pointer", fontWeight: "500" }}
+                  >
                     Mark all as read
                   </span>
                 )}
@@ -348,15 +347,17 @@ const Navbar = ({ setSideNavbarFunc, sideNavbar }) => {
                         display: "flex", alignItems: "flex-start", gap: "12px",
                         padding: "12px 16px",
                         background: n.read ? "transparent" : "rgba(255,255,255,0.05)",
-                        borderBottom: "1px solid #2a2a2a", cursor: "pointer", transition: "background 0.2s",
+                        borderBottom: "1px solid #2a2a2a",
+                        cursor: "pointer", transition: "background 0.2s",
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = n.read ? "transparent" : "rgba(255,255,255,0.05)")}
                     >
                       <div style={{
-                        width: "40px", height: "40px", borderRadius: "50%", background: color,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontWeight: "700", fontSize: "15px", color: "white", flexShrink: 0,
+                        width: "40px", height: "40px", borderRadius: "50%",
+                        background: color, display: "flex", alignItems: "center",
+                        justifyContent: "center", fontWeight: "700",
+                        fontSize: "15px", color: "white", flexShrink: 0,
                       }}>
                         {n.avatar}
                       </div>
@@ -375,19 +376,24 @@ const Navbar = ({ setSideNavbarFunc, sideNavbar }) => {
                 })}
               </div>
 
-              {/* Footer */}
+              {/* ✅ Footer — closes dropdown before navigating */}
               <div style={{ padding: "12px", textAlign: "center", borderTop: "1px solid #333" }}>
                 <span
                   style={{ color: "#3ea6ff", fontSize: "13px", cursor: "pointer" }}
-                  onClick={() => navigate("/notifications")}
+                  onClick={() => {
+                    setShowNotifications(false);
+                    navigate("/notifications");
+                  }}
                 >
                   See all notifications
                 </span>
               </div>
+
             </div>
           )}
         </div>
 
+        {/* Profile */}
         <img
           onClick={() => setNavbarModal((prev) => !prev)}
           src={userPic} alt="User" className="navbar-right-logo"
@@ -427,14 +433,15 @@ const Navbar = ({ setSideNavbarFunc, sideNavbar }) => {
             <p style={{ color: "#aaa", fontSize: "14px" }}>Speak now to search</p>
             <button onClick={stopVoiceSearch} style={{
               marginTop: "10px", padding: "8px 24px", borderRadius: "8px",
-              border: "1px solid #555", background: "transparent", color: "white",
-              cursor: "pointer", fontSize: "14px",
+              border: "1px solid #555", background: "transparent",
+              color: "white", cursor: "pointer", fontSize: "14px",
             }}>
               Cancel
             </button>
           </div>
         </div>
       )}
+
     </div>
   );
 };

@@ -97,6 +97,7 @@
   align-items: center;   /* vertically centers all sections */
   justify-content: space-between; /* left, middle, right spaced out */
   padding: 0 20px;       /* optional spacing */
+  z-index: 9999;    /* navbar stays above page content */
 }
 
 .navbar-right {
@@ -201,4 +202,19 @@
     &:hover{
         background-color: rgb(34, 33, 33);
     }
+}
+
+@keyframes bellShake {
+  0%, 100% { transform: rotate(0deg); }
+  10%       { transform: rotate(15deg); }
+  20%       { transform: rotate(-12deg); }
+  30%       { transform: rotate(10deg); }
+  40%       { transform: rotate(-8deg); }
+  50%       { transform: rotate(0deg); }
+}
+
+@keyframes badgePop {
+  0%   { transform: scale(0); }
+  70%  { transform: scale(1.2); }
+  100% { transform: scale(1); }
 }

@@ -172,7 +172,7 @@ const YouTubeSearch = () => {
                 </div>
               </div>
 
-              <span style={{ color: "#aaa", fontSize: "14px" }}>{selectedVideoIndex + 1} / {results.length}</span>
+              {/* <span style={{ color: "#aaa", fontSize: "14px" }}>{selectedVideoIndex + 1} / {results.length}</span> */}
 
               <button
                 onClick={() => { const n = selectedVideoIndex + 1; if (n < results.length) { setSelectedVideo(results[n].id.videoId); setSelectedVideoIndex(n); setComment(""); } }}
@@ -195,7 +195,7 @@ const YouTubeSearch = () => {
                 style={{ position: "absolute", bottom: "12px", left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.75)", borderRadius: "30px", padding: "8px 20px", display: "flex", alignItems: "center", gap: "16px", opacity: 0, transition: "opacity 0.3s", pointerEvents: "none", zIndex: 10, backdropFilter: "blur(6px)" }}>
                 <button onClick={() => { const p = selectedVideoIndex - 1; if (p >= 0) { setSelectedVideo(results[p].id.videoId); setSelectedVideoIndex(p); } }}
                   style={{ background: "none", border: "none", color: "white", fontSize: "20px", cursor: "pointer" }}>⏮</button>
-                <span style={{ color: "white", fontSize: "13px" }}>{selectedVideoIndex + 1} / {results.length}</span>
+                {/* <span style={{ color: "white", fontSize: "13px" }}>{selectedVideoIndex + 1} / {results.length}</span> */}
                 <button onClick={() => { const n = selectedVideoIndex + 1; if (n < results.length) { setSelectedVideo(results[n].id.videoId); setSelectedVideoIndex(n); } }}
                   style={{ background: "none", border: "none", color: "white", fontSize: "20px", cursor: "pointer" }}>⏭</button>
                 <button onClick={() => document.getElementById("yt-iframe")?.requestFullscreen?.()}

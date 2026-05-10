@@ -71,9 +71,28 @@ const allVideos = [
   { id: 62, thumbnail: "https://picsum.photos/seed/aurora50/320/180", title: "Northern Lights", duration: "15:00", channel: "ArcticVision" },
 ];
 
-// ✅ Auto-generate usersData from reelsData + allVideos — no manual entry needed!
 const buildUsersData = () => {
-  const users = {};
+  const users = {
+    // ✅ Manually added subscription channels
+    aajtak: {
+      name: "Aaj Tak",
+      handle: "@aajtak",
+      profilePic: "https://tse4.mm.bing.net/th/id/OIP.Auy5e_yPpkpidVF_ZRz7aQAAAA?w=404&h=316&rs=1&pid=ImgDetMain&o=7&rm=3",
+      about: "India's No.1 Hindi News Channel",
+    },
+    lallantop: {
+      name: "The LallanTop",
+      handle: "@lallantop",
+      profilePic: "https://tse1.mm.bing.net/th/id/OIP.At5eXfjQ0jLiO7tRFBjI_QAAAA?rs=1&pid=ImgDetMain&o=7&rm=3",
+      about: "Digital news platform by India Today Group",
+    },
+    ndtvindia: {
+      name: "NDTV India",
+      handle: "@ndtvindia",
+      profilePic: "https://logodix.com/logo/2131933.jpg",
+      about: "India's most trusted Hindi news channel",
+    },
+  };
 
   // From reelsData
   reelsData.forEach((reel) => {

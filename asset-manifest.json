@@ -1,16 +1,16 @@
 {
   "files": {
-    "main.css": "/rollamroll-frontend/static/css/main.34a4fe75.css",
-    "main.js": "/rollamroll-frontend/static/js/main.eea700b4.js",
-    "static/js/453.f044db20.chunk.js": "/rollamroll-frontend/static/js/453.f044db20.chunk.js",
-    "static/media/mylogo.png": "/rollamroll-frontend/static/media/mylogo.3248daf684c8f51bb139.png",
-    "index.html": "/rollamroll-frontend/index.html",
-    "main.34a4fe75.css.map": "/rollamroll-frontend/static/css/main.34a4fe75.css.map",
-    "main.eea700b4.js.map": "/rollamroll-frontend/static/js/main.eea700b4.js.map",
-    "453.f044db20.chunk.js.map": "/rollamroll-frontend/static/js/453.f044db20.chunk.js.map"
+    "main.css": "/zillplayer-frontend/static/css/main.34a4fe75.css",
+    "main.js": "/zillplayer-frontend/static/js/main.8632131d.js",
+    "static/js/453.f044db20.chunk.js": "/zillplayer-frontend/static/js/453.f044db20.chunk.js",
+    "static/media/mylogo.png": "/zillplayer-frontend/static/media/mylogo.3248daf684c8f51bb139.png",
+    "index.html": "/zillplayer-frontend/index.html",
+    "main.34a4fe75.css.map": "/zillplayer-frontend/static/css/main.34a4fe75.css.map",
+    "main.8632131d.js.map": "/zillplayer-frontend/static/js/main.8632131d.js.map",
+    "453.f044db20.chunk.js.map": "/zillplayer-frontend/static/js/453.f044db20.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.34a4fe75.css",
-    "static/js/main.eea700b4.js"
+    "static/js/main.8632131d.js"
   ]
 }

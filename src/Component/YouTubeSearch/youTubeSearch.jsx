@@ -115,8 +115,13 @@ const YouTubeSearch = () => {
   }, [activeCategory]);
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const searchFromNav = params.get("search");
+    // Hash router puts query string inside the hash e.g. #/search?q=hindi%20movie
+    const hashSearch = window.location.hash.includes("?")
+      ? window.location.hash.split("?")[1]
+      : "";
+    const params = new URLSearchParams(hashSearch || location.search);
+    const searchFromNav = params.get("search") || params.get("q"); // support both ?search= and ?q=
+
     if (searchFromNav) {
       searchWithQuery(searchFromNav, true);
     } else {

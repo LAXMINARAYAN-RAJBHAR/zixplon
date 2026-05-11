@@ -246,7 +246,7 @@ const Navbar = ({
               else window.location.href = base;
             }}
           >
-            {"ZilPlayer".split("").map((char, i) => (
+            {"ZillPlayer".split("").map((char, i) => (
               <span
                 key={i}
                 className="logoChar"

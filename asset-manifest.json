@@ -1,16 +1,16 @@
 {
   "files": {
-    "main.css": "/zillplayer-frontend/static/css/main.5f710379.css",
-    "main.js": "/zillplayer-frontend/static/js/main.35735a40.js",
-    "static/js/453.36c7da27.chunk.js": "/zillplayer-frontend/static/js/453.36c7da27.chunk.js",
-    "static/media/mylogo.png": "/zillplayer-frontend/static/media/mylogo.3248daf684c8f51bb139.png",
-    "index.html": "/zillplayer-frontend/index.html",
-    "main.5f710379.css.map": "/zillplayer-frontend/static/css/main.5f710379.css.map",
-    "main.35735a40.js.map": "/zillplayer-frontend/static/js/main.35735a40.js.map",
-    "453.36c7da27.chunk.js.map": "/zillplayer-frontend/static/js/453.36c7da27.chunk.js.map"
+    "main.css": "/zixplayer-frontend/static/css/main.5f710379.css",
+    "main.js": "/zixplayer-frontend/static/js/main.a71f4008.js",
+    "static/js/453.707d7c8c.chunk.js": "/zixplayer-frontend/static/js/453.707d7c8c.chunk.js",
+    "static/media/mylogo.png": "/zixplayer-frontend/static/media/mylogo.3248daf684c8f51bb139.png",
+    "index.html": "/zixplayer-frontend/index.html",
+    "main.5f710379.css.map": "/zixplayer-frontend/static/css/main.5f710379.css.map",
+    "main.a71f4008.js.map": "/zixplayer-frontend/static/js/main.a71f4008.js.map",
+    "453.707d7c8c.chunk.js.map": "/zixplayer-frontend/static/js/453.707d7c8c.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.5f710379.css",
-    "static/js/main.35735a40.js"
+    "static/js/main.a71f4008.js"
   ]
 }

@@ -389,8 +389,8 @@ const Navbar = ({
             <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
           </svg>
         </span>
-
-        <Link to="/live-tv" style={{ textDecoration: "none" }}>
+                {/* Live TV Section */}
+        {/* <Link to="/live-tv" style={{ textDecoration: "none" }}>
           <div style={{ position: "relative", display: "inline-block" }}>
             <span style={{ fontSize: "24px" }}>📺</span>
             <span
@@ -409,7 +409,7 @@ const Navbar = ({
               LIVE
             </span>
           </div>
-        </Link>
+        </Link> */}
         <span
           onClick={() =>
             navigate("/youtube", { state: { reload: Date.now() } })
@@ -418,9 +418,10 @@ const Navbar = ({
         >
           <YouTubeIcon sx={{ fontSize: "30px", color: "red" }} />
         </span>
-        <span onClick={() => navigate("/reels")} style={{ cursor: "pointer" }}>
+        {/* Reels Section */}
+        {/* <span onClick={() => navigate("/reels")} style={{ cursor: "pointer" }}>
           <VideoLibraryIcon sx={{ fontSize: "30px", color: "white" }} />
-        </span>
+        </span> */}
         <span
           onClick={() => navigate("/763/upload")}
           style={{ cursor: "pointer" }}

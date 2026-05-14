@@ -167,7 +167,45 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
     const i = suggestions.findIndex(s => s.id?.videoId === initialVideoId);
     return i >= 0 ? i : 0;
   });
-  const [autoplay,   setAutoplay]   = useState(true);
+
+  // ── Volume / Mute state ──
+  const [isMuted, setIsMuted]   = useState(false);
+  const [volume,  setVolume]    = useState(100); // 0–100
+  const iframeRef               = useRef(null);
+
+  // Send a command to the YouTube iframe via postMessage
+  const sendYTCommand = (func, args = []) => {
+    iframeRef.current?.contentWindow?.postMessage(
+      JSON.stringify({ event: "command", func, args }),
+      "*"
+    );
+  };
+
+  const handleMuteToggle = () => {
+    if (isMuted) {
+      sendYTCommand("unMute");
+      sendYTCommand("setVolume", [volume]);
+    } else {
+      sendYTCommand("mute");
+    }
+    setIsMuted(m => !m);
+  };
+
+  const handleVolumeChange = (e) => {
+    const val = Number(e.target.value);
+    setVolume(val);
+    if (val === 0) {
+      sendYTCommand("mute");
+      setIsMuted(true);
+    } else {
+      if (isMuted) {
+        sendYTCommand("unMute");
+        setIsMuted(false);
+      }
+      sendYTCommand("setVolume", [val]);
+    }
+  };
+
   const [activeTab,  setActiveTab]  = useState("suggestions");
   const [isLiked,    setIsLiked]    = useState(false);
   const [isDisliked, setIsDisliked] = useState(false);
@@ -176,7 +214,6 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
   const [newComment,    setNewComment]    = useState("");
   const [likedComments, setLikedComments] = useState(new Set());
 
-  const autoplayTimer = useRef(null);
   const activeSuggRef = useRef(null);
   const suggListRef   = useRef(null);
 
@@ -190,7 +227,6 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
   const hasNext = suggestions.slice(currentIndex + 1).some(s => s.id?.videoId);
 
   const goTo = (idx) => {
-    clearTimeout(autoplayTimer.current);
     setCurrentIndex(Math.max(0, Math.min(idx, suggestions.length - 1)));
     setIsLiked(false); setIsDisliked(false);
   };
@@ -202,12 +238,6 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
     const rel = suggestions.slice(currentIndex + 1).findIndex(s => s.id?.videoId);
     if (rel >= 0) goTo(currentIndex + 1 + rel);
   };
-
-  useEffect(() => {
-    clearTimeout(autoplayTimer.current);
-    if (autoplay && hasNext) autoplayTimer.current = setTimeout(goNext, 30000);
-    return () => clearTimeout(autoplayTimer.current);
-  }, [currentIndex, autoplay, hasNext]);
 
   useEffect(() => {
     if (activeSuggRef.current) activeSuggRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -227,12 +257,63 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
     });
   };
 
-  /* ── 16:9 iframe wrapper — works on ALL devices ── */
+  /* ── Volume icon helper ── */
+  const VolumeIcon = () => {
+    if (isMuted || volume === 0) return <span style={{ fontSize: "16px" }}>🔇</span>;
+    if (volume < 40)             return <span style={{ fontSize: "16px" }}>🔈</span>;
+    if (volume < 70)             return <span style={{ fontSize: "16px" }}>🔉</span>;
+    return                              <span style={{ fontSize: "16px" }}>🔊</span>;
+  };
+
+  /* ── Volume control bar ── */
+  const VolumeControl = ({ compact = false }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: compact ? "6px" : "8px" }}>
+      <button
+        onClick={handleMuteToggle}
+        title={isMuted ? "Unmute" : "Mute"}
+        style={{
+          background: isMuted ? "#ff444422" : "#222",
+          border: `1px solid ${isMuted ? "#ff444444" : "#333"}`,
+          borderRadius: "20px",
+          padding: compact ? "4px 8px" : "6px 10px",
+          cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "all 0.2s",
+          flexShrink: 0,
+        }}
+      >
+        <VolumeIcon />
+      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={isMuted ? 0 : volume}
+          onChange={handleVolumeChange}
+          style={{
+            width: compact ? "70px" : "90px",
+            height: "4px",
+            accentColor: "#3ea6ff",
+            cursor: "pointer",
+          }}
+        />
+        {!compact && (
+          <span style={{ color: "#888", fontSize: "11px", minWidth: "28px" }}>
+            {isMuted ? 0 : volume}%
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
+  /* ── 16:9 iframe wrapper — enablejsapi=1 required for postMessage ── */
   const PlayerBox = () => (
     <div style={{ width: "100%", position: "relative", paddingTop: "56.25%", background: "#000", flexShrink: 0 }}>
       <iframe
+        ref={iframeRef}
         key={videoId}
-        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
         frameBorder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
         allowFullScreen
@@ -312,21 +393,17 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
             <div style={{ color: "#888", fontSize: "10px" }}>YouTube Channel</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
           <button onClick={goPrev} disabled={!hasPrev} style={{ background: hasPrev ? "#222" : "#161616", color: hasPrev ? "#ccc" : "#444", border: "1px solid #333", borderRadius: "20px", padding: "6px 12px", cursor: hasPrev ? "pointer" : "default", fontSize: "12px" }}>⏮ Prev</button>
           <button onClick={goNext} disabled={!hasNext} style={{ background: hasNext ? "#222" : "#161616", color: hasNext ? "#ccc" : "#444", border: "1px solid #333", borderRadius: "20px", padding: "6px 12px", cursor: hasNext ? "pointer" : "default", fontSize: "12px" }}>Next ⏭</button>
           <button onClick={() => setIsLiked(l => !l)} style={{ background: isLiked ? "#fff" : "#222", color: isLiked ? "#000" : "#fff", border: "1px solid #333", borderRadius: "20px", padding: "6px 12px", cursor: "pointer", fontSize: "12px", fontWeight: "600", transition: "all 0.2s" }}>
             👍 {(likeCount + (isLiked ? 1 : 0)).toLocaleString()}
           </button>
           <button onClick={() => setIsDisliked(d => !d)} style={{ background: isDisliked ? "#fff" : "#222", color: isDisliked ? "#000" : "#fff", border: "1px solid #333", borderRadius: "20px", padding: "6px 12px", cursor: "pointer", fontSize: "12px", fontWeight: "600", transition: "all 0.2s" }}>👎</button>
-          <button onClick={() => setAutoplay(a => !a)} style={{ background: autoplay ? "#3ea6ff18" : "#222", color: autoplay ? "#3ea6ff" : "#777", border: `1px solid ${autoplay ? "#3ea6ff44" : "#333"}`, borderRadius: "20px", padding: "6px 12px", cursor: "pointer", fontSize: "11px", fontWeight: "700" }}>
-            {autoplay ? "⏵ Auto ON" : "⏸ Auto OFF"}
-          </button>
+          {/* Volume control in MetaBar */}
+          <VolumeControl compact={isMobile} />
         </div>
       </div>
-      {autoplay && hasNext && (
-        <p style={{ color: "#3ea6ff", fontSize: "11px", margin: "4px 0 0" }}>⏵ Autoplaying next in ~30s</p>
-      )}
       <div style={{ height: "1px", background: "#1e1e1e", margin: "10px 0 0" }} />
     </div>
   );
@@ -337,7 +414,6 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
   if (isMobile) {
     return (
       <>
-        {/* Inject dvh and iframe-safe CSS once */}
         <style>{`
           .watch-mobile-root {
             position: fixed;
@@ -347,18 +423,17 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
             display: flex;
             flex-direction: column;
             font-family: 'Segoe UI', sans-serif;
-            /* dvh = dynamic viewport height — accounts for iOS Safari toolbar */
             height: 100dvh;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
           }
           .watch-mobile-root iframe {
-            /* force iframe visible on mobile WebKit */
             display: block !important;
             visibility: visible !important;
             opacity: 1 !important;
           }
           @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+          input[type=range]::-webkit-slider-thumb { width: 14px; height: 14px; }
         `}</style>
 
         <div className="watch-mobile-root">
@@ -370,10 +445,10 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
             <span style={{ background: "#ff0000", color: "#fff", fontSize: "10px", fontWeight: "700", padding: "2px 8px", borderRadius: "4px", flexShrink: 0 }}>▶ YT</span>
           </div>
 
-          {/* 16:9 player — NEVER use fixed height on mobile */}
+          {/* 16:9 player */}
           <PlayerBox />
 
-          {/* Meta */}
+          {/* Meta (includes volume control) */}
           <MetaBar />
 
           {/* Tabs */}
@@ -393,7 +468,6 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
             ))}
           </div>
 
-          {/* Tab content — no inner scroll, page itself scrolls */}
           {activeTab === "suggestions" ? <SuggestionsList scrollable={false} /> : <CommentSection />}
         </div>
       </>
@@ -405,7 +479,10 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
   ════════════════════════════════ */
   return (
     <>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
+      <style>{`
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+        input[type=range]::-webkit-slider-thumb { width: 14px; height: 14px; }
+      `}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#0a0a0a", display: "flex", flexDirection: "column", fontFamily: "'Segoe UI', sans-serif", overflow: "hidden" }}>
 
         {/* Desktop top bar */}
@@ -426,10 +503,9 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
             onMouseEnter={e => { if (hasNext) e.currentTarget.style.background = "#222"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "none"; }}
           >⏭</button>
-          <button onClick={() => setAutoplay(a => !a)} style={{ background: autoplay ? "#3ea6ff18" : "none", border: `1px solid ${autoplay ? "#3ea6ff55" : "#2a2a2a"}`, color: autoplay ? "#3ea6ff" : "#666", cursor: "pointer", fontSize: "12px", fontWeight: "700", padding: "4px 12px", borderRadius: "20px", transition: "all 0.2s", display: "flex", alignItems: "center", gap: "5px" }}>
-            <span style={{ fontSize: "11px" }}>{autoplay ? "⏵" : "⏸"}</span>
-            Autoplay {autoplay ? "ON" : "OFF"}
-          </button>
+          <div style={{ width: "1px", height: "20px", background: "#2a2a2a" }} />
+          {/* Volume control in top bar on desktop */}
+          <VolumeControl compact={false} />
           <div style={{ width: "1px", height: "20px", background: "#2a2a2a" }} />
           <span style={{ color: "#fff", fontWeight: "600", fontSize: "14px", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{videoTitle}</span>
           <span style={{ background: "#ff0000", color: "#fff", fontSize: "11px", fontWeight: "700", padding: "3px 10px", borderRadius: "4px", flexShrink: 0 }}>▶ YouTube</span>
@@ -454,11 +530,6 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
                 <span style={{ color: "#fff", fontWeight: "700", fontSize: "13px" }}>Up Next</span>
                 <span style={{ color: "#555", fontSize: "11px" }}>{currentIndex + 1} / {suggestions.length}</span>
               </div>
-              {autoplay && hasNext && (
-                <div style={{ color: "#3ea6ff", fontSize: "11px", marginTop: "5px", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span>⏵</span> Autoplaying next in ~30s
-                </div>
-              )}
             </div>
             <SuggestionsList scrollable={true} />
           </div>

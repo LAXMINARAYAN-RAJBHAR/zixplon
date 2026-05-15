@@ -1,16 +1,16 @@
 {
   "files": {
-    "main.css": "/zixplayer-frontend/static/css/main.df19757f.css",
-    "main.js": "/zixplayer-frontend/static/js/main.d119b8c1.js",
+    "main.css": "/zixplayer-frontend/static/css/main.94071c3a.css",
+    "main.js": "/zixplayer-frontend/static/js/main.148fa6d2.js",
     "static/js/453.707d7c8c.chunk.js": "/zixplayer-frontend/static/js/453.707d7c8c.chunk.js",
     "static/media/mylogo.png": "/zixplayer-frontend/static/media/mylogo.3248daf684c8f51bb139.png",
     "index.html": "/zixplayer-frontend/index.html",
-    "main.df19757f.css.map": "/zixplayer-frontend/static/css/main.df19757f.css.map",
-    "main.d119b8c1.js.map": "/zixplayer-frontend/static/js/main.d119b8c1.js.map",
+    "main.94071c3a.css.map": "/zixplayer-frontend/static/css/main.94071c3a.css.map",
+    "main.148fa6d2.js.map": "/zixplayer-frontend/static/js/main.148fa6d2.js.map",
     "453.707d7c8c.chunk.js.map": "/zixplayer-frontend/static/js/453.707d7c8c.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.df19757f.css",
-    "static/js/main.d119b8c1.js"
+    "static/css/main.94071c3a.css",
+    "static/js/main.148fa6d2.js"
   ]
 }

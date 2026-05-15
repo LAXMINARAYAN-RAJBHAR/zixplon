@@ -1,16 +1,16 @@
 {
   "files": {
-    "main.css": "/zixplayer-frontend/static/css/main.94071c3a.css",
+    "main.css": "/zixplayer-frontend/static/css/main.58c54d33.css",
     "main.js": "/zixplayer-frontend/static/js/main.148fa6d2.js",
     "static/js/453.707d7c8c.chunk.js": "/zixplayer-frontend/static/js/453.707d7c8c.chunk.js",
     "static/media/mylogo.png": "/zixplayer-frontend/static/media/mylogo.3248daf684c8f51bb139.png",
     "index.html": "/zixplayer-frontend/index.html",
-    "main.94071c3a.css.map": "/zixplayer-frontend/static/css/main.94071c3a.css.map",
+    "main.58c54d33.css.map": "/zixplayer-frontend/static/css/main.58c54d33.css.map",
     "main.148fa6d2.js.map": "/zixplayer-frontend/static/js/main.148fa6d2.js.map",
     "453.707d7c8c.chunk.js.map": "/zixplayer-frontend/static/js/453.707d7c8c.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.94071c3a.css",
+    "static/css/main.58c54d33.css",
     "static/js/main.148fa6d2.js"
   ]
 }

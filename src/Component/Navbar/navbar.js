@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import "./navbar.css";
 import ListIcon from "@mui/icons-material/List";
 import MyLogo from "../../assests/mylogo.png";
+import PublicIcon from "@mui/icons-material/Public";
 import SearchIcon from "@mui/icons-material/Search";
 import KeyboardVoiceIcon from "@mui/icons-material/KeyboardVoice";
 import VideoCameraFrontIcon from "@mui/icons-material/VideoCameraFront";
@@ -13,14 +14,14 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import Login from "../Login/login";
 import YouTubeIcon from "@mui/icons-material/YouTube";
 
-// ─── Category detection ───────────────────────────────────────────────────────
+// ─── Category detection ────────────────────────────────────────────────────────
 const CATEGORY_PATTERNS = {
   music:   /song|music|album|playlist|remix|beat|audio|singer|artist|band/i,
   gaming:  /game|gameplay|minecraft|roblox|gta|valorant|pubg|fortnite|esport/i,
   sports:  /match|highlights|cricket|football|nba|ipl|goal|fifa|tennis|boxing/i,
   tech:    /phone|laptop|review|unbox|tech|ai|coding|tutorial|programming|vs\s/i,
   news:    /news|breaking|update|today|latest|2024|2025/i,
-  comedy:  /funny|meme|comedy|prank|roast|fail/i,
+  comedy:  /funny|meme|comedy|prank|roast|fail|try not to laugh/i,
   cooking: /recipe|cook|food|bake|chef|how to make|easy meal/i,
   travel:  /travel|vlog|trip|tour|explore|city|country|place/i,
 };
@@ -28,75 +29,75 @@ const CATEGORY_PATTERNS = {
 const CATEGORY_SUFFIXES = {
   music: [
     { suffix: "official music video", tag: "music" },
-    { suffix: "2025",                 tag: "new"   },
-    { suffix: "full album",           tag: null    },
-    { suffix: "live performance",     tag: "live"  },
-    { suffix: "lyrics",               tag: null    },
-    { suffix: "remix",                tag: null    },
+    { suffix: "2025", tag: "new" },
+    { suffix: "full album", tag: null },
+    { suffix: "live performance", tag: "live" },
+    { suffix: "lyrics", tag: null },
+    { suffix: "remix", tag: null },
   ],
   gaming: [
-    { suffix: "gameplay 2025",   tag: "new"   },
-    { suffix: "speedrun",        tag: "trend" },
-    { suffix: "tips and tricks", tag: null    },
-    { suffix: "walkthrough",     tag: null    },
-    { suffix: "best moments",    tag: null    },
-    { suffix: "live stream",     tag: "live"  },
+    { suffix: "gameplay 2025", tag: "new" },
+    { suffix: "speedrun", tag: "trend" },
+    { suffix: "tips and tricks", tag: null },
+    { suffix: "walkthrough", tag: null },
+    { suffix: "best moments", tag: null },
+    { suffix: "live stream", tag: "live" },
   ],
   sports: [
-    { suffix: "highlights 2025", tag: "new"   },
-    { suffix: "full match",      tag: null    },
-    { suffix: "best moments",    tag: "trend" },
-    { suffix: "live",            tag: "live"  },
-    { suffix: "analysis",        tag: null    },
-    { suffix: "reaction",        tag: null    },
+    { suffix: "highlights 2025", tag: "new" },
+    { suffix: "full match", tag: null },
+    { suffix: "best moments", tag: "trend" },
+    { suffix: "live", tag: "live" },
+    { suffix: "analysis", tag: null },
+    { suffix: "reaction", tag: null },
   ],
   tech: [
-    { suffix: "review 2025",   tag: "new"  },
-    { suffix: "unboxing",      tag: null   },
-    { suffix: "vs comparison", tag: null   },
-    { suffix: "best settings", tag: null   },
-    { suffix: "explained",     tag: null   },
-    { suffix: "shorts",        tag: null   },
+    { suffix: "review 2025", tag: "new" },
+    { suffix: "unboxing", tag: null },
+    { suffix: "vs comparison", tag: null },
+    { suffix: "best settings", tag: null },
+    { suffix: "explained", tag: null },
+    { suffix: "shorts", tag: null },
   ],
   news: [
-    { suffix: "today",         tag: "live"  },
+    { suffix: "today", tag: "live" },
     { suffix: "breaking news", tag: "trend" },
-    { suffix: "explained",     tag: null    },
-    { suffix: "live update",   tag: "live"  },
-    { suffix: "2025",          tag: "new"   },
-    { suffix: "documentary",   tag: null    },
+    { suffix: "explained", tag: null },
+    { suffix: "live update", tag: "live" },
+    { suffix: "2025", tag: "new" },
+    { suffix: "documentary", tag: null },
   ],
   comedy: [
-    { suffix: "compilation",      tag: "trend" },
-    { suffix: "best moments",     tag: null    },
-    { suffix: "reaction",         tag: null    },
-    { suffix: "shorts",           tag: null    },
-    { suffix: "try not to laugh", tag: null    },
-    { suffix: "roast",            tag: null    },
+    { suffix: "compilation", tag: "trend" },
+    { suffix: "best moments", tag: null },
+    { suffix: "reaction", tag: null },
+    { suffix: "shorts", tag: null },
+    { suffix: "try not to laugh", tag: null },
+    { suffix: "roast", tag: null },
   ],
   cooking: [
-    { suffix: "easy recipe",       tag: null    },
-    { suffix: "step by step",      tag: null    },
-    { suffix: "5 minute recipe",   tag: "trend" },
-    { suffix: "for beginners",     tag: null    },
-    { suffix: "restaurant style",  tag: null    },
-    { suffix: "shorts",            tag: null    },
+    { suffix: "easy recipe", tag: null },
+    { suffix: "step by step", tag: null },
+    { suffix: "5 minute recipe", tag: "trend" },
+    { suffix: "for beginners", tag: null },
+    { suffix: "restaurant style", tag: null },
+    { suffix: "shorts", tag: null },
   ],
   travel: [
-    { suffix: "travel vlog 2025", tag: "new"   },
-    { suffix: "best places",      tag: "trend" },
-    { suffix: "travel guide",     tag: null    },
-    { suffix: "hidden gems",      tag: null    },
-    { suffix: "budget travel",    tag: null    },
-    { suffix: "4K",               tag: null    },
+    { suffix: "travel vlog 2025", tag: "new" },
+    { suffix: "best places", tag: "trend" },
+    { suffix: "travel guide", tag: null },
+    { suffix: "hidden gems", tag: null },
+    { suffix: "budget travel", tag: null },
+    { suffix: "4K", tag: null },
   ],
   default: [
-    { suffix: "2025",       tag: "new"   },
-    { suffix: "explained",  tag: null    },
-    { suffix: "tutorial",   tag: null    },
-    { suffix: "review",     tag: null    },
+    { suffix: "2025", tag: "new" },
+    { suffix: "explained", tag: null },
+    { suffix: "tutorial", tag: null },
+    { suffix: "review", tag: null },
     { suffix: "highlights", tag: "trend" },
-    { suffix: "shorts",     tag: null    },
+    { suffix: "shorts", tag: null },
   ],
 };
 
@@ -112,52 +113,46 @@ const TRENDING_GLOBAL = [
 ];
 
 const CATEGORY_LABELS = {
-  music:   "🎵 Music",
-  gaming:  "🎮 Gaming",
-  sports:  "🏆 Sports",
-  tech:    "💻 Tech",
-  news:    "📰 News",
-  comedy:  "😂 Comedy",
+  music: "🎵 Music",
+  gaming: "🎮 Gaming",
+  sports: "🏆 Sports",
+  tech: "💻 Tech",
+  news: "📰 News",
+  comedy: "😂 Comedy",
   cooking: "🍳 Cooking",
-  travel:  "✈️ Travel",
+  travel: "✈️ Travel",
+  default: null,
 };
 
+// Search history stored in memory (you can persist to localStorage if desired)
 let _searchHistory = [];
 
 const getSuggestions = (q) => {
-  if (!q.trim()) {
-    return {
-      items: [],
-      category: null,
-      trending: TRENDING_GLOBAL.slice(0, 4),
-      history: _searchHistory.slice(0, 3),
-    };
-  }
+  if (!q.trim()) return { items: [], category: null, trending: [], history: _searchHistory.slice(0, 3) };
 
   let category = "default";
   for (const [cat, pattern] of Object.entries(CATEGORY_PATTERNS)) {
-    if (pattern.test(q)) {
-      category = cat;
-      break;
-    }
+    if (pattern.test(q)) { category = cat; break; }
   }
 
-  const items = CATEGORY_SUFFIXES[category].slice(0, 5).map(({ suffix, tag }) => ({
+  const suffixes = CATEGORY_SUFFIXES[category];
+  const items = suffixes.slice(0, 5).map(({ suffix, tag }) => ({
     text: `${q} ${suffix}`,
     displayQuery: q,
     displaySuffix: suffix,
     tag,
+    type: "suggestion",
   }));
 
-  const trending = TRENDING_GLOBAL
-    .filter((t) => !t.toLowerCase().includes(q.toLowerCase()))
-    .slice(0, 3);
+  const trending = TRENDING_GLOBAL.filter(
+    (t) => !t.toLowerCase().includes(q.toLowerCase()) && t !== q
+  ).slice(0, 3);
 
-  const history = _searchHistory
+  const historyMatches = _searchHistory
     .filter((h) => h.toLowerCase().includes(q.toLowerCase()) && h !== q)
     .slice(0, 2);
 
-  return { items, category: category !== "default" ? category : null, trending, history };
+  return { items, category, trending, history: historyMatches };
 };
 
 const addToHistory = (q) => {
@@ -165,16 +160,16 @@ const addToHistory = (q) => {
   _searchHistory = [q, ..._searchHistory.filter((h) => h !== q)].slice(0, 10);
 };
 
-// ─── Tag badge ────────────────────────────────────────────────────────────────
+// ─── Tag badge renderer ────────────────────────────────────────────────────────
 const TagBadge = ({ tag }) => {
   if (!tag) return null;
-  const map = {
-    live:  { bg: "rgba(251,146,60,0.15)",  color: "#fb923c", border: "1px solid rgba(124,51,0,0.5)", text: "🔴 LIVE"    },
-    new:   { bg: "rgba(74,222,128,0.12)",  color: "#4ade80", border: "none",                         text: "NEW"        },
-    trend: { bg: "rgba(255,112,102,0.12)", color: "#ff7066", border: "none",                         text: "↑ TRENDING" },
-    music: { bg: "rgba(167,139,250,0.12)", color: "#a78bfa", border: "none",                         text: "♪ MUSIC"    },
+  const styles = {
+    live:  { bg: "rgba(251,146,60,0.15)", color: "#fb923c", border: "1px solid rgba(124,51,0,0.4)", text: "🔴 LIVE" },
+    new:   { bg: "rgba(74,222,128,0.12)", color: "#4ade80", border: "none", text: "NEW" },
+    trend: { bg: "rgba(255,112,102,0.12)", color: "#ff7066", border: "none", text: "↑ TRENDING" },
+    music: { bg: "rgba(167,139,250,0.12)", color: "#a78bfa", border: "none", text: "♪ MUSIC" },
   };
-  const s = map[tag];
+  const s = styles[tag];
   if (!s) return null;
   return (
     <span style={{
@@ -182,19 +177,19 @@ const TagBadge = ({ tag }) => {
       flexShrink: 0,
       fontSize: "10px",
       fontWeight: "700",
-      letterSpacing: "0.05em",
-      padding: "2px 8px",
+      letterSpacing: "0.04em",
+      padding: "2px 7px",
       borderRadius: "10px",
       background: s.bg,
       color: s.color,
-      border: s.border,
+      border: s.border || "none",
     }}>
       {s.text}
     </span>
   );
 };
 
-// ─── Notification helpers ─────────────────────────────────────────────────────
+// ─── Notification helpers ──────────────────────────────────────────────────────
 const getNotifStyle = (type) => {
   switch (type) {
     case "upload":     return { color: "#ff4444", icon: "🎬" };
@@ -205,7 +200,7 @@ const getNotifStyle = (type) => {
   }
 };
 
-// ─── Main Navbar ──────────────────────────────────────────────────────────────
+// ─── Main Navbar Component ─────────────────────────────────────────────────────
 const Navbar = ({
   currentUser,
   setSideNavbarFunc,
@@ -219,21 +214,22 @@ const Navbar = ({
   const [userPic] = useState(
     "https://athenabpo.com/wp-content/uploads/2016/09/Headshot-Blank-Person-Circle-300x300.gif"
   );
-  const [navbarModal,       setNavbarModal]       = useState(false);
-  const [login,             setLogin]             = useState(false);
-  const [searchQuery,       setSearchQuery]       = useState("");
-  const [suggestionData,    setSuggestionData]    = useState({ items: [], category: null, trending: [], history: [] });
-  const [showDropdown,      setShowDropdown]      = useState(false);
-  const [activeIndex,       setActiveIndex]       = useState(-1);
-  const [isListening,       setIsListening]       = useState(false);
+  const [navbarModal, setNavbarModal]           = useState(false);
+  const [login, setLogin]                       = useState(false);
+  const [searchQuery, setSearchQuery]           = useState("");
+  const [suggestionData, setSuggestionData]     = useState({ items: [], category: null, trending: [], history: [] });
+  const [showDropdown, setShowDropdown]         = useState(false);
+  const [activeIndex, setActiveIndex]           = useState(-1);
+  const [isListening, setIsListening]           = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [isSearchFocused,   setIsSearchFocused]   = useState(false);
-  const [logoKey,           setLogoKey]           = useState(0);
+  const [isSearchFocused, setIsSearchFocused]   = useState(false);
+  const [logoKey, setLogoKey]                   = useState(0);
+  const [searchBarActive, setSearchBarActive]   = useState(false);
 
-  const dropdownRef    = useRef(null);
-  const notifRef       = useRef(null);
+  const dropdownRef  = useRef(null);
+  const notifRef     = useRef(null);
   const recognitionRef = useRef(null);
-  const inputRef       = useRef(null);
+  const inputRef     = useRef(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -251,53 +247,74 @@ const Navbar = ({
   }, [location.pathname]);
 
   useEffect(() => {
-    const h = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target))
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setShowDropdown(false);
+        setSearchBarActive(false);
+      }
     };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   useEffect(() => {
-    const h = (e) => {
+    const handleClickOutside = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target))
         setShowNotifications(false);
     };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   useEffect(() => {
-    const id = setInterval(() => setLogoKey((p) => p + 1), 3000);
-    return () => clearInterval(id);
+    const interval = setInterval(() => setLogoKey((prev) => prev + 1), 3000);
+    return () => clearInterval(interval);
   }, []);
+
+  const sideNavbarFunc = () => setSideNavbarFunc(!sideNavbar);
+
+  const handleprofile = () => {
+    navigate(`/user/${currentUser}`);
+    setNavbarModal(false);
+  };
+
+  const setLoginModal = () => setLogin(false);
+
+  const onclickOfPopUpOption = (button) => {
+    setNavbarModal(false);
+    if (button === "login") setLogin(true);
+  };
 
   const handleInputChange = (e) => {
     const val = e.target.value;
     setSearchQuery(val);
     setActiveIndex(-1);
-    setSuggestionData(getSuggestions(val));
-    setShowDropdown(true);
+    if (val.trim()) {
+      setSuggestionData(getSuggestions(val));
+      setShowDropdown(true);
+    } else {
+      // Show history + trending when input is empty but focused
+      setSuggestionData({ items: [], category: null, trending: TRENDING_GLOBAL.slice(0, 4), history: _searchHistory.slice(0, 3) });
+      setShowDropdown(true);
+    }
   };
 
   const doSearch = (q) => {
     if (!q.trim()) return;
     addToHistory(q);
     setShowDropdown(false);
+    setSearchBarActive(false);
     setSearchQuery(q);
     setIsSearchFocused(true);
     navigate(`/search?q=${encodeURIComponent(q)}`);
     setTimeout(() => setIsSearchFocused(false), 1500);
   };
 
-  const historyCount = suggestionData.history.length;
-  const suggCount    = suggestionData.items.length;
-
+  // Flatten all items for keyboard navigation
   const allNavItems = [
-    ...suggestionData.history.map((h) => ({ text: h, type: "history"    })),
-    ...suggestionData.items.map((s)    => ({ ...s,   type: "suggestion" })),
-    ...suggestionData.trending.map((t) => ({ text: t, type: "trending"  })),
+    ...suggestionData.history.map((h) => ({ text: h, type: "history" })),
+    ...suggestionData.items,
+    ...suggestionData.trending.map((t) => ({ text: t, type: "trending" })),
   ];
 
   const handleKeyDown = (e) => {
@@ -307,67 +324,77 @@ const Navbar = ({
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex((p) => Math.min(p + 1, allNavItems.length - 1));
+      setActiveIndex((prev) => Math.min(prev + 1, allNavItems.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActiveIndex((p) => Math.max(p - 1, -1));
+      setActiveIndex((prev) => Math.max(prev - 1, -1));
     } else if (e.key === "Enter") {
-      activeIndex >= 0 && allNavItems[activeIndex]
-        ? doSearch(allNavItems[activeIndex].text)
-        : doSearch(searchQuery);
+      if (activeIndex >= 0 && allNavItems[activeIndex]) {
+        doSearch(allNavItems[activeIndex].text);
+      } else {
+        doSearch(searchQuery);
+      }
     } else if (e.key === "Escape") {
       setShowDropdown(false);
+      setSearchBarActive(false);
       inputRef.current?.blur();
-    } else if (e.key === "Tab" && activeIndex >= 0 && allNavItems[activeIndex]) {
+    }
+    // Arrow right: fill input with active suggestion but don't search
+    else if (e.key === "Tab" && activeIndex >= 0 && allNavItems[activeIndex]) {
       e.preventDefault();
-      const filled = allNavItems[activeIndex].text;
-      setSearchQuery(filled);
-      setSuggestionData(getSuggestions(filled));
+      setSearchQuery(allNavItems[activeIndex].text);
+      setSuggestionData(getSuggestions(allNavItems[activeIndex].text));
     }
   };
 
-  // ─── Voice search ─────────────────────────────────────────────────────────
+  // ─── Voice search ──────────────────────────────────────────────────────────
   const speak = (text, callback) => {
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-IN";
-    u.rate = 1.1;
-    u.onend = callback;
-    window.speechSynthesis.speak(u);
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "en-IN";
+    utter.rate = 1.1;
+    utter.onend = callback;
+    window.speechSynthesis.speak(utter);
   };
 
   const startVoiceSearch = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
       alert("Voice search not supported. Try Chrome.");
       return;
     }
     setIsListening(true);
     let gotResult = false;
+
     speak("Please speak now", () => {
-      const r = new SR();
-      recognitionRef.current = r;
-      r.lang = "en-IN";
-      r.interimResults = false;
-      r.maxAlternatives = 1;
-      r.onresult = (ev) => {
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      recognition.lang = "en-IN";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onresult = (event) => {
         gotResult = true;
-        const transcript = ev.results[0][0].transcript;
-        r.stop();
+        const transcript = event.results[0][0].transcript;
+        recognition.stop();
         setIsListening(false);
         doSearch(transcript);
       };
-      r.onerror = (ev) => {
-        if (ev.error === "not-allowed") {
+
+      recognition.onerror = (e) => {
+        if (e.error === "not-allowed") {
           setIsListening(false);
           alert("Mic blocked. Allow mic in Chrome settings.");
         }
       };
-      r.onend = () => {
+
+      recognition.onend = () => {
         if (!gotResult) {
-          try { r.start(); } catch (_) {}
+          try { recognition.start(); } catch (e) {}
         }
       };
-      r.start();
+
+      recognition.start();
     });
   };
 
@@ -379,51 +406,22 @@ const Navbar = ({
     setIsListening(false);
   };
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
-  const hasDropdownContent =
-    suggestionData.history.length > 0 ||
-    suggestionData.items.length > 0 ||
-    suggestionData.trending.length > 0;
+  // Compute which flat-nav index maps to which section for styling
+  const historyCount  = suggestionData.history.length;
+  const suggCount     = suggestionData.items.length;
+  const getItemType   = (flatIdx) => {
+    if (flatIdx < historyCount) return "history";
+    if (flatIdx < historyCount + suggCount) return "suggestion";
+    return "trending";
+  };
 
-  const rowStyle = (fi) => ({
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    padding: "9px 16px",
-    cursor: "pointer",
-    background: activeIndex === fi ? "#2a2a2a" : "transparent",
-    transition: "background 0.15s",
-    color: "#ccc",
-    fontSize: "14px",
-  });
-
-  const SectionLabel = ({ children }) => (
-    <div style={{
-      padding: "6px 16px 2px",
-      fontSize: "11px",
-      color: "#666",
-      fontWeight: "600",
-      letterSpacing: "0.06em",
-      textTransform: "uppercase",
-      display: "flex",
-      alignItems: "center",
-      gap: "5px",
-    }}>
-      {children}
-    </div>
-  );
-
-  const Divider = () => (
-    <div style={{ height: "1px", background: "#2a2a2a", margin: "4px 0" }} />
-  );
-
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="navbar">
 
-      {/* ── LEFT ──────────────────────────────────────────────────────────── */}
+      {/* ── LEFT ─────────────────────────────────────────────────────────── */}
       <div className="navbar-left">
-        <div className="navbarHamberger" onClick={() => setSideNavbarFunc(!sideNavbar)}>
+        <div className="navbarHamberger" onClick={sideNavbarFunc}>
           <ListIcon sx={{ color: "white" }} />
         </div>
         <Link to="/" className="navbar-logo-link">
@@ -446,52 +444,46 @@ const Navbar = ({
         </Link>
       </div>
 
-      {/* ── MIDDLE ────────────────────────────────────────────────────────── */}
-      <div className="navbar-middle" ref={dropdownRef} style={{ position: "relative" }}>
-
-        {/* Pill search bar */}
+      {/* ── MIDDLE ───────────────────────────────────────────────────────── */}
+      <div
+        className="navbar-middle"
+        ref={dropdownRef}
+        style={{ position: "relative" }}
+      >
+        {/* Search box */}
         <div
           className="navbar_searchBox"
           style={{
-            display: "flex",
-            alignItems: "center",
-            background: "#121212",
-            border: "1px solid #303030",
-            borderRadius: showDropdown && hasDropdownContent ? "20px 20px 0 0" : "40px",
-            height: "42px",
-            padding: "0 6px 0 14px",
-            width: "100%",
-            transition: "border-color 0.2s, box-shadow 0.2s, border-radius 0.15s",
-            boxShadow: showDropdown && hasDropdownContent ? "0 0 0 1px #2a2a2a" : "none",
+            position: "relative",
+            transition: "box-shadow 0.2s",
+            boxShadow: searchBarActive ? "0 0 0 2px rgba(62,166,255,0.35)" : "none",
+            borderRadius: searchBarActive && showDropdown ? "20px 20px 0 0" : "20px",
           }}
         >
-          {/* Left search icon — decorative */}
-          <SearchIcon sx={{ fontSize: "18px", color: "#717171", flexShrink: 0, pointerEvents: "none" }} />
-
-          {/* Text input */}
           <input
             ref={inputRef}
             type="text"
             placeholder="Search"
+            className="navbar_searchBoxInput"
             value={searchQuery}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onFocus={() => {
-              setSuggestionData(getSuggestions(searchQuery));
+              setSearchBarActive(true);
+              if (searchQuery.trim()) {
+                setSuggestionData(getSuggestions(searchQuery));
+              } else {
+                setSuggestionData({
+                  items: [],
+                  category: null,
+                  trending: TRENDING_GLOBAL.slice(0, 4),
+                  history: _searchHistory.slice(0, 3),
+                });
+              }
               setShowDropdown(true);
             }}
             onBlur={() => setIsSearchFocused(false)}
             autoComplete="off"
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: "#e8e8e8",
-              fontSize: "15px",
-              padding: "0 10px",
-              caretColor: "white",
-            }}
           />
 
           {/* ✕ Clear button */}
@@ -500,128 +492,194 @@ const Navbar = ({
               onMouseDown={(e) => {
                 e.preventDefault();
                 setSearchQuery("");
-                setSuggestionData(getSuggestions(""));
+                setSuggestionData({ items: [], category: null, trending: TRENDING_GLOBAL.slice(0, 4), history: _searchHistory.slice(0, 3) });
                 setShowDropdown(true);
                 inputRef.current?.focus();
               }}
-              title="Clear"
+              title="Clear search"
               style={{
-                width: "22px", height: "22px",
+                position: "absolute",
+                right: "64px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                cursor: "pointer",
+                width: "22px",
+                height: "22px",
                 borderRadius: "50%",
-                background: "#3a3a3a",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", flexShrink: 0,
-                transition: "background 0.15s",
+                background: "#444",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "background 0.2s, transform 0.15s",
+                flexShrink: 0,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#555")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "#3a3a3a")}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#666";
+                e.currentTarget.style.transform = "translateY(-50%) scale(1.15)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#444";
+                e.currentTarget.style.transform = "translateY(-50%) scale(1)";
+              }}
             >
-              <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                 <path d="M1 1L9 9M9 1L1 9" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </div>
           )}
 
-          {/* Thin vertical divider */}
-          <div style={{ width: "1px", height: "24px", background: "#2e2e2e", flexShrink: 0, margin: "0 4px" }} />
-
-          {/* Mic — inside the bar */}
+          {/* 🔍 Search icon */}
           <div
-            onClick={startVoiceSearch}
-            title="Voice Search"
-            style={{
-              width: "34px", height: "34px",
-              borderRadius: "50%",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", flexShrink: 0,
-              transition: "background 0.15s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#272727")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            className="navbar_searchIconBox"
+            onClick={() => doSearch(searchQuery)}
           >
-            <KeyboardVoiceIcon
-              sx={{ fontSize: "20px", color: isListening ? "#ff4444" : "#717171", transition: "color 0.2s" }}
+            <PublicIcon
+              sx={{
+                fontSize: "28px",
+                animation: isSearchFocused ? "spinIcon 0.8s linear infinite" : "none",
+              }}
             />
           </div>
         </div>
 
-        {/* Advanced dropdown */}
-        {showDropdown && hasDropdownContent && (
-          <div style={{
-            position: "absolute",
-            top: "42px", left: 0,
-            width: "100%",
-            background: "#1a1a1a",
-            borderRadius: "0 0 16px 16px",
-            boxShadow: "0 12px 32px rgba(0,0,0,0.7)",
-            zIndex: 9999,
-            overflow: "hidden",
-            border: "1px solid #2e2e2e",
-            borderTop: "none",
-          }}>
+        {/* 🎤 Voice search button */}
+        <div
+          className="navbar_mike"
+          onClick={startVoiceSearch}
+          title="Voice Search"
+          style={{ cursor: "pointer" }}
+        >
+          <KeyboardVoiceIcon
+            sx={{ color: isListening ? "red" : "white", transition: "color 0.2s" }}
+          />
+        </div>
+
+        {/* ── Advanced Suggestions Dropdown ──────────────────────────────── */}
+        {showDropdown && (
+          (suggestionData.history.length > 0 ||
+           suggestionData.items.length > 0 ||
+           suggestionData.trending.length > 0) && (
+          <div
+            style={{
+              position: "absolute",
+              top: "48px",
+              left: 0,
+              width: "calc(100% - 52px)",
+              background: "#1e1e1e",
+              borderRadius: "0 0 14px 14px",
+              boxShadow: "0 12px 32px rgba(0,0,0,0.7)",
+              zIndex: 9999,
+              overflow: "hidden",
+              border: "1px solid #333",
+              borderTop: "none",
+            }}
+          >
 
             {/* Category pill */}
-            {suggestionData.category && (
-              <div style={{ padding: "8px 16px 4px", display: "flex", alignItems: "center", gap: "8px" }}>
+            {suggestionData.category && CATEGORY_LABELS[suggestionData.category] && (
+              <div style={{ padding: "8px 14px 4px", display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{
-                  fontSize: "11px", color: "#aaa",
-                  background: "#272727", border: "1px solid #3a3a3a",
-                  borderRadius: "12px", padding: "2px 10px",
+                  fontSize: "11px",
+                  color: "#aaa",
+                  background: "#2a2a2a",
+                  border: "1px solid #3a3a3a",
+                  borderRadius: "12px",
+                  padding: "2px 10px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
                 }}>
-                  {CATEGORY_LABELS[suggestionData.category]} suggestions
+                  {CATEGORY_LABELS[suggestionData.category]}
+                  <span style={{ color: "#666" }}>suggestions</span>
                 </span>
-                <span style={{ fontSize: "11px", color: "#444" }}>Tab → autocomplete</span>
+                <span style={{ fontSize: "11px", color: "#555" }}>
+                  Tab → to autocomplete
+                </span>
               </div>
             )}
 
-            {/* Recent history */}
+            {/* ── Recent searches ─────────────────────────────────────────── */}
             {suggestionData.history.length > 0 && (
               <>
-                <SectionLabel>Recent</SectionLabel>
-                {suggestionData.history.map((h, i) => (
-                  <div
-                    key={`h-${i}`}
-                    onMouseDown={() => doSearch(h)}
-                    onMouseEnter={() => setActiveIndex(i)}
-                    style={rowStyle(i)}
-                  >
-                    <HistoryIcon sx={{ fontSize: "16px", color: "#555", flexShrink: 0 }} />
-                    <span style={{ flex: 1 }}>{h}</span>
-                    <span
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        _searchHistory = _searchHistory.filter((x) => x !== h);
-                        setSuggestionData(getSuggestions(searchQuery));
+                <div style={{ fontSize: "11px", color: "#555", padding: "8px 14px 4px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  Recent
+                </div>
+                {suggestionData.history.map((h, i) => {
+                  const flatIdx = i;
+                  return (
+                    <div
+                      key={`hist-${i}`}
+                      onMouseDown={() => doSearch(h)}
+                      onMouseEnter={() => setActiveIndex(flatIdx)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "9px 14px",
+                        cursor: "pointer",
+                        background: activeIndex === flatIdx ? "#2a2a2a" : "transparent",
+                        transition: "background 0.15s",
+                        color: "#ccc",
+                        fontSize: "14px",
                       }}
-                      style={{ color: "#444", fontSize: "18px", lineHeight: 1, cursor: "pointer", padding: "0 2px" }}
-                      title="Remove"
                     >
-                      ×
-                    </span>
-                  </div>
-                ))}
-                {(suggestionData.items.length > 0 || suggestionData.trending.length > 0) && <Divider />}
+                      <HistoryIcon sx={{ fontSize: "17px", color: "#555" }} />
+                      <span>{h}</span>
+                      {/* Remove from history */}
+                      <span
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          _searchHistory = _searchHistory.filter((x) => x !== h);
+                          setSuggestionData(getSuggestions(searchQuery));
+                        }}
+                        style={{ marginLeft: "auto", color: "#444", fontSize: "16px", lineHeight: 1, cursor: "pointer", padding: "0 4px" }}
+                        title="Remove"
+                      >
+                        ×
+                      </span>
+                    </div>
+                  );
+                })}
+                {(suggestionData.items.length > 0 || suggestionData.trending.length > 0) && (
+                  <div style={{ height: "0.5px", background: "#2a2a2a", margin: "2px 0" }} />
+                )}
               </>
             )}
 
-            {/* Context-aware suggestions */}
+            {/* ── Context-aware suggestions ────────────────────────────────── */}
             {suggestionData.items.length > 0 && (
               <>
-                {!suggestionData.category && <SectionLabel>Suggestions</SectionLabel>}
+                {!suggestionData.category && (
+                  <div style={{ fontSize: "11px", color: "#555", padding: "8px 14px 4px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                    Suggestions
+                  </div>
+                )}
                 {suggestionData.items.map((item, i) => {
-                  const fi = historyCount + i;
+                  const flatIdx = historyCount + i;
                   return (
                     <div
-                      key={`s-${i}`}
+                      key={`sugg-${i}`}
                       onMouseDown={() => doSearch(item.text)}
-                      onMouseEnter={() => setActiveIndex(fi)}
-                      style={rowStyle(fi)}
+                      onMouseEnter={() => setActiveIndex(flatIdx)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "9px 14px",
+                        cursor: "pointer",
+                        background: activeIndex === flatIdx ? "#2a2a2a" : "transparent",
+                        transition: "background 0.15s",
+                        color: "#ccc",
+                        fontSize: "14px",
+                      }}
                     >
-                      <SearchIcon sx={{ fontSize: "16px", color: "#555", flexShrink: 0 }} />
-                      <span style={{ flex: 1 }}>
-                        <span style={{ color: "white", fontWeight: "500" }}>{item.displayQuery}</span>
+                      <SearchIcon sx={{ fontSize: "17px", color: "#555" }} />
+                      <span>
+                        <span style={{ color: "white", fontWeight: "500" }}>
+                          {item.displayQuery}
+                        </span>
                         {" "}
-                        <span style={{ color: "#888" }}>{item.displaySuffix}</span>
+                        <span style={{ color: "#aaa" }}>{item.displaySuffix}</span>
                       </span>
                       <TagBadge tag={item.tag} />
                     </div>
@@ -630,79 +688,113 @@ const Navbar = ({
               </>
             )}
 
-            {/* Trending */}
+            {/* ── Trending section ─────────────────────────────────────────── */}
             {suggestionData.trending.length > 0 && (
               <>
-                <Divider />
-                <SectionLabel>
+                <div style={{ height: "0.5px", background: "#2a2a2a", margin: "4px 0" }} />
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "8px 14px 4px",
+                  fontSize: "11px",
+                  color: "#555",
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                }}>
                   <WhatshotIcon sx={{ fontSize: "13px", color: "#ff7066" }} />
                   Trending now
-                </SectionLabel>
+                </div>
                 {suggestionData.trending.map((t, i) => {
-                  const fi = historyCount + suggCount + i;
+                  const flatIdx = historyCount + suggCount + i;
                   return (
                     <div
-                      key={`t-${i}`}
+                      key={`trend-${i}`}
                       onMouseDown={() => doSearch(t)}
-                      onMouseEnter={() => setActiveIndex(fi)}
-                      style={rowStyle(fi)}
+                      onMouseEnter={() => setActiveIndex(flatIdx)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "9px 14px",
+                        cursor: "pointer",
+                        background: activeIndex === flatIdx ? "#2a2a2a" : "transparent",
+                        transition: "background 0.15s",
+                        color: "#ccc",
+                        fontSize: "14px",
+                      }}
                     >
-                      <TrendingUpIcon sx={{ fontSize: "16px", color: "#ff7066", flexShrink: 0 }} />
-                      <span style={{ flex: 1 }}>{t}</span>
-                      <span style={{ fontSize: "13px" }}>🔥</span>
+                      <TrendingUpIcon sx={{ fontSize: "17px", color: "#ff7066" }} />
+                      <span>{t}</span>
+                      <span style={{ marginLeft: "auto", fontSize: "12px" }}>🔥</span>
                     </div>
                   );
                 })}
               </>
             )}
 
-            {/* Footer */}
+            {/* ── Footer: search all categories ────────────────────────────── */}
             {searchQuery.trim() && (
               <>
-                <Divider />
+                <div style={{ height: "0.5px", background: "#2a2a2a" }} />
                 <div
                   onMouseDown={() => doSearch(searchQuery)}
                   style={{
-                    display: "flex", alignItems: "center", gap: "10px",
-                    padding: "10px 16px", cursor: "pointer",
-                    color: "#3ea6ff", fontSize: "13px", transition: "background 0.15s",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: "10px 14px",
+                    cursor: "pointer",
+                    color: "#3ea6ff",
+                    fontSize: "13px",
+                    transition: "background 0.15s",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#222")}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  <SearchIcon sx={{ fontSize: "16px" }} />
-                  Search for&nbsp;<strong>"{searchQuery}"</strong>
+                  <PublicIcon sx={{ fontSize: "17px" }} />
+                  Search for&nbsp;<strong>"{searchQuery}"</strong>&nbsp;across all categories
                 </div>
               </>
             )}
           </div>
-        )}
+        ))}
       </div>
 
-      {/* ── RIGHT ─────────────────────────────────────────────────────────── */}
+      {/* ── RIGHT ────────────────────────────────────────────────────────── */}
       <div className="navbar-right">
 
-        {/* Local media player */}
-        <span onClick={() => navigate("/local-player")} title="Local Player" style={{ cursor: "pointer" }}>
+        {/* Local Media Player */}
+        <span
+          onClick={() => navigate("/local-player")}
+          title="Local Player"
+          style={{ cursor: "pointer" }}
+        >
           <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
             <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
           </svg>
         </span>
 
-        {/* YouTube */}
-        <span onClick={() => navigate("/youtube", { state: { reload: Date.now() } })} style={{ cursor: "pointer" }}>
+        {/* YouTube redirect */}
+        <span
+          onClick={() => navigate("/youtube", { state: { reload: Date.now() } })}
+          style={{ cursor: "pointer" }}
+        >
           <YouTubeIcon sx={{ fontSize: "30px", color: "red" }} />
         </span>
 
         {/* Upload */}
-        <span onClick={() => navigate("/763/upload")} style={{ cursor: "pointer" }}>
+        <span
+          onClick={() => navigate("/763/upload")}
+          style={{ cursor: "pointer" }}
+        >
           <VideoCameraFrontIcon sx={{ fontSize: "30px", color: "white" }} />
         </span>
 
         {/* 🔔 Notifications */}
         <div ref={notifRef} style={{ position: "relative" }}>
           <div
-            onClick={() => setShowNotifications((p) => !p)}
+            onClick={() => setShowNotifications((prev) => !prev)}
             style={{ position: "relative", cursor: "pointer", display: "flex" }}
           >
             <NotificationsActiveIcon
@@ -715,11 +807,19 @@ const Navbar = ({
             />
             {unreadCount > 0 && (
               <span style={{
-                position: "absolute", top: "-4px", right: "-4px",
-                background: "red", color: "white",
-                borderRadius: "50%", fontSize: "10px", fontWeight: "700",
-                width: "18px", height: "18px",
-                display: "flex", alignItems: "center", justifyContent: "center",
+                position: "absolute",
+                top: "-4px",
+                right: "-4px",
+                background: "red",
+                color: "white",
+                borderRadius: "50%",
+                fontSize: "10px",
+                fontWeight: "700",
+                width: "18px",
+                height: "18px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 border: "2px solid #0f0f0f",
                 animation: "badgePop 0.3s ease",
               }}>
@@ -730,16 +830,27 @@ const Navbar = ({
 
           {showNotifications && (
             <div style={{
-              position: "absolute", top: "42px", right: "-10px",
-              width: "360px", background: "#212121",
-              borderRadius: "12px", boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
-              zIndex: 99999, border: "1px solid #333", overflow: "hidden",
+              position: "absolute",
+              top: "42px",
+              right: "-10px",
+              width: "360px",
+              background: "#212121",
+              borderRadius: "12px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
+              zIndex: 99999,
+              border: "1px solid #333",
+              overflow: "hidden",
             }}>
               <div style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                padding: "14px 16px", borderBottom: "1px solid #333",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "14px 16px",
+                borderBottom: "1px solid #333",
               }}>
-                <span style={{ color: "white", fontWeight: "600", fontSize: "16px" }}>Notifications</span>
+                <span style={{ color: "white", fontWeight: "600", fontSize: "16px" }}>
+                  Notifications
+                </span>
                 {unreadCount > 0 && (
                   <span
                     onClick={markAllRead}
@@ -749,6 +860,7 @@ const Navbar = ({
                   </span>
                 )}
               </div>
+
               <div style={{ maxHeight: "400px", overflowY: "auto" }}>
                 {notifications.map((n) => {
                   const { color, icon } = getNotifStyle(n.type);
@@ -757,39 +869,55 @@ const Navbar = ({
                       key={n.id}
                       onClick={() => markOneRead(n.id)}
                       style={{
-                        display: "flex", alignItems: "flex-start", gap: "12px",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "12px",
                         padding: "12px 16px",
                         background: n.read ? "transparent" : "rgba(255,255,255,0.05)",
                         borderBottom: "1px solid #2a2a2a",
-                        cursor: "pointer", transition: "background 0.2s",
+                        cursor: "pointer",
+                        transition: "background 0.2s",
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = n.read ? "transparent" : "rgba(255,255,255,0.05)")}
                     >
                       <div style={{
-                        width: "40px", height: "40px", borderRadius: "50%",
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "50%",
                         background: color,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontWeight: "700", fontSize: "15px", color: "white", flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: "700",
+                        fontSize: "15px",
+                        color: "white",
+                        flexShrink: 0,
                       }}>
                         {n.avatar}
                       </div>
                       <div style={{ flex: 1 }}>
                         <p style={{ margin: 0, color: n.read ? "#aaa" : "white", fontSize: "13px", lineHeight: "1.4" }}>
-                          <span style={{ marginRight: "5px" }}>{icon}</span>{n.message}
+                          <span style={{ marginRight: "5px" }}>{icon}</span>
+                          {n.message}
                         </p>
                         <span style={{ color: "#666", fontSize: "11px" }}>{n.time}</span>
                       </div>
                       {!n.read && (
                         <div style={{
-                          width: "8px", height: "8px", borderRadius: "50%",
-                          background: "#3ea6ff", flexShrink: 0, marginTop: "4px",
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          background: "#3ea6ff",
+                          flexShrink: 0,
+                          marginTop: "4px",
                         }} />
                       )}
                     </div>
                   );
                 })}
               </div>
+
               <div style={{ padding: "12px", textAlign: "center", borderTop: "1px solid #333" }}>
                 <span
                   style={{ color: "#3ea6ff", fontSize: "13px", cursor: "pointer" }}
@@ -804,64 +932,70 @@ const Navbar = ({
 
         {/* 👤 Profile */}
         <img
-          onClick={() => setNavbarModal((p) => !p)}
+          onClick={() => setNavbarModal((prev) => !prev)}
           src={userPic}
           alt="User"
           className="navbar-right-logo"
         />
         {navbarModal && (
           <div className="navbar-modal">
-            <div
-              className="navbar-modal-option"
-              onClick={() => { navigate(`/user/${currentUser}`); setNavbarModal(false); }}
-            >
-              Profile
-            </div>
-            <div className="navbar-modal-option" onClick={() => setNavbarModal(false)}>
-              Logout
-            </div>
-            <div
-              className="navbar-modal-option"
-              onClick={() => { setNavbarModal(false); setLogin(true); }}
-            >
-              Login
-            </div>
+            <div className="navbar-modal-option" onClick={handleprofile}>Profile</div>
+            <div className="navbar-modal-option" onClick={() => onclickOfPopUpOption("logout")}>Logout</div>
+            <div className="navbar-modal-option" onClick={() => onclickOfPopUpOption("login")}>Login</div>
           </div>
         )}
       </div>
 
-      {login && <Login setLoginModal={() => setLogin(false)} />}
+      {login && <Login setLoginModal={setLoginModal} />}
 
       {/* 🎤 Voice search overlay */}
       {isListening && (
         <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.75)", zIndex: 99999,
-          display: "flex", alignItems: "center", justifyContent: "center",
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)",
+          zIndex: 99999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+          gap: "20px",
         }}>
           <div style={{
-            background: "#1e1e1e", borderRadius: "20px",
-            padding: "48px 64px",
-            display: "flex", flexDirection: "column", alignItems: "center", gap: "20px",
-            border: "1px solid #333",
+            background: "#212121",
+            borderRadius: "16px",
+            padding: "40px 60px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "20px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
           }}>
             <div style={{
-              width: "80px", height: "80px", borderRadius: "50%",
-              background: "#ff4444",
-              display: "flex", alignItems: "center", justifyContent: "center",
+              width: "80px",
+              height: "80px",
+              borderRadius: "50%",
+              background: "red",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               animation: "pulse 1.2s infinite",
             }}>
               <KeyboardVoiceIcon sx={{ fontSize: "40px", color: "white" }} />
             </div>
-            <p style={{ color: "white", fontSize: "20px", fontWeight: "600", margin: 0 }}>Listening...</p>
-            <p style={{ color: "#888", fontSize: "14px", margin: 0 }}>Speak now to search</p>
+            <p style={{ color: "white", fontSize: "20px", fontWeight: "600" }}>Listening...</p>
+            <p style={{ color: "#aaa", fontSize: "14px" }}>Speak now to search</p>
             <button
               onClick={stopVoiceSearch}
               style={{
-                marginTop: "8px", padding: "8px 28px",
-                borderRadius: "8px", border: "1px solid #444",
-                background: "transparent", color: "white",
-                cursor: "pointer", fontSize: "14px",
+                marginTop: "10px",
+                padding: "8px 24px",
+                borderRadius: "8px",
+                border: "1px solid #555",
+                background: "transparent",
+                color: "white",
+                cursor: "pointer",
+                fontSize: "14px",
               }}
             >
               Cancel

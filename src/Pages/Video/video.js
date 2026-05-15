@@ -653,17 +653,21 @@ const Video = () => {
   };
 
   useEffect(() => {
-    const handleSpacebar = (e) => {
-      if (e.code === "Space" || e.key === " ") {
-        e.preventDefault();
-        const vid = videoRef.current;
-        if (!vid) return;
-        vid.paused ? vid.play() : vid.pause();
-      }
-    };
-    window.addEventListener("keydown", handleSpacebar);
-    return () => window.removeEventListener("keydown", handleSpacebar);
-  }, []);
+  const handleSpacebar = (e) => {
+    // ✅ Don't intercept spacebar if user is typing in an input/textarea
+    const tag = document.activeElement?.tagName?.toLowerCase();
+    if (tag === "input" || tag === "textarea") return;
+
+    if (e.code === "Space" || e.key === " ") {
+      e.preventDefault();
+      const vid = videoRef.current;
+      if (!vid) return;
+      vid.paused ? vid.play() : vid.pause();
+    }
+  };
+  window.addEventListener("keydown", handleSpacebar);
+  return () => window.removeEventListener("keydown", handleSpacebar);
+}, []);
 
   useEffect(() => {
     setLiked(false);

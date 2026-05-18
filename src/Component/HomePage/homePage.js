@@ -158,7 +158,7 @@ const SuggestionCard = ({ item, isActive, onClick, isMobile }) => {
 };
 
 /* ─────────────────────────────────────────────────────────────
-   WATCH PAGE  (drop-in replacement — matches SearchResults style)
+   WATCH PAGE — stable iframe, no YT API positioning bugs
 ───────────────────────────────────────────────────────────── */
 const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, suggestions }) => {
   const isMobile = useIsMobile();
@@ -168,131 +168,31 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
     return i >= 0 ? i : 0;
   });
 
-  const [autoplay,    setAutoplay]    = useState(true);
-  const [isLiked,     setIsLiked]     = useState(false);
-  const [isDisliked,  setIsDisliked]  = useState(false);
-  const [likeCount]                   = useState(() => Math.floor(Math.random() * 50000) + 1000);
-  const [comments,    setComments]    = useState(MOCK_COMMENTS);
-  const [newComment,  setNewComment]  = useState("");
-  const [likedComments, setLikedComments] = useState(new Set());
-  const [showFullDesc,  setShowFullDesc]  = useState(false);
+  const [autoplay,           setAutoplay]           = useState(true);
+  const [isLiked,            setIsLiked]            = useState(false);
+  const [isDisliked,         setIsDisliked]         = useState(false);
+  const [likeCount]                                 = useState(() => Math.floor(Math.random() * 50000) + 1000);
+  const [comments,           setComments]           = useState(MOCK_COMMENTS);
+  const [newComment,         setNewComment]         = useState("");
+  const [likedComments,      setLikedComments]      = useState(new Set());
+  const [showFullDesc,       setShowFullDesc]       = useState(false);
   const [subscribedChannels, setSubscribedChannels] = useState(new Set());
-
-  const playerRef     = useRef(null);
-  const autoplayRef   = useRef(autoplay);
-  const indexRef      = useRef(currentIndex);
-  const suggestionsRef = useRef(suggestions);
-
-  useEffect(() => { autoplayRef.current   = autoplay;     }, [autoplay]);
-  useEffect(() => { indexRef.current      = currentIndex; }, [currentIndex]);
-  useEffect(() => { suggestionsRef.current = suggestions; }, [suggestions]);
 
   const item        = suggestions[currentIndex] || null;
   const isYT        = item && !!item.snippet;
-  const videoId     = (isYT && item.id?.videoId) ? item.id.videoId    : initialVideoId;
-  const videoTitle  = isYT ? item.snippet.title        : (item?.title    ?? initialTitle);
-  const channelName = isYT ? item.snippet.channelTitle  : (item?.channel  ?? initialChannel);
-  const publishedAt = isYT ? item.snippet.publishedAt   : null;
-  const description = isYT ? item.snippet.description   : null;
-
-  /* ── Load YT IFrame API once ── */
-  useEffect(() => {
-    if (!window.YT) {
-      const tag = document.createElement("script");
-      tag.src = "https://www.youtube.com/iframe_api";
-      document.body.appendChild(tag);
-    }
-  }, []);
-
-  /* ── Init / reinit player whenever videoId changes ── */
-useEffect(() => {
-  if (!videoId) return;
-  let pollInterval = null;
-
-  const initPlayer = () => {
-    // Destroy old player if exists
-    if (playerRef.current) {
-      try { playerRef.current.destroy(); } catch (e) {}
-      playerRef.current = null;
-    }
-
-    // Recreate the inner div fresh
-    const container = document.getElementById("hp-yt-player-container");
-    if (!container) return;
-    container.innerHTML = "";
-    const div = document.createElement("div");
-    div.id = "hp-yt-player";
-    div.style.width  = "100%";
-    div.style.height = "100%";
-    container.appendChild(div);
-
-    playerRef.current = new window.YT.Player("hp-yt-player", {
-      videoId,
-      playerVars: {
-        autoplay:       1,
-        rel:            0,
-        enablejsapi:    1,
-        modestbranding: 1,
-        playsinline:    1,   // ← critical for iOS inline play
-      },
-      events: {
-        onReady: (e) => {
-          // Make sure it actually starts on mobile
-          try { e.target.playVideo(); } catch (_) {}
-
-          pollInterval = setInterval(() => {
-            if (!playerRef.current) return;
-            try {
-              if (playerRef.current.getPlayerState() === 0 && autoplayRef.current) {
-                clearInterval(pollInterval);
-                const next = indexRef.current + 1;
-                const sug  = suggestionsRef.current;
-                if (next < sug.length && sug[next].id?.videoId) goTo(next);
-              }
-            } catch (e) {}
-          }, 1000);
-        },
-        onStateChange: (event) => {
-          if (event.data === 0 && autoplayRef.current) {
-            clearInterval(pollInterval);
-            const next = indexRef.current + 1;
-            const sug  = suggestionsRef.current;
-            if (next < sug.length && sug[next].id?.videoId) goTo(next);
-          }
-        },
-      },
-    });
-  };
-
-  const tryInit = () => {
-    if (window.YT && window.YT.Player) {
-      // Small delay so the DOM is fully painted (especially on mobile)
-      setTimeout(initPlayer, 100);
-    } else {
-      window.onYouTubeIframeAPIReady = initPlayer;
-    }
-  };
-
-  tryInit();
-
-  return () => {
-    clearInterval(pollInterval);
-    if (playerRef.current) {
-      try { playerRef.current.destroy(); } catch (e) {}
-      playerRef.current = null;
-    }
-  };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [videoId]);
+  const videoId     = (isYT && item.id?.videoId) ? item.id.videoId   : initialVideoId;
+  const videoTitle  = isYT ? item.snippet.title       : (item?.title   ?? initialTitle);
+  const channelName = isYT ? item.snippet.channelTitle : (item?.channel ?? initialChannel);
+  const publishedAt = isYT ? item.snippet.publishedAt  : null;
+  const description = isYT ? item.snippet.description  : null;
 
   const goTo = (idx) => {
     setCurrentIndex(Math.max(0, Math.min(idx, suggestions.length - 1)));
     setIsLiked(false); setIsDisliked(false); setShowFullDesc(false);
   };
 
-  const ytSuggestions  = suggestions.filter(s => s.id?.videoId);
-  const hasPrev = ytSuggestions.some(s => suggestions.indexOf(s) < currentIndex);
-  const hasNext = ytSuggestions.some(s => suggestions.indexOf(s) > currentIndex);
+  const hasPrev = suggestions.slice(0, currentIndex).some(s => s.id?.videoId);
+  const hasNext = suggestions.slice(currentIndex + 1).some(s => s.id?.videoId);
 
   const goPrev = () => {
     const rel = [...suggestions.slice(0, currentIndex)].reverse().findIndex(s => s.id?.videoId);
@@ -313,87 +213,138 @@ useEffect(() => {
 
   const addComment = () => {
     if (!newComment.trim()) return;
-    setComments(prev => [{ id: Date.now(), user: "You", avatar: "YO", text: newComment.trim(), likes: 0, time: "Just now" }, ...prev]);
+    setComments(prev => [{
+      id: Date.now(), user: "You", avatar: "YO",
+      text: newComment.trim(), likes: 0, time: "Just now"
+    }, ...prev]);
     setNewComment("");
   };
+
   const toggleCommentLike = (id) => {
     setLikedComments(prev => {
       const next = new Set(prev);
-      if (next.has(id)) { next.delete(id); setComments(c => c.map(x => x.id === id ? { ...x, likes: x.likes - 1 } : x)); }
-      else              { next.add(id);    setComments(c => c.map(x => x.id === id ? { ...x, likes: x.likes + 1 } : x)); }
+      if (next.has(id)) {
+        next.delete(id);
+        setComments(c => c.map(x => x.id === id ? { ...x, likes: x.likes - 1 } : x));
+      } else {
+        next.add(id);
+        setComments(c => c.map(x => x.id === id ? { ...x, likes: x.likes + 1 } : x));
+      }
       return next;
     });
   };
 
-  /* ── Autoplay toggle UI ── */
+  /* ────────────────────────────────────────────
+     PLAYER — pure iframe, 16:9 padding trick
+     This is the ONLY reliable way on mobile.
+     The YT IFrame API injects position:absolute
+     iframes that break inside fixed containers.
+  ──────────────────────────────────────────── */
+  const Player = () => (
+    <div style={{
+      width: "100%",
+      position: "relative",
+      paddingBottom: "56.25%",   /* 16:9 */
+      height: 0,
+      overflow: "hidden",
+      background: "#000",
+      borderRadius: isMobile ? "0" : "12px",
+      flexShrink: 0,
+    }}>
+      <iframe
+        key={videoId}            /* remount on video change */
+        src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
+        title={videoTitle}
+        frameBorder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+        style={{
+          position: "absolute",
+          top: 0, left: 0,
+          width: "100%",
+          height: "100%",
+          border: "none",
+          display: "block",
+        }}
+      />
+    </div>
+  );
+
+  /* ── Autoplay toggle ── */
   const AutoplayToggle = () => (
     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
       <span style={{ color: "#aaa", fontSize: "13px" }}>Autoplay</span>
       <div
         onClick={() => setAutoplay(a => !a)}
-        style={{ width: "44px", height: "24px", background: autoplay ? "#ff0000" : "#555", borderRadius: "12px", cursor: "pointer", position: "relative", transition: "background 0.3s", flexShrink: 0 }}
+        style={{
+          width: "44px", height: "24px",
+          background: autoplay ? "#ff0000" : "#555",
+          borderRadius: "12px", cursor: "pointer",
+          position: "relative", transition: "background 0.3s", flexShrink: 0,
+        }}
       >
-        <div style={{ width: "18px", height: "18px", background: "white", borderRadius: "50%", position: "absolute", top: "3px", left: autoplay ? "23px" : "3px", transition: "left 0.3s", boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }} />
+        <div style={{
+          width: "18px", height: "18px", background: "white",
+          borderRadius: "50%", position: "absolute", top: "3px",
+          left: autoplay ? "23px" : "3px", transition: "left 0.3s",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+        }} />
       </div>
-      <span style={{ color: autoplay ? "#ff0000" : "#555", fontSize: "12px", fontWeight: "600" }}>{autoplay ? "ON" : "OFF"}</span>
+      <span style={{ color: autoplay ? "#ff0000" : "#555", fontSize: "12px", fontWeight: "600" }}>
+        {autoplay ? "ON" : "OFF"}
+      </span>
     </div>
   );
 
-  /* ── Player box — stable DOM, never unmounts ── */
-const PlayerBox = () => (
-  <div
-    style={{
-      borderRadius: isMobile ? "0" : "12px",
-      overflow: "hidden",
-      background: "#000",
-      width: "100%",
-    }}
-  >
-    <div
-      id="hp-yt-player-container"
-      style={{
-        width: "100%",
-        height: isMobile ? "calc(100vw * 9 / 16)" : "500px",  // ← true 16:9 on mobile
-      }}
-    >
-      <div id="hp-yt-player" style={{ width: "100%", height: "100%" }} />
-    </div>
-  </div>
-);
-
   /* ── Prev / Autoplay / Next bar ── */
   const NavBar = () => (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#181818", borderRadius: "10px", padding: "10px 16px", marginTop: "10px" }}>
-      <button onClick={goPrev} disabled={!hasPrev}
-        style={{ display: "flex", alignItems: "center", gap: "6px", background: hasPrev ? "#272727" : "#2a2a2a", border: "none", color: hasPrev ? "white" : "#555", borderRadius: "20px", padding: "8px 18px", cursor: hasPrev ? "pointer" : "not-allowed", fontSize: "14px", fontWeight: "600" }}
-        onMouseEnter={e => { if (hasPrev) e.currentTarget.style.background = "#3a3a3a"; }}
-        onMouseLeave={e => { e.currentTarget.style.background = hasPrev ? "#272727" : "#2a2a2a"; }}
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      background: "#181818", borderRadius: "10px",
+      padding: "10px 16px", marginTop: "10px", gap: "8px",
+    }}>
+      <button
+        onClick={goPrev} disabled={!hasPrev}
+        style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          background: hasPrev ? "#272727" : "#2a2a2a",
+          border: "none", color: hasPrev ? "white" : "#555",
+          borderRadius: "20px", padding: "8px 18px",
+          cursor: hasPrev ? "pointer" : "not-allowed",
+          fontSize: "14px", fontWeight: "600", whiteSpace: "nowrap",
+        }}
       >⏮ Previous</button>
 
       <AutoplayToggle />
 
-      <button onClick={goNext} disabled={!hasNext}
-        style={{ display: "flex", alignItems: "center", gap: "6px", background: hasNext ? "#ff0000" : "#2a2a2a", border: "none", color: hasNext ? "white" : "#555", borderRadius: "20px", padding: "8px 18px", cursor: hasNext ? "pointer" : "not-allowed", fontSize: "14px", fontWeight: "600" }}
-        onMouseEnter={e => { if (hasNext) e.currentTarget.style.background = "#cc0000"; }}
-        onMouseLeave={e => { e.currentTarget.style.background = hasNext ? "#ff0000" : "#2a2a2a"; }}
+      <button
+        onClick={goNext} disabled={!hasNext}
+        style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          background: hasNext ? "#ff0000" : "#2a2a2a",
+          border: "none", color: hasNext ? "white" : "#555",
+          borderRadius: "20px", padding: "8px 18px",
+          cursor: hasNext ? "pointer" : "not-allowed",
+          fontSize: "14px", fontWeight: "600", whiteSpace: "nowrap",
+        }}
       >Next ⏭</button>
     </div>
   );
 
-  /* ── Title + channel + actions ── */
+  /* ── Title + channel + actions + description ── */
   const MetaSection = () => (
-    <>
+    <div style={{ padding: isMobile ? "0 12px" : "0" }}>
       <div style={{ color: "white", fontWeight: "700", fontSize: isMobile ? "15px" : "18px", lineHeight: "1.4", marginTop: "14px" }}>
         {videoTitle}
       </div>
 
+      {/* Channel row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginTop: "12px" }}>
-        {/* Channel */}
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <img
             src={`https://ui-avatars.com/api/?name=${encodeURIComponent(channelName)}&background=random&size=40`}
             alt={channelName}
-            style={{ width: "40px", height: "40px", borderRadius: "50%" }}
+            style={{ width: "40px", height: "40px", borderRadius: "50%", flexShrink: 0 }}
           />
           <div>
             <div style={{ color: "white", fontWeight: "600", fontSize: "15px" }}>{channelName}</div>
@@ -405,48 +356,71 @@ const PlayerBox = () => (
               background: subscribedChannels.has(channelName) ? "#272727" : "white",
               color:      subscribedChannels.has(channelName) ? "white"   : "black",
               border: "none", borderRadius: "20px", padding: "8px 18px",
-              fontWeight: "700", cursor: "pointer", fontSize: "14px", marginLeft: "8px",
+              fontWeight: "700", cursor: "pointer", fontSize: "14px", marginLeft: "4px",
+              whiteSpace: "nowrap",
             }}
           >
             {subscribedChannels.has(channelName) ? "✓ Subscribed" : "Subscribe"}
           </button>
         </div>
+      </div>
 
-        {/* Actions */}
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", background: "#272727", borderRadius: "20px", overflow: "hidden" }}>
-            <button
-              onClick={() => { setIsLiked(l => !l); if (isDisliked) setIsDisliked(false); }}
-              style={{ background: isLiked ? "#3ea6ff22" : "transparent", border: "none", color: isLiked ? "#3ea6ff" : "white", padding: "8px 16px", cursor: "pointer", fontSize: "14px", borderRight: "1px solid #3a3a3a" }}
-            >👍 {(likeCount + (isLiked ? 1 : 0)).toLocaleString()}</button>
-            <button
-              onClick={() => { setIsDisliked(d => !d); if (isLiked) setIsLiked(false); }}
-              style={{ background: isDisliked ? "#ff444422" : "transparent", border: "none", color: isDisliked ? "#ff4444" : "white", padding: "8px 16px", cursor: "pointer", fontSize: "14px" }}
-            >👎</button>
-          </div>
+      {/* Like / dislike / share / close */}
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+        <div style={{ display: "flex", background: "#272727", borderRadius: "20px", overflow: "hidden" }}>
           <button
-            onClick={() => { navigator.clipboard.writeText(`https://www.youtube.com/watch?v=${videoId}`); alert("Link copied!"); }}
-            style={{ background: "#272727", border: "none", color: "white", borderRadius: "20px", padding: "8px 16px", cursor: "pointer", fontSize: "14px" }}
-          >🔗 Share</button>
+            onClick={() => { setIsLiked(l => !l); if (isDisliked) setIsDisliked(false); }}
+            style={{
+              background: isLiked ? "#3ea6ff22" : "transparent",
+              border: "none", color: isLiked ? "#3ea6ff" : "white",
+              padding: "8px 16px", cursor: "pointer", fontSize: "14px",
+              borderRight: "1px solid #3a3a3a",
+            }}
+          >👍 {(likeCount + (isLiked ? 1 : 0)).toLocaleString()}</button>
           <button
-            onClick={onClose}
-            style={{ background: "#272727", border: "none", color: "#aaa", borderRadius: "20px", padding: "8px 16px", cursor: "pointer", fontSize: "13px" }}
-          >✕ Close</button>
+            onClick={() => { setIsDisliked(d => !d); if (isLiked) setIsLiked(false); }}
+            style={{
+              background: isDisliked ? "#ff444422" : "transparent",
+              border: "none", color: isDisliked ? "#ff4444" : "white",
+              padding: "8px 16px", cursor: "pointer", fontSize: "14px",
+            }}
+          >👎</button>
         </div>
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(`https://www.youtube.com/watch?v=${videoId}`);
+            alert("Link copied!");
+          }}
+          style={{ background: "#272727", border: "none", color: "white", borderRadius: "20px", padding: "8px 16px", cursor: "pointer", fontSize: "14px" }}
+        >🔗 Share</button>
+        <button
+          onClick={onClose}
+          style={{ background: "#272727", border: "none", color: "#aaa", borderRadius: "20px", padding: "8px 16px", cursor: "pointer", fontSize: "13px" }}
+        >✕ Close</button>
       </div>
 
       {/* Description */}
       {description !== null && (
         <div
-          style={{ background: "#272727", borderRadius: "12px", padding: "14px 16px", marginTop: "14px", color: "#ccc", fontSize: "14px", lineHeight: "1.6", cursor: "pointer" }}
           onClick={() => setShowFullDesc(s => !s)}
+          style={{
+            background: "#272727", borderRadius: "12px", padding: "14px 16px",
+            marginTop: "14px", color: "#ccc", fontSize: "14px", lineHeight: "1.6",
+            cursor: "pointer",
+          }}
         >
           {publishedAt && (
             <div style={{ color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>
               {new Date(publishedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
             </div>
           )}
-          <p style={{ margin: 0, display: showFullDesc ? "block" : "-webkit-box", WebkitLineClamp: showFullDesc ? "unset" : 2, WebkitBoxOrient: "vertical", overflow: showFullDesc ? "visible" : "hidden" }}>
+          <p style={{
+            margin: 0,
+            display: showFullDesc ? "block" : "-webkit-box",
+            WebkitLineClamp: showFullDesc ? "unset" : 2,
+            WebkitBoxOrient: "vertical",
+            overflow: showFullDesc ? "visible" : "hidden",
+          }}>
             {description || "No description available."}
           </p>
           <span style={{ color: "white", fontWeight: "600", fontSize: "13px", marginTop: "6px", display: "block" }}>
@@ -454,25 +428,34 @@ const PlayerBox = () => (
           </span>
         </div>
       )}
-    </>
+    </div>
   );
 
   /* ── Comments ── */
   const CommentSection = () => (
-    <div style={{ marginTop: "28px", paddingBottom: "40px" }}>
-      <div style={{ color: "white", fontWeight: "600", fontSize: "16px", marginBottom: "20px" }}>
+    <div style={{ padding: isMobile ? "0 12px 40px" : "0 0 40px" }}>
+      <div style={{ color: "white", fontWeight: "600", fontSize: "16px", margin: "28px 0 20px" }}>
         {comments.length} Comments
       </div>
       <div style={{ display: "flex", gap: "12px", marginBottom: "24px" }}>
-        <div style={{ width: "36px", height: "36px", borderRadius: "50%", flexShrink: 0, background: "#3a86ff", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: "700", fontSize: "12px" }}>YO</div>
+        <div style={{
+          width: "36px", height: "36px", borderRadius: "50%", flexShrink: 0,
+          background: "#3a86ff", display: "flex", alignItems: "center",
+          justifyContent: "center", color: "#fff", fontWeight: "700", fontSize: "12px",
+        }}>YO</div>
         <div style={{ flex: 1 }}>
           <input
-            value={newComment} onChange={e => setNewComment(e.target.value)}
+            value={newComment}
+            onChange={e => setNewComment(e.target.value)}
             onKeyDown={e => e.key === "Enter" && addComment()}
             placeholder="Add a comment..."
-            style={{ width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #555", color: "white", fontSize: "14px", padding: "8px 0", outline: "none", boxSizing: "border-box" }}
-            onFocus={e  => e.target.style.borderBottomColor = "#fff"}
-            onBlur={e   => e.target.style.borderBottomColor = "#555"}
+            style={{
+              width: "100%", background: "transparent", border: "none",
+              borderBottom: "1px solid #555", color: "white",
+              fontSize: "14px", padding: "8px 0", outline: "none", boxSizing: "border-box",
+            }}
+            onFocus={e => e.target.style.borderBottomColor = "#fff"}
+            onBlur={e  => e.target.style.borderBottomColor = "#555"}
           />
           {newComment.trim() && (
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "8px" }}>
@@ -484,7 +467,11 @@ const PlayerBox = () => (
       </div>
       {comments.map(c => (
         <div key={c.id} style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
-          <div style={{ width: "36px", height: "36px", borderRadius: "50%", flexShrink: 0, background: getColor(c.avatar), display: "flex", alignItems: "center", justifyContent: "center", color: "#000", fontWeight: "700", fontSize: "11px" }}>{c.avatar}</div>
+          <div style={{
+            width: "36px", height: "36px", borderRadius: "50%", flexShrink: 0,
+            background: getColor(c.avatar), display: "flex", alignItems: "center",
+            justifyContent: "center", color: "#000", fontWeight: "700", fontSize: "11px",
+          }}>{c.avatar}</div>
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "4px" }}>
               <span style={{ color: "white", fontWeight: "600", fontSize: "13px" }}>{c.user}</span>
@@ -492,9 +479,10 @@ const PlayerBox = () => (
             </div>
             <p style={{ color: "#ccc", fontSize: "14px", margin: "0 0 6px", lineHeight: "1.5" }}>{c.text}</p>
             <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={() => toggleCommentLike(c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: likedComments.has(c.id) ? "#3ea6ff" : "#aaa", fontSize: "13px" }}>
-                👍 {c.likes}
-              </button>
+              <button
+                onClick={() => toggleCommentLike(c.id)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: likedComments.has(c.id) ? "#3ea6ff" : "#aaa", fontSize: "13px" }}
+              >👍 {c.likes}</button>
               <span style={{ color: "#aaa", fontSize: "13px", cursor: "pointer" }}>👎</span>
               <span style={{ color: "#aaa", fontSize: "13px", cursor: "pointer" }}>Reply</span>
             </div>
@@ -504,16 +492,17 @@ const PlayerBox = () => (
     </div>
   );
 
-  /* ── Related sidebar (desktop) ── */
+  /* ── Related sidebar ── */
   const RelatedSidebar = () => {
     const relatedList = suggestions.filter((_, i) => i !== currentIndex);
     return (
       <div style={{
-        width: isMobile ? "100%" : "402px", flexShrink: 0,
-        position: isMobile ? "relative" : "sticky", top: "0px",
-        height: isMobile ? "auto" : "calc(100vh - 52px)",
-        overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "#555 transparent",
-        background: "#0f0f0f", borderLeft: isMobile ? "none" : "1px solid #1e1e1e",
+        width: isMobile ? "100%" : "402px",
+        flexShrink: 0,
+        overflowY: isMobile ? "visible" : "auto",
+        scrollbarWidth: "thin", scrollbarColor: "#555 transparent",
+        background: "#0f0f0f",
+        borderLeft: isMobile ? "none" : "1px solid #1e1e1e",
         padding: "12px 10px 20px",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
@@ -532,18 +521,35 @@ const PlayerBox = () => (
               <div
                 key={s.id?.videoId || s.id || realIdx}
                 onClick={() => hasVid && goTo(realIdx)}
-                style={{ display: "flex", gap: "8px", cursor: hasVid ? "pointer" : "default", borderRadius: "8px", padding: "4px", transition: "background 0.2s", opacity: hasVid ? 1 : 0.5 }}
+                style={{
+                  display: "flex", gap: "8px",
+                  cursor: hasVid ? "pointer" : "default",
+                  borderRadius: "8px", padding: "4px",
+                  transition: "background 0.2s",
+                  opacity: hasVid ? 1 : 0.5,
+                }}
                 onMouseEnter={e => { if (hasVid) e.currentTarget.style.background = "#1e1e1e"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
               >
-                <div style={{ position: "relative", flexShrink: 0, width: "168px", height: "94px", borderRadius: "8px", overflow: "hidden", background: "#222" }}>
+                <div style={{
+                  position: "relative", flexShrink: 0,
+                  width: "168px", height: "94px",
+                  borderRadius: "8px", overflow: "hidden", background: "#222",
+                }}>
                   <img src={thumb} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                  {isYTItem && <div style={{ position: "absolute", top: "4px", left: "4px", background: "#ff0000", color: "#fff", fontSize: "8px", fontWeight: "700", padding: "1px 5px", borderRadius: "3px" }}>▶ YT</div>}
+                  {isYTItem && (
+                    <div style={{ position: "absolute", top: "4px", left: "4px", background: "#ff0000", color: "#fff", fontSize: "8px", fontWeight: "700", padding: "1px 5px", borderRadius: "3px" }}>▶ YT</div>
+                  )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0, paddingTop: "2px" }}>
-                  <div style={{ color: "white", fontSize: "13px", fontWeight: "600", lineHeight: "1.4", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", marginBottom: "4px" }}>{title}</div>
+                  <div style={{
+                    color: "white", fontSize: "13px", fontWeight: "600",
+                    lineHeight: "1.4", display: "-webkit-box",
+                    WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+                    overflow: "hidden", marginBottom: "4px",
+                  }}>{title}</div>
                   <div style={{ color: "#aaa", fontSize: "12px", marginBottom: "2px" }}>{channel}</div>
-                  {isYTItem && s.snippet.publishedAt && (
+                  {isYTItem && s.snippet?.publishedAt && (
                     <div style={{ color: "#aaa", fontSize: "12px" }}>
                       {new Date(s.snippet.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </div>
@@ -562,23 +568,55 @@ const PlayerBox = () => (
     return (
       <>
         <style>{`
-          .hp-watch-mobile { position:fixed; top:0; left:0; right:0; bottom:0; z-index:9999; background:#0f0f0f; display:flex; flex-direction:column; font-family:'Segoe UI',sans-serif; height:100dvh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
-          @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+          .hp-watch-root {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 9999;
+            background: #0f0f0f;
+            display: flex;
+            flex-direction: column;
+            font-family: 'Segoe UI', sans-serif;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          /* Critical: stop any parent hiding the iframe */
+          .hp-watch-root * {
+            -webkit-transform: none !important;
+          }
+          @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
         `}</style>
-        <div className="hp-watch-mobile">
+
+        <div className="hp-watch-root">
           {/* Top bar */}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 12px", background: "#111", borderBottom: "1px solid #1e1e1e", flexShrink: 0, position: "sticky", top: 0, zIndex: 10 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: "8px",
+            padding: "10px 12px", background: "#111",
+            borderBottom: "1px solid #1e1e1e",
+            position: "sticky", top: 0, zIndex: 10, flexShrink: 0,
+          }}>
             <button onClick={onClose} style={{ background: "none", border: "none", color: "#fff", fontSize: "22px", cursor: "pointer", padding: "4px 8px", lineHeight: 1 }}>←</button>
             <span style={{ color: "#fff", fontWeight: "600", fontSize: "13px", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{videoTitle}</span>
             <span style={{ background: "#ff0000", color: "#fff", fontSize: "10px", fontWeight: "700", padding: "2px 8px", borderRadius: "4px" }}>▶ YT</span>
           </div>
-          <PlayerBox />
+
+          {/* ✅ Player — sits directly in normal flow, no absolute parent */}
+          <Player />
+
+          {/* Nav bar */}
           <div style={{ padding: "0 12px" }}>
             <NavBar />
-            <MetaSection />
-            <CommentSection />
           </div>
-          <RelatedSidebar />
+
+          {/* Meta */}
+          <MetaSection />
+
+          {/* Comments */}
+          <CommentSection />
+
+          {/* Related */}
+          <div style={{ borderTop: "8px solid #181818", marginTop: "8px" }}>
+            <RelatedSidebar />
+          </div>
         </div>
       </>
     );
@@ -587,11 +625,22 @@ const PlayerBox = () => (
   /* ════ DESKTOP ════ */
   return (
     <>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}} ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:#555;border-radius:4px;}`}</style>
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#0f0f0f", display: "flex", flexDirection: "column", fontFamily: "'Segoe UI', sans-serif", overflow: "hidden" }}>
-
-        {/* Desktop top bar */}
-        <div style={{ height: "52px", flexShrink: 0, background: "#111", borderBottom: "1px solid #1e1e1e", display: "flex", alignItems: "center", padding: "0 16px", gap: "10px" }}>
+      <style>{`
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+        ::-webkit-scrollbar{width:4px;}
+        ::-webkit-scrollbar-thumb{background:#555;border-radius:4px;}
+      `}</style>
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "#0f0f0f", display: "flex", flexDirection: "column",
+        fontFamily: "'Segoe UI', sans-serif", overflow: "hidden",
+      }}>
+        {/* Top bar */}
+        <div style={{
+          height: "52px", flexShrink: 0, background: "#111",
+          borderBottom: "1px solid #1e1e1e", display: "flex",
+          alignItems: "center", padding: "0 16px", gap: "10px",
+        }}>
           <button onClick={onClose}
             style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "22px", lineHeight: 1, padding: "4px 10px", borderRadius: "6px", transition: "all 0.2s" }}
             onMouseEnter={e => { e.currentTarget.style.background = "#222"; e.currentTarget.style.color = "#fff"; }}
@@ -602,19 +651,19 @@ const PlayerBox = () => (
           <span style={{ background: "#ff0000", color: "#fff", fontSize: "11px", fontWeight: "700", padding: "3px 10px", borderRadius: "4px", flexShrink: 0 }}>▶ YouTube</span>
         </div>
 
-        {/* Body: left content + right sidebar */}
+        {/* Body */}
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-
           {/* Left */}
           <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", minWidth: 0, scrollbarWidth: "thin", scrollbarColor: "#555 transparent" }}>
-            <PlayerBox />
+            <Player />
             <NavBar />
             <MetaSection />
             <CommentSection />
           </div>
-
           {/* Right */}
-          <RelatedSidebar />
+          <div style={{ width: "402px", flexShrink: 0, overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "#555 transparent" }}>
+            <RelatedSidebar />
+          </div>
         </div>
       </div>
     </>

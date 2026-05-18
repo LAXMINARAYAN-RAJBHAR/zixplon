@@ -314,12 +314,18 @@
 }
 
 .hp-watch-mobile { 
-  position:fixed; top:55px; left:0; right:0; bottom:0; 
+  position:fixed; top:60px; left:0; right:0; bottom:0; 
   z-index:9999; background:#0f0f0f; 
   display:flex; flex-direction:column; 
   font-family:'Segoe UI',sans-serif; 
   height:100dvh; overflow-y:auto; 
   -webkit-overflow-scrolling:touch; 
+}
+.hp-watch-root {
+  position: fixed;
+  top: 55px;   /* ← same value */
+  left: 0; right: 0; bottom: 0;
+  z-index: 999;
 }
 :root {
   --navbar-height: 55px; /* set your actual navbar height here */

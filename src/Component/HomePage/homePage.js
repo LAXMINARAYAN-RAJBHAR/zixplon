@@ -205,65 +205,85 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
   }, []);
 
   /* ── Init / reinit player whenever videoId changes ── */
-  useEffect(() => {
-    if (!videoId) return;
-    let pollInterval = null;
+useEffect(() => {
+  if (!videoId) return;
+  let pollInterval = null;
 
-    const initPlayer = () => {
-      if (playerRef.current) {
-        try { playerRef.current.destroy(); } catch (e) {}
-        playerRef.current = null;
-      }
-      const container = document.getElementById("hp-yt-player-container");
-      if (container) {
-        container.innerHTML = "";
-        const div = document.createElement("div");
-        div.id = "hp-yt-player";
-        container.appendChild(div);
-      }
-      playerRef.current = new window.YT.Player("hp-yt-player", {
-        height: isMobile ? "220" : "500",
-        width:  "100%",
-        videoId,
-        playerVars: { autoplay: 1, rel: 0, enablejsapi: 1, modestbranding: 1, playsinline: 1 },
-        events: {
-          onReady: () => {
-            pollInterval = setInterval(() => {
-              if (!playerRef.current) return;
-              try {
-                if (playerRef.current.getPlayerState() === 0 && autoplayRef.current) {
-                  clearInterval(pollInterval);
-                  const next = indexRef.current + 1;
-                  const sug  = suggestionsRef.current;
-                  if (next < sug.length && sug[next].id?.videoId) goTo(next);
-                }
-              } catch (e) {}
-            }, 1000);
-          },
-          onStateChange: (event) => {
-            if (event.data === 0 && autoplayRef.current) {
-              clearInterval(pollInterval);
-              const next = indexRef.current + 1;
-              const sug  = suggestionsRef.current;
-              if (next < sug.length && sug[next].id?.videoId) goTo(next);
-            }
-          },
+  const initPlayer = () => {
+    // Destroy old player if exists
+    if (playerRef.current) {
+      try { playerRef.current.destroy(); } catch (e) {}
+      playerRef.current = null;
+    }
+
+    // Recreate the inner div fresh
+    const container = document.getElementById("hp-yt-player-container");
+    if (!container) return;
+    container.innerHTML = "";
+    const div = document.createElement("div");
+    div.id = "hp-yt-player";
+    div.style.width  = "100%";
+    div.style.height = "100%";
+    container.appendChild(div);
+
+    playerRef.current = new window.YT.Player("hp-yt-player", {
+      videoId,
+      playerVars: {
+        autoplay:       1,
+        rel:            0,
+        enablejsapi:    1,
+        modestbranding: 1,
+        playsinline:    1,   // ← critical for iOS inline play
+      },
+      events: {
+        onReady: (e) => {
+          // Make sure it actually starts on mobile
+          try { e.target.playVideo(); } catch (_) {}
+
+          pollInterval = setInterval(() => {
+            if (!playerRef.current) return;
+            try {
+              if (playerRef.current.getPlayerState() === 0 && autoplayRef.current) {
+                clearInterval(pollInterval);
+                const next = indexRef.current + 1;
+                const sug  = suggestionsRef.current;
+                if (next < sug.length && sug[next].id?.videoId) goTo(next);
+              }
+            } catch (e) {}
+          }, 1000);
         },
-      });
-    };
+        onStateChange: (event) => {
+          if (event.data === 0 && autoplayRef.current) {
+            clearInterval(pollInterval);
+            const next = indexRef.current + 1;
+            const sug  = suggestionsRef.current;
+            if (next < sug.length && sug[next].id?.videoId) goTo(next);
+          }
+        },
+      },
+    });
+  };
 
-    if (window.YT && window.YT.Player) initPlayer();
-    else window.onYouTubeIframeAPIReady = initPlayer;
+  const tryInit = () => {
+    if (window.YT && window.YT.Player) {
+      // Small delay so the DOM is fully painted (especially on mobile)
+      setTimeout(initPlayer, 100);
+    } else {
+      window.onYouTubeIframeAPIReady = initPlayer;
+    }
+  };
 
-    return () => {
-      clearInterval(pollInterval);
-      if (playerRef.current) {
-        try { playerRef.current.destroy(); } catch (e) {}
-        playerRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoId]);
+  tryInit();
+
+  return () => {
+    clearInterval(pollInterval);
+    if (playerRef.current) {
+      try { playerRef.current.destroy(); } catch (e) {}
+      playerRef.current = null;
+    }
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [videoId]);
 
   const goTo = (idx) => {
     setCurrentIndex(Math.max(0, Math.min(idx, suggestions.length - 1)));
@@ -319,14 +339,27 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
     </div>
   );
 
-  /* ── Player box using YT IFrame API ── */
-  const PlayerBox = () => (
-    <div style={{ borderRadius: isMobile ? "0" : "12px", overflow: "hidden", background: "#000" }}>
-      <div id="hp-yt-player-container" style={{ width: "100%", height: isMobile ? "220px" : "500px" }}>
-        <div id="hp-yt-player" />
-      </div>
+  /* ── Player box — stable DOM, never unmounts ── */
+const PlayerBox = () => (
+  <div
+    style={{
+      borderRadius: isMobile ? "0" : "12px",
+      overflow: "hidden",
+      background: "#000",
+      width: "100%",
+    }}
+  >
+    <div
+      id="hp-yt-player-container"
+      style={{
+        width: "100%",
+        height: isMobile ? "calc(100vw * 9 / 16)" : "500px",  // ← true 16:9 on mobile
+      }}
+    >
+      <div id="hp-yt-player" style={{ width: "100%", height: "100%" }} />
     </div>
-  );
+  </div>
+);
 
   /* ── Prev / Autoplay / Next bar ── */
   const NavBar = () => (

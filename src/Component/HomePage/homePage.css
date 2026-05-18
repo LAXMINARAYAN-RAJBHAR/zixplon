@@ -313,5 +313,25 @@
   overflow: hidden;
 }
 
+.hp-watch-mobile { 
+  position:fixed; top:0; left:0; right:0; bottom:0; 
+  z-index:9999; background:#0f0f0f; 
+  display:flex; flex-direction:column; 
+  font-family:'Segoe UI',sans-serif; 
+  height:100dvh; overflow-y:auto; 
+  -webkit-overflow-scrolling:touch; 
+}
+/* Force iframe visible */
+.hp-watch-mobile iframe,
+#hp-yt-player-container iframe,
+#hp-yt-player iframe {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 100% !important;
+  height: 100% !important;
+  position: static !important;
+}
+
 
 

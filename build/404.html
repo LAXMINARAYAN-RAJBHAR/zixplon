@@ -1,10 +1,16 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8" />
-    <title>zixplayer</title>
+    <meta charset="utf-8">
+    <title>ZixPlayer</title>
     <script>
-      window.location.href = "/zixplayer-frontend/";
+      // Redirect to index with hash
+      var path = window.location.pathname;
+      var repoName = '/zixplayer-frontend';
+      window.location.replace(
+        window.location.origin + repoName + '/#' + 
+        path.replace(repoName, '') + window.location.search
+      );
     </script>
   </head>
   <body></body>

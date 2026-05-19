@@ -315,9 +315,14 @@ const Navbar = ({
   const sideNavbarFunc = () => setSideNavbarFunc(!sideNavbar);
 
   const handleprofile = () => {
+  // ✅ Guard: only navigate if currentUser exists
+  if (currentUser) {
     navigate(`/user/${currentUser}`);
-    setNavbarModal(false);
-  };
+  } else {
+    setLogin(true); // open login if not logged in
+  }
+  setNavbarModal(false);
+};
 
   const setLoginModal = () => setLogin(false);
 
@@ -346,15 +351,16 @@ const Navbar = ({
   };
 
   const doSearch = (q) => {
-    if (!q.trim()) return;
-    addToHistory(q);
-    setShowDropdown(false);
-    setSearchBarActive(false);
-    setSearchQuery(q);
-    setIsSearchFocused(true);
-    navigate(`/search?q=${encodeURIComponent(q)}`);
-    setTimeout(() => setIsSearchFocused(false), 1500);
-  };
+  if (!q.trim()) return;
+  addToHistory(q);
+  setShowDropdown(false);
+  setSearchBarActive(false);
+  setSearchQuery(q);
+  setIsSearchFocused(true);
+  // ✅ Fix: use state instead of query string for HashRouter
+  navigate(`/search`, { state: { query: q } });
+  setTimeout(() => setIsSearchFocused(false), 1500);
+};
 
   // Flatten all items for keyboard navigation
   const allNavItems = [
@@ -1144,31 +1150,50 @@ const Navbar = ({
         </div>
 
         {/* 👤 Profile */}
-        <img
-          onClick={() => setNavbarModal((prev) => !prev)}
-          src={userPic}
-          alt="User"
-          className="navbar-right-logo"
-        />
+        {/* 👤 Profile */}
+<img
+  onClick={() => setNavbarModal((prev) => !prev)}
+  src={userPic}
+  alt="User"
+  className="navbar-right-logo"
+  onError={(e) => {
+    // ✅ Fallback to a reliable default avatar if image fails
+    e.target.onerror = null;
+    e.target.src = "https://ui-avatars.com/api/?name=User&background=444&color=fff&size=40";
+  }}
+/>
         {navbarModal && (
-          <div className="navbar-modal">
-            <div className="navbar-modal-option" onClick={handleprofile}>
-              Profile
-            </div>
-            <div
-              className="navbar-modal-option"
-              onClick={() => onclickOfPopUpOption("logout")}
-            >
-              Logout
-            </div>
-            <div
-              className="navbar-modal-option"
-              onClick={() => onclickOfPopUpOption("login")}
-            >
-              Login
-            </div>
-          </div>
-        )}
+  <div className="navbar-modal">
+    {/* ✅ Show username if logged in */}
+    {currentUser && (
+      <div className="navbar-modal-option" style={{ 
+        color: "#aaa", 
+        fontSize: "12px", 
+        cursor: "default",
+        borderBottom: "1px solid #333",
+        paddingBottom: "8px",
+        marginBottom: "4px"
+      }}>
+        @{currentUser}
+      </div>
+    )}
+    <div className="navbar-modal-option" onClick={handleprofile}>
+      Profile
+    </div>
+    <div
+      className="navbar-modal-option"
+      onClick={() => onclickOfPopUpOption("logout")}
+    >
+      Logout
+    </div>
+    <div
+      className="navbar-modal-option"
+      onClick={() => onclickOfPopUpOption("login")}
+    >
+      Login
+    </div>
+  </div>
+)}
       </div>
 
       {login && <Login setLoginModal={setLoginModal} />}

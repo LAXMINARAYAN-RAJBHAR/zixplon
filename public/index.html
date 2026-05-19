@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+  window.onerror = function(msg, src, line) {
+    document.body.innerHTML = '<h1 style="color:red;font-size:20px">Error: ' + msg + ' Line: ' + line + '</h1>';
+    return false;
+  };
+</script>
   <meta charset="utf-8" />
   <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />

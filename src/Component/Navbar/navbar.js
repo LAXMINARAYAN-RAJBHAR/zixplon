@@ -568,7 +568,7 @@ const Navbar = ({
                 else window.location.href = base;
               }}
             >
-              {"Zircplay".split("").map((char, i) => (
+              {"ZirconPlay".split("").map((char, i) => (
                 <span
                   key={i}
                   className="logoChar"

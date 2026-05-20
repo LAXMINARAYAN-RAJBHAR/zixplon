@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/zircplay/static/css/main.5fe9a593.css",
-    "main.js": "/zircplay/static/js/main.3947f7ab.js",
-    "static/js/453.c1747e8b.chunk.js": "/zircplay/static/js/453.c1747e8b.chunk.js",
-    "index.html": "/zircplay/index.html",
-    "main.5fe9a593.css.map": "/zircplay/static/css/main.5fe9a593.css.map",
-    "main.3947f7ab.js.map": "/zircplay/static/js/main.3947f7ab.js.map",
-    "453.c1747e8b.chunk.js.map": "/zircplay/static/js/453.c1747e8b.chunk.js.map"
+    "main.css": "/zirconplay/static/css/main.5fe9a593.css",
+    "main.js": "/zirconplay/static/js/main.a2cfb03d.js",
+    "static/js/453.fe98dae6.chunk.js": "/zirconplay/static/js/453.fe98dae6.chunk.js",
+    "index.html": "/zirconplay/index.html",
+    "main.5fe9a593.css.map": "/zirconplay/static/css/main.5fe9a593.css.map",
+    "main.a2cfb03d.js.map": "/zirconplay/static/js/main.a2cfb03d.js.map",
+    "453.fe98dae6.chunk.js.map": "/zirconplay/static/js/453.fe98dae6.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.5fe9a593.css",
-    "static/js/main.3947f7ab.js"
+    "static/js/main.a2cfb03d.js"
   ]
 }

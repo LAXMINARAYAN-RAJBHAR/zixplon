@@ -529,32 +529,45 @@ const Navbar = ({
         </div>
         <Link to="/" className="navbar-logo-link">
           <svg
-            width="42"
-            height="42"
-            viewBox="0 0 42 42"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <rect width="42" height="42" rx="8" fill="#ff0000" />
-            <text
-              x="50%"
-              y="54%"
-              dominantBaseline="middle"
-              textAnchor="middle"
-              fill="white"
-              fontSize="27"
-              fontWeight="bold"
-              fontFamily="Arial"
-            >
-              Z
-              <animate
-                attributeName="opacity"
-                values="1;0.2;1;0.5;1"
-                dur="2s"
-                repeatCount="indefinite"
-              />
-            </text>
-          </svg>
+  width="42"
+  height="42"
+  viewBox="0 0 42 42"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <rect width="42" height="42" rx="8" fill="#ff0000" />
+  <text
+    x="50%"
+    y="44%"
+    dominantBaseline="middle"
+    textAnchor="middle"
+    fill="white"
+    fontSize="22"
+    fontWeight="bold"
+    fontFamily="Arial"
+  >
+    Z
+    <animate
+      attributeName="opacity"
+      values="1;0.2;1;0.5;1"
+      dur="2s"
+      repeatCount="indefinite"
+    />
+  </text>
+  <text
+    x="50%"
+    y="78%"
+    dominantBaseline="middle"
+    textAnchor="middle"
+    fill="rgba(255,255,255,0.85)"
+    fontSize="7"
+    fontWeight="400"
+    fontFamily="Arial"
+    letterSpacing="1.5"
+  >
+    ZIRCON
+  </text>
+</svg>
 
           {/* ── Logo text + Country Badge (like YouTube's IN) ── */}
           <div style={{ position: "relative", display: "inline-flex", alignItems: "flex-start" }}>

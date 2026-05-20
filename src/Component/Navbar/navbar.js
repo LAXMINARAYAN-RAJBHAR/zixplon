@@ -13,6 +13,18 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import Login from "../Login/login";
 import YouTubeIcon from "@mui/icons-material/YouTube";
 
+// ─── Country Code Hook ─────────────────────────────────────────────────────────
+const useCountry = () => {
+  const [countryCode, setCountryCode] = useState("");
+  useEffect(() => {
+    fetch("https://ipapi.co/json/")
+      .then((res) => res.json())
+      .then((data) => setCountryCode(data.country_code))
+      .catch(() => setCountryCode(""));
+  }, []);
+  return countryCode;
+};
+
 // ─── Category detection ────────────────────────────────────────────────────────
 const CATEGORY_PATTERNS = {
   music: /song|music|album|playlist|remix|beat|audio|singer|artist|band/i,
@@ -245,6 +257,9 @@ const Navbar = ({
   const navigate = useNavigate();
   const location = useLocation();
 
+  // ── Country badge ──────────────────────────────────────────────────────────
+  const countryCode = useCountry();
+
   const [userPic] = useState(
     "https://athenabpo.com/wp-content/uploads/2016/09/Headshot-Blank-Person-Circle-300x300.gif",
   );
@@ -313,7 +328,6 @@ const Navbar = ({
   const sideNavbarFunc = () => setSideNavbarFunc(!sideNavbar);
 
   const handleprofile = () => {
-    // ✅ Fix: guard against undefined currentUser
     if (currentUser) {
       navigate(`/user/${currentUser}`);
     } else {
@@ -347,7 +361,6 @@ const Navbar = ({
     }
   };
 
-  // ✅ FIXED doSearch — works correctly with HashRouter
   const doSearch = (q) => {
     if (!q.trim()) return;
     addToHistory(q);
@@ -355,7 +368,6 @@ const Navbar = ({
     setSearchBarActive(false);
     setSearchQuery(q);
     setIsSearchFocused(true);
-    // ✅ Use search object so location.search is populated in SearchResults
     navigate({
       pathname: "/search",
       search: `?q=${encodeURIComponent(q)}`,
@@ -497,26 +509,46 @@ const Navbar = ({
             </text>
           </svg>
 
-          <span
-            key={logoKey}
-            className="logoText"
-            onClick={() => {
-              const base =
-                window.location.origin + window.location.pathname + "#/";
-              if (window.location.href === base) window.location.reload();
-              else window.location.href = base;
-            }}
-          >
-            {"ZixPlayer".split("").map((char, i) => (
+          {/* ── Logo text + Country Badge (like YouTube's IN) ── */}
+          <div style={{ position: "relative", display: "inline-flex", alignItems: "flex-start" }}>
+            <span
+              key={logoKey}
+              className="logoText"
+              onClick={() => {
+                const base =
+                  window.location.origin + window.location.pathname + "#/";
+                if (window.location.href === base) window.location.reload();
+                else window.location.href = base;
+              }}
+            >
+              {"ZixPlayer".split("").map((char, i) => (
+                <span
+                  key={i}
+                  className="logoChar"
+                  style={{ animationDelay: `${i * 0.08}s` }}
+                >
+                  {char}
+                </span>
+              ))}
+            </span>
+
+            {/* ── Country badge ── */}
+            {countryCode && (
               <span
-                key={i}
-                className="logoChar"
-                style={{ animationDelay: `${i * 0.08}s` }}
+                style={{
+                  fontSize: "10px",
+                  fontWeight: "700",
+                  color: "white",
+                  marginLeft: "3px",
+                  marginTop: "2px",
+                  lineHeight: 1,
+                  letterSpacing: "0.03em",
+                }}
               >
-                {char}
+                {countryCode}
               </span>
-            ))}
-          </span>
+            )}
+          </div>
         </Link>
       </div>
 
@@ -1142,7 +1174,6 @@ const Navbar = ({
           alt="User"
           className="navbar-right-logo"
           onError={(e) => {
-            // ✅ Fix: fallback avatar if image fails to load
             e.target.onerror = null;
             e.target.src =
               "https://ui-avatars.com/api/?name=User&background=444&color=fff&size=40";
@@ -1150,7 +1181,6 @@ const Navbar = ({
         />
         {navbarModal && (
           <div className="navbar-modal">
-            {/* ✅ Fix: show username if logged in */}
             {currentUser && (
               <div
                 style={{

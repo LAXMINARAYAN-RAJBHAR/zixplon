@@ -4,7 +4,7 @@ import './footer.css'
 const Footer = () => {
   return (
     <div className="footer">
-      <p>© {new Date().getFullYear()} Zircplay. All rights reserved.</p>
+      <p>© 2021 - {new Date().getFullYear()} Zircplay. All rights reserved.</p>
       <p>Developed by <span className="footer_dev">Laxminarayan Rajbhar</span></p>
     </div>
   )

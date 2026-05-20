@@ -1,30 +1,69 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+
 <head>
-  <script>
-  window.onerror = function(msg, src, line) {
-    document.body.innerHTML = '<h1 style="color:red;font-size:20px">Error: ' + msg + ' Line: ' + line + '</h1>';
-    return false;
-  };
-</script>
   <meta charset="utf-8" />
-  <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="/zixplayer-frontend/favicon.ico" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#000000" />
-  <meta name="description" content="Web site created using create-react-app" />
-  <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-  <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-  <title>ZixPlayer</title>
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-R527FEYQ1X"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag() { dataLayer.push(arguments); }
-    gtag('js', new Date());
-    gtag('config', 'G-R527FEYQ1X');
+
+  <!-- ── Primary SEO ── -->
+  <title>ZixPlayer - Watch Free Videos, Movies & Shorts Online</title>
+  <meta name="description" content="ZixPlayer is a free video streaming platform. Watch movies, shorts, music, news, comedy, gaming and more — all in one place." />
+  <meta name="keywords" content="ZixPlayer, watch free videos, online streaming, free movies, shorts, music videos, Hindi movies, news, comedy, gaming" />
+  <meta name="author" content="Laxminarayan Rajbhar" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://laxminarayan-rajbhar.github.io/zixplayer-frontend/" />
+
+  <!-- ── Open Graph (WhatsApp, Facebook, LinkedIn previews) ── -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ZixPlayer" />
+  <meta property="og:title" content="ZixPlayer - Watch Free Videos, Movies & Shorts Online" />
+  <meta property="og:description" content="Free video streaming platform. Watch movies, shorts, music, news and more for free on ZixPlayer." />
+  <meta property="og:url" content="https://laxminarayan-rajbhar.github.io/zixplayer-frontend/" />
+  <meta property="og:image" content="https://laxminarayan-rajbhar.github.io/zixplayer-frontend/logo192.png" />
+  <meta property="og:image:width" content="192" />
+  <meta property="og:image:height" content="192" />
+
+  <!-- ── Twitter Card ── -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ZixPlayer - Watch Free Videos Online" />
+  <meta name="twitter:description" content="Free video streaming. Watch movies, shorts, music and more on ZixPlayer." />
+  <meta name="twitter:image" content="https://laxminarayan-rajbhar.github.io/zixplayer-frontend/logo192.png" />
+
+  <!-- ── JSON-LD Structured Data (helps Google understand your site) ── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "ZixPlayer",
+    "url": "https://laxminarayan-rajbhar.github.io/zixplayer-frontend/",
+    "description": "Free video streaming platform. Watch movies, shorts, music, news and more.",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://laxminarayan-rajbhar.github.io/zixplayer-frontend/#/search?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
   </script>
+
+  <!-- ── Hash routing fix ── -->
+  <script>!function (n) { if ("/" === n.search[1]) { var a = n.search.slice(1).split("&").map(function (n) { return n.replace(/~and~/g, "&") }).join("?"); window.history.replaceState(null, null, n.pathname.slice(0, -1) + a + n.hash) } }(window.location)</script>
+
+  <link rel="apple-touch-icon" href="/zixplayer-frontend/logo192.png" />
+  <link rel="manifest" href="/zixplayer-frontend/manifest.json" />
+
+  <!-- ── Google Analytics ── -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-R527FEYQ1X"></script>
+  <script>function gtag() { dataLayer.push(arguments) } window.dataLayer = window.dataLayer || [], gtag("js", new Date), gtag("config", "G-R527FEYQ1X")</script>
+
+  <script defer="defer" src="/zixplayer-frontend/static/js/main.9635887e.js"></script>
+  <link href="/zixplayer-frontend/static/css/main.473c1fd5.css" rel="stylesheet">
 </head>
+
 <body>
   <noscript>You need to enable JavaScript to run this app.</noscript>
   <div id="root"></div>
 </body>
+
 </html>

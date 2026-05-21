@@ -1755,6 +1755,9 @@ const WatchPage = ({
 const HomePage = ({ sideNavbar }) => {
   const navigate = useNavigate();
   const [selectedOption, setSelectedOption] = useState("All");
+  const optionsTrackRef = useRef(null);
+  const autoScrollRef   = useRef(null);
+  const isPausedRef     = useRef(false);
   const [ytVideos, setYtVideos] = useState([]);
   const [ytLoading, setYtLoading] = useState(false);
   const [watchVideo, setWatchVideo] = useState(null);
@@ -1806,6 +1809,33 @@ const HomePage = ({ sideNavbar }) => {
   useEffect(() => {
     fetchYouTubeByTopic(selectedOption);
   }, [selectedOption]);
+
+  // ── Auto-scroll options bar ──
+useEffect(() => {
+  const track = optionsTrackRef.current;
+  if (!track) return;
+
+  let pos = 0;
+  const speed = 0.6; // px per frame — adjust for faster/slower
+
+  const step = () => {
+    if (!isPausedRef.current) {
+      pos += speed;
+      // Loop back to start when reached end
+      if (pos >= track.scrollWidth - track.clientWidth) {
+        pos = 0;
+      }
+      track.scrollLeft = pos;
+    }
+    autoScrollRef.current = requestAnimationFrame(step);
+  };
+
+  autoScrollRef.current = requestAnimationFrame(step);
+
+  return () => {
+    if (autoScrollRef.current) cancelAnimationFrame(autoScrollRef.current);
+  };
+}, []);
 
   const fetchYouTubeByTopic = async (topic) => {
     if (["All", "Recently Uploaded", "Watched"].includes(topic)) {
@@ -2044,28 +2074,67 @@ const HomePage = ({ sideNavbar }) => {
   return (
     <div className="homePage">
       <div className={`homePage_options ${sideNavbar ? "sidebar-open" : ""}`}>
-        <div className="homePage_options_track">
-          {options.map((item) => (
-            <div
-              key={item}
-              className="homePage_option"
-              onClick={() => setSelectedOption(item)}
-              style={{
-                cursor: "pointer",
-                background: selectedOption === item ? "white" : "transparent",
-                color: selectedOption === item ? "black" : "white",
-                borderRadius: "8px",
-                padding: "6px 12px",
-                fontWeight: selectedOption === item ? "600" : "400",
-                transition: "all 0.2s",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {item}
-            </div>
-          ))}
-        </div>
+  <div
+    className="homePage_options_track"
+    ref={optionsTrackRef}
+
+    /* ── Pause on hover (desktop) ── */
+    onMouseEnter={() => { isPausedRef.current = true; }}
+    onMouseLeave={() => { isPausedRef.current = false; }}
+
+    /* ── Pause on touch (mobile) ── */
+    onTouchStart={() => { isPausedRef.current = true; }}
+    onTouchEnd={() => {
+      // Small delay before resuming so user can finish scrolling
+      setTimeout(() => { isPausedRef.current = false; }, 1500);
+    }}
+
+    /* ── Allow manual scroll with mouse drag ── */
+    onMouseDown={(e) => {
+      isPausedRef.current = true;
+      const startX = e.pageX - optionsTrackRef.current.offsetLeft;
+      const startScroll = optionsTrackRef.current.scrollLeft;
+
+      const onMove = (ev) => {
+        const x = ev.pageX - optionsTrackRef.current.offsetLeft;
+        optionsTrackRef.current.scrollLeft = startScroll - (x - startX);
+      };
+
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        // Resume auto-scroll after 1.5 seconds
+        setTimeout(() => { isPausedRef.current = false; }, 1500);
+      };
+
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    }}
+
+    style={{ cursor: "grab", userSelect: "none" }}
+  >
+    {options.map((item) => (
+      <div
+        key={item}
+        className="homePage_option"
+        onClick={() => setSelectedOption(item)}
+        style={{
+          cursor: "pointer",
+          background: selectedOption === item ? "white" : "transparent",
+          color: selectedOption === item ? "black" : "white",
+          borderRadius: "8px",
+          padding: "6px 12px",
+          fontWeight: selectedOption === item ? "600" : "400",
+          transition: "all 0.2s",
+          whiteSpace: "nowrap",
+          userSelect: "none",
+        }}
+      >
+        {item}
       </div>
+    ))}
+  </div>
+</div>
 
       <div
         className={`home_mainPage ${sideNavbar ? "sidebar-open" : "sidebar-closed"}`}

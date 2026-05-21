@@ -30,11 +30,13 @@
 }
 .homePage_options_track {
   display: flex;
-  gap: 10px;
-  animation: scrollOptions 60s linear infinite;
-  width: max-content;
-  cursor: grab;
-  user-select: none;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .homePage_options_track.dragging {

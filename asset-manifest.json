@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "/zirconplay/static/css/main.d44ffdb1.css",
-    "main.js": "/zirconplay/static/js/main.3ea85799.js",
+    "main.js": "/zirconplay/static/js/main.efe82485.js",
     "static/js/453.fe98dae6.chunk.js": "/zirconplay/static/js/453.fe98dae6.chunk.js",
     "index.html": "/zirconplay/index.html",
     "main.d44ffdb1.css.map": "/zirconplay/static/css/main.d44ffdb1.css.map",
-    "main.3ea85799.js.map": "/zirconplay/static/js/main.3ea85799.js.map",
+    "main.efe82485.js.map": "/zirconplay/static/js/main.efe82485.js.map",
     "453.fe98dae6.chunk.js.map": "/zirconplay/static/js/453.fe98dae6.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.d44ffdb1.css",
-    "static/js/main.3ea85799.js"
+    "static/js/main.efe82485.js"
   ]
 }

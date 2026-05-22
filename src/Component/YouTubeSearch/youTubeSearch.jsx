@@ -12,6 +12,11 @@ const API_KEYS = [
 ];
 
 let currentKeyIndex = 0;
+
+// ── Cache structure ──
+// cache[query]            → last fetched items array
+// cache[`_seen_${query}`] → Set of all video IDs ever shown for this query
+// cache[`_token_${query}`]→ nextPageToken from YouTube for this query
 const cache = {};
 
 const CATEGORIES = [
@@ -49,50 +54,26 @@ const YouTubeSearch = () => {
   const [comment, setComment] = useState("");
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [comments, setComments] = useState([
-    {
-      id: 1,
-      user: "Rahul",
-      text: "Amazing video! 🔥",
-      time: "2 days ago",
-      likes: 24,
-    },
-    {
-      id: 2,
-      user: "Priya",
-      text: "Loved this content!",
-      time: "1 day ago",
-      likes: 12,
-    },
-    {
-      id: 3,
-      user: "Amit",
-      text: "Very informative, thanks!",
-      time: "5 hours ago",
-      likes: 5,
-    },
+    { id: 1, user: "Rahul", text: "Amazing video! 🔥", time: "2 days ago", likes: 24 },
+    { id: 2, user: "Priya", text: "Loved this content!", time: "1 day ago", likes: 12 },
+    { id: 3, user: "Amit", text: "Very informative, thanks!", time: "5 hours ago", likes: 5 },
   ]);
 
   const location = useLocation();
 
-  // ✅ All refs
+  // ── Refs ──
   const autoplayRef = useRef(autoplay);
   const chipsRef = useRef(null);
   const playerRef = useRef(null);
   const resultsRef = useRef(results);
   const indexRef = useRef(selectedVideoIndex);
 
-  // ✅ Keep refs in sync with state
-  useEffect(() => {
-    autoplayRef.current = autoplay;
-  }, [autoplay]);
-  useEffect(() => {
-    resultsRef.current = results;
-  }, [results]);
-  useEffect(() => {
-    indexRef.current = selectedVideoIndex;
-  }, [selectedVideoIndex]);
+  // ── Keep refs in sync ──
+  useEffect(() => { autoplayRef.current = autoplay; }, [autoplay]);
+  useEffect(() => { resultsRef.current = results; }, [results]);
+  useEffect(() => { indexRef.current = selectedVideoIndex; }, [selectedVideoIndex]);
 
-  // ✅ Load YouTube IFrame API script once on mount
+  // ── Load YouTube IFrame API once ──
   useEffect(() => {
     if (!window.YT) {
       const tag = document.createElement("script");
@@ -101,7 +82,7 @@ const YouTubeSearch = () => {
     }
   }, []);
 
-  // ✅ Init/reinit YT Player whenever selectedVideo changes
+  // ── Init/reinit YT Player on video change ──
   useEffect(() => {
     if (!selectedVideo) return;
 
@@ -109,13 +90,10 @@ const YouTubeSearch = () => {
 
     const initPlayer = () => {
       if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch (e) {}
+        try { playerRef.current.destroy(); } catch (e) {}
         playerRef.current = null;
       }
 
-      // Clear old div and recreate it so YT has a fresh mount point
       const container = document.getElementById("yt-player-container");
       if (container) {
         container.innerHTML = "";
@@ -131,26 +109,21 @@ const YouTubeSearch = () => {
         playerVars: { autoplay: 1, rel: 0, enablejsapi: 1 },
         events: {
           onReady: () => {
-            // Start polling player state every second
             pollInterval = setInterval(() => {
               if (!playerRef.current) return;
               try {
                 const state = playerRef.current.getPlayerState();
-                // 0 = ended, check autoplay ref
                 if (state === 0 && autoplayRef.current) {
                   clearInterval(pollInterval);
-                  const currentResults = resultsRef.current;
-                  const currentIndex = indexRef.current;
-                  const n = currentIndex + 1;
-                  if (n < currentResults.length) {
-                    openVideo(currentResults[n], n);
+                  const n = indexRef.current + 1;
+                  if (n < resultsRef.current.length) {
+                    openVideo(resultsRef.current[n], n);
                   }
                 }
               } catch (e) {}
             }, 1000);
           },
           onStateChange: (event) => {
-            // Keep this as backup — works in some browsers
             if (event.data === 0 && autoplayRef.current) {
               clearInterval(pollInterval);
               const n = indexRef.current + 1;
@@ -172,15 +145,13 @@ const YouTubeSearch = () => {
     return () => {
       clearInterval(pollInterval);
       if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch (e) {}
+        try { playerRef.current.destroy(); } catch (e) {}
         playerRef.current = null;
       }
     };
   }, [selectedVideo]);
 
-  // ✅ Handle reload event from navbar
+  // ── Handle reload event from navbar ──
   useEffect(() => {
     const handleReload = () => {
       setSelectedVideo(null);
@@ -191,7 +162,7 @@ const YouTubeSearch = () => {
     return () => window.removeEventListener("youtube-reload", handleReload);
   }, [activeCategory]);
 
-  // ✅ Handle search from URL / navigation
+  // ── Handle search from URL / navigation ──
   useEffect(() => {
     const hashSearch = window.location.hash.includes("?")
       ? window.location.hash.split("?")[1]
@@ -208,51 +179,70 @@ const YouTubeSearch = () => {
     }
   }, [location.hash, location.search, location.pathname, location.state]);
 
+  // ── FIXED: searchWithQuery with pagination + deduplication ──
   const searchWithQuery = async (q, forceRefresh = false) => {
+    // Return cached results only when NOT forcing a refresh
     if (cache[q] && !forceRefresh) {
       setResults(cache[q]);
       return;
     }
-    if (forceRefresh) delete cache[q];
+
     setLoading(true);
     setError("");
+
+    // Initialize the seen-IDs Set for this query if it doesn't exist yet
+    if (!cache[`_seen_${q}`]) {
+      cache[`_seen_${q}`] = new Set();
+    }
+    const seenIds = cache[`_seen_${q}`];
+
+    // Get the stored nextPageToken (empty string on first load)
+    const pageToken = cache[`_token_${q}`] || "";
+
     let allFailed = true;
+
     for (let i = 0; i < API_KEYS.length; i++) {
       const keyIndex = (currentKeyIndex + i) % API_KEYS.length;
       try {
-        const randomSeeds = [
-          "today",
-          "new",
-          "latest",
-          "trending",
-          "hot",
-          "fresh",
-          "viral",
-          "best",
-          "top",
-          "now",
-        ];
-        const seed = forceRefresh
-          ? randomSeeds[Math.floor(Math.random() * randomSeeds.length)]
-          : "";
-        const finalQuery = forceRefresh ? `${q} ${seed}` : q;
+        const params = {
+          part: "snippet",
+          q: q,
+          type: "video",
+          maxResults: 50,
+          order: "relevance",
+          key: API_KEYS[keyIndex],
+        };
+
+        // Only add pageToken when we actually have one (avoids YouTube API error)
+        if (pageToken) {
+          params.pageToken = pageToken;
+        }
 
         const res = await axios.get(
           "https://www.googleapis.com/youtube/v3/search",
-          {
-            params: {
-              part: "snippet",
-              q: finalQuery,
-              type: "video",
-              maxResults: 50,
-              order: "relevance",
-              key: API_KEYS[keyIndex],
-            },
-          },
+          { params }
         );
+
         currentKeyIndex = keyIndex;
-        cache[q] = res.data.items;
-        setResults(res.data.items);
+
+        // Save the next page token for future refreshes
+        cache[`_token_${q}`] = res.data.nextPageToken || "";
+
+        // Filter out videos already shown to the user
+        const newItems = res.data.items.filter(
+          (item) => !seenIds.has(item.id.videoId)
+        );
+
+        // Mark all returned videos as seen (whether we show them or not)
+        res.data.items.forEach((item) => seenIds.add(item.id.videoId));
+
+        // If all videos on this page were already seen, use them anyway
+        // (handles edge case where YouTube returns overlapping pages)
+        const finalItems = newItems.length > 0 ? newItems : res.data.items;
+
+        cache[q] = finalItems;
+        setResults(finalItems);
+
         allFailed = false;
         setLoading(false);
         return;
@@ -266,10 +256,10 @@ const YouTubeSearch = () => {
         break;
       }
     }
-    if (allFailed)
-      setError(
-        "All API keys exhausted for today 😔 Please try again tomorrow.",
-      );
+
+    if (allFailed) {
+      setError("All API keys exhausted for today 😔 Please try again tomorrow.");
+    }
     setLoading(false);
   };
 
@@ -277,7 +267,8 @@ const YouTubeSearch = () => {
     setActiveCategory(index);
     setSelectedVideo(null);
     setSelectedVideoIndex(null);
-    searchWithQuery(CATEGORIES[index].query, false);
+    // Pass true so each category click fetches the next page of fresh videos
+    searchWithQuery(CATEGORIES[index].query, true);
   };
 
   const openVideo = (item, index) => {
@@ -290,7 +281,6 @@ const YouTubeSearch = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // ✅ Subscribe per channel
   const handleSubscribe = (channelTitle) => {
     setSubscribedChannels((prev) => {
       const next = new Set(prev);
@@ -436,7 +426,6 @@ const YouTubeSearch = () => {
         >
           {/* LEFT */}
           <div style={{ flex: "1 1 0", minWidth: 0, width: "100%" }}>
-            {/* ✅ YT Player mounts here */}
             <div
               style={{
                 borderRadius: "12px",
@@ -490,12 +479,8 @@ const YouTubeSearch = () => {
                 ⏮ Previous
               </button>
 
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "10px" }}
-              >
-                <span
-                  style={{ color: "#aaa", fontSize: "13px", fontWeight: "500" }}
-                >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ color: "#aaa", fontSize: "13px", fontWeight: "500" }}>
                   Autoplay
                 </span>
                 <div
@@ -548,20 +533,13 @@ const YouTubeSearch = () => {
                   alignItems: "center",
                   gap: "6px",
                   background:
-                    selectedVideoIndex === results.length - 1
-                      ? "#2a2a2a"
-                      : "#ff0000",
+                    selectedVideoIndex === results.length - 1 ? "#2a2a2a" : "#ff0000",
                   border: "none",
-                  color:
-                    selectedVideoIndex === results.length - 1
-                      ? "#555"
-                      : "white",
+                  color: selectedVideoIndex === results.length - 1 ? "#555" : "white",
                   borderRadius: "20px",
                   padding: "8px 18px",
                   cursor:
-                    selectedVideoIndex === results.length - 1
-                      ? "not-allowed"
-                      : "pointer",
+                    selectedVideoIndex === results.length - 1 ? "not-allowed" : "pointer",
                   fontSize: "14px",
                   fontWeight: "600",
                 }}
@@ -594,51 +572,26 @@ const YouTubeSearch = () => {
                     marginTop: "12px",
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                    }}
-                  >
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                     <img
                       src={`https://ui-avatars.com/api/?name=${encodeURIComponent(currentItem.snippet.channelTitle)}&background=random&size=40`}
                       alt="channel"
-                      style={{
-                        width: "40px",
-                        height: "40px",
-                        borderRadius: "50%",
-                      }}
+                      style={{ width: "40px", height: "40px", borderRadius: "50%" }}
                     />
                     <div>
-                      <div
-                        style={{
-                          color: "white",
-                          fontWeight: "600",
-                          fontSize: "15px",
-                        }}
-                      >
+                      <div style={{ color: "white", fontWeight: "600", fontSize: "15px" }}>
                         {currentItem.snippet.channelTitle}
                       </div>
-                      <div style={{ color: "#aaa", fontSize: "12px" }}>
-                        1.2M subscribers
-                      </div>
+                      <div style={{ color: "#aaa", fontSize: "12px" }}>1.2M subscribers</div>
                     </div>
 
-                    {/* ✅ Per-channel subscribe button */}
                     <button
-                      onClick={() =>
-                        handleSubscribe(currentItem.snippet.channelTitle)
-                      }
+                      onClick={() => handleSubscribe(currentItem.snippet.channelTitle)}
                       style={{
-                        background: subscribedChannels.has(
-                          currentItem.snippet.channelTitle,
-                        )
+                        background: subscribedChannels.has(currentItem.snippet.channelTitle)
                           ? "#272727"
                           : "white",
-                        color: subscribedChannels.has(
-                          currentItem.snippet.channelTitle,
-                        )
+                        color: subscribedChannels.has(currentItem.snippet.channelTitle)
                           ? "white"
                           : "black",
                         border: "none",
@@ -656,9 +609,7 @@ const YouTubeSearch = () => {
                     </button>
                   </div>
 
-                  <div
-                    style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}
-                  >
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                     <div
                       style={{
                         display: "flex",
@@ -704,7 +655,7 @@ const YouTubeSearch = () => {
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(
-                          `https://www.youtube.com/watch?v=${selectedVideo}`,
+                          `https://www.youtube.com/watch?v=${selectedVideo}`
                         );
                         alert("Link copied!");
                       }}
@@ -754,16 +705,8 @@ const YouTubeSearch = () => {
                   }}
                   onClick={() => setShowFullDesc(!showFullDesc)}
                 >
-                  <div
-                    style={{
-                      color: "#aaa",
-                      fontSize: "13px",
-                      marginBottom: "6px",
-                    }}
-                  >
-                    {new Date(
-                      currentItem.snippet.publishedAt,
-                    ).toLocaleDateString("en-US", {
+                  <div style={{ color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>
+                    {new Date(currentItem.snippet.publishedAt).toLocaleDateString("en-US", {
                       year: "numeric",
                       month: "long",
                       day: "numeric",
@@ -778,8 +721,7 @@ const YouTubeSearch = () => {
                       overflow: showFullDesc ? "visible" : "hidden",
                     }}
                   >
-                    {currentItem.snippet.description ||
-                      "No description available."}
+                    {currentItem.snippet.description || "No description available."}
                   </p>
                   <span
                     style={{
@@ -806,13 +748,7 @@ const YouTubeSearch = () => {
                   >
                     {comments.length} Comments
                   </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "12px",
-                      marginBottom: "24px",
-                    }}
-                  >
+                  <div style={{ display: "flex", gap: "12px", marginBottom: "24px" }}>
                     <img
                       src="https://athenabpo.com/wp-content/uploads/2016/09/Headshot-Blank-Person-Circle-300x300.gif"
                       alt="user"
@@ -912,11 +848,7 @@ const YouTubeSearch = () => {
                   {comments.map((c) => (
                     <div
                       key={c.id}
-                      style={{
-                        display: "flex",
-                        gap: "12px",
-                        marginBottom: "20px",
-                      }}
+                      style={{ display: "flex", gap: "12px", marginBottom: "20px" }}
                     >
                       <img
                         src={`https://ui-avatars.com/api/?name=${encodeURIComponent(c.user)}&background=random&size=36`}
@@ -929,67 +861,23 @@ const YouTubeSearch = () => {
                         }}
                       />
                       <div>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "8px",
-                            alignItems: "center",
-                          }}
-                        >
-                          <span
-                            style={{
-                              color: "white",
-                              fontWeight: "600",
-                              fontSize: "13px",
-                            }}
-                          >
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                          <span style={{ color: "white", fontWeight: "600", fontSize: "13px" }}>
                             {c.user}
                           </span>
-                          <span style={{ color: "#aaa", fontSize: "12px" }}>
-                            {c.time}
-                          </span>
+                          <span style={{ color: "#aaa", fontSize: "12px" }}>{c.time}</span>
                         </div>
-                        <div
-                          style={{
-                            color: "#ccc",
-                            fontSize: "14px",
-                            marginTop: "4px",
-                          }}
-                        >
+                        <div style={{ color: "#ccc", fontSize: "14px", marginTop: "4px" }}>
                           {c.text}
                         </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "12px",
-                            marginTop: "6px",
-                          }}
-                        >
-                          <span
-                            style={{
-                              color: "#aaa",
-                              fontSize: "13px",
-                              cursor: "pointer",
-                            }}
-                          >
+                        <div style={{ display: "flex", gap: "12px", marginTop: "6px" }}>
+                          <span style={{ color: "#aaa", fontSize: "13px", cursor: "pointer" }}>
                             👍 {c.likes}
                           </span>
-                          <span
-                            style={{
-                              color: "#aaa",
-                              fontSize: "13px",
-                              cursor: "pointer",
-                            }}
-                          >
+                          <span style={{ color: "#aaa", fontSize: "13px", cursor: "pointer" }}>
                             👎
                           </span>
-                          <span
-                            style={{
-                              color: "#aaa",
-                              fontSize: "13px",
-                              cursor: "pointer",
-                            }}
-                          >
+                          <span style={{ color: "#aaa", fontSize: "13px", cursor: "pointer" }}>
                             Reply
                           </span>
                         </div>
@@ -1051,9 +939,7 @@ const YouTubeSearch = () => {
               </div>
             </div>
 
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "8px" }}
-            >
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {relatedVideos.map((item) => {
                 const realIndex = results.indexOf(item);
                 return (
@@ -1068,12 +954,8 @@ const YouTubeSearch = () => {
                       padding: "4px",
                       transition: "background 0.2s",
                     }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "#1e1e1e")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#1e1e1e")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
                     <div
                       style={{
@@ -1112,20 +994,15 @@ const YouTubeSearch = () => {
                       >
                         {item.snippet.title}
                       </div>
-                      <div
-                        style={{
-                          color: "#aaa",
-                          fontSize: "12px",
-                          marginBottom: "2px",
-                        }}
-                      >
+                      <div style={{ color: "#aaa", fontSize: "12px", marginBottom: "2px" }}>
                         {item.snippet.channelTitle}
                       </div>
                       <div style={{ color: "#aaa", fontSize: "12px" }}>
-                        {new Date(item.snippet.publishedAt).toLocaleDateString(
-                          "en-US",
-                          { month: "short", day: "numeric", year: "numeric" },
-                        )}
+                        {new Date(item.snippet.publishedAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1163,9 +1040,7 @@ const YouTubeSearch = () => {
                       animation: "pulse 1.5s infinite",
                     }}
                   />
-                  <div
-                    style={{ padding: "12px", display: "flex", gap: "10px" }}
-                  >
+                  <div style={{ padding: "12px", display: "flex", gap: "10px" }}>
                     <div
                       style={{
                         width: "36px",
@@ -1232,13 +1107,7 @@ const YouTubeSearch = () => {
                       }}
                     />
                   </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "12px",
-                      padding: "12px 4px",
-                    }}
-                  >
+                  <div style={{ display: "flex", gap: "12px", padding: "12px 4px" }}>
                     <img
                       src={`https://ui-avatars.com/api/?name=${encodeURIComponent(item.snippet.channelTitle)}&background=random&size=36`}
                       alt="channel"
@@ -1265,20 +1134,15 @@ const YouTubeSearch = () => {
                       >
                         {item.snippet.title}
                       </div>
-                      <div
-                        style={{
-                          color: "#aaa",
-                          fontSize: "13px",
-                          marginBottom: "2px",
-                        }}
-                      >
+                      <div style={{ color: "#aaa", fontSize: "13px", marginBottom: "2px" }}>
                         {item.snippet.channelTitle}
                       </div>
                       <div style={{ color: "#aaa", fontSize: "12px" }}>
-                        {new Date(item.snippet.publishedAt).toLocaleDateString(
-                          "en-US",
-                          { year: "numeric", month: "short", day: "numeric" },
-                        )}
+                        {new Date(item.snippet.publishedAt).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
                       </div>
                     </div>
                   </div>

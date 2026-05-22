@@ -293,7 +293,7 @@
 /* ✅ Remove internal padding from shorts row — let parent handle left alignment */
 .homePage_shortsRow {
   display: flex;
-  gap: 0px;             /* ← was 5px, reduce further if needed */
+  gap: 1px;             /* ← was 5px, reduce further if needed */
   overflow-x: auto;
   padding: 0 0 8px 0;
   scrollbar-width: none;

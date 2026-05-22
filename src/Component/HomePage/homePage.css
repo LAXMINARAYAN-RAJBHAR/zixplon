@@ -234,18 +234,20 @@
 }
 
 .homePage_shortCard {
-  text-decoration: none;
-  flex-shrink: 0;
-  width: 140px;
-  cursor: pointer;
+  flex: 1;
+  min-width: 80px;      /* ← smaller minimum */
+  max-width: 110px;     /* ← smaller maximum */
 }
 
 .homePage_shortThumbnail {
   position: relative;
-  width: 140px;
-  height: 240px;
+  width: 100%;
+  height: 160px;        /* ← was 240px */
   border-radius: 12px;
   overflow: hidden;
+}
+.homePage_shortTitle {
+  font-size: 11px;      /* ← add this if you have it, or add the rule */
 }
 
 .homePage_shortImg {
@@ -291,29 +293,14 @@
 /* ✅ Remove internal padding from shorts row — let parent handle left alignment */
 .homePage_shortsRow {
   display: flex;
-  gap: 5px;
+  gap: 0px;             /* ← was 5px, reduce further if needed */
   overflow-x: auto;
-  padding: 0 0 8px 0;   /* ← removed left/right padding */
+  padding: 0 0 8px 0;
   scrollbar-width: none;
   width: 100%;
   justify-content: space-between;
 }
 
-.homePage_shortCard {
-  text-decoration: none;
-  flex: 1;              /* ← grows to fill space */
-  min-width: 120px;     /* ← don't shrink too small */
-  max-width: 180px;     /* ← don't grow too wide */
-  cursor: pointer;
-}
-
-.homePage_shortThumbnail {
-  position: relative;
-  width: 100%;          /* ← fills card width */
-  height: 240px;
-  border-radius: 12px;
-  overflow: hidden;
-}
 
 .hp-watch-mobile { 
   position:fixed; top:60px; left:0; right:0; bottom:0; 

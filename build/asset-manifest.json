@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/zirconplay/static/css/main.ece64766.css",
-    "main.js": "/zirconplay/static/js/main.48ab1c59.js",
-    "static/js/453.fe98dae6.chunk.js": "/zirconplay/static/js/453.fe98dae6.chunk.js",
-    "index.html": "/zirconplay/index.html",
-    "main.ece64766.css.map": "/zirconplay/static/css/main.ece64766.css.map",
-    "main.48ab1c59.js.map": "/zirconplay/static/js/main.48ab1c59.js.map",
-    "453.fe98dae6.chunk.js.map": "/zirconplay/static/js/453.fe98dae6.chunk.js.map"
+    "main.css": "/ZIXPLON/static/css/main.ece64766.css",
+    "main.js": "/ZIXPLON/static/js/main.c6b20ad5.js",
+    "static/js/453.bb36ccdc.chunk.js": "/ZIXPLON/static/js/453.bb36ccdc.chunk.js",
+    "index.html": "/ZIXPLON/index.html",
+    "main.ece64766.css.map": "/ZIXPLON/static/css/main.ece64766.css.map",
+    "main.c6b20ad5.js.map": "/ZIXPLON/static/js/main.c6b20ad5.js.map",
+    "453.bb36ccdc.chunk.js.map": "/ZIXPLON/static/js/453.bb36ccdc.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.ece64766.css",
-    "static/js/main.48ab1c59.js"
+    "static/js/main.c6b20ad5.js"
   ]
 }

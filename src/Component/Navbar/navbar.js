@@ -1018,14 +1018,14 @@ const Navbar = ({
           </svg>
         </span>
 
-        <span
+        {/* <span
           onClick={() =>
             navigate("/youtube", { state: { reload: Date.now() } })
           }
           style={{ cursor: "pointer" }}
         >
           <YouTubeIcon sx={{ fontSize: "30px", color: "red" }} />
-        </span>
+        </span> */}
 
         <span
           onClick={() => navigate("/763/upload")}

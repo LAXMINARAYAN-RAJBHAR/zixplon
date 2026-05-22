@@ -198,6 +198,42 @@
   text-shadow: 0 0 5px #ff00ff, 0 0 15px #ff00ff, 0 0 30px #ff00ff;
 }
 
+.youtube_playOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.youtube_thumbnailBox:hover .youtube_playOverlay {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.youtube_playButton {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: black;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 4px;        /* visually centers the ▶ */
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.youtube_thumbnailBox:hover .youtube_playButton {
+  opacity: 1;
+  transform: scale(1);
+}
+
 /* ✅ Remove internal padding from shorts header too */
 .homePage_shortsHeader {
   display: flex;

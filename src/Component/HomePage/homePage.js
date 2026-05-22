@@ -1934,16 +1934,22 @@ useEffect(() => {
   );
 
   const VideoCard = ({ video }) => (
-    <div className="youtube_thumbnailBox">
-      <Link to={`/video/${video.id}`} className="youtube_thumbnailWrapper">
-        <img
-          src={video.thumbnail}
-          alt={video.title}
-          className="youtube_thumbnailPic"
-        />
-        <div className="youtube_timingThumbnail">{video.duration}</div>
-      </Link>
-      <div className="youtubeTitleBox">
+  <div className="youtube_thumbnailBox">
+    <Link to={`/video/${video.id}`} className="youtube_thumbnailWrapper">
+      <img
+        src={video.thumbnail}
+        alt={video.title}
+        className="youtube_thumbnailPic"
+      />
+      <div className="youtube_timingThumbnail">{video.duration}</div>
+
+      {/* ── Play overlay ── */}
+      <div className="youtube_playOverlay">
+        <div className="youtube_playButton">▶</div>
+      </div>
+
+    </Link>
+    <div className="youtubeTitleBox">
         <div className="youtubeBoxProfile">
           <img
             src={`https://api.dicebear.com/7.x/initials/svg?seed=${video.channel}`}
@@ -2143,7 +2149,7 @@ useEffect(() => {
           Array.from({ length: Math.ceil(reelsData.length / 6) }).map(
             (_, rowIndex) => {
               const start = rowIndex * 5;
-              const end = start + 9;
+              const end = start + 10;
               const vStart = rowIndex * 8;
               const vEnd = vStart + 12;
               return (

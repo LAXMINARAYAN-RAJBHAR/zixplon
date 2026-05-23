@@ -150,3 +150,42 @@
   color: #888;
   font-size: 0.85rem;
 }
+/* ── Mode Toggle ── */
+.upload_mode_toggle {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 10px 0 6px;
+}
+
+.upload_mode_btn {
+  padding: 10px 32px;
+  border-radius: 24px;
+  border: 2px solid #444;
+  color: #aaa;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+}
+
+.upload_mode_btn:hover {
+  border-color: orange;
+  color: orange;
+}
+
+.upload_mode_btn.active {
+  background: orange;
+  border-color: orange;
+  color: black;
+}
+
+/* ── Mode Hint ── */
+.upload_mode_hint {
+  text-align: center;
+  color: #888;
+  font-size: 0.8rem;
+  margin: 0 0 10px;
+  padding: 0 16px;
+}

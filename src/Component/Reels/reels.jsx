@@ -733,7 +733,7 @@ const handleLike = () => {
             onClick={handleLike}
           >
             <span className="reel_like_inner">
-              <ThumbUpOutlinedIcon style={{ color: "white" }} />
+              <ThumbUpOutlinedIcon style={{ color: liked ? "#ff0000" : "white" }} />
               <span className="reel_like_count">
                 {liked ? reel.likes + 1 : reel.likes}
               </span>

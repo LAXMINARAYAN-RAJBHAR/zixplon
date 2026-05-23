@@ -266,7 +266,7 @@ const Video = () => {
               title="Like"
             >
               <span className="video_like_inner">
-                <ThumbUpOutlinedIcon fontSize="small" />
+                <ThumbUpOutlinedIcon fontSize="small" style={{ color: liked ? "#ff0000" : "white" }} />
                 <span>{likeCount}</span>
               </span>
               <span className="video_like_emoji">😊</span>

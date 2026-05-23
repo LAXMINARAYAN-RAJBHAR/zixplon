@@ -175,12 +175,13 @@
 
 /* _____________________________________________________ */
 .videoSuggestions {
-  height: 100vh;        /* or a fixed value like 600px */
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow-y: scroll;
+  scrollbar-width: none;         /* Firefox */
+  -ms-overflow-style: none;      /* IE/Edge */
 }
+
 .videoSuggestions::-webkit-scrollbar {
-  display: none;
+  display: none;                 /* Chrome/Safari */
 }
 
 .videoSuggestionsBlock{

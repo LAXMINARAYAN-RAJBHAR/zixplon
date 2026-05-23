@@ -603,7 +603,6 @@ const HomePage = ({ sideNavbar }) => {
                       </>
                     ) : dbVideos.length > 0 ? (
                       <>
-                        <SectionLabel color="#ff6600" bg="#ff660022" text="⬆ UPLOADED VIDEOS" count={dbVideos.length} />
                         <div className="youtube_VideoGrid">
                           {dbVideos.map((v) => <VideoCard key={v.id} video={v} isUploaded={true} />)}
                         </div>

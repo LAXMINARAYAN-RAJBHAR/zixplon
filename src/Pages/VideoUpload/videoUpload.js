@@ -29,6 +29,7 @@ const VideoUpload = () => {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [thumbSource, setThumbSource] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const durationRef = useRef("00:00");
 
@@ -121,6 +122,7 @@ const VideoUpload = () => {
   const uploadVideo = async (e) => {
     setLoader(true);
     setError("");
+    setUploadProgress(0);
     const files = e.target.files;
     if (!files || files.length === 0) {
       setLoader(false);
@@ -128,21 +130,82 @@ const VideoUpload = () => {
     }
     const file = files[0];
 
+    // 4GB max
+    const MAX_SIZE = 4 * 1024 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setError("File too large. Maximum size is 4GB.");
+      setLoader(false);
+      return;
+    }
+
     try {
       const [, thumbnailBlob] = await Promise.all([
         getVideoDuration(file),
         captureThumbnail(file),
       ]);
 
-      const videoData = new FormData();
-      videoData.append("file", file);
-      videoData.append("upload_preset", "youtube-clone");
-      const videoRes = await axios.post(
-        "https://api.cloudinary.com/v1_1/dwoqk0yue/video/upload",
-        videoData,
-      );
-      const videoUrl = videoRes.data.secure_url;
+      // ── Step 1: Get upload signature for chunked upload ──
+      const CLOUD_NAME = "dwoqk0yue";
+      const UPLOAD_PRESET = "youtube-clone";
+      const CHUNK_SIZE = 20 * 1024 * 1024; // 20MB per chunk
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      let videoUrl = "";
 
+      if (file.size <= CHUNK_SIZE) {
+        // Small file — direct upload
+        const videoData = new FormData();
+        videoData.append("file", file);
+        videoData.append("upload_preset", UPLOAD_PRESET);
+        const videoRes = await axios.post(
+          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
+          videoData,
+          {
+            onUploadProgress: (e) => {
+              setUploadProgress(Math.round((e.loaded * 100) / e.total));
+            },
+            timeout: 0, // no timeout
+          },
+        );
+        videoUrl = videoRes.data.secure_url;
+      } else {
+        // Large file — chunked upload
+        const uniqueUploadId = `uq_${Date.now()}`;
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+          const start = chunkIndex * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+
+          const chunkData = new FormData();
+          chunkData.append("file", chunk);
+          chunkData.append("upload_preset", UPLOAD_PRESET);
+
+          const res = await axios.post(
+            `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
+            chunkData,
+            {
+              headers: {
+                "X-Unique-Upload-Id": uniqueUploadId,
+                "Content-Range": `bytes ${start}-${end - 1}/${file.size}`,
+              },
+              timeout: 0,
+              onUploadProgress: (e) => {
+                const chunkProgress = e.loaded / e.total;
+                const overall = Math.round(
+                  ((chunkIndex + chunkProgress) / totalChunks) * 100,
+                );
+                setUploadProgress(overall);
+              },
+            },
+          );
+
+          // Last chunk returns the final URL
+          if (chunkIndex === totalChunks - 1) {
+            videoUrl = res.data.secure_url;
+          }
+        }
+      }
+
+      // ── Thumbnail ──
       let thumbnailUrl = inputField.thumbnail;
       if (!imageUploaded) {
         thumbnailUrl = await uploadThumbnailToCloudinary(thumbnailBlob);
@@ -155,9 +218,11 @@ const VideoUpload = () => {
         thumbnail: thumbnailUrl,
       }));
       setVideoUploaded(true);
+      setUploadProgress(100);
       setLoader(false);
     } catch (err) {
       setLoader(false);
+      setUploadProgress(0);
       setError("Upload failed. Please try again.");
       console.log("Upload error:", err.response?.data || err);
     }
@@ -451,16 +516,38 @@ const VideoUpload = () => {
 
           {/* ── Loader ── */}
           {loader && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <CircularProgress
-                size={28}
-                sx={{ color: "orange" }}
-                aria-label="Loading…"
-              />
-              <span style={{ color: "#aaa", fontSize: "0.9rem" }}>
-                Uploading {uploadMode === "reel" ? "reel" : "video"} & capturing
-                thumbnail...
-              </span>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                width: "100%",
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <CircularProgress size={28} sx={{ color: "orange" }} />
+                <span style={{ color: "#aaa", fontSize: "0.9rem" }}>
+                  Uploading... {uploadProgress}%
+                </span>
+              </Box>
+              <div
+                style={{
+                  width: "100%",
+                  background: "#333",
+                  borderRadius: "8px",
+                  height: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${uploadProgress}%`,
+                    background: "orange",
+                    height: "100%",
+                    borderRadius: "8px",
+                    transition: "width 0.3s",
+                  }}
+                />
+              </div>
             </Box>
           )}
 

@@ -68,19 +68,17 @@ const getVideoType = (src) => {
 
 const ReelItem = ({ reel }) => {
   const videoRef = useRef(null);
-  const containerRef = useRef(null);
-  const isMounted = useRef(true);
-  const observerRef = useRef(null);
-  const iconTimeoutRef = useRef(null);
-
-  const loggedInUser = localStorage.getItem("username") || "Guest";
-
   const [subscribed, setSubscribed] = useState(false);
+  const containerRef = useRef(null);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(reel.likes || 0);
   const [muted, setMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showIcon, setShowIcon] = useState(false);
+  const isMounted = useRef(true);
+  const observerRef = useRef(null);
+  const iconTimeoutRef = useRef(null);
+  const loggedInUser = localStorage.getItem("username") || "Guest";
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState([
@@ -104,22 +102,7 @@ const ReelItem = ({ reel }) => {
     loadLike();
   }, [reel.id]);
 
-  // ✅ Load subscription status from Supabase
-  useEffect(() => {
-    const loadSubscription = async () => {
-      const userId = localStorage.getItem("userId");
-      if (!userId) return;
-      const { data } = await supabase
-        .from("subscriptions")
-        .select("id")
-        .match({ subscriber_id: userId, subscribed_to: reel.username })
-        .single();
-      setSubscribed(!!data);
-    };
-    loadSubscription();
-  }, [reel.username]);
-
-  // ✅ Load comments from Supabase
+  // ✅ Load comments from Supabase (FIXED - moved here from Reels component)
   useEffect(() => {
     const loadComments = async () => {
       const { data } = await supabase
@@ -140,35 +123,6 @@ const ReelItem = ({ reel }) => {
     };
     loadComments();
   }, [reel.id]);
-
-  // ✅ Handle Subscribe / Unsubscribe with Supabase
-  const handleSubscribe = async (e) => {
-    e.preventDefault();
-    const userId = localStorage.getItem("userId");
-    if (!userId) {
-      alert("Please login to subscribe");
-      return;
-    }
-    // Prevent subscribing to yourself
-    if (userId === reel.username) {
-      alert("You cannot subscribe to yourself");
-      return;
-    }
-    if (subscribed) {
-      // Unsubscribe
-      await supabase
-        .from("subscriptions")
-        .delete()
-        .match({ subscriber_id: userId, subscribed_to: reel.username });
-      setSubscribed(false);
-    } else {
-      // Subscribe
-      const { error } = await supabase
-        .from("subscriptions")
-        .insert({ subscriber_id: userId, subscribed_to: reel.username });
-      if (!error) setSubscribed(true);
-    }
-  };
 
   const handleCommentSubmit = async () => {
     if (!commentText.trim()) return;
@@ -263,6 +217,13 @@ const ReelItem = ({ reel }) => {
     flashIcon();
   };
 
+  const toggleMute = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = !video.muted;
+    setMuted(video.muted);
+  };
+
   const handleLike = async () => {
     const userId = localStorage.getItem("userId");
     if (!userId) { alert("Please login to like"); return; }
@@ -348,10 +309,9 @@ const ReelItem = ({ reel }) => {
             <Link to={`/user/${reel.username}`} style={{ textDecoration: "none", color: "white" }}>
               <span className="reel_username">{reel.user}</span>
             </Link>
-            {/* ✅ Subscribe button now connected to Supabase */}
             <button
               className="reel_subscribe_btn"
-              onClick={handleSubscribe}
+              onClick={(e) => { e.preventDefault(); setSubscribed((prev) => !prev); }}
               style={{ background: subscribed ? "#555" : "#ff0000", color: "white" }}
             >
               {subscribed ? "Subscribed" : "Subscribe"}

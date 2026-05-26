@@ -5,10 +5,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    /* justify-content: center; */
-    height: 100vh;
+    min-height: 100vh;
     background-color: black;
-    color: white;
+    padding-bottom: 40px;
 }
 .signup_card{
     width: 40%;

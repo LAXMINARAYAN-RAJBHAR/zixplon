@@ -1981,7 +1981,7 @@ const HomePage = ({ sideNavbar }) => {
                 />
                 <div className="homePage_shortPlay">▶</div>
                 <div className="homePage_shortDuration">{short.duration}</div>
-                {views !== undefined && (
+                {short.dbId && (
                   <div
                     style={{
                       position: "absolute",
@@ -1995,7 +1995,7 @@ const HomePage = ({ sideNavbar }) => {
                       borderRadius: "4px",
                     }}
                   >
-                    👁 {formatViews(views || 0)}
+                    👁 {formatViews(views ?? 0)}
                   </div>
                 )}
               </div>

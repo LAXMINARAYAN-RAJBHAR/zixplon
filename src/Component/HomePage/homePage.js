@@ -1949,8 +1949,9 @@ const HomePage = ({ sideNavbar }) => {
         {data.map((short) => {
           const isOwner =
             loggedInUsername && short.username === loggedInUsername;
-          const vcKey = "reel_" + (short.dbId || short.id);
-          const views = viewCounts[vcKey];
+          const vcKey = short.dbId ? "reel_" + short.dbId : null;
+          const views = vcKey ? viewCounts[vcKey] : undefined;
+          
           return (
             <div
               key={short.id}
@@ -2121,19 +2122,34 @@ const HomePage = ({ sideNavbar }) => {
           <div className="youtubeVideoInfo">
             <p className="youtube_videoTitle">{video.title}</p>
             <p
-              className="youtubeVideo_Views"
-              style={{ display: "flex", gap: "10px", alignItems: "center" }}
-            >
-              {isUploaded ? (
-                <>
-                  <span>👁 {formatViews(views ?? 0)}</span>
-                  <span style={{ color: "#aaa", fontSize: "11px" }}>•</span>
-                  <span>👍 {video.likes ?? 0} Likes</span>
-                </>
-              ) : (
-                <span>👍 3 Likes</span>
-              )}
-            </p>
+  className="youtubeVideo_Views"
+  style={{ display: "flex", gap: "10px", alignItems: "center" }}
+>
+  {isUploaded ? (
+    <>
+      <span>👁 {formatViews(views ?? 0)}</span>
+      <span style={{ color: "#aaa", fontSize: "11px" }}>•</span>
+      <button
+        onClick={(e) => handleLikeVideo(e, video.id)}
+        style={{
+          background: "none",
+          border: "none",
+          color: "#aaa",
+          cursor: "pointer",
+          fontSize: "inherit",
+          padding: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: "3px",
+        }}
+      >
+        👍 {video.likes ?? 0} Likes
+      </button>
+    </>
+  ) : (
+    <span>👍 3 Likes</span>
+  )}
+</p>
           </div>
         </div>
       </div>

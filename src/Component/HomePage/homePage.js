@@ -596,6 +596,7 @@ const avatarColors = [
   "#BB8FCE",
   "#85C1E9",
 ];
+
 const getColor = (str) =>
   avatarColors[(str || "A").charCodeAt(0) % avatarColors.length];
 
@@ -626,6 +627,7 @@ const WatchPage = ({
   initialChannel,
   onClose,
   suggestions,
+  onIncrementView, // ← receives incrementView from HomePage
 }) => {
   const isMobile = useIsMobile();
   const [currentIndex, setCurrentIndex] = useState(() => {
@@ -652,29 +654,36 @@ const WatchPage = ({
   const publishedAt = isYT ? item.snippet.publishedAt : null;
   const description = isYT ? item.snippet.description : null;
 
+  // ── FIX 1: goTo now navigates to ALL items (YT + local),
+  //           and only increments view for uploaded DB videos
+  //           (identified by having a `src` field). ─────────────
   const goTo = (idx) => {
-    setCurrentIndex(Math.max(0, Math.min(idx, suggestions.length - 1)));
+    const clampedIdx = Math.max(0, Math.min(idx, suggestions.length - 1));
+    const target = suggestions[clampedIdx];
+    if (target && onIncrementView) {
+      const isYTItem = !!target.snippet;
+      // Only count views for real uploaded videos (they have src from video_url)
+      if (!isYTItem && target.src && target.id) {
+        onIncrementView(String(target.id), "video");
+      }
+    }
+    setCurrentIndex(clampedIdx);
     setIsLiked(false);
     setIsDisliked(false);
     setShowFullDesc(false);
   };
 
-  const hasPrev = suggestions.slice(0, currentIndex).some((s) => s.id?.videoId);
-  const hasNext = suggestions
-    .slice(currentIndex + 1)
-    .some((s) => s.id?.videoId);
+  // ── FIX 2: hasPrev/hasNext use simple index bounds so both
+  //           YT and local videos are navigable. ───────────────
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex < suggestions.length - 1;
 
   const goPrev = () => {
-    const rel = [...suggestions.slice(0, currentIndex)]
-      .reverse()
-      .findIndex((s) => s.id?.videoId);
-    if (rel >= 0) goTo(currentIndex - 1 - rel);
+    if (hasPrev) goTo(currentIndex - 1);
   };
+
   const goNext = () => {
-    const rel = suggestions
-      .slice(currentIndex + 1)
-      .findIndex((s) => s.id?.videoId);
-    if (rel >= 0) goTo(currentIndex + 1 + rel);
+    if (hasNext) goTo(currentIndex + 1);
   };
 
   const handleSubscribe = (ch) => {
@@ -1260,7 +1269,8 @@ const WatchPage = ({
               : s.thumbnail;
             const title = isYTItem ? s.snippet.title : s.title;
             const channel = isYTItem ? s.snippet.channelTitle : s.channel;
-            const hasVid = isYTItem && !!s.id?.videoId;
+            // ── FIX 3: local uploaded videos (with src) are also clickable
+            const hasVid = (isYTItem && !!s.id?.videoId) || (!isYTItem && !!s.src);
             return (
               <div
                 key={s.id?.videoId || s.id || realIdx}
@@ -1586,28 +1596,43 @@ const HomePage = ({ sideNavbar }) => {
 
   const loggedInUsername = localStorage.getItem("username") || "";
 
-  // ── Increment a view count (optimistic + persisted) ──────────
+  // ── Increment a view count (24-hour guard + optimistic UI) ───
   const incrementView = async (contentId, contentType) => {
-  // Optimistic update immediately
-  const key = contentType + "_" + contentId;
-  setViewCounts((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
-  try {
-    await supabase.rpc("increment_view_count", {
-      p_content_id: String(contentId),
-      p_content_type: contentType,
-    });
-    // Re-fetch real count from DB after RPC
-    const { data } = await supabase
-      .from("view_counts")
-      .select("count")
-      .eq("content_id", String(contentId))
-      .eq("content_type", contentType)
-      .maybeSingle();
-    if (data) {
-      setViewCounts((prev) => ({ ...prev, [key]: data.count }));
+    // 1. Check localStorage for last-view timestamp
+    const storageKey = `lastViewed_${contentType}_${contentId}`;
+    const lastViewed = localStorage.getItem(storageKey);
+    const now = Date.now();
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+    if (lastViewed && now - parseInt(lastViewed, 10) < TWENTY_FOUR_HOURS) {
+      // Already viewed within 24 hours — skip increment
+      return;
     }
-  } catch (_) {}
-};
+
+    // 2. Save timestamp immediately to prevent double-clicks
+    localStorage.setItem(storageKey, String(now));
+
+    // 3. Optimistic UI update
+    const key = `${contentType}_${contentId}`;
+    setViewCounts((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
+
+    // 4. Persist to Supabase
+    try {
+      await supabase.rpc("increment_view_count", {
+        p_content_id: String(contentId),
+        p_content_type: contentType,
+      });
+      const { data } = await supabase
+        .from("view_counts")
+        .select("count")
+        .eq("content_id", String(contentId))
+        .eq("content_type", contentType)
+        .maybeSingle();
+      if (data) {
+        setViewCounts((prev) => ({ ...prev, [key]: data.count }));
+      }
+    } catch (_) {}
+  };
 
   // ── Mark video watched → removes "New" badge ─────────────────
   const markAsWatched = (videoId) => {
@@ -1632,7 +1657,6 @@ const HomePage = ({ sideNavbar }) => {
         .in("content_id", ids.map(String));
 
       if (error) {
-        // Table might not exist — seed zeros so UI shows "0 views"
         const map = {};
         ids.forEach((id) => {
           map[contentType + "_" + id] = 0;
@@ -1641,7 +1665,6 @@ const HomePage = ({ sideNavbar }) => {
         return;
       }
 
-      // Start with 0 for ALL ids, then overwrite with real counts
       const map = {};
       ids.forEach((id) => {
         map[contentType + "_" + id] = 0;
@@ -1653,7 +1676,6 @@ const HomePage = ({ sideNavbar }) => {
       }
       setViewCounts((prev) => ({ ...prev, ...map }));
     } catch (_) {
-      // Seed zeros on any error
       const map = {};
       ids.forEach((id) => {
         map[contentType + "_" + id] = 0;
@@ -1725,7 +1747,6 @@ const HomePage = ({ sideNavbar }) => {
           likes: v.likes ?? 0,
         }));
         setDbVideos(formatted);
-        // ← Make sure this line exists right here
         fetchViewCounts(
           formatted.map((v) => v.id),
           "video",
@@ -1752,6 +1773,7 @@ const HomePage = ({ sideNavbar }) => {
               channel: v.channel,
               username: v.username || v.channel?.toLowerCase() || "unknown",
               tags: [v.category || "All"],
+              likes: v.likes ?? 0,
             },
             ...prev,
           ]);
@@ -1789,7 +1811,7 @@ const HomePage = ({ sideNavbar }) => {
             "https://api.dicebear.com/7.x/initials/svg?seed=" +
             (r.username || "user"),
           description: r.description || "",
-          likes: r.likes ?? 0, // ← already there, make sure it's not null
+          likes: r.likes ?? 0,
         }));
         setDbReels(formatted);
         fetchViewCounts(
@@ -1907,56 +1929,75 @@ const HomePage = ({ sideNavbar }) => {
   const openWatchPage = (videoId, title, channel) =>
     setWatchVideo({ videoId, title, channel });
   const closeWatchPage = () => setWatchVideo(null);
+
   const getSuggestions = () => [
     ...ytVideos.slice(0, 20),
     ...allVideos.slice(0, 12),
   ];
+
   const filteredVideos =
     selectedOption === "All"
       ? allVideos
       : allVideos.filter((v) => v.tags?.includes(selectedOption));
 
+  // ── Like / Unlike video ──────────────────────────────────────
   const handleLikeVideo = async (e, videoId) => {
-  e.preventDefault();
-  e.stopPropagation();
-  const userId = localStorage.getItem("userId");
-  if (!userId) { alert("Please login to like"); return; }
-  try {
-    // Check if already liked
-    const { data: existing } = await supabase
-      .from("likes")
-      .select("id")
-      .match({ user_id: userId, content_id: String(videoId), content_type: "video" })
-      .maybeSingle();
-
-    if (existing) {
-      // Unlike — remove from likes table
-      await supabase.from("likes").delete()
-        .match({ user_id: userId, content_id: String(videoId), content_type: "video" });
-      // Decrement videos.likes column
-      await supabase.rpc("decrement_likes", { p_table: "videos", p_id: videoId });
-      // Update local state immediately
-      setDbVideos((prev) =>
-        prev.map((v) => v.id === videoId
-          ? { ...v, likes: Math.max(0, (v.likes || 0) - 1) }
-          : v)
-      );
-    } else {
-      // Like — insert into likes table
-      await supabase.from("likes").insert(
-        { user_id: userId, content_id: String(videoId), content_type: "video" }
-      );
-      // Increment videos.likes column
-      await supabase.rpc("increment_likes", { p_table: "videos", p_id: videoId });
-      // Update local state immediately
-      setDbVideos((prev) =>
-        prev.map((v) => v.id === videoId
-          ? { ...v, likes: (v.likes || 0) + 1 }
-          : v)
-      );
+    e.preventDefault();
+    e.stopPropagation();
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+      alert("Please login to like");
+      return;
     }
-  } catch (_) {}
-};
+    try {
+      const { data: existing } = await supabase
+        .from("likes")
+        .select("id")
+        .match({
+          user_id: userId,
+          content_id: String(videoId),
+          content_type: "video",
+        })
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from("likes")
+          .delete()
+          .match({
+            user_id: userId,
+            content_id: String(videoId),
+            content_type: "video",
+          });
+        await supabase.rpc("decrement_likes", {
+          p_table: "videos",
+          p_id: videoId,
+        });
+        setDbVideos((prev) =>
+          prev.map((v) =>
+            v.id === videoId
+              ? { ...v, likes: Math.max(0, (v.likes || 0) - 1) }
+              : v,
+          ),
+        );
+      } else {
+        await supabase.from("likes").insert({
+          user_id: userId,
+          content_id: String(videoId),
+          content_type: "video",
+        });
+        await supabase.rpc("increment_likes", {
+          p_table: "videos",
+          p_id: videoId,
+        });
+        setDbVideos((prev) =>
+          prev.map((v) =>
+            v.id === videoId ? { ...v, likes: (v.likes || 0) + 1 } : v,
+          ),
+        );
+      }
+    } catch (_) {}
+  };
 
   // ── Delete video ─────────────────────────────────────────────
   const handleDeleteVideo = async (e, videoId) => {
@@ -1978,6 +2019,8 @@ const HomePage = ({ sideNavbar }) => {
   };
 
   // ── Shorts / Reels row ───────────────────────────────────────
+  // FIX 4: Removed unused `views` variable. vcKey is still used
+  //        directly in the JSX below for the view count badge.
   const ShortsRow = ({ data, title }) => (
     <div className="homePage_shortsSection">
       <div className="homePage_shortsHeader">
@@ -1987,7 +2030,6 @@ const HomePage = ({ sideNavbar }) => {
         {data.map((short) => {
           const isOwner = false; // Delete only allowed from Profile page
           const vcKey = short.dbId ? "reel_" + short.dbId : null;
-          const views = vcKey ? (viewCounts[vcKey] ?? 0) : undefined;
           return (
             <div
               key={short.id}
@@ -2047,7 +2089,8 @@ const HomePage = ({ sideNavbar }) => {
                       borderRadius: "4px",
                     }}
                   >
-                    👁 {formatViews(viewCounts["reel_" + short.dbId] ?? 0)}
+                    {/* FIX 4: Use vcKey directly — no unused `views` variable */}
+                    👁 {formatViews(vcKey ? (viewCounts[vcKey] ?? 0) : 0)}
                   </div>
                 )}
               </div>
@@ -2078,8 +2121,6 @@ const HomePage = ({ sideNavbar }) => {
       isUploaded &&
       loggedInUsername &&
       video.username === loggedInUsername;
-    const vcKey = "video_" + video.id;
-    const views = viewCounts[vcKey] ?? 0; // ← always a number
 
     return (
       <div className="youtube_thumbnailBox" style={{ position: "relative" }}>
@@ -2577,6 +2618,7 @@ const HomePage = ({ sideNavbar }) => {
           initialChannel={watchVideo.channel}
           onClose={closeWatchPage}
           suggestions={getSuggestions()}
+          onIncrementView={incrementView}
         />
       )}
       <style>{"@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}"}</style>

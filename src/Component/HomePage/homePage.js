@@ -2154,10 +2154,7 @@ const HomePage = ({ sideNavbar }) => {
               alt={video.channel}
               className="youtube_thumbnail_Profile"
             />
-            <Link
-              to={"/user/" + video.channel.toLowerCase()}
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
+            <Link to={"/user/" + video.channel.toLowerCase()}>
               <p className="youtube_ChannelName">{video.channel}</p>
             </Link>
           </div>

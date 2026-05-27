@@ -129,9 +129,15 @@ const Profile = ({ sideNavbar }) => {
       const loggedInAbout = localStorage.getItem("about");
       const loggedInEmail = localStorage.getItem("email");
 
+      // Normalize key for comparison
+      const normalizedKey = key?.toLowerCase().replace(/\s+/g, "_");
+
+      // ── Check if this is the logged-in user ──
       const isLoggedInUser =
         loggedInUsername &&
-        loggedInUsername.toLowerCase().replace(/\s+/g, "_") === key;
+        (loggedInUsername.toLowerCase() === key ||
+          loggedInUsername.toLowerCase().replace(/\s+/g, "_") === key ||
+          loggedInUsername.toLowerCase().replace(/\s+/g, ".") === key);
 
       if (isLoggedInUser) {
         setUser({
@@ -145,16 +151,20 @@ const Profile = ({ sideNavbar }) => {
           isOwner: true,
         });
       } else {
+        // ── Try Supabase auth user ──
         const { data: authData } = await supabase.auth.getUser();
         const authUser = authData?.user;
         const authUsername =
           authUser?.user_metadata?.channelName ||
           authUser?.user_metadata?.username;
 
-        if (
+        const isAuthUser =
           authUsername &&
-          authUsername.toLowerCase().replace(/\s+/g, "_") === key
-        ) {
+          (authUsername.toLowerCase() === key ||
+            authUsername.toLowerCase().replace(/\s+/g, "_") === key ||
+            authUsername.toLowerCase().replace(/\s+/g, ".") === key);
+
+        if (isAuthUser) {
           setUser({
             name: authUsername,
             handle: `@${authUsername}`,
@@ -166,76 +176,114 @@ const Profile = ({ sideNavbar }) => {
             isOwner: true,
           });
         } else {
-          const reelUser = reelsData.find(
-            (r) => r.username?.toLowerCase() === key,
-          );
-
-          // Also check DB for this username
-          const { data: dbUserCheck } = await supabase
+          // ── Try to find user from DB videos ──
+          const { data: videoUserData } = await supabase
             .from("videos")
             .select("channel, username")
-            .or(`username.eq.${key},channel.ilike.${key}`)
-            .limit(1)
-            .maybeSingle();
+            .limit(100);
 
-          const videoUser =
-            allVideos.find((v) => v.channel?.toLowerCase() === key) ||
-            dbUserCheck;
+          let foundUser = null;
 
-          if (reelUser || videoUser || dbUserCheck) {
-            const name =
-              dbUserCheck?.channel ||
-              reelUser?.user ||
-              videoUser?.channel ||
-              key;
-            setUser({
-              name: name,
-              handle: `@${key}`,
-              profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=ff0000&color=fff&size=120`,
-              about: `${name}'s channel`,
-              isOwner: false,
+          if (videoUserData) {
+            const match = videoUserData.find((v) => {
+              const uname = (v.username || "").toLowerCase();
+              const cname = (v.channel || "").toLowerCase();
+              return (
+                uname === key ||
+                uname.replace(/\s+/g, "_") === key ||
+                uname.replace(/\s+/g, ".") === key ||
+                cname === key ||
+                cname.replace(/\s+/g, "_") === key ||
+                cname.replace(/\s+/g, ".") === key
+              );
             });
+            if (match) {
+              foundUser = {
+                name: match.channel || match.username,
+                handle: `@${match.username || match.channel}`,
+                profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.channel || match.username)}&background=ff0000&color=fff&size=120`,
+                about: `${match.channel || match.username}'s channel`,
+                isOwner: false,
+              };
+            }
           }
 
-          if (reelUser) {
-            setUser({
-              name: reelUser.user,
-              handle: `@${reelUser.username}`,
-              profilePic:
-                reelUser.profilePic ||
-                `https://api.dicebear.com/7.x/initials/svg?seed=${reelUser.user}`,
-              about: `${reelUser.user}'s channel`,
-              isOwner: false,
-            });
-          } else if (videoUser) {
-            setUser({
-              name: videoUser.channel,
-              handle: `@${videoUser.channel.toLowerCase()}`,
-              profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${videoUser.channel}`,
-              about: `${videoUser.channel}'s channel`,
-              isOwner: false,
-            });
-          } else {
-            setUser(null);
+          // ── Try reels DB ──
+          if (!foundUser) {
+            const { data: reelUserData } = await supabase
+              .from("reels")
+              .select("username, user")
+              .limit(100);
+
+            if (reelUserData) {
+              const match = reelUserData.find((r) => {
+                const uname = (r.username || "").toLowerCase();
+                return (
+                  uname === key ||
+                  uname.replace(/\s+/g, "_") === key ||
+                  uname.replace(/\s+/g, ".") === key
+                );
+              });
+              if (match) {
+                foundUser = {
+                  name: match.user || match.username,
+                  handle: `@${match.username}`,
+                  profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.user || match.username)}&background=ff0000&color=fff&size=120`,
+                  about: `${match.user || match.username}'s channel`,
+                  isOwner: false,
+                };
+              }
+            }
           }
+
+          // ── Try hardcoded reelsData ──
+          if (!foundUser) {
+            const reelUser = reelsData.find((r) => {
+              const uname = (r.username || "").toLowerCase();
+              return (
+                uname === key ||
+                uname.replace(/\s+/g, "_") === key ||
+                uname.replace(/\s+/g, ".") === key
+              );
+            });
+            if (reelUser) {
+              foundUser = {
+                name: reelUser.user,
+                handle: `@${reelUser.username}`,
+                profilePic:
+                  reelUser.profilePic ||
+                  `https://api.dicebear.com/7.x/initials/svg?seed=${reelUser.user}`,
+                about: `${reelUser.user}'s channel`,
+                isOwner: false,
+              };
+            }
+          }
+
+          setUser(foundUser || null);
         }
       }
 
-      // Fetch DB videos
+      // ── Fetch DB videos for this user ──
       const { data: vData } = await supabase
         .from("videos")
         .select("*")
         .order("created_at", { ascending: false });
+
       if (vData) {
         setDbVideos(
           vData
-            .filter(
-              (v) =>
-                v.channel?.toLowerCase().replace(/\s+/g, "_") === key ||
-                v.channel?.toLowerCase() === key ||
-                v.username?.toLowerCase() === key ||
-                v.username?.toLowerCase().replace(/\s+/g, "_") === key,
-            )
+            .filter((v) => {
+              const uname = (v.username || "").toLowerCase();
+              const cname = (v.channel || "").toLowerCase();
+              return (
+                uname === key ||
+                uname.replace(/\s+/g, "_") === key ||
+                uname.replace(/\s+/g, ".") === key ||
+                cname === key ||
+                cname.replace(/\s+/g, "_") === key ||
+                cname.replace(/\s+/g, ".") === key
+              );
+            })
             .map((v) => ({
               id: v.id,
               src: v.video_url,
@@ -247,20 +295,23 @@ const Profile = ({ sideNavbar }) => {
         );
       }
 
-      // Fetch DB reels
+      // ── Fetch DB reels for this user ──
       const { data: rData } = await supabase
         .from("reels")
         .select("*")
         .order("created_at", { ascending: false });
+
       if (rData) {
         setDbReels(
           rData
-            .filter(
-              (r) =>
-                r.username?.toLowerCase().replace(/\s+/g, "_") === key ||
-                r.username?.toLowerCase() === key ||
-                r.user?.toLowerCase().replace(/\s+/g, "_") === key,
-            )
+            .filter((r) => {
+              const uname = (r.username || "").toLowerCase();
+              return (
+                uname === key ||
+                uname.replace(/\s+/g, "_") === key ||
+                uname.replace(/\s+/g, ".") === key
+              );
+            })
             .map((r) => ({
               id: r.id,
               src: r.video_url,

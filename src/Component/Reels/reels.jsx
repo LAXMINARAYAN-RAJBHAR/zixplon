@@ -509,9 +509,18 @@ const Reels = () => {
     return merged.filter((r) => { const key = String(r.id); if (seen.has(key)) return false; seen.add(key); return true; });
   }, [dbReels]);
 
-  const allReels = React.useMemo(() => {
+  // In your Reels component, update the allReels useMemo:
+
+const allReels = React.useMemo(() => {
     if (!clickedReel) return baseReels;
-    const rest = baseReels.filter((r) => String(r.id) !== String(clickedReel.id));
+
+    // Only show reels from the same user when coming from a profile
+    const userReels = baseReels.filter(
+      (r) => String(r.username).toLowerCase() === String(clickedReel.username).toLowerCase()
+    );
+    const rest = userReels.filter(
+      (r) => String(r.id) !== String(clickedReel.id)
+    );
     return [clickedReel, ...rest];
   }, [baseReels, clickedReel]);
 

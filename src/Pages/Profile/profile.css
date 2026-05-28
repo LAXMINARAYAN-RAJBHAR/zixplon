@@ -83,22 +83,36 @@
   gap: 16px;            /* ← consistent spacing between cards */
   padding: 10px 0;
 }
+/* ── Fix reel cards (now <div> instead of <Link>) ── */
 .profileVideo_block {
-  width: 220px;         /* fixed card width */
+  width: 220px;
   flex-shrink: 0;
+  text-decoration: none;   /* ← for <Link> cards */
+  color: white;            /* ← for <Link> cards */
+  cursor: pointer;
+  display: block;          /* ← ensures both <div> and <Link> behave the same */
 }
-.profileVideo_block_thumbnail{
-    width: 100%;
-    height: 140px;
+
+/* ── Thumbnail image should not overflow rounded corners ── */
+.profileVideo_block_thumbnail {
+  width: 100%;
+  height: 140px;
+  overflow: hidden;        /* ← clips image inside bounds */
+  border-radius: 8px;      /* ← optional: matches YouTube-style cards */
 }
-.profileVideo_block_thumbnail_img{
-    width: 100%;
-    height: 100%;
+
+.profileVideo_block_thumbnail_img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;       /* ← prevents image stretching */
+  display: block;          /* ← removes phantom bottom gap under img */
 }
-.profileVideo_block_detail{
-    display: flex;
-    flex-direction: column;
-    width: 100%;
+
+.profileVideo_block_detail {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 6px 0;          /* ← small breathing room below thumbnail */
 }
 .profileVideo_block_detai_name{
     width: 100%;

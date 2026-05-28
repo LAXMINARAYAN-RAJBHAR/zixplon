@@ -5,20 +5,15 @@ import ThumbDownAltOutlinedIcon from "@mui/icons-material/ThumbDownAltOutlined";
 import ShareIcon from "@mui/icons-material/Share";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
+import useViewTracker from "../../Component/Reels/useViewTracker";
 
 const getVideoType = (src) => {
   if (!src) return "video/mp4";
   const ext = src.split(".").pop().split("?")[0].toLowerCase();
   const types = {
-    mp4: "video/mp4",
-    webm: "video/webm",
-    mov: "video/quicktime",
-    mkv: "video/x-matroska",
-    avi: "video/x-msvideo",
-    wmv: "video/x-ms-wmv",
-    flv: "video/x-flv",
-    ogg: "video/ogg",
-    ogv: "video/ogg",
+    mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime",
+    mkv: "video/x-matroska", avi: "video/x-msvideo",
+    wmv: "video/x-ms-wmv", flv: "video/x-flv", ogg: "video/ogg", ogv: "video/ogg",
   };
   return types[ext] || "video/mp4";
 };
@@ -104,44 +99,8 @@ const Video = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  // ✅ FIX: Separate DB videos from hardcoded videos.
-  // DB videos use their real numeric id (e.g. "15").
-  // Hardcoded videos use "hc_N" prefix so IDs never collide.
-  // When looking up by URL id, we search DB videos FIRST.
   const [dbVideos, setDbVideos] = useState([]);
   const [dbLoading, setDbLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchDbVideos = async () => {
-      setDbLoading(true);
-      const { data, error } = await supabase
-        .from("videos")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (!error && data) {
-        const formatted = data.map((v) => ({
-          id: String(v.id),       // keep as string for reliable comparison
-          src: v.video_url,
-          thumbnail: v.thumbnail_url,
-          title: v.title,
-          duration: v.duration || "00:00",
-          channel: v.channel,
-          username: v.username || v.channel?.toLowerCase() || "unknown",
-          tags: [v.category || "All"],
-          isDb: true,             // flag so we know it's a real upload
-        }));
-        setDbVideos(formatted);
-      }
-      setDbLoading(false);
-    };
-    fetchDbVideos();
-  }, []);
-
-  // ✅ Combined list: DB videos first, then hardcoded
-  // The URL id for DB videos is a plain number string ("15"),
-  // hardcoded ids are "hc_15" — never the same, no collision.
-  const allVideos = [...dbVideos, ...hardcodedVideos];
-
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [message, setMessage] = useState("");
   const [autoPlay, setAutoPlay] = useState(true);
@@ -153,27 +112,67 @@ const Video = () => {
   const [shareToast, setShareToast] = useState(false);
   const [allComments, setAllComments] = useState([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [viewCount, setViewCount] = useState(0);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
 
   const loggedInUser = localStorage.getItem("username") || "Guest";
-  const comments = allComments.length > 0 ? allComments : defaultComments;
   const controlsTimer = useRef(null);
   const videoRef = useRef(null);
 
-  // ✅ Find the video: exact string match, DB videos checked first
+  // ── View tracking: records a view after 10s, once per 15 days ──
+  useViewTracker({ contentId: id, contentType: "video", isPlaying: isVideoPlaying });
+
+  useEffect(() => {
+    const fetchDbVideos = async () => {
+      setDbLoading(true);
+      const { data, error } = await supabase
+        .from("videos").select("*")
+        .order("created_at", { ascending: false });
+      if (!error && data) {
+        setDbVideos(data.map((v) => ({
+          id: String(v.id),
+          src: v.video_url,
+          thumbnail: v.thumbnail_url,
+          title: v.title,
+          duration: v.duration || "00:00",
+          channel: v.channel,
+          username: v.username || v.channel?.toLowerCase() || "unknown",
+          tags: [v.category || "All"],
+          isDb: true,
+        })));
+      }
+      setDbLoading(false);
+    };
+    fetchDbVideos();
+  }, []);
+
+  // ── Load view count ──
+  useEffect(() => {
+    const loadViewCount = async () => {
+      const { count } = await supabase
+        .from("views")
+        .select("id", { count: "exact", head: true })
+        .match({ content_id: String(id), content_type: "video" });
+      setViewCount(count ?? 0);
+    };
+    loadViewCount();
+  }, [id]);
+
+  const allVideos = [...dbVideos, ...hardcodedVideos];
+  const comments = allComments.length > 0 ? allComments : defaultComments;
+
   const currentIndex = allVideos.findIndex((v) => String(v.id) === String(id));
   const video = allVideos[currentIndex];
   const nextVideo = allVideos[currentIndex + 1] || allVideos[0];
   const prevVideo = allVideos[currentIndex - 1] || allVideos[allVideos.length - 1];
 
-  // Load subscription status
   useEffect(() => {
     const loadSubscription = async () => {
       const userId = localStorage.getItem("userId");
       if (!userId || !video) return;
       const channelUsername = video.username || video.channel?.toLowerCase();
       const { data } = await supabase
-        .from("subscriptions")
-        .select("id")
+        .from("subscriptions").select("id")
         .match({ subscriber_id: userId, subscribed_to: channelUsername })
         .single();
       setIsSubscribed(!!data);
@@ -223,12 +222,8 @@ const Video = () => {
   };
 
   const handleDislike = () => {
-    if (disliked) {
-      setDisliked(false);
-    } else {
-      setDisliked(true);
-      if (liked) { setLiked(false); setLikeCount((c) => c - 1); }
-    }
+    if (disliked) { setDisliked(false); }
+    else { setDisliked(true); if (liked) { setLiked(false); setLikeCount((c) => c - 1); } }
   };
 
   const handleShare = () => {
@@ -242,19 +237,11 @@ const Video = () => {
     const userId = localStorage.getItem("userId");
     if (!userId) { alert("Please login to comment"); return; }
     const { data, error } = await supabase.from("comments").insert({
-      user_id: userId,
-      username: loggedInUser,
-      content_id: String(id),
-      content_type: "video",
-      text: message,
+      user_id: userId, username: loggedInUser,
+      content_id: String(id), content_type: "video", text: message,
     }).select().single();
     if (!error && data) {
-      setAllComments((prev) => [{
-        id: data.id,
-        user: data.username,
-        text: data.text,
-        date: data.created_at?.slice(0, 10),
-      }, ...prev]);
+      setAllComments((prev) => [{ id: data.id, user: data.username, text: data.text, date: data.created_at?.slice(0, 10) }, ...prev]);
     }
     setMessage("");
   };
@@ -278,16 +265,12 @@ const Video = () => {
     const loadLikes = async () => {
       const userId = localStorage.getItem("userId");
       const { count } = await supabase
-        .from("likes")
-        .select("*", { count: "exact", head: true })
+        .from("likes").select("*", { count: "exact", head: true })
         .match({ content_id: String(id), content_type: "video" });
       setLikeCount(count || 0);
       if (userId) {
-        const { data } = await supabase
-          .from("likes")
-          .select("id")
-          .match({ user_id: userId, content_id: String(id), content_type: "video" })
-          .single();
+        const { data } = await supabase.from("likes").select("id")
+          .match({ user_id: userId, content_id: String(id), content_type: "video" }).single();
         setLiked(!!data);
       }
     };
@@ -297,18 +280,11 @@ const Video = () => {
   useEffect(() => {
     const loadComments = async () => {
       setCommentsLoading(true);
-      const { data } = await supabase
-        .from("comments")
-        .select("*")
+      const { data } = await supabase.from("comments").select("*")
         .match({ content_id: String(id), content_type: "video" })
         .order("created_at", { ascending: false });
       if (data && data.length > 0) {
-        setAllComments(data.map((c) => ({
-          id: c.id,
-          user: c.username,
-          text: c.text,
-          date: c.created_at?.slice(0, 10),
-        })));
+        setAllComments(data.map((c) => ({ id: c.id, user: c.username, text: c.text, date: c.created_at?.slice(0, 10) })));
       } else {
         setAllComments([]);
       }
@@ -320,6 +296,7 @@ const Video = () => {
   useEffect(() => {
     setDisliked(false);
     setVideoError(false);
+    setIsVideoPlaying(false);
   }, [id]);
 
   if (dbLoading) {
@@ -374,7 +351,20 @@ const Video = () => {
             </div>
           )}
 
-          <video ref={videoRef} key={video.id} controls autoPlay className="video_youtube_video" onEnded={handleVideoEnd} onError={handleVideoError} preload="auto" poster={video.thumbnail}>
+          {/* ── onPlay/onPause track isVideoPlaying for view tracker ── */}
+          <video
+            ref={videoRef}
+            key={video.id}
+            controls
+            autoPlay
+            className="video_youtube_video"
+            onPlay={() => setIsVideoPlaying(true)}
+            onPause={() => setIsVideoPlaying(false)}
+            onEnded={handleVideoEnd}
+            onError={handleVideoError}
+            preload="auto"
+            poster={video.thumbnail}
+          >
             <source src={video.src} type={getVideoType(video.src)} />
             Your browser does not support the video tag.
           </video>
@@ -409,6 +399,12 @@ const Video = () => {
 
         <div className="video_youtubeAbout">
           <div className="video_uTubeTitle">{video.title}</div>
+
+          {/* ── View count display ── */}
+          <div style={{ color: "#aaa", fontSize: "13px", marginBottom: "8px" }}>
+            👁 {viewCount} {viewCount === 1 ? "view" : "views"}
+          </div>
+
           <div className="youtube_video_ProfileBlock">
             <div className="youtube_video_ProfileBlock_left">
               <Link to={`/user/${video.username || video.channel?.toLowerCase()}`} className="youtube_video_ProfileBlock_left_img">
@@ -420,11 +416,8 @@ const Video = () => {
                 </Link>
                 <div className="youtubePostProfileSubs">2024-07-09</div>
               </div>
-              <div
-                className="subscribeBtnYoutube"
-                onClick={handleSubscribe}
-                style={{ background: isSubscribed ? "#555" : "#ff0000", cursor: "pointer", color: "white" }}
-              >
+              <div className="subscribeBtnYoutube" onClick={handleSubscribe}
+                style={{ background: isSubscribed ? "#555" : "#ff0000", cursor: "pointer", color: "white" }}>
                 {isSubscribed ? "Subscribed" : "Subscribe"}
               </div>
             </div>
@@ -446,14 +439,9 @@ const Video = () => {
             <div className="youtubeSelfComment">
               <img className="video_youtubeSelfCommentProfile" src="https://th.bing.com/th/id/OIP.8gLtXrl4KYPfPA6QyMnlUwHaEK?w=304&h=180&c=7&pid=1.7" alt="self" />
               <div className="addAComment">
-                <input
-                  type="text"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  className="addACommentInput"
-                  placeholder="Add a comment"
-                  onKeyDown={(e) => e.key === "Enter" && handleCommentSubmit()}
-                />
+                <input type="text" value={message} onChange={(e) => setMessage(e.target.value)}
+                  className="addACommentInput" placeholder="Add a comment"
+                  onKeyDown={(e) => e.key === "Enter" && handleCommentSubmit()} />
                 <div className="cancelSubmitComment">
                   <div className="cancelcomment" onClick={() => setMessage("")}>Cancel</div>
                   <div className="cancelcomment" onClick={handleCommentSubmit}>Comment</div>

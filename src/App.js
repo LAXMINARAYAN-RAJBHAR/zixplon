@@ -177,6 +177,7 @@ useEffect(() => {
           <Route path="/:id/upload" element={<VideoUpload />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/reels" element={<Reels />} />
+          <Route path="/reels/:id" element={<Reels />} />
           <Route path="/search" element={<SearchResults />} />
           <Route path="/youtube" element={<YouTubeSearch />} />
           <Route

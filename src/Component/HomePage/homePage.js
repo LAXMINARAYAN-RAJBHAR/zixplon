@@ -818,7 +818,7 @@ const HomePage = ({ sideNavbar }) => {
                 const rowReels = allReels.slice(rowIndex * 10, rowIndex * 10 + 10);
                 rows.push(
                   <React.Fragment key={rowIndex}>
-                    {rowReels.length > 0 && <ShortsRow data={rowReels} title={rowIndex === 0 ? "Shorts" : "More Shorts"} />}
+                    {rowReels.length > 0 && <ShortsRow data={rowReels} title={rowIndex === 0 ? "Reels" : "More Reels"} />}
                     <div className="youtube_VideoGrid">
                       {rowIndex === 0 && dbLoading && [...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
                       {allVids.slice(rowIndex * 12, rowIndex * 12 + 12).map((v) => (

@@ -1,21 +1,24 @@
 /* ✅ Full viewport reels container with smooth snap */
+/* ✅ Fixed: reels container escapes layout and owns full viewport */
 .reels_container {
   scroll-snap-type: y mandatory;
   overflow-y: scroll;
   height: 100dvh;
   width: 100%;
   background: #000;
-  /* Hide scrollbar but keep functionality */
-  scrollbar-width: none;        /* Firefox */
-  -ms-overflow-style: none;     /* IE/Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  touch-action: pan-y;        /* ← enables mobile swipe */
+  overscroll-behavior: contain; /* ← prevents page scroll bleeding */
 }
 
 .reels_container::-webkit-scrollbar {
-  display: none;                /* Chrome/Safari */
+  display: none;
 }
 
+/* ✅ Fixed: each reel takes full viewport height */
 .reel_item {
-  height: 100dvh;               /* ✅ use dvh instead of vh (mobile safe) */
+  height: 100dvh;
   scroll-snap-align: start;
   display: flex;
   justify-content: center;

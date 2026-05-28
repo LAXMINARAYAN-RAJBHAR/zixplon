@@ -113,7 +113,7 @@ const useIsMobile = () => {
 // =============================================================
 //  SHORT CARD
 // =============================================================
-const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigate }) => {
+const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigate, watchedContentIds }) => {
   const cardRef = useRef(null);
   const firedRef = useRef(false);
 
@@ -136,6 +136,9 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
 
   const vcKey = short.dbId ? "reel_" + short.dbId : null;
 
+  // ── "New" tag: disappears only after 10s playback (tracked in views table) ──
+  const isNew = short.dbId && !watchedContentIds.has("reel_" + String(short.dbId));
+
   return (
     <div
       ref={cardRef}
@@ -143,13 +146,24 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
       style={{ cursor: "pointer", position: "relative" }}
       onClick={() => {
         if (short.dbId) incrementView(String(short.dbId), "reel");
-        navigate("/reels", { state: { clickedReel: short } });
+        navigate("/reels/" + short.id, { state: { clickedReel: short } });
       }}
     >
       <div className="homePage_shortThumbnail">
         <img src={short.thumbnail} alt={short.title || short.user} className="homePage_shortImg" />
         <div className="homePage_shortPlay">▶</div>
         <div className="homePage_shortDuration">{short.duration}</div>
+
+        {/* ── New tag for reels: disappears after 10s watch ── */}
+        {isNew && (
+          <div style={{
+            position: "absolute", top: "8px", left: "8px",
+            background: "#ff6600", color: "white",
+            fontSize: "10px", fontWeight: "700",
+            padding: "2px 7px", borderRadius: "4px",
+          }}>New</div>
+        )}
+
         {short.dbId && (
           <div style={{
             position: "absolute", bottom: "4px", left: "4px",
@@ -231,9 +245,7 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
       try {
         const data = JSON.parse(event.data);
         if (data.event === "infoDelivery" && data.info && data.info.playerState === 0) {
-          if (autoplayRef.current && hasNextRef.current) {
-            goNextRef.current();
-          }
+          if (autoplayRef.current && hasNextRef.current) goNextRef.current();
         }
       } catch (_) {}
     };
@@ -274,15 +286,7 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
 
   const Player = () => (
     <div style={{ width: "100%", position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", background: "#000", borderRadius: isMobile ? "0" : "12px", flexShrink: 0 }}>
-      <iframe
-        key={videoId}
-        src={"https://www.youtube.com/embed/" + videoId + "?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1"}
-        title={videoTitle}
-        frameBorder="0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowFullScreen
-        style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none", display: "block" }}
-      />
+      <iframe key={videoId} src={"https://www.youtube.com/embed/" + videoId + "?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1"} title={videoTitle} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none", display: "block" }} />
     </div>
   );
 
@@ -330,9 +334,7 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
       {description !== null && (
         <div onClick={() => setShowFullDesc((s) => !s)} style={{ background: "#272727", borderRadius: "12px", padding: "14px 16px", marginTop: "14px", color: "#ccc", fontSize: "14px", lineHeight: "1.6", cursor: "pointer" }}>
           {publishedAt && <div style={{ color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>{new Date(publishedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div>}
-          <p style={{ margin: 0, display: showFullDesc ? "block" : "-webkit-box", WebkitLineClamp: showFullDesc ? "unset" : 2, WebkitBoxOrient: "vertical", overflow: showFullDesc ? "visible" : "hidden" }}>
-            {description || "No description available."}
-          </p>
+          <p style={{ margin: 0, display: showFullDesc ? "block" : "-webkit-box", WebkitLineClamp: showFullDesc ? "unset" : 2, WebkitBoxOrient: "vertical", overflow: showFullDesc ? "visible" : "hidden" }}>{description || "No description available."}</p>
           <span style={{ color: "white", fontWeight: "600", fontSize: "13px", marginTop: "6px", display: "block" }}>{showFullDesc ? "Show less" : "...more"}</span>
         </div>
       )}
@@ -471,16 +473,30 @@ const HomePage = ({ sideNavbar }) => {
   const [dbLoading, setDbLoading] = useState(true);
   const [dbReels, setDbReels] = useState([]);
   const [viewCounts, setViewCounts] = useState({});
-  const [watchedVideos, setWatchedVideos] = useState(() => {
-    try {
-      const stored = localStorage.getItem("watchedVideos");
-      return new Set(stored ? JSON.parse(stored) : []);
-    } catch { return new Set(); }
-  });
+
+  // ── watchedContentIds: Set of "video_ID" or "reel_ID" strings
+  // populated from the `views` table — drives the "New" tag logic ──
+  const [watchedContentIds, setWatchedContentIds] = useState(new Set());
 
   const loggedInUsername = localStorage.getItem("username") || "";
 
-  // ── View count: 24-hour guard + optimistic UI + Supabase sync ─
+  // ── Load watched content IDs from Supabase views table ──
+  useEffect(() => {
+    const loadWatchedIds = async () => {
+      const userId = localStorage.getItem("userId");
+      if (!userId) return;
+      const { data } = await supabase
+        .from("views")
+        .select("content_id, content_type")
+        .eq("user_id", userId);
+      if (data) {
+        const ids = new Set(data.map((r) => r.content_type + "_" + r.content_id));
+        setWatchedContentIds(ids);
+      }
+    };
+    loadWatchedIds();
+  }, []);
+
   const incrementView = async (contentId, contentType) => {
     const storageKey = `lastViewed_${contentType}_${contentId}`;
     const lastViewed = localStorage.getItem(storageKey);
@@ -495,15 +511,6 @@ const HomePage = ({ sideNavbar }) => {
       const { data } = await supabase.from("view_counts").select("count").eq("content_id", String(contentId)).eq("content_type", contentType).maybeSingle();
       if (data) setViewCounts((prev) => ({ ...prev, [key]: data.count }));
     } catch (_) {}
-  };
-
-  const markAsWatched = (videoId) => {
-    setWatchedVideos((prev) => {
-      const next = new Set(prev);
-      next.add(String(videoId));
-      try { localStorage.setItem("watchedVideos", JSON.stringify([...next])); } catch (_) {}
-      return next;
-    });
   };
 
   const fetchViewCounts = async (ids, contentType) => {
@@ -523,124 +530,67 @@ const HomePage = ({ sideNavbar }) => {
 
   const options = ["All","DD News","Kapil Sharma Show","Hindi Movies","Hindi News","English News","Film Criticisms","Twenty20 Cricket","Music","Live","Mixes","Gaming","Debates","Coke Studio India","Democracy","Pakistani Dramas","Pakistani Movies","Comedy","Podcasts","WWE","Superhero Movies","Dramedy","Web Development","Hollywood Movies","Dubbed Hollywood Movies","Web Series","Professional Wrestling","Bhojpuri Cinema","Bhojpuri Songs","Astronomy","AI","History","Geographical Videos","National Geography","Indian Music","Indian Movies","Recently Uploaded","Watched"];
 
-  // ── Fetch DB videos ──────────────────────────────────────────
-  // ✅ FIX: likes fetched from the `likes` table INSIDE fetchDbVideos,
-  //         so `formatted` is in scope and counts are accurate on load.
   useEffect(() => {
     const fetchDbVideos = async () => {
       setDbLoading(true);
       const { data, error } = await supabase.from("videos").select("*").order("created_at", { ascending: false });
       if (!error && data) {
         const formatted = data.map((v) => ({
-          id: v.id,
-          src: v.video_url,
-          thumbnail: v.thumbnail_url,
-          title: v.title,
-          duration: v.duration || "00:00",
-          channel: v.channel,
-          username: v.username || v.channel?.toLowerCase() || "unknown",
-          tags: [v.category || "All"],
-          likes: v.likes ?? 0,
+          id: v.id, src: v.video_url, thumbnail: v.thumbnail_url,
+          title: v.title, duration: v.duration || "00:00",
+          channel: v.channel, username: v.username || v.channel?.toLowerCase() || "unknown",
+          tags: [v.category || "All"], likes: v.likes ?? 0,
         }));
-
-        // Fetch real like counts from the likes join table
         const videoIds = formatted.map((v) => String(v.id));
-        const { data: likesData } = await supabase
-          .from("likes")
-          .select("content_id")
-          .eq("content_type", "video")
-          .in("content_id", videoIds);
-
+        const { data: likesData } = await supabase.from("likes").select("content_id").eq("content_type", "video").in("content_id", videoIds);
         if (likesData) {
           const likesMap = {};
-          likesData.forEach((row) => {
-            likesMap[row.content_id] = (likesMap[row.content_id] || 0) + 1;
-          });
-          // Merge real like counts into formatted array
-          const withLikes = formatted.map((v) => ({
-            ...v,
-            likes: likesMap[String(v.id)] ?? v.likes ?? 0,
-          }));
-          setDbVideos(withLikes);
+          likesData.forEach((row) => { likesMap[row.content_id] = (likesMap[row.content_id] || 0) + 1; });
+          setDbVideos(formatted.map((v) => ({ ...v, likes: likesMap[String(v.id)] ?? v.likes ?? 0 })));
         } else {
           setDbVideos(formatted);
         }
-
         fetchViewCounts(formatted.map((v) => v.id), "video");
       }
       setDbLoading(false);
     };
-
     fetchDbVideos();
-
     const subscription = supabase.channel("videos-channel")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "videos" }, (payload) => {
         const v = payload.new;
-        setDbVideos((prev) => [{
-          id: v.id,
-          src: v.video_url,
-          thumbnail: v.thumbnail_url,
-          title: v.title,
-          duration: v.duration || "00:00",
-          channel: v.channel,
-          username: v.username || v.channel?.toLowerCase() || "unknown",
-          tags: [v.category || "All"],
-          likes: v.likes ?? 0,
-        }, ...prev]);
+        setDbVideos((prev) => [{ id: v.id, src: v.video_url, thumbnail: v.thumbnail_url, title: v.title, duration: v.duration || "00:00", channel: v.channel, username: v.username || v.channel?.toLowerCase() || "unknown", tags: [v.category || "All"], likes: v.likes ?? 0 }, ...prev]);
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "videos" }, (payload) => {
         setDbVideos((prev) => prev.filter((v) => v.id !== payload.old.id));
       }).subscribe();
-
     return () => supabase.removeChannel(subscription);
   }, []);
 
-  // ── Fetch DB reels ───────────────────────────────────────────
   useEffect(() => {
     const fetchDbReels = async () => {
       const { data, error } = await supabase.from("reels").select("*").order("created_at", { ascending: false });
       if (!error && data) {
         const formatted = data.map((r) => ({
-          id: "db_" + r.id,
-          dbId: r.id,
-          src: r.video_url,
+          id: "db_" + r.id, dbId: r.id, src: r.video_url,
           thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99",
-          title: r.title || "Untitled",
-          duration: r.duration || "00:00",
-          user: r.user || r.username || "Unknown",
-          username: r.username || "unknown",
+          title: r.title || "Untitled", duration: r.duration || "00:00",
+          user: r.user || r.username || "Unknown", username: r.username || "unknown",
           profilePic: "https://api.dicebear.com/7.x/initials/svg?seed=" + (r.username || "user"),
-          description: r.description || "",
-          likes: r.likes ?? 0,
+          description: r.description || "", likes: r.likes ?? 0,
         }));
         setDbReels(formatted);
         fetchViewCounts(formatted.map((r) => r.dbId), "reel");
       }
     };
-
     fetchDbReels();
-
     const reelsSub = supabase.channel("reels-channel")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "reels" }, (payload) => {
         const r = payload.new;
-        setDbReels((prev) => [{
-          id: "db_" + r.id,
-          dbId: r.id,
-          src: r.video_url,
-          thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99",
-          title: r.title || "Untitled",
-          duration: r.duration || "00:00",
-          user: r.user || r.username || "Unknown",
-          username: r.username || "unknown",
-          profilePic: "https://api.dicebear.com/7.x/initials/svg?seed=" + (r.username || "user"),
-          description: r.description || "",
-          likes: r.likes || 0,
-        }, ...prev]);
+        setDbReels((prev) => [{ id: "db_" + r.id, dbId: r.id, src: r.video_url, thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99", title: r.title || "Untitled", duration: r.duration || "00:00", user: r.user || r.username || "Unknown", username: r.username || "unknown", profilePic: "https://api.dicebear.com/7.x/initials/svg?seed=" + (r.username || "user"), description: r.description || "", likes: r.likes || 0 }, ...prev]);
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "reels" }, (payload) => {
         setDbReels((prev) => prev.filter((r) => r.dbId !== payload.old.id));
       }).subscribe();
-
     return () => supabase.removeChannel(reelsSub);
   }, []);
 
@@ -649,7 +599,6 @@ const HomePage = ({ sideNavbar }) => {
 
   useEffect(() => { fetchYouTubeByTopic(selectedOption); }, [selectedOption]);
 
-  // ── Auto-scroll category bar ─────────────────────────────────
   useEffect(() => {
     const track = optionsTrackRef.current;
     if (!track) return;
@@ -694,10 +643,8 @@ const HomePage = ({ sideNavbar }) => {
   const getSuggestions = () => [...ytVideos.slice(0, 20), ...allVideos.slice(0, 12)];
   const filteredVideos = selectedOption === "All" ? allVideos : allVideos.filter((v) => v.tags?.includes(selectedOption));
 
-  // ── Like / Unlike video ──────────────────────────────────────
   const handleLikeVideo = async (e, videoId) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     const userId = localStorage.getItem("userId");
     if (!userId) { alert("Please login to like"); return; }
     try {
@@ -715,8 +662,7 @@ const HomePage = ({ sideNavbar }) => {
   };
 
   const handleDeleteVideo = async (e, videoId) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     if (!window.confirm("Delete this video? This cannot be undone.")) return;
     const { error } = await supabase.from("videos").delete().eq("id", videoId);
     if (!error) setDbVideos((prev) => prev.filter((v) => v.id !== videoId));
@@ -731,7 +677,6 @@ const HomePage = ({ sideNavbar }) => {
     else alert("Failed to delete reel.");
   };
 
-  // ── Shorts row ───────────────────────────────────────────────
   const ShortsRow = ({ data, title }) => (
     <div className="homePage_shortsSection">
       <div className="homePage_shortsHeader">
@@ -746,25 +691,30 @@ const HomePage = ({ sideNavbar }) => {
             viewCounts={viewCounts}
             handleDeleteReel={handleDeleteReel}
             navigate={navigate}
+            watchedContentIds={watchedContentIds}
           />
         ))}
       </div>
     </div>
   );
 
-  // ── Video card ───────────────────────────────────────────────
+  // ── VideoCard: "New" tag disappears only after 10s watch (from views table) ──
   const VideoCard = ({ video, isUploaded = false, showDelete = false }) => {
-    const isNew = isUploaded && !watchedVideos.has(String(video.id));
+    // isNew = uploaded video that this user has NOT yet watched 10s of
+    const isNew = isUploaded && !watchedContentIds.has("video_" + String(video.id));
     const isOwner = showDelete && isUploaded && loggedInUsername && video.username === loggedInUsername;
     return (
       <div className="youtube_thumbnailBox" style={{ position: "relative" }}>
         {isOwner && (
           <button onClick={(e) => handleDeleteVideo(e, video.id)} title="Delete video" style={{ position: "absolute", top: "8px", right: "8px", zIndex: 10, background: "rgba(220,38,38,0.9)", border: "none", color: "white", borderRadius: "6px", padding: "4px 8px", cursor: "pointer", fontSize: "11px", fontWeight: "700", boxShadow: "0 2px 8px rgba(0,0,0,0.5)" }}>🗑 Delete</button>
         )}
-        <Link to={"/video/" + video.id} className="youtube_thumbnailWrapper" onClick={() => { markAsWatched(video.id); if (isUploaded) incrementView(video.id, "video"); }}>
+        <Link to={"/video/" + video.id} className="youtube_thumbnailWrapper" onClick={() => { if (isUploaded) incrementView(video.id, "video"); }}>
           <img src={video.thumbnail} alt={video.title} className="youtube_thumbnailPic" />
           <div className="youtube_timingThumbnail">{video.duration}</div>
-          {isNew && <div style={{ position: "absolute", top: "8px", left: "8px", background: "#ff6600", color: "white", fontSize: "10px", fontWeight: "700", padding: "2px 7px", borderRadius: "4px" }}>New</div>}
+          {/* ── New tag: only shows if user hasn't watched 10s yet ── */}
+          {isNew && (
+            <div style={{ position: "absolute", top: "8px", left: "8px", background: "#ff6600", color: "white", fontSize: "10px", fontWeight: "700", padding: "2px 7px", borderRadius: "4px" }}>New</div>
+          )}
           <div className="youtube_playOverlay"><div className="youtube_playButton">▶</div></div>
         </Link>
         <div className="youtubeTitleBox">

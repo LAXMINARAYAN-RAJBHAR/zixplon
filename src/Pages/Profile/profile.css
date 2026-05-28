@@ -1,4 +1,5 @@
 /* ── Outer wrapper — must NOT clip scroll ── */
+/* ── Outer wrapper ── */
 .profile {
   display: flex;
   width: 100%;
@@ -8,16 +9,14 @@
   background-color: black;
   color: white;
   position: relative;
-  /* ✅ NO overflow:hidden here — that was killing the scroll */
+  /* ✅ No overflow property at all */
 }
 
-/* ── Main content column ── */
+/* ── Content column — let the WINDOW scroll, not this div ── */
 .profile_page {
   display: flex;
   flex-direction: column;
-  /* ✅ overflow-y: auto lets this column scroll; NOT hidden */
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible;   /* ✅ NOT hidden, NOT auto — let window handle it */
   flex: 1;
   margin-left: 270px;
   color: white;
@@ -29,8 +28,7 @@
 .profile_page_inactive {
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible;   /* ✅ same here */
   flex: 1;
   margin-left: 0px;
   color: white;

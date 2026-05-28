@@ -12,7 +12,9 @@ code {
     monospace;
 }
 
+/* ── Global scroll fix ── */
 html, body, #root {
   height: 100%;
-  overflow: hidden; /* ← lets only .reels_container scroll on reels page */
+  overflow-x: hidden;
+  /* ✅ NO overflow-y: hidden here — that kills page scroll */
 }

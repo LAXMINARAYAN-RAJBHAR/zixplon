@@ -11,13 +11,20 @@ export default async function handler(req) {
   const ua = req.headers.get("user-agent") || "";
   const isCrawler = /whatsapp|telegram|twitterbot|facebookexternalhit|linkedinbot|slackbot|discordbot/i.test(ua);
 
-  if (!id || !isCrawler) {
-  return new Response(null, {
-    status: 302,
-    headers: { Location: `/${type === "reel" ? "reels" : "video"}/${id}` },
-  });
-}
+  // Non-crawler: serve the React app's index.html directly
+  if (!isCrawler) {
+    const origin = new URL(req.url).origin;
+    const indexRes = await fetch(`${origin}/index.html`);
+    const html = await indexRes.text();
+    return new Response(html, {
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "x-robots-tag": "noindex",
+      },
+    });
+  }
 
+  // Crawler: return OG meta tags
   try {
     const table = type === "reel" ? "reels" : "videos";
     const res = await fetch(
@@ -56,7 +63,6 @@ export default async function handler(req) {
     <meta name="twitter:title" content="${title}" />
     <meta name="twitter:description" content="${description}" />
     <meta name="twitter:image" content="${image}" />
-    <meta http-equiv="refresh" content="0;url=${url}" />
   </head>
   <body>
     <p>Redirecting to <a href="${url}">${title}</a>...</p>
@@ -64,7 +70,10 @@ export default async function handler(req) {
 </html>`;
 
     return new Response(html, { headers: { "content-type": "text/html" } });
+
   } catch (err) {
-    return new Response(`<p>Error: ${err.message}</p>`, { headers: { "content-type": "text/html" } });
+    return new Response(`<p>Error: ${err.message}</p>`, {
+      headers: { "content-type": "text/html" },
+    });
   }
 }

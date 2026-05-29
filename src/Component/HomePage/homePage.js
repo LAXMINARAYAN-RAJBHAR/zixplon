@@ -538,26 +538,61 @@ const HomePage = ({ sideNavbar }) => {
     const key = `${contentType}_${contentId}`;
     setViewCounts((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
     try {
-      await supabase.rpc("increment_view_count", { p_content_id: String(contentId), p_content_type: contentType });
+      const incrementView = async (contentId, contentType) => {
+  const storageKey = `lastViewed_${contentType}_${contentId}`;
+  const lastViewed = localStorage.getItem(storageKey);
+  const now = Date.now();
+  const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+  if (lastViewed && now - parseInt(lastViewed, 10) < TWENTY_FOUR_HOURS) return;
+  localStorage.setItem(storageKey, String(now));
+  localStorage.setItem(`viewed_${contentType}_${contentId}`, "true");
+  const key = `${contentType}_${contentId}`;
+  setViewCounts((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
+  try {
+    const userId = localStorage.getItem("userId");
+    if (!userId) return;
+    await supabase.from("views").upsert(
+      {
+        user_id: userId,
+        content_id: String(contentId),
+        content_type: contentType,
+        viewed_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,content_id,content_type" }
+    );
+    // Refresh count from views table
+    const { data } = await supabase
+      .from("views")
+      .select("content_id", { count: "exact", head: true })
+      .eq("content_id", String(contentId))
+      .eq("content_type", contentType);
+    setViewCounts((prev) => ({ ...prev, [key]: data ?? prev[key] }));
+  } catch (_) {}
+};
       const { data } = await supabase.from("view_counts").select("count").eq("content_id", String(contentId)).eq("content_type", contentType).maybeSingle();
       if (data) setViewCounts((prev) => ({ ...prev, [key]: data.count }));
     } catch (_) {}
   };
 
   const fetchViewCounts = async (ids, contentType) => {
-    if (!ids || !ids.length) return;
-    try {
-      const { data, error } = await supabase.from("view_counts").select("content_id, count").eq("content_type", contentType).in("content_id", ids.map(String));
-      const map = {};
-      ids.forEach((id) => { map[contentType + "_" + id] = 0; });
-      if (!error && data) data.forEach((r) => { map[contentType + "_" + r.content_id] = r.count; });
-      setViewCounts((prev) => ({ ...prev, ...map }));
-    } catch (_) {
-      const map = {};
-      ids.forEach((id) => { map[contentType + "_" + id] = 0; });
-      setViewCounts((prev) => ({ ...prev, ...map }));
+  if (!ids || !ids.length) return;
+  try {
+    const { data, error } = await supabase
+      .from("views")
+      .select("content_id")
+      .eq("content_type", contentType)
+      .in("content_id", ids.map(String));
+    const map = {};
+    ids.forEach((id) => { map[contentType + "_" + id] = 0; });
+    if (!error && data) {
+      data.forEach((r) => {
+        const k = contentType + "_" + r.content_id;
+        map[k] = (map[k] || 0) + 1;
+      });
     }
-  };
+    setViewCounts((prev) => ({ ...prev, ...map }));
+  } catch (_) {}
+};
 
   const options = ["All","DD News","Kapil Sharma Show","Hindi Movies","Hindi News","English News","Film Criticisms","Twenty20 Cricket","Music","Live","Mixes","Gaming","Debates","Coke Studio India","Democracy","Pakistani Dramas","Pakistani Movies","Comedy","Podcasts","WWE","Superhero Movies","Dramedy","Web Development","Hollywood Movies","Dubbed Hollywood Movies","Web Series","Professional Wrestling","Bhojpuri Cinema","Bhojpuri Songs","Astronomy","AI","History","Geographical Videos","National Geography","Indian Music","Indian Movies","Recently Uploaded","Watched"];
 

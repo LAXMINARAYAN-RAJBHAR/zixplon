@@ -27,7 +27,7 @@ export default async function handler(req) {
     const title = item?.title || "Watch on ZIXPLON";
     const description = item?.description || item?.channel || "Watch videos and reels on ZIXPLON";
     const image = item?.thumbnail_url || item?.thumbnail || "https://zixplon-tawny.vercel.app/logo192.png";
-    const url = `https://zixplon-tawny.vercel.app/${type === "reel" ? "reels" : "video"}/${id}`;
+    const url = `https://zixplon-tawny.vercel.app/${type === "reel" ? `reels/db_${id}` : `video/${id}`}`;
 
     const html = `<!DOCTYPE html>
 <html>

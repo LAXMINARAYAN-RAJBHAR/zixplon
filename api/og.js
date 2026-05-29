@@ -46,10 +46,10 @@ export default async function handler(req) {
     <meta name="twitter:title" content="${title}" />
     <meta name="twitter:description" content="${description}" />
     <meta name="twitter:image" content="${image}" />
-    <meta http-equiv="refresh" content="0;url=${url}" />
+    <script>window.location.replace("${url}");</script>
   </head>
   <body>
-    <p>Redirecting to <a href="${url}">${title}</a>...</p>
+    <p>Redirecting... <a href="${url}">Click here if not redirected</a></p>
   </body>
 </html>`;
 

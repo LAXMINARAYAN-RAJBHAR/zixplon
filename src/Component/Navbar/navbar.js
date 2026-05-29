@@ -614,122 +614,58 @@ const Navbar = ({
         </div>
 
         <Link
-          to="/"
-          className="navbar-logo-link"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "2px",
-            textDecoration: "none",
-            padding: "5px 5px 5px 5px",
-            borderRadius: "12px",
-            border: logoHovered
-              ? "2px solid rgba(255, 0, 0, 1)"
-              : "2px solid rgba(255, 255, 255, 0.6)",
-            background: logoHovered
-              ? "rgba(255, 0, 0, 0.12)"
-              : "rgba(255, 255, 255, 0.05)",
-            transition:
-              "border-color 0.25s, background 0.25s, box-shadow 0.25s",
-            boxShadow: logoHovered
-              ? "0 0 12px rgba(255, 0, 0, 0.7), 0 0 24px rgba(255, 0, 0, 0.3)"
-              : "0 0 8px rgba(255, 255, 255, 0.25), 0 0 2px rgba(255, 255, 255, 0.4)",
-          }}
-          onMouseEnter={() => setLogoHovered(true)}
-          onMouseLeave={() => setLogoHovered(false)}
-        >
-          <svg
-            width="38"
-            height="38"
-            viewBox="0 0 42 42"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <rect width="42" height="42" rx="8" fill="#ff0000" />
-            <text
-              x="50%"
-              y="42%"
-              dominantBaseline="middle"
-              textAnchor="middle"
-              fill="white"
-              fontSize="22"
-              fontWeight="bold"
-              fontFamily="Arial"
-            >
-              Z
-              <animate
-                attributeName="opacity"
-                values="1;0.2;1;0.5;1"
-                dur="2s"
-                repeatCount="indefinite"
-              />
-            </text>
-            <text
-              x="50%"
-              y="79%"
-              dominantBaseline="middle"
-              textAnchor="middle"
-              fill="white"
-              fontSize="7.7"
-              fontWeight="700"
-              fontFamily="Arial"
-              letterSpacing="1.2"
-              opacity="1"
-            >
-              ZIXPLON
-            </text>
-          </svg>
+  to="/"
+  className="navbar-logo-link"
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "2px",
+    textDecoration: "none",
+    padding: "5px 5px 5px 5px",
+    borderRadius: "12px",
+    border: logoHovered ? "2px solid rgba(255, 0, 0, 1)" : "2px solid rgba(255, 255, 255, 0.6)",
+    background: logoHovered ? "rgba(255, 0, 0, 0.12)" : "rgba(255, 255, 255, 0.05)",
+    transition: "border-color 0.25s, background 0.25s, box-shadow 0.25s",
+    boxShadow: logoHovered
+      ? "0 0 12px rgba(255, 0, 0, 0.7), 0 0 24px rgba(255, 0, 0, 0.3)"
+      : "0 0 8px rgba(255, 255, 255, 0.25), 0 0 2px rgba(255, 255, 255, 0.4)",
+  }}
+  onMouseEnter={() => setLogoHovered(true)}
+  onMouseLeave={() => setLogoHovered(false)}
+>
+  <svg width="38" height="38" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="42" height="42" rx="8" fill="#ff0000" />
+    <text x="50%" y="42%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="22" fontWeight="bold" fontFamily="Arial">
+      Z
+      <animate attributeName="opacity" values="1;0.2;1;0.5;1" dur="2s" repeatCount="indefinite" />
+    </text>
+    <text x="50%" y="79%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="7.7" fontWeight="700" fontFamily="Arial" letterSpacing="1.2" opacity="1">
+      ZIXPLON
+    </text>
+  </svg>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              position: "relative",
-            }}
-          >
-            <span
-              key={logoKey}
-              className="logoText"
-              onClick={(e) => {
-                e.preventDefault();
-                if (window.location.pathname === "/") window.location.reload();
-                else navigate("/");
-              }}
-              style={{ display: "inline-flex", alignItems: "center" }}
-            >
-              {"ZIXPLON".split("").map((char, i) => (
-                <span
-                  key={i}
-                  className="logoChar"
-                  style={{ animationDelay: `${i * 0.08}s` }}
-                >
-                  {char}
-                </span>
-              ))}
-            </span>
+  <div style={{ display: "flex", alignItems: "flex-start", position: "relative" }}>
+    {/* ✅ Removed onClick — <Link to="/"> above handles all navigation */}
+    <span key={logoKey} className="logoText" style={{ display: "inline-flex", alignItems: "center" }}>
+      {"ZIXPLON".split("").map((char, i) => (
+        <span key={i} className="logoChar" style={{ animationDelay: `${i * 0.08}s` }}>
+          {char}
+        </span>
+      ))}
+    </span>
 
-            {countryCode && (
-              <span
-                style={{
-                  fontSize: "9px",
-                  fontWeight: "800",
-                  color: "#ffffff",
-                  background: "#cc0000",
-                  border: "1.5px solid rgba(255,255,255,0.7)",
-                  borderRadius: "3px",
-                  padding: "1px 3px",
-                  marginLeft: "2px",
-                  marginTop: "1px",
-                  letterSpacing: "0.04em",
-                  lineHeight: 1.2,
-                  flexShrink: 0,
-                }}
-              >
-                {countryCode}
-              </span>
-            )}
-          </div>
-        </Link>
+    {countryCode && (
+      <span style={{
+        fontSize: "9px", fontWeight: "800", color: "#ffffff",
+        background: "#cc0000", border: "1.5px solid rgba(255,255,255,0.7)",
+        borderRadius: "3px", padding: "1px 3px", marginLeft: "2px",
+        marginTop: "1px", letterSpacing: "0.04em", lineHeight: 1.2, flexShrink: 0,
+      }}>
+        {countryCode}
+      </span>
+    )}
+  </div>
+</Link>
       </div>
 
       {/* ── MIDDLE ── */}

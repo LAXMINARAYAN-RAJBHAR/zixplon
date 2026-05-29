@@ -1,78 +1,50 @@
 export const config = { runtime: "edge" };
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-
 export default async function handler(req) {
   const { searchParams } = new URL(req.url);
-  const type = searchParams.get("type"); // "video" or "reel"
+  const type = searchParams.get("type");
   const id = searchParams.get("id");
 
-  // If no id or not a crawler, serve normal index.html
-  const ua = req.headers.get("user-agent") || "";
-  const isCrawler = /whatsapp|telegram|twitterbot|facebookexternalhit|linkedinbot|slackbot|discordbot/i.test(ua);
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
-  if (!id || !isCrawler) {
-    // Not a crawler — serve the React app normally
-    const indexRes = await fetch(new URL("/index.html", req.url));
-    const html = await indexRes.text();
-    return new Response(html, {
-      headers: { "content-type": "text/html" },
-    });
+  // Debug: check if env vars are loaded
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return new Response(
+      `<h1>ENV VARS MISSING</h1>
+       <p>SUPABASE_URL: ${SUPABASE_URL ? "✅ loaded" : "❌ missing"}</p>
+       <p>SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY ? "✅ loaded" : "❌ missing"}</p>`,
+      { headers: { "content-type": "text/html" } }
+    );
   }
 
-  // Fetch video/reel data from Supabase
-  const table = type === "reel" ? "reels" : "videos";
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}&select=title,thumbnail_url,thumbnail,description,channel,username`,
-    {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-    }
-  );
+  // Debug: try fetching from Supabase
+  try {
+    const table = type === "reel" ? "reels" : "videos";
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}&select=title,thumbnail_url,thumbnail`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+    const data = await res.json();
+    const item = data?.[0];
 
-  const data = await res.json();
-  const item = data?.[0];
-
-  const title = item?.title || "Watch on ZIXPLON";
-  const description = item?.description || item?.channel || "Watch videos and reels on ZIXPLON";
-  // reels use "thumbnail", videos use "thumbnail_url"
-  const image = item?.thumbnail_url || item?.thumbnail || "https://zixplon-tawny.vercel.app/logo192.png";
-  const url = `https://zixplon-tawny.vercel.app/${type === "reel" ? "reels" : "video"}/${id}`;
-
-  const html = `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>${title} — ZIXPLON</title>
-
-    <!-- Open Graph (WhatsApp, Facebook, Telegram) -->
-    <meta property="og:type" content="video.other" />
-    <meta property="og:title" content="${title}" />
-    <meta property="og:description" content="${description}" />
-    <meta property="og:image" content="${image}" />
-    <meta property="og:image:width" content="1280" />
-    <meta property="og:image:height" content="720" />
-    <meta property="og:url" content="${url}" />
-    <meta property="og:site_name" content="ZIXPLON" />
-
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${title}" />
-    <meta name="twitter:description" content="${description}" />
-    <meta name="twitter:image" content="${image}" />
-
-    <!-- Redirect real users to the React app -->
-    <meta http-equiv="refresh" content="0;url=${url}" />
-  </head>
-  <body>
-    <p>Redirecting to <a href="${url}">${title}</a>...</p>
-  </body>
-</html>`;
-
-  return new Response(html, {
-    headers: { "content-type": "text/html" },
-  });
+    return new Response(
+      `<h1>✅ SUCCESS</h1>
+       <p>Type: ${type}, ID: ${id}</p>
+       <p>Title: ${item?.title || "not found"}</p>
+       <p>Thumbnail: ${item?.thumbnail_url || item?.thumbnail || "not found"}</p>
+       <img src="${item?.thumbnail_url || item?.thumbnail || ""}" style="max-width:300px" />`,
+      { headers: { "content-type": "text/html" } }
+    );
+  } catch (err) {
+    return new Response(
+      `<h1>❌ FETCH ERROR</h1><pre>${err.message}</pre>`,
+      { headers: { "content-type": "text/html" } }
+    );
+  }
 }

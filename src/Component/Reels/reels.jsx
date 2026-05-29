@@ -202,11 +202,15 @@ const ReelItem = ({ reel, allReels }) => {
 
   // ── Share: same as video.jsx — uses the route URL directly ──
   const handleShare = () => {
-    const url = `${window.location.origin}/#/reels/${reel.id}`;
-    navigator.clipboard.writeText(url).catch(() => {});
-    setShareToast(true);
-    setTimeout(() => setShareToast(false), 2500);
-  };
+  const isDbReel = String(reel.id).startsWith("db_");
+  const dbId = isDbReel ? String(reel.id).replace("db_", "") : null;
+  const url = isDbReel
+    ? `https://zixplon-tawny.vercel.app/api/og?type=reel&id=${dbId}`
+    : `${window.location.origin}/reels/${reel.id}`;
+  navigator.clipboard.writeText(url).catch(() => {});
+  setShareToast(true);
+  setTimeout(() => setShareToast(false), 2500);
+};
 
   const isYouTube = (url) => url && (url.includes("youtube.com") || url.includes("youtu.be"));
   const getEmbedUrl = (url) => {
@@ -226,7 +230,7 @@ const ReelItem = ({ reel, allReels }) => {
       if (!isMounted.current) return;
       if (entry.isIntersecting) {
         // ── Update URL when reel scrolls into view ──
-        window.history.replaceState(null, "", `/#/reels/${reel.id}`);
+        window.history.replaceState(null, "", `/reels/${reel.id}`);
         document.querySelectorAll("video").forEach((v) => { if (v !== video) v.pause(); });
         video.muted = muted;
         video.play().catch(() => {});

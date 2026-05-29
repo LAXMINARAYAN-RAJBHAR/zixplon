@@ -232,7 +232,7 @@ const Profile = ({ sideNavbar }) => {
 
       // ── Fetch likes & views for all reels ──
       if (rData) {
-        const ids = rData.map((r) => String(r.id));
+        const ids = rData.map((r) => `db_${r.id}`);
         const [{ data: rLikes }, { data: rViews }] = await Promise.all([
           supabase.from("likes").select("content_id").eq("content_type", "reel").in("content_id", ids),
           supabase.from("views").select("content_id").eq("content_type", "reel").in("content_id", ids),
@@ -469,7 +469,7 @@ const Profile = ({ sideNavbar }) => {
                       <div className="profileVideo_block_detai_name">{reel.title}</div>
                       <div className="profileVideo_block_detai_about">{reel.description}</div>
                       <div style={{ color: "#aaa", fontSize: "12px", marginTop: "4px", display: "flex", gap: "10px" }}>
-                      <span>👁 {reelCounts[String(reel.dbId)]?.views ?? 0}</span>
+                      <span>👁 {reelCounts[`db_${reel.dbId}`]?.views ?? 0}</span>
                       <span>👍 {reelCounts[String(reel.dbId)]?.likes ?? 0}</span>
                       </div>
                     </div>

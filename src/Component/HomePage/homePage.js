@@ -677,7 +677,8 @@ const ShortCard = ({
     }
   }, [watchedContentIds, short.dbId]);
 
-  const vcKey = short.dbId ? "reel_" + short.dbId : null;
+  const vcKey = short.id ? "reel_" + short.id : null;
+// short.id = "db_14" — matches fetchViewCounts key
 
   return (
     <div
@@ -2003,10 +2004,8 @@ const HomePage = ({ sideNavbar }) => {
           likes: r.likes ?? 0,
         }));
         setDbReels(formatted);
-        fetchViewCounts(
-          formatted.map((r) => r.dbId),
-          "reel",
-        );
+        fetchViewCounts(formatted.map((r) => r.id), "reel");
+// r.id = "db_14" — matches what useViewTracker saves
       }
     };
     fetchDbReels();

@@ -1,5 +1,16 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/video/:id",
+      "destination": "/api/og?type=video&id=:id"
+    },
+    {
+      "source": "/reels/:id",
+      "destination": "/api/og?type=reel&id=:id"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

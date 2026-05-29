@@ -56,12 +56,9 @@ useEffect(() => {
       setCurrentUser(name);
 
       // Clean up the URL token
-      if (window.location.hash.includes("access_token")) {
-        window.history.replaceState(
-          {}, document.title,
-          window.location.pathname
-        );
-      }
+      if (window.location.hash && window.location.hash.includes("access_token")) {
+  window.history.replaceState({}, document.title, "/");
+}
     }
   };
   handleAuthRedirect();

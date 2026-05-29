@@ -43,6 +43,8 @@ const Profile = ({ sideNavbar }) => {
   const [dbVideos, setDbVideos] = useState([]);
   const [dbReels, setDbReels]   = useState([]);
   const [loading, setLoading]   = useState(true);
+  const [videoCounts, setVideoCounts] = useState({}); // { [videoId]: { likes, views } }
+  const [reelCounts,  setReelCounts]  = useState({}); // { [reelId]:  { likes, views } }
 
   // Edit-profile modal state
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -211,7 +213,39 @@ const Profile = ({ sideNavbar }) => {
             }))
         );
       }
+      // ── Fetch likes & views for all videos ──
+      if (vData) {
+        const ids = vData.map((v) => String(v.id));
+        const [{ data: vLikes }, { data: vViews }] = await Promise.all([
+          supabase.from("likes").select("content_id").eq("content_type", "video").in("content_id", ids),
+          supabase.from("views").select("content_id").eq("content_type", "video").in("content_id", ids),
+        ]);
+        const counts = {};
+        ids.forEach((id) => {
+          counts[id] = {
+            likes: vLikes?.filter((l) => l.content_id === id).length || 0,
+            views: vViews?.filter((v) => v.content_id === id).length || 0,
+          };
+        });
+        setVideoCounts(counts);
+      }
 
+      // ── Fetch likes & views for all reels ──
+      if (rData) {
+        const ids = rData.map((r) => String(r.id));
+        const [{ data: rLikes }, { data: rViews }] = await Promise.all([
+          supabase.from("likes").select("content_id").eq("content_type", "reel").in("content_id", ids),
+          supabase.from("views").select("content_id").eq("content_type", "reel").in("content_id", ids),
+        ]);
+        const counts = {};
+        ids.forEach((id) => {
+          counts[id] = {
+            likes: rLikes?.filter((l) => l.content_id === id).length || 0,
+            views: rViews?.filter((v) => v.content_id === id).length || 0,
+          };
+        });
+        setReelCounts(counts);
+      }
       setLoading(false);
     };
 
@@ -373,6 +407,10 @@ const Profile = ({ sideNavbar }) => {
                     <div className="profileVideo_block_detail">
                       <div className="profileVideo_block_detai_name">{video.title}</div>
                       <div className="profileVideo_block_detai_about">{video.channel}</div>
+                      <div style={{ color: "#aaa", fontSize: "12px", marginTop: "4px", display: "flex", gap: "10px" }}>
+                      <span>👁 {videoCounts[String(video.id)]?.views ?? 0}</span>
+                      <span>👍 {videoCounts[String(video.id)]?.likes ?? 0}</span>
+                      </div>
                     </div>
                   </Link>
 
@@ -430,6 +468,10 @@ const Profile = ({ sideNavbar }) => {
                     <div className="profileVideo_block_detail">
                       <div className="profileVideo_block_detai_name">{reel.title}</div>
                       <div className="profileVideo_block_detai_about">{reel.description}</div>
+                      <div style={{ color: "#aaa", fontSize: "12px", marginTop: "4px", display: "flex", gap: "10px" }}>
+                      <span>👁 {reelCounts[String(reel.dbId)]?.views ?? 0}</span>
+                      <span>👍 {reelCounts[String(reel.dbId)]?.likes ?? 0}</span>
+                      </div>
                     </div>
                   </div>
 

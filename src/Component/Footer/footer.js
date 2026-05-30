@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import './footer.css'
 
 const Footer = () => {
@@ -7,25 +8,25 @@ const Footer = () => {
       <p>© 2021 - {new Date().getFullYear()} ZIXPLON&reg; All rights reserved.</p>
       <p>Origin: <span className="footer_dev">Made in India</span></p>
       <div className="footer_links">
-        <a href="#/about" className="footer_link">About</a>
+        <Link to="/about" className="footer_link">About</Link>
         <span className="footer_divider">|</span>
-        <a href="#/terms-and-conditions" target="_blank" rel="noopener noreferrer" className="footer_link">Terms &amp; Conditions</a>
+        <Link to="/terms-and-conditions" className="footer_link">Terms &amp; Conditions</Link>
         <span className="footer_divider">|</span>
-        <a href="#/privacy-policy" className="footer_link">Privacy Policy</a>
+        <Link to="/privacy-policy" className="footer_link">Privacy Policy</Link>
         <span className="footer_divider">|</span>
-        <a href="#/dmca" className="footer_link">DMCA</a>
+        <Link to="/dmca" className="footer_link">DMCA</Link>
         <span className="footer_divider">|</span>
-        <a href="#/community-guidelines" className="footer_link">Community Guidelines</a>
+        <Link to="/community-guidelines" className="footer_link">Community Guidelines</Link>
         <span className="footer_divider">|</span>
-        <a href="#/advertise" className="footer_link">Advertise</a>
+        <Link to="/advertise" className="footer_link">Advertise</Link>
         <span className="footer_divider">|</span>
-        <a href="#/feedback" className="footer_link">Feedback</a>
+        <Link to="/feedback" className="footer_link">Feedback</Link>
         <span className="footer_divider">|</span>
-        <a href="#/help" className="footer_link">Help &amp; FAQ</a>
+        <Link to="/help" className="footer_link">Help &amp; FAQ</Link>
         <span className="footer_divider">|</span>
-        <a href="#/contact" className="footer_link">Contact Support</a>
+        <Link to="/contact" className="footer_link">Contact Support</Link>
         <span className="footer_divider">|</span>
-        <a href="#/report" className="footer_link">Report a Problem</a>
+        <Link to="/report" className="footer_link">Report a Problem</Link>
       </div>
     </div>
   )

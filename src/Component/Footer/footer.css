@@ -17,6 +17,7 @@
   justify-content: center;
   gap: 6px;
   margin-top: 8px;
+    padding-bottom: 8px;  /* ← added */
 }
 
 .footer_link {

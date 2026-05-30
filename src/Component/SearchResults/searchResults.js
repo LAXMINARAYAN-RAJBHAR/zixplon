@@ -532,14 +532,6 @@ let currentKeyIndex = 0;
 // ytCache[`_token_${query}`]  → YouTube nextPageToken for this query
 const ytCache = {};
 
-const getQueryFromHash = () => {
-  const hash = window.location.hash;
-  const qIndex = hash.indexOf("?");
-  if (qIndex === -1) return "";
-  const params = new URLSearchParams(hash.slice(qIndex + 1));
-  return params.get("q") || "";
-};
-
 const SearchResults = () => {
   const location = useLocation();
 
@@ -561,9 +553,27 @@ const SearchResults = () => {
   const [comment, setComment] = useState("");
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [comments, setComments] = useState([
-    { id: 1, user: "Rahul", text: "Amazing video! 🔥", time: "2 days ago", likes: 24 },
-    { id: 2, user: "Priya", text: "Loved this content!", time: "1 day ago", likes: 12 },
-    { id: 3, user: "Amit", text: "Very informative, thanks!", time: "5 hours ago", likes: 5 },
+    {
+      id: 1,
+      user: "Rahul",
+      text: "Amazing video! 🔥",
+      time: "2 days ago",
+      likes: 24,
+    },
+    {
+      id: 2,
+      user: "Priya",
+      text: "Loved this content!",
+      time: "1 day ago",
+      likes: 12,
+    },
+    {
+      id: 3,
+      user: "Amit",
+      text: "Very informative, thanks!",
+      time: "5 hours ago",
+      likes: 5,
+    },
   ]);
 
   const autoplayRef = useRef(autoplay);
@@ -571,9 +581,15 @@ const SearchResults = () => {
   const resultsRef = useRef(youtubeResults);
   const indexRef = useRef(selectedVideoIndex);
 
-  useEffect(() => { autoplayRef.current = autoplay; }, [autoplay]);
-  useEffect(() => { resultsRef.current = youtubeResults; }, [youtubeResults]);
-  useEffect(() => { indexRef.current = selectedVideoIndex; }, [selectedVideoIndex]);
+  useEffect(() => {
+    autoplayRef.current = autoplay;
+  }, [autoplay]);
+  useEffect(() => {
+    resultsRef.current = youtubeResults;
+  }, [youtubeResults]);
+  useEffect(() => {
+    indexRef.current = selectedVideoIndex;
+  }, [selectedVideoIndex]);
 
   // Load YouTube IFrame API script once
   useEffect(() => {
@@ -592,7 +608,9 @@ const SearchResults = () => {
 
     const initPlayer = () => {
       if (playerRef.current) {
-        try { playerRef.current.destroy(); } catch (e) {}
+        try {
+          playerRef.current.destroy();
+        } catch (e) {}
         playerRef.current = null;
       }
 
@@ -647,7 +665,9 @@ const SearchResults = () => {
     return () => {
       clearInterval(pollInterval);
       if (playerRef.current) {
-        try { playerRef.current.destroy(); } catch (e) {}
+        try {
+          playerRef.current.destroy();
+        } catch (e) {}
         playerRef.current = null;
       }
     };
@@ -655,14 +675,15 @@ const SearchResults = () => {
 
   // Re-run on every hash/location change
   useEffect(() => {
-    const q = getQueryFromHash();
+    const params = new URLSearchParams(location.search);
+    const q = params.get("q") || "";
     if (!q) return;
     setQuery(q);
     setSelectedVideo(null);
     setSelectedVideoIndex(null);
     fetchAll(q);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.key, location.hash]);
+  }, [location.key, location.search]);
 
   const fetchAll = async (q) => {
     setLoading(true);
@@ -749,7 +770,7 @@ const SearchResults = () => {
 
         // Filter out videos already shown to the user
         const newItems = res.data.items.filter(
-          (item) => !seenIds.has(item.id.videoId)
+          (item) => !seenIds.has(item.id.videoId),
         );
 
         // Mark all returned videos as seen
@@ -796,7 +817,9 @@ const SearchResults = () => {
   const handleSubscribe = (channelTitle) => {
     setSubscribedChannels((prev) => {
       const next = new Set(prev);
-      next.has(channelTitle) ? next.delete(channelTitle) : next.add(channelTitle);
+      next.has(channelTitle)
+        ? next.delete(channelTitle)
+        : next.add(channelTitle);
       return next;
     });
   };
@@ -819,7 +842,14 @@ const SearchResults = () => {
   const showPosts = activeTab === "all" || activeTab === "posts";
   const isMobile = window.innerWidth < 768;
 
-  const TAB_LIST = ["all", "profiles", "reels", "localVideos", "videos", "posts"];
+  const TAB_LIST = [
+    "all",
+    "profiles",
+    "reels",
+    "localVideos",
+    "videos",
+    "posts",
+  ];
   const TAB_LABELS = {
     all: "🔍 All",
     profiles: "👤 Profiles",
@@ -864,7 +894,8 @@ const SearchResults = () => {
               textAlign: "center",
             }}
           >
-            🔍 Searching for "<strong style={{ color: "white" }}>{query}</strong>"...
+            🔍 Searching for "
+            <strong style={{ color: "white" }}>{query}</strong>"...
           </div>
           <div
             style={{
@@ -876,7 +907,11 @@ const SearchResults = () => {
             {[...Array(12)].map((_, i) => (
               <div
                 key={i}
-                style={{ background: "#272727", borderRadius: "12px", overflow: "hidden" }}
+                style={{
+                  background: "#272727",
+                  borderRadius: "12px",
+                  overflow: "hidden",
+                }}
               >
                 <div
                   style={{
@@ -938,11 +973,18 @@ const SearchResults = () => {
               {/* LEFT: Player */}
               <div style={{ flex: "1 1 0", minWidth: 0, width: "100%" }}>
                 <div
-                  style={{ borderRadius: "12px", overflow: "hidden", background: "#000" }}
+                  style={{
+                    borderRadius: "12px",
+                    overflow: "hidden",
+                    background: "#000",
+                  }}
                 >
                   <div
                     id="yt-player-container"
-                    style={{ width: "100%", height: isMobile ? "220px" : "500px" }}
+                    style={{
+                      width: "100%",
+                      height: isMobile ? "220px" : "500px",
+                    }}
                   >
                     <div id="yt-player" />
                   </div>
@@ -967,12 +1009,14 @@ const SearchResults = () => {
                       display: "flex",
                       alignItems: "center",
                       gap: "6px",
-                      background: selectedVideoIndex === 0 ? "#2a2a2a" : "#272727",
+                      background:
+                        selectedVideoIndex === 0 ? "#2a2a2a" : "#272727",
                       border: "none",
                       color: selectedVideoIndex === 0 ? "#555" : "white",
                       borderRadius: "20px",
                       padding: "8px 18px",
-                      cursor: selectedVideoIndex === 0 ? "not-allowed" : "pointer",
+                      cursor:
+                        selectedVideoIndex === 0 ? "not-allowed" : "pointer",
                       fontSize: "14px",
                       fontWeight: "600",
                     }}
@@ -988,8 +1032,16 @@ const SearchResults = () => {
                     ⏮ Previous
                   </button>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ color: "#aaa", fontSize: "13px" }}>Autoplay</span>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                    }}
+                  >
+                    <span style={{ color: "#aaa", fontSize: "13px" }}>
+                      Autoplay
+                    </span>
                     <div
                       onClick={() => setAutoplay(!autoplay)}
                       style={{
@@ -1041,7 +1093,9 @@ const SearchResults = () => {
                           : "#ff0000",
                       border: "none",
                       color:
-                        selectedVideoIndex === youtubeResults.length - 1 ? "#555" : "white",
+                        selectedVideoIndex === youtubeResults.length - 1
+                          ? "#555"
+                          : "white",
                       borderRadius: "20px",
                       padding: "8px 18px",
                       cursor:
@@ -1090,25 +1144,49 @@ const SearchResults = () => {
                         marginTop: "12px",
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                        }}
+                      >
                         <img
                           src={`https://ui-avatars.com/api/?name=${encodeURIComponent(currentItem.snippet.channelTitle)}&background=random&size=40`}
                           alt="ch"
-                          style={{ width: "40px", height: "40px", borderRadius: "50%" }}
+                          style={{
+                            width: "40px",
+                            height: "40px",
+                            borderRadius: "50%",
+                          }}
                         />
                         <div>
-                          <div style={{ color: "white", fontWeight: "600", fontSize: "15px" }}>
+                          <div
+                            style={{
+                              color: "white",
+                              fontWeight: "600",
+                              fontSize: "15px",
+                            }}
+                          >
                             {currentItem.snippet.channelTitle}
                           </div>
-                          <div style={{ color: "#aaa", fontSize: "12px" }}>1.2M subscribers</div>
+                          <div style={{ color: "#aaa", fontSize: "12px" }}>
+                            1.2M subscribers
+                          </div>
                         </div>
                         <button
-                          onClick={() => handleSubscribe(currentItem.snippet.channelTitle)}
+                          onClick={() =>
+                            handleSubscribe(currentItem.snippet.channelTitle)
+                          }
                           style={{
-                            background: subscribedChannels.has(currentItem.snippet.channelTitle)
+                            background: subscribedChannels.has(
+                              currentItem.snippet.channelTitle,
+                            )
                               ? "#272727"
                               : "white",
-                            color: subscribedChannels.has(currentItem.snippet.channelTitle)
+                            color: subscribedChannels.has(
+                              currentItem.snippet.channelTitle,
+                            )
                               ? "white"
                               : "black",
                             border: "none",
@@ -1120,13 +1198,21 @@ const SearchResults = () => {
                             marginLeft: "8px",
                           }}
                         >
-                          {subscribedChannels.has(currentItem.snippet.channelTitle)
+                          {subscribedChannels.has(
+                            currentItem.snippet.channelTitle,
+                          )
                             ? "✓ Subscribed"
                             : "Subscribe"}
                         </button>
                       </div>
 
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                        }}
+                      >
                         <div
                           style={{
                             display: "flex",
@@ -1158,7 +1244,9 @@ const SearchResults = () => {
                               if (liked) setLiked(false);
                             }}
                             style={{
-                              background: disliked ? "#ff444422" : "transparent",
+                              background: disliked
+                                ? "#ff444422"
+                                : "transparent",
                               border: "none",
                               color: disliked ? "#ff4444" : "white",
                               padding: "8px 16px",
@@ -1222,8 +1310,16 @@ const SearchResults = () => {
                       }}
                       onClick={() => setShowFullDesc(!showFullDesc)}
                     >
-                      <div style={{ color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>
-                        {new Date(currentItem.snippet.publishedAt).toLocaleDateString("en-US", {
+                      <div
+                        style={{
+                          color: "#aaa",
+                          fontSize: "13px",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        {new Date(
+                          currentItem.snippet.publishedAt,
+                        ).toLocaleDateString("en-US", {
                           year: "numeric",
                           month: "long",
                           day: "numeric",
@@ -1238,7 +1334,8 @@ const SearchResults = () => {
                           overflow: showFullDesc ? "visible" : "hidden",
                         }}
                       >
-                        {currentItem.snippet.description || "No description available."}
+                        {currentItem.snippet.description ||
+                          "No description available."}
                       </p>
                       <span
                         style={{
@@ -1265,7 +1362,13 @@ const SearchResults = () => {
                       >
                         {comments.length} Comments
                       </div>
-                      <div style={{ display: "flex", gap: "12px", marginBottom: "24px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "12px",
+                          marginBottom: "24px",
+                        }}
+                      >
                         <img
                           src="https://athenabpo.com/wp-content/uploads/2016/09/Headshot-Blank-Person-Circle-300x300.gif"
                           alt="user"
@@ -1364,7 +1467,11 @@ const SearchResults = () => {
                       {comments.map((c) => (
                         <div
                           key={c.id}
-                          style={{ display: "flex", gap: "12px", marginBottom: "20px" }}
+                          style={{
+                            display: "flex",
+                            gap: "12px",
+                            marginBottom: "20px",
+                          }}
                         >
                           <img
                             src={`https://ui-avatars.com/api/?name=${encodeURIComponent(c.user)}&background=random&size=36`}
@@ -1377,23 +1484,67 @@ const SearchResults = () => {
                             }}
                           />
                           <div>
-                            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                              <span style={{ color: "white", fontWeight: "600", fontSize: "13px" }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "8px",
+                                alignItems: "center",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  color: "white",
+                                  fontWeight: "600",
+                                  fontSize: "13px",
+                                }}
+                              >
                                 {c.user}
                               </span>
-                              <span style={{ color: "#aaa", fontSize: "12px" }}>{c.time}</span>
+                              <span style={{ color: "#aaa", fontSize: "12px" }}>
+                                {c.time}
+                              </span>
                             </div>
-                            <div style={{ color: "#ccc", fontSize: "14px", marginTop: "4px" }}>
+                            <div
+                              style={{
+                                color: "#ccc",
+                                fontSize: "14px",
+                                marginTop: "4px",
+                              }}
+                            >
                               {c.text}
                             </div>
-                            <div style={{ display: "flex", gap: "12px", marginTop: "6px" }}>
-                              <span style={{ color: "#aaa", fontSize: "13px", cursor: "pointer" }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "12px",
+                                marginTop: "6px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  color: "#aaa",
+                                  fontSize: "13px",
+                                  cursor: "pointer",
+                                }}
+                              >
                                 👍 {c.likes}
                               </span>
-                              <span style={{ color: "#aaa", fontSize: "13px", cursor: "pointer" }}>
+                              <span
+                                style={{
+                                  color: "#aaa",
+                                  fontSize: "13px",
+                                  cursor: "pointer",
+                                }}
+                              >
                                 👎
                               </span>
-                              <span style={{ color: "#aaa", fontSize: "13px", cursor: "pointer" }}>
+                              <span
+                                style={{
+                                  color: "#aaa",
+                                  fontSize: "13px",
+                                  cursor: "pointer",
+                                }}
+                              >
                                 Reply
                               </span>
                             </div>
@@ -1427,7 +1578,9 @@ const SearchResults = () => {
                     marginBottom: "12px",
                   }}
                 >
-                  <span style={{ color: "#aaa", fontSize: "13px" }}>Autoplay</span>
+                  <span style={{ color: "#aaa", fontSize: "13px" }}>
+                    Autoplay
+                  </span>
                   <div
                     onClick={() => setAutoplay(!autoplay)}
                     style={{
@@ -1454,7 +1607,13 @@ const SearchResults = () => {
                     />
                   </div>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                  }}
+                >
                   {relatedVideos.map((item) => {
                     const realIndex = youtubeResults.indexOf(item);
                     return (
@@ -1469,8 +1628,12 @@ const SearchResults = () => {
                           padding: "4px",
                           transition: "background 0.2s",
                         }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "#1e1e1e")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = "#1e1e1e")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "transparent")
+                        }
                       >
                         <div
                           style={{
@@ -1493,7 +1656,9 @@ const SearchResults = () => {
                             }}
                           />
                         </div>
-                        <div style={{ flex: 1, minWidth: 0, paddingTop: "2px" }}>
+                        <div
+                          style={{ flex: 1, minWidth: 0, paddingTop: "2px" }}
+                        >
                           <div
                             style={{
                               color: "white",
@@ -1509,11 +1674,19 @@ const SearchResults = () => {
                           >
                             {item.snippet.title}
                           </div>
-                          <div style={{ color: "#aaa", fontSize: "12px", marginBottom: "2px" }}>
+                          <div
+                            style={{
+                              color: "#aaa",
+                              fontSize: "12px",
+                              marginBottom: "2px",
+                            }}
+                          >
                             {item.snippet.channelTitle}
                           </div>
                           <div style={{ color: "#aaa", fontSize: "12px" }}>
-                            {new Date(item.snippet.publishedAt).toLocaleDateString("en-US", {
+                            {new Date(
+                              item.snippet.publishedAt,
+                            ).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
                               year: "numeric",
@@ -1530,19 +1703,36 @@ const SearchResults = () => {
             /* ── SEARCH RESULTS GRID ── */
             <div style={{ padding: "20px" }}>
               <div style={{ marginBottom: "20px" }}>
-                <div style={{ fontSize: "15px", color: "#aaa", marginBottom: "14px" }}>
-                  Results for <strong style={{ color: "white" }}>"{query}"</strong>
+                <div
+                  style={{
+                    fontSize: "15px",
+                    color: "#aaa",
+                    marginBottom: "14px",
+                  }}
+                >
+                  Results for{" "}
+                  <strong style={{ color: "white" }}>"{query}"</strong>
                   {youtubeResults.length > 0 && (
-                    <span style={{ marginLeft: "8px", color: "#555", fontSize: "13px" }}>
+                    <span
+                      style={{
+                        marginLeft: "8px",
+                        color: "#555",
+                        fontSize: "13px",
+                      }}
+                    >
                       — {youtubeResults.length} YouTube videos
-                      {postResults.length > 0 ? `, ${postResults.length} posts` : ""}
+                      {postResults.length > 0
+                        ? `, ${postResults.length} posts`
+                        : ""}
                     </span>
                   )}
                 </div>
 
                 {/* Tab bar */}
                 {hasAnyResults && (
-                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <div
+                    style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}
+                  >
                     {TAB_LIST.map((tab) => {
                       if (tab !== "all" && TAB_COUNTS[tab] === 0) return null;
                       return (
@@ -1561,7 +1751,9 @@ const SearchResults = () => {
                           }}
                         >
                           {TAB_LABELS[tab]}
-                          {tab !== "all" && TAB_COUNTS[tab] > 0 ? ` (${TAB_COUNTS[tab]})` : ""}
+                          {tab !== "all" && TAB_COUNTS[tab] > 0
+                            ? ` (${TAB_COUNTS[tab]})`
+                            : ""}
                         </button>
                       );
                     })}
@@ -1573,10 +1765,19 @@ const SearchResults = () => {
               {(activeTab === "all" || activeTab === "profiles") &&
                 profileResults.length > 0 && (
                   <div style={{ marginBottom: "40px" }}>
-                    <h2 style={{ fontSize: "15px", color: "#aaa", marginBottom: "16px", fontWeight: "600" }}>
+                    <h2
+                      style={{
+                        fontSize: "15px",
+                        color: "#aaa",
+                        marginBottom: "16px",
+                        fontWeight: "600",
+                      }}
+                    >
                       👤 Profiles
                     </h2>
-                    <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                    <div
+                      style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}
+                    >
                       {profileResults.map((profile) => (
                         <Link
                           key={profile.username}
@@ -1596,8 +1797,12 @@ const SearchResults = () => {
                               transition: "background 0.2s",
                               minWidth: "120px",
                             }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = "#272727")}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = "#1a1a1a")}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.background = "#272727")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.background = "#1a1a1a")
+                            }
                           >
                             <img
                               src={profile.profilePic}
@@ -1610,10 +1815,19 @@ const SearchResults = () => {
                                 border: "2px solid #333",
                               }}
                             />
-                            <div style={{ color: "white", fontWeight: "600", fontSize: "14px", textAlign: "center" }}>
+                            <div
+                              style={{
+                                color: "white",
+                                fontWeight: "600",
+                                fontSize: "14px",
+                                textAlign: "center",
+                              }}
+                            >
                               {profile.user}
                             </div>
-                            <div style={{ color: "#aaa", fontSize: "12px" }}>@{profile.username}</div>
+                            <div style={{ color: "#aaa", fontSize: "12px" }}>
+                              @{profile.username}
+                            </div>
                           </div>
                         </Link>
                       ))}
@@ -1625,10 +1839,19 @@ const SearchResults = () => {
               {(activeTab === "all" || activeTab === "reels") &&
                 reelResults.length > 0 && (
                   <div style={{ marginBottom: "40px" }}>
-                    <h2 style={{ fontSize: "15px", color: "#aaa", marginBottom: "12px", fontWeight: "600" }}>
+                    <h2
+                      style={{
+                        fontSize: "15px",
+                        color: "#aaa",
+                        marginBottom: "12px",
+                        fontWeight: "600",
+                      }}
+                    >
                       🎞️ Reels
                     </h2>
-                    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                    <div
+                      style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}
+                    >
                       {reelResults.map((reel) => (
                         <Link
                           key={reel.id}
@@ -1643,8 +1866,12 @@ const SearchResults = () => {
                               background: "#1a1a1a",
                               cursor: "pointer",
                             }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = "#272727")}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = "#1a1a1a")}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.background = "#272727")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.background = "#1a1a1a")
+                            }
                           >
                             <video
                               src={reel.video}
@@ -1677,7 +1904,13 @@ const SearchResults = () => {
                               >
                                 {reel.caption}
                               </div>
-                              <div style={{ color: "#aaa", fontSize: "11px", marginTop: "4px" }}>
+                              <div
+                                style={{
+                                  color: "#aaa",
+                                  fontSize: "11px",
+                                  marginTop: "4px",
+                                }}
+                              >
                                 @{reel.username}
                               </div>
                             </div>
@@ -1692,28 +1925,50 @@ const SearchResults = () => {
               {(activeTab === "all" || activeTab === "localVideos") &&
                 localVideoResults.length > 0 && (
                   <div style={{ marginBottom: "40px" }}>
-                    <h2 style={{ fontSize: "15px", color: "#aaa", marginBottom: "12px", fontWeight: "600" }}>
+                    <h2
+                      style={{
+                        fontSize: "15px",
+                        color: "#aaa",
+                        marginBottom: "12px",
+                        fontWeight: "600",
+                      }}
+                    >
                       🎬 Videos
                     </h2>
                     <div
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                        gridTemplateColumns:
+                          "repeat(auto-fill, minmax(280px, 1fr))",
                         gap: "16px",
                       }}
                     >
                       {localVideoResults.map((video) => (
-                        <Link key={video.id} to={`/video/${video.id}`} style={{ textDecoration: "none" }}>
+                        <Link
+                          key={video.id}
+                          to={`/video/${video.id}`}
+                          style={{ textDecoration: "none" }}
+                        >
                           <div
                             style={{ cursor: "pointer" }}
                             onMouseEnter={(e) =>
-                              (e.currentTarget.querySelector(".lthumb").style.transform = "scale(1.03)")
+                              (e.currentTarget.querySelector(
+                                ".lthumb",
+                              ).style.transform = "scale(1.03)")
                             }
                             onMouseLeave={(e) =>
-                              (e.currentTarget.querySelector(".lthumb").style.transform = "scale(1)")
+                              (e.currentTarget.querySelector(
+                                ".lthumb",
+                              ).style.transform = "scale(1)")
                             }
                           >
-                            <div style={{ borderRadius: "12px", overflow: "hidden", position: "relative" }}>
+                            <div
+                              style={{
+                                borderRadius: "12px",
+                                overflow: "hidden",
+                                position: "relative",
+                              }}
+                            >
                               <img
                                 className="lthumb"
                                 src={video.thumbnail}
@@ -1741,11 +1996,22 @@ const SearchResults = () => {
                                 {video.duration}
                               </div>
                             </div>
-                            <div style={{ display: "flex", gap: "10px", padding: "10px 4px" }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "10px",
+                                padding: "10px 4px",
+                              }}
+                            >
                               <img
                                 src={`https://api.dicebear.com/7.x/initials/svg?seed=${video.channel}`}
                                 alt={video.channel}
-                                style={{ width: "36px", height: "36px", borderRadius: "50%", flexShrink: 0 }}
+                                style={{
+                                  width: "36px",
+                                  height: "36px",
+                                  borderRadius: "50%",
+                                  flexShrink: 0,
+                                }}
                               />
                               <div style={{ flex: 1 }}>
                                 <div
@@ -1763,7 +2029,11 @@ const SearchResults = () => {
                                 >
                                   {video.title}
                                 </div>
-                                <div style={{ color: "#aaa", fontSize: "12px" }}>{video.channel}</div>
+                                <div
+                                  style={{ color: "#aaa", fontSize: "12px" }}
+                                >
+                                  {video.channel}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1776,13 +2046,21 @@ const SearchResults = () => {
               {/* ── POSTS SECTION ── */}
               {showPosts && postResults.length > 0 && (
                 <div style={{ marginBottom: "40px" }}>
-                  <h2 style={{ fontSize: "15px", color: "#aaa", marginBottom: "12px", fontWeight: "600" }}>
+                  <h2
+                    style={{
+                      fontSize: "15px",
+                      color: "#aaa",
+                      marginBottom: "12px",
+                      fontWeight: "600",
+                    }}
+                  >
                     📱 Posts
                   </h2>
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(280px, 1fr))",
                       gap: "16px",
                     }}
                   >
@@ -1796,21 +2074,38 @@ const SearchResults = () => {
                           cursor: "pointer",
                           transition: "transform 0.2s",
                         }}
-                        onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0)")}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.transform = "translateY(-2px)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.transform = "translateY(0)")
+                        }
                       >
                         {post.image && (
                           <img
                             src={post.image}
                             alt={post.title}
-                            style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover" }}
+                            style={{
+                              width: "100%",
+                              aspectRatio: "16/9",
+                              objectFit: "cover",
+                            }}
                           />
                         )}
                         <div style={{ padding: "12px" }}>
-                          <div style={{ fontWeight: "600", fontSize: "14px", color: "white", marginBottom: "4px" }}>
+                          <div
+                            style={{
+                              fontWeight: "600",
+                              fontSize: "14px",
+                              color: "white",
+                              marginBottom: "4px",
+                            }}
+                          >
                             {post.title}
                           </div>
-                          <div style={{ color: "#aaa", fontSize: "12px" }}>{post.description}</div>
+                          <div style={{ color: "#aaa", fontSize: "12px" }}>
+                            {post.description}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1822,14 +2117,22 @@ const SearchResults = () => {
               {showVideos && youtubeResults.length > 0 && (
                 <div>
                   {postResults.length > 0 && showPosts && (
-                    <h2 style={{ fontSize: "15px", color: "#aaa", marginBottom: "12px", fontWeight: "600" }}>
+                    <h2
+                      style={{
+                        fontSize: "15px",
+                        color: "#aaa",
+                        marginBottom: "12px",
+                        fontWeight: "600",
+                      }}
+                    >
                       ▶ YouTube Videos
                     </h2>
                   )}
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(280px, 1fr))",
                       gap: "16px",
                     }}
                   >
@@ -1839,13 +2142,19 @@ const SearchResults = () => {
                         onClick={() => openVideo(item, index)}
                         style={{ cursor: "pointer" }}
                         onMouseEnter={(e) =>
-                          (e.currentTarget.querySelector(".thumb").style.transform = "scale(1.03)")
+                          (e.currentTarget.querySelector(
+                            ".thumb",
+                          ).style.transform = "scale(1.03)")
                         }
                         onMouseLeave={(e) =>
-                          (e.currentTarget.querySelector(".thumb").style.transform = "scale(1)")
+                          (e.currentTarget.querySelector(
+                            ".thumb",
+                          ).style.transform = "scale(1)")
                         }
                       >
-                        <div style={{ borderRadius: "12px", overflow: "hidden" }}>
+                        <div
+                          style={{ borderRadius: "12px", overflow: "hidden" }}
+                        >
                           <img
                             className="thumb"
                             src={item.snippet.thumbnails.medium.url}
@@ -1859,11 +2168,22 @@ const SearchResults = () => {
                             }}
                           />
                         </div>
-                        <div style={{ display: "flex", gap: "10px", padding: "10px 4px" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "10px",
+                            padding: "10px 4px",
+                          }}
+                        >
                           <img
                             src={`https://ui-avatars.com/api/?name=${encodeURIComponent(item.snippet.channelTitle)}&background=random&size=36`}
                             alt="ch"
-                            style={{ width: "36px", height: "36px", borderRadius: "50%", flexShrink: 0 }}
+                            style={{
+                              width: "36px",
+                              height: "36px",
+                              borderRadius: "50%",
+                              flexShrink: 0,
+                            }}
                           />
                           <div style={{ flex: 1 }}>
                             <div
@@ -1881,11 +2201,19 @@ const SearchResults = () => {
                             >
                               {item.snippet.title}
                             </div>
-                            <div style={{ color: "#aaa", fontSize: "12px", marginBottom: "2px" }}>
+                            <div
+                              style={{
+                                color: "#aaa",
+                                fontSize: "12px",
+                                marginBottom: "2px",
+                              }}
+                            >
                               {item.snippet.channelTitle}
                             </div>
                             <div style={{ color: "#aaa", fontSize: "12px" }}>
-                              {new Date(item.snippet.publishedAt).toLocaleDateString("en-US", {
+                              {new Date(
+                                item.snippet.publishedAt,
+                              ).toLocaleDateString("en-US", {
                                 month: "short",
                                 day: "numeric",
                                 year: "numeric",
@@ -1902,11 +2230,20 @@ const SearchResults = () => {
               {/* ── NO RESULTS ── */}
               {!hasAnyResults && (
                 <div style={{ textAlign: "center", marginTop: "80px" }}>
-                  <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔍</div>
+                  <div style={{ fontSize: "48px", marginBottom: "16px" }}>
+                    🔍
+                  </div>
                   <p style={{ color: "#555", fontSize: "16px" }}>
-                    No results found for "<span style={{ color: "#aaa" }}>{query}</span>"
+                    No results found for "
+                    <span style={{ color: "#aaa" }}>{query}</span>"
                   </p>
-                  <p style={{ color: "#444", fontSize: "13px", marginTop: "8px" }}>
+                  <p
+                    style={{
+                      color: "#444",
+                      fontSize: "13px",
+                      marginTop: "8px",
+                    }}
+                  >
                     Try different keywords or check your spelling
                   </p>
                 </div>

@@ -508,7 +508,7 @@ const Navbar = ({
     setSearchBarActive(false);
     setSearchQuery(q);
     setIsSearchFocused(true);
-    navigate({ pathname: "/search", search: `?q=${encodeURIComponent(q)}` });
+    navigate({ pathname: "/", search: `?q=${encodeURIComponent(q)}` });
     setTimeout(() => setIsSearchFocused(false), 1500);
   };
 
@@ -638,6 +638,10 @@ const Navbar = ({
           }}
           onMouseEnter={() => setLogoHovered(true)}
           onMouseLeave={() => setLogoHovered(false)}
+          onClick={() => {
+            setSearchQuery("");
+            window.location.href = "/";
+          }}
         >
           <svg
             width="38"

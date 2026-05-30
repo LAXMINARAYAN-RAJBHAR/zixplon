@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./homePage.css";
 import { reelsData } from "../Reels/reels";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { supabase } from "../../config/supabase";
 
@@ -1732,7 +1732,14 @@ const WatchPage = ({
 // =============================================================
 const HomePage = ({ sideNavbar }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [selectedOption, setSelectedOption] = useState("All");
+
+  // ── Search query from URL ──
+  const searchQuery = (() => {
+    const params = new URLSearchParams(location.search);
+    return (params.get("q") || "").trim().toLowerCase();
+  })();
   const optionsTrackRef = useRef(null);
   const autoScrollRef = useRef(null);
   const isPausedRef = useRef(false);
@@ -2052,8 +2059,12 @@ const HomePage = ({ sideNavbar }) => {
   const allReels = [...dbReels, ...reelsData];
 
   useEffect(() => {
-    fetchYouTubeByTopic(selectedOption);
-  }, [selectedOption]);
+    if (searchQuery) {
+      fetchYouTubeByTopic(searchQuery);
+    } else {
+      fetchYouTubeByTopic(selectedOption);
+    }
+  }, [selectedOption, searchQuery]);
 
   useEffect(() => {
     const track = optionsTrackRef.current;
@@ -2124,6 +2135,44 @@ const HomePage = ({ sideNavbar }) => {
     selectedOption === "All"
       ? allVideos
       : allVideos.filter((v) => v.tags?.includes(selectedOption));
+
+  // ── Search results (when query exists) ──
+  const searchActive = searchQuery.length > 0;
+
+  const scoreVideo = (v) => {
+    let score = 0;
+    const words = searchQuery.split(/\s+/).filter(Boolean);
+    const title = (v.title || "").toLowerCase();
+    const channel = (v.channel || "").toLowerCase();
+    const tags = (v.tags || []).map((t) => t.toLowerCase());
+    const description = (v.description || "").toLowerCase();
+    for (const w of words) {
+      if (title.includes(w)) score += 4;
+      if (tags.some((t) => t.includes(w))) score += 3;
+      if (channel.includes(w)) score += 2;
+      if (description.includes(w)) score += 1;
+    }
+    return score;
+  };
+
+  const searchedLocalVideos = searchActive
+    ? [...dbVideos.map((v) => ({ ...v, isUploaded: true })), ...videos]
+        .map((v) => ({ ...v, _score: scoreVideo(v) }))
+        .filter((v) => v._score > 0)
+        .sort((a, b) => b._score - a._score)
+    : [];
+
+  const searchedReels = searchActive
+    ? allReels.filter((r) => {
+        const q = searchQuery;
+        return (
+          (r.title || "").toLowerCase().includes(q) ||
+          (r.user || "").toLowerCase().includes(q) ||
+          (r.username || "").toLowerCase().includes(q) ||
+          (r.description || "").toLowerCase().includes(q)
+        );
+      })
+    : [];
 
   const handleLikeVideo = async (e, videoId) => {
     e.preventDefault();
@@ -2555,7 +2604,84 @@ const HomePage = ({ sideNavbar }) => {
           "home_mainPage" + (sideNavbar ? " sidebar-open" : " sidebar-closed")
         }
       >
-        {selectedOption === "All" ? (
+        {searchActive ? (
+          <div style={{ padding: "16px 20px" }}>
+            {/* Search header */}
+            <div style={{ marginBottom: "20px" }}>
+              <h2 style={{ color: "white", fontSize: "18px", fontWeight: "700", margin: "0 0 6px" }}>
+                🔍 Results for "{searchQuery}"
+              </h2>
+              <span style={{ color: "#555", fontSize: "13px" }}>
+                {searchedLocalVideos.length} local videos · {searchedReels.length} reels · {ytVideos.length} YouTube
+              </span>
+            </div>
+
+            {/* Reels */}
+            {searchedReels.length > 0 && (
+              <div style={{ marginBottom: "40px" }}>
+                <SectionLabel color="#ff6600" bg="#ff660022" text="🎬 REELS" count={searchedReels.length} />
+                <div className="homePage_shortsRow">
+                  {searchedReels.map((short) => (
+                    <ShortCard
+                      key={short.id}
+                      short={short}
+                      incrementView={incrementView}
+                      viewCounts={viewCounts}
+                      handleDeleteReel={handleDeleteReel}
+                      navigate={navigate}
+                      watchedContentIds={watchedContentIds}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Local + DB Videos */}
+            {searchedLocalVideos.length > 0 && (
+              <div style={{ marginBottom: "40px" }}>
+                <SectionLabel color="#aaa" bg="#272727" text="🎬 LOCAL VIDEOS" count={searchedLocalVideos.length} />
+                <div className="youtube_VideoGrid">
+                  {searchedLocalVideos.map((v) => (
+                    <VideoCard key={v.id} video={v} isUploaded={v.isUploaded || false} showDelete={v.isUploaded} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* YouTube */}
+            {ytLoading && (
+              <div style={{ marginBottom: "40px" }}>
+                <SectionLabel color="#ff4444" bg="#ff000022" text="▶ YOUTUBE — searching..." />
+                <div className="youtube_VideoGrid">
+                  {[...Array(8)].map((_, i) => <SkeletonCard key={i} />)}
+                </div>
+              </div>
+            )}
+            {!ytLoading && ytVideos.length > 0 && (
+              <div style={{ marginBottom: "40px" }}>
+                <SectionLabel color="#ff4444" bg="#ff000022" text="▶ YOUTUBE" count={ytVideos.length} />
+                <div className="youtube_VideoGrid">
+                  {ytVideos.map((item) => (
+                    <YouTubeVideoCard key={item.id.videoId} item={item} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* No results */}
+            {!ytLoading && searchedLocalVideos.length === 0 && searchedReels.length === 0 && ytVideos.length === 0 && (
+              <div style={{ textAlign: "center", marginTop: "80px" }}>
+                <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔍</div>
+                <p style={{ color: "#555", fontSize: "16px" }}>
+                  No results for "<span style={{ color: "#aaa" }}>{searchQuery}</span>"
+                </p>
+                <p style={{ color: "#444", fontSize: "13px", marginTop: "8px" }}>
+                  Try different keywords
+                </p>
+              </div>
+            )}
+          </div>
+        ) : selectedOption === "All" ? (
           <>
             {(() => {
               const allVids = [

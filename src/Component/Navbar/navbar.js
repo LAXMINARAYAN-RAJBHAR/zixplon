@@ -38,8 +38,7 @@ const useCountry = () => {
       }
       try {
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        if (tz.includes("Calcutta") || tz.includes("Kolkata"))
-          setCountryCode("IN");
+        if (tz.includes("Calcutta") || tz.includes("Kolkata")) setCountryCode("IN");
         else if (tz.includes("America")) setCountryCode("US");
         else if (tz.includes("London")) setCountryCode("GB");
         else if (tz.includes("Dubai")) setCountryCode("AE");
@@ -257,16 +256,11 @@ const TagBadge = ({ tag }) => {
 // ─── Notification helpers ──────────────────────────────────────────────────────
 const getNotifStyle = (type) => {
   switch (type) {
-    case "upload":
-      return { color: "#ff4444", icon: "🎬" };
-    case "like":
-      return { color: "#ff9800", icon: "❤️" };
-    case "comment":
-      return { color: "#2196f3", icon: "💬" };
-    case "subscriber":
-      return { color: "#4caf50", icon: "🔔" };
-    default:
-      return { color: "#aaa", icon: "📢" };
+    case "upload": return { color: "#ff4444", icon: "🎬" };
+    case "like": return { color: "#ff9800", icon: "❤️" };
+    case "comment": return { color: "#2196f3", icon: "💬" };
+    case "subscriber": return { color: "#4caf50", icon: "🔔" };
+    default: return { color: "#aaa", icon: "📢" };
   }
 };
 
@@ -279,12 +273,7 @@ const timeAgo = (timestamp) => {
 };
 
 // ─── Main Navbar ───────────────────────────────────────────────────────────────
-const Navbar = ({
-  currentUser,
-  setCurrentUser,
-  setSideNavbarFunc,
-  sideNavbar,
-}) => {
+const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const countryCode = useCountry();
@@ -292,9 +281,32 @@ const Navbar = ({
   const [userPic, setUserPic] = useState(
     "https://ui-avatars.com/api/?name=User&background=444&color=fff&size=40",
   );
-
-  // ✅ Notifications state — now loaded from Supabase
   const [notifications, setNotifications] = useState([]);
+  const [navbarModal, setNavbarModal] = useState(false);
+  const [login, setLogin] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [suggestionData, setSuggestionData] = useState({
+    items: [],
+    category: null,
+    trending: [],
+    history: [],
+  });
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [isListening, setIsListening] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [logoKey, setLogoKey] = useState(0);
+  const [searchBarActive, setSearchBarActive] = useState(false);
+  const [logoHovered, setLogoHovered] = useState(false);
+  const [showRecordModal, setShowRecordModal] = useState(false); // ✅ Record modal state
+
+  const dropdownRef = useRef(null);
+  const notifRef = useRef(null);
+  const recognitionRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   useEffect(() => {
     const loadPic = async () => {
@@ -303,9 +315,7 @@ const Navbar = ({
         if (savedPic) {
           setUserPic(savedPic);
         } else {
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
+          const { data: { session } } = await supabase.auth.getSession();
           const pic =
             session?.user?.user_metadata?.profilePic ||
             session?.user?.user_metadata?.avatar_url ||
@@ -328,13 +338,11 @@ const Navbar = ({
     loadPic();
   }, [currentUser]);
 
-  // ✅ Load notifications from Supabase
   useEffect(() => {
     if (!currentUser) {
       setNotifications([]);
       return;
     }
-
     const loadNotifications = async () => {
       const { data, error } = await supabase
         .from("notifications")
@@ -357,7 +365,6 @@ const Navbar = ({
     };
     loadNotifications();
 
-    // ✅ Realtime — new notifications appear instantly
     const channel = supabase
       .channel("notifications-channel")
       .on(
@@ -388,7 +395,6 @@ const Navbar = ({
     return () => supabase.removeChannel(channel);
   }, [currentUser]);
 
-  // ✅ Mark all as read in Supabase
   const markAllRead = async () => {
     if (!currentUser) return;
     await supabase
@@ -399,39 +405,12 @@ const Navbar = ({
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
-  // ✅ Mark one as read in Supabase
   const markOneRead = async (id) => {
     await supabase.from("notifications").update({ is_read: true }).eq("id", id);
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
   };
-
-  const [navbarModal, setNavbarModal] = useState(false);
-  const [login, setLogin] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [suggestionData, setSuggestionData] = useState({
-    items: [],
-    category: null,
-    trending: [],
-    history: [],
-  });
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const [isListening, setIsListening] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [logoKey, setLogoKey] = useState(0);
-  const [searchBarActive, setSearchBarActive] = useState(false);
-  const [logoHovered, setLogoHovered] = useState(false);
-  const [showRecordModal, setShowRecordModal] = useState(false);
-
-  const dropdownRef = useRef(null);
-  const notifRef = useRef(null);
-  const recognitionRef = useRef(null);
-  const inputRef = useRef(null);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   useEffect(() => {
     setShowNotifications(false);
@@ -539,11 +518,7 @@ const Navbar = ({
       setShowDropdown(false);
       setSearchBarActive(false);
       inputRef.current?.blur();
-    } else if (
-      e.key === "Tab" &&
-      activeIndex >= 0 &&
-      allNavItems[activeIndex]
-    ) {
+    } else if (e.key === "Tab" && activeIndex >= 0 && allNavItems[activeIndex]) {
       e.preventDefault();
       setSearchQuery(allNavItems[activeIndex].text);
       setSuggestionData(getSuggestions(allNavItems[activeIndex].text));
@@ -587,9 +562,7 @@ const Navbar = ({
       };
       recognition.onend = () => {
         if (!gotResult) {
-          try {
-            recognition.start();
-          } catch (e) {}
+          try { recognition.start(); } catch (e) {}
         }
       };
       recognition.start();
@@ -609,7 +582,7 @@ const Navbar = ({
 
   return (
     <div className="navbar">
-      {/* ── LEFT ── */}
+
       {/* ── LEFT ── */}
       <div className="navbar-left">
         <div className="navbarHamberger" onClick={sideNavbarFunc}>
@@ -632,8 +605,7 @@ const Navbar = ({
             background: logoHovered
               ? "rgba(255,0,0,0.12)"
               : "rgba(255,255,255,0.05)",
-            transition:
-              "border-color 0.25s, background 0.25s, box-shadow 0.25s",
+            transition: "border-color 0.25s, background 0.25s, box-shadow 0.25s",
             boxShadow: logoHovered
               ? "0 0 12px rgba(255,0,0,0.7), 0 0 24px rgba(255,0,0,0.3)"
               : "0 0 8px rgba(255,255,255,0.25), 0 0 2px rgba(255,255,255,0.4)",
@@ -645,87 +617,32 @@ const Navbar = ({
             window.location.href = "/";
           }}
         >
-          <svg
-            width="38"
-            height="38"
-            viewBox="0 0 42 42"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
+          <svg width="38" height="38" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect width="42" height="42" rx="8" fill="#ff0000" />
-            <text
-              x="50%"
-              y="42%"
-              dominantBaseline="middle"
-              textAnchor="middle"
-              fill="white"
-              fontSize="22"
-              fontWeight="bold"
-              fontFamily="Arial"
-            >
+            <text x="50%" y="42%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="22" fontWeight="bold" fontFamily="Arial">
               Z
-              <animate
-                attributeName="opacity"
-                values="1;0.2;1;0.5;1"
-                dur="2s"
-                repeatCount="indefinite"
-              />
+              <animate attributeName="opacity" values="1;0.2;1;0.5;1" dur="2s" repeatCount="indefinite" />
             </text>
-            <text
-              x="50%"
-              y="79%"
-              dominantBaseline="middle"
-              textAnchor="middle"
-              fill="white"
-              fontSize="7.7"
-              fontWeight="700"
-              fontFamily="Arial"
-              letterSpacing="1.2"
-              opacity="1"
-            >
+            <text x="50%" y="79%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="7.7" fontWeight="700" fontFamily="Arial" letterSpacing="1.2" opacity="1">
               ZIXPLON
             </text>
           </svg>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              position: "relative",
-            }}
-          >
-            <span
-              key={logoKey}
-              className="logoText"
-              style={{ display: "inline-flex", alignItems: "center" }}
-            >
+          <div style={{ display: "flex", alignItems: "flex-start", position: "relative" }}>
+            <span key={logoKey} className="logoText" style={{ display: "inline-flex", alignItems: "center" }}>
               {"ZIXPLON".split("").map((char, i) => (
-                <span
-                  key={i}
-                  className="logoChar"
-                  style={{ animationDelay: `${i * 0.08}s` }}
-                >
+                <span key={i} className="logoChar" style={{ animationDelay: `${i * 0.08}s` }}>
                   {char}
                 </span>
               ))}
             </span>
             {countryCode && (
-              <span
-                style={{
-                  fontSize: "9px",
-                  fontWeight: "800",
-                  color: "#ffffff",
-                  background: "#cc0000",
-                  border: "1.5px solid rgba(255,255,255,0.7)",
-                  borderRadius: "3px",
-                  padding: "1px 3px",
-                  marginLeft: "2px",
-                  marginTop: "1px",
-                  letterSpacing: "0.04em",
-                  lineHeight: 1.2,
-                  flexShrink: 0,
-                }}
-              >
+              <span style={{
+                fontSize: "9px", fontWeight: "800", color: "#ffffff",
+                background: "#cc0000", border: "1.5px solid rgba(255,255,255,0.7)",
+                borderRadius: "3px", padding: "1px 3px", marginLeft: "2px",
+                marginTop: "1px", letterSpacing: "0.04em", lineHeight: 1.2, flexShrink: 0,
+              }}>
                 {countryCode}
               </span>
             )}
@@ -734,21 +651,14 @@ const Navbar = ({
       </div>
 
       {/* ── MIDDLE ── */}
-      <div
-        className="navbar-middle"
-        ref={dropdownRef}
-        style={{ position: "relative" }}
-      >
+      <div className="navbar-middle" ref={dropdownRef} style={{ position: "relative" }}>
         <div
           className="navbar_searchBox"
           style={{
             position: "relative",
             transition: "box-shadow 0.2s",
-            boxShadow: searchBarActive
-              ? "0 0 0 2px rgba(62,166,255,0.35)"
-              : "none",
-            borderRadius:
-              searchBarActive && showDropdown ? "20px 20px 0 0" : "20px",
+            boxShadow: searchBarActive ? "0 0 0 2px rgba(62,166,255,0.35)" : "none",
+            borderRadius: searchBarActive && showDropdown ? "20px 20px 0 0" : "20px",
           }}
         >
           <input
@@ -761,15 +671,13 @@ const Navbar = ({
             onKeyDown={handleKeyDown}
             onFocus={() => {
               setSearchBarActive(true);
-              if (searchQuery.trim())
-                setSuggestionData(getSuggestions(searchQuery));
-              else
-                setSuggestionData({
-                  items: [],
-                  category: null,
-                  trending: TRENDING_GLOBAL.slice(0, 4),
-                  history: _searchHistory.slice(0, 3),
-                });
+              if (searchQuery.trim()) setSuggestionData(getSuggestions(searchQuery));
+              else setSuggestionData({
+                items: [],
+                category: null,
+                trending: TRENDING_GLOBAL.slice(0, 4),
+                history: _searchHistory.slice(0, 3),
+              });
               setShowDropdown(true);
             }}
             onBlur={() => setIsSearchFocused(false)}
@@ -792,25 +700,15 @@ const Navbar = ({
               }}
               title="Clear search"
               style={{
-                position: "absolute",
-                right: "64px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                cursor: "pointer",
-                width: "22px",
-                height: "22px",
-                borderRadius: "50%",
-                background: "#444",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "background 0.2s",
-                flexShrink: 0,
+                position: "absolute", right: "64px", top: "50%",
+                transform: "translateY(-50%)", cursor: "pointer",
+                width: "22px", height: "22px", borderRadius: "50%",
+                background: "#444", display: "flex", alignItems: "center",
+                justifyContent: "center", transition: "background 0.2s", flexShrink: 0,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "#666";
-                e.currentTarget.style.transform =
-                  "translateY(-50%) scale(1.15)";
+                e.currentTarget.style.transform = "translateY(-50%) scale(1.15)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = "#444";
@@ -818,429 +716,243 @@ const Navbar = ({
               }}
             >
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <path
-                  d="M1 1L9 9M9 1L1 9"
-                  stroke="white"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
+                <path d="M1 1L9 9M9 1L1 9" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </div>
           )}
 
-          <div
-            className="navbar_searchIconBox"
-            onClick={() => doSearch(searchQuery)}
-          >
-            <PublicIcon
-              sx={{
-                fontSize: "28px",
-                animation: isSearchFocused
-                  ? "spinIcon 0.8s linear infinite"
-                  : "none",
-              }}
-            />
+          <div className="navbar_searchIconBox" onClick={() => doSearch(searchQuery)}>
+            <PublicIcon sx={{ fontSize: "28px", animation: isSearchFocused ? "spinIcon 0.8s linear infinite" : "none" }} />
           </div>
         </div>
 
-        <div
-          className="navbar_mike"
-          onClick={startVoiceSearch}
-          title="Voice Search"
-          style={{ cursor: "pointer" }}
-        >
-          <KeyboardVoiceIcon
-            sx={{
-              color: isListening ? "red" : "white",
-              transition: "color 0.2s",
-            }}
-          />
+        <div className="navbar_mike" onClick={startVoiceSearch} title="Voice Search" style={{ cursor: "pointer" }}>
+          <KeyboardVoiceIcon sx={{ color: isListening ? "red" : "white", transition: "color 0.2s" }} />
         </div>
 
         {/* Suggestions Dropdown */}
-        {showDropdown &&
-          (suggestionData.history.length > 0 ||
-            suggestionData.items.length > 0 ||
-            suggestionData.trending.length > 0) && (
-            <div
-              style={{
-                position: "absolute",
-                top: "48px",
-                left: 0,
-                width: "calc(100% - 52px)",
-                background: "#1e1e1e",
-                borderRadius: "0 0 14px 14px",
-                boxShadow: "0 12px 32px rgba(0,0,0,0.7)",
-                zIndex: 9999,
-                overflow: "hidden",
-                border: "1px solid #333",
-                borderTop: "none",
-              }}
-            >
-              {suggestionData.category &&
-                CATEGORY_LABELS[suggestionData.category] && (
+        {showDropdown && (suggestionData.history.length > 0 || suggestionData.items.length > 0 || suggestionData.trending.length > 0) && (
+          <div style={{
+            position: "absolute", top: "48px", left: 0,
+            width: "calc(100% - 52px)", background: "#1e1e1e",
+            borderRadius: "0 0 14px 14px", boxShadow: "0 12px 32px rgba(0,0,0,0.7)",
+            zIndex: 9999, overflow: "hidden", border: "1px solid #333", borderTop: "none",
+          }}>
+            {suggestionData.category && CATEGORY_LABELS[suggestionData.category] && (
+              <div style={{ padding: "8px 14px 4px", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{
+                  fontSize: "11px", color: "#aaa", background: "#2a2a2a",
+                  border: "1px solid #3a3a3a", borderRadius: "12px", padding: "2px 10px",
+                  display: "inline-flex", alignItems: "center", gap: "4px",
+                }}>
+                  {CATEGORY_LABELS[suggestionData.category]}
+                  <span style={{ color: "#666" }}>suggestions</span>
+                </span>
+                <span style={{ fontSize: "11px", color: "#555" }}>Tab → to autocomplete</span>
+              </div>
+            )}
+
+            {suggestionData.history.length > 0 && (
+              <>
+                <div style={{ fontSize: "11px", color: "#555", padding: "8px 14px 4px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  Recent
+                </div>
+                {suggestionData.history.map((h, i) => (
                   <div
+                    key={`hist-${i}`}
+                    onMouseDown={() => doSearch(h)}
+                    onMouseEnter={() => setActiveIndex(i)}
                     style={{
-                      padding: "8px 14px 4px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
+                      display: "flex", alignItems: "center", gap: "10px",
+                      padding: "9px 14px", cursor: "pointer",
+                      background: activeIndex === i ? "#2a2a2a" : "transparent",
+                      transition: "background 0.15s", color: "#ccc", fontSize: "14px",
                     }}
                   >
+                    <HistoryIcon sx={{ fontSize: "17px", color: "#555" }} />
+                    <span>{h}</span>
                     <span
-                      style={{
-                        fontSize: "11px",
-                        color: "#aaa",
-                        background: "#2a2a2a",
-                        border: "1px solid #3a3a3a",
-                        borderRadius: "12px",
-                        padding: "2px 10px",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "4px",
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        _searchHistory = _searchHistory.filter((x) => x !== h);
+                        setSuggestionData(getSuggestions(searchQuery));
                       }}
+                      style={{ marginLeft: "auto", color: "#444", fontSize: "16px", lineHeight: 1, cursor: "pointer", padding: "0 4px" }}
+                      title="Remove"
                     >
-                      {CATEGORY_LABELS[suggestionData.category]}
-                      <span style={{ color: "#666" }}>suggestions</span>
+                      ×
                     </span>
-                    <span style={{ fontSize: "11px", color: "#555" }}>
-                      Tab → to autocomplete
-                    </span>
+                  </div>
+                ))}
+                {(suggestionData.items.length > 0 || suggestionData.trending.length > 0) && (
+                  <div style={{ height: "0.5px", background: "#2a2a2a", margin: "2px 0" }} />
+                )}
+              </>
+            )}
+
+            {suggestionData.items.length > 0 && (
+              <>
+                {!suggestionData.category && (
+                  <div style={{ fontSize: "11px", color: "#555", padding: "8px 14px 4px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                    Suggestions
                   </div>
                 )}
-
-              {suggestionData.history.length > 0 && (
-                <>
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "#555",
-                      padding: "8px 14px 4px",
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Recent
-                  </div>
-                  {suggestionData.history.map((h, i) => (
+                {suggestionData.items.map((item, i) => {
+                  const flatIdx = historyCount + i;
+                  return (
                     <div
-                      key={`hist-${i}`}
-                      onMouseDown={() => doSearch(h)}
-                      onMouseEnter={() => setActiveIndex(i)}
+                      key={`sugg-${i}`}
+                      onMouseDown={() => doSearch(item.text)}
+                      onMouseEnter={() => setActiveIndex(flatIdx)}
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "9px 14px",
-                        cursor: "pointer",
-                        background:
-                          activeIndex === i ? "#2a2a2a" : "transparent",
-                        transition: "background 0.15s",
-                        color: "#ccc",
-                        fontSize: "14px",
+                        display: "flex", alignItems: "center", gap: "10px",
+                        padding: "9px 14px", cursor: "pointer",
+                        background: activeIndex === flatIdx ? "#2a2a2a" : "transparent",
+                        transition: "background 0.15s", color: "#ccc", fontSize: "14px",
                       }}
                     >
-                      <HistoryIcon sx={{ fontSize: "17px", color: "#555" }} />
-                      <span>{h}</span>
-                      <span
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          _searchHistory = _searchHistory.filter(
-                            (x) => x !== h,
-                          );
-                          setSuggestionData(getSuggestions(searchQuery));
-                        }}
-                        style={{
-                          marginLeft: "auto",
-                          color: "#444",
-                          fontSize: "16px",
-                          lineHeight: 1,
-                          cursor: "pointer",
-                          padding: "0 4px",
-                        }}
-                        title="Remove"
-                      >
-                        ×
+                      <SearchIcon sx={{ fontSize: "17px", color: "#555" }} />
+                      <span>
+                        <span style={{ color: "white", fontWeight: "500" }}>{item.displayQuery}</span>{" "}
+                        <span style={{ color: "#aaa" }}>{item.displaySuffix}</span>
                       </span>
+                      <TagBadge tag={item.tag} />
                     </div>
-                  ))}
-                  {(suggestionData.items.length > 0 ||
-                    suggestionData.trending.length > 0) && (
-                    <div
-                      style={{
-                        height: "0.5px",
-                        background: "#2a2a2a",
-                        margin: "2px 0",
-                      }}
-                    />
-                  )}
-                </>
-              )}
+                  );
+                })}
+              </>
+            )}
 
-              {suggestionData.items.length > 0 && (
-                <>
-                  {!suggestionData.category && (
+            {suggestionData.trending.length > 0 && (
+              <>
+                <div style={{ height: "0.5px", background: "#2a2a2a", margin: "4px 0" }} />
+                <div style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "8px 14px 4px", fontSize: "11px", color: "#555",
+                  letterSpacing: "0.06em", textTransform: "uppercase",
+                }}>
+                  <WhatshotIcon sx={{ fontSize: "13px", color: "#ff7066" }} />
+                  Trending now
+                </div>
+                {suggestionData.trending.map((t, i) => {
+                  const flatIdx = historyCount + suggCount + i;
+                  return (
                     <div
+                      key={`trend-${i}`}
+                      onMouseDown={() => doSearch(t)}
+                      onMouseEnter={() => setActiveIndex(flatIdx)}
                       style={{
-                        fontSize: "11px",
-                        color: "#555",
-                        padding: "8px 14px 4px",
-                        letterSpacing: "0.06em",
-                        textTransform: "uppercase",
+                        display: "flex", alignItems: "center", gap: "10px",
+                        padding: "9px 14px", cursor: "pointer",
+                        background: activeIndex === flatIdx ? "#2a2a2a" : "transparent",
+                        transition: "background 0.15s", color: "#ccc", fontSize: "14px",
                       }}
                     >
-                      Suggestions
+                      <TrendingUpIcon sx={{ fontSize: "17px", color: "#ff7066" }} />
+                      <span>{t}</span>
+                      <span style={{ marginLeft: "auto", fontSize: "12px" }}>🔥</span>
                     </div>
-                  )}
-                  {suggestionData.items.map((item, i) => {
-                    const flatIdx = historyCount + i;
-                    return (
-                      <div
-                        key={`sugg-${i}`}
-                        onMouseDown={() => doSearch(item.text)}
-                        onMouseEnter={() => setActiveIndex(flatIdx)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          padding: "9px 14px",
-                          cursor: "pointer",
-                          background:
-                            activeIndex === flatIdx ? "#2a2a2a" : "transparent",
-                          transition: "background 0.15s",
-                          color: "#ccc",
-                          fontSize: "14px",
-                        }}
-                      >
-                        <SearchIcon sx={{ fontSize: "17px", color: "#555" }} />
-                        <span>
-                          <span style={{ color: "white", fontWeight: "500" }}>
-                            {item.displayQuery}
-                          </span>{" "}
-                          <span style={{ color: "#aaa" }}>
-                            {item.displaySuffix}
-                          </span>
-                        </span>
-                        <TagBadge tag={item.tag} />
-                      </div>
-                    );
-                  })}
-                </>
-              )}
+                  );
+                })}
+              </>
+            )}
 
-              {suggestionData.trending.length > 0 && (
-                <>
-                  <div
-                    style={{
-                      height: "0.5px",
-                      background: "#2a2a2a",
-                      margin: "4px 0",
-                    }}
-                  />
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "8px 14px 4px",
-                      fontSize: "11px",
-                      color: "#555",
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    <WhatshotIcon sx={{ fontSize: "13px", color: "#ff7066" }} />
-                    Trending now
-                  </div>
-                  {suggestionData.trending.map((t, i) => {
-                    const flatIdx = historyCount + suggCount + i;
-                    return (
-                      <div
-                        key={`trend-${i}`}
-                        onMouseDown={() => doSearch(t)}
-                        onMouseEnter={() => setActiveIndex(flatIdx)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          padding: "9px 14px",
-                          cursor: "pointer",
-                          background:
-                            activeIndex === flatIdx ? "#2a2a2a" : "transparent",
-                          transition: "background 0.15s",
-                          color: "#ccc",
-                          fontSize: "14px",
-                        }}
-                      >
-                        <TrendingUpIcon
-                          sx={{ fontSize: "17px", color: "#ff7066" }}
-                        />
-                        <span>{t}</span>
-                        <span style={{ marginLeft: "auto", fontSize: "12px" }}>
-                          🔥
-                        </span>
-                      </div>
-                    );
-                  })}
-                </>
-              )}
-
-              {searchQuery.trim() && (
-                <>
-                  <div style={{ height: "0.5px", background: "#2a2a2a" }} />
-                  <div
-                    onMouseDown={() => doSearch(searchQuery)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "10px 14px",
-                      cursor: "pointer",
-                      color: "#3ea6ff",
-                      fontSize: "13px",
-                      transition: "background 0.15s",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "#2a2a2a")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
-                  >
-                    <PublicIcon sx={{ fontSize: "17px" }} />
-                    Search for&nbsp;<strong>"{searchQuery}"</strong>&nbsp;across
-                    all categories
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+            {searchQuery.trim() && (
+              <>
+                <div style={{ height: "0.5px", background: "#2a2a2a" }} />
+                <div
+                  onMouseDown={() => doSearch(searchQuery)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "10px",
+                    padding: "10px 14px", cursor: "pointer", color: "#3ea6ff",
+                    fontSize: "13px", transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <PublicIcon sx={{ fontSize: "17px" }} />
+                  Search for&nbsp;<strong>"{searchQuery}"</strong>&nbsp;across all categories
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── RIGHT ── */}
       <div className="navbar-right">
-        <span
-          onClick={() => navigate("/local-player")}
-          title="Local Player"
-          style={{ cursor: "pointer" }}
-        >
+
+        {/* Local Player */}
+        <span onClick={() => navigate("/local-player")} title="Local Player" style={{ cursor: "pointer" }}>
           <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
             <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
           </svg>
         </span>
 
+        {/* ✅ Record / Live button */}
         <span
-  onClick={() => setShowRecordModal(true)}
-  title="Record / Go Live"
-  style={{
-    cursor: "pointer",
-    position: "relative",
-    display: "flex",
-    alignItems: "center",
-  }}
->
-  {/* Red pulsing dot */}
-  <span style={{
-    position: "absolute", top: "-3px", right: "-3px",
-    width: "8px", height: "8px", borderRadius: "50%",
-    background: "#ff0000", animation: "pulse 1.5s infinite",
-    border: "1.5px solid #0f0f0f",
-  }} />
-  <svg width="26" height="26" viewBox="0 0 24 24" fill="white">
-    <circle cx="12" cy="12" r="5" fill="#ff4444"/>
-    <path d="M17 10.5V7a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h12a1 1 0 001-1v-3.5l4 4v-11l-4 4z" fill="white"/>
-  </svg>
-</span>
+          onClick={() => setShowRecordModal(true)}
+          title="Record / Go Live"
+          style={{ cursor: "pointer", position: "relative", display: "flex", alignItems: "center" }}
+        >
+          <span style={{
+            position: "absolute", top: "-3px", right: "-3px",
+            width: "8px", height: "8px", borderRadius: "50%",
+            background: "#ff0000", animation: "pulse 1.5s infinite",
+            border: "1.5px solid #0f0f0f",
+          }} />
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="white">
+            <circle cx="12" cy="12" r="5" fill="#ff4444" />
+            <path d="M17 10.5V7a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h12a1 1 0 001-1v-3.5l4 4v-11l-4 4z" fill="white" />
+          </svg>
+        </span>
 
-<span
-  onClick={() => navigate("/763/upload")}
-  style={{ cursor: "pointer" }}
->
-  <VideoCallIcon sx={{ fontSize: "30px", color: "white" }} />
-</span>
+        {/* Upload */}
+        <span onClick={() => navigate("/763/upload")} style={{ cursor: "pointer" }}>
+          <VideoCallIcon sx={{ fontSize: "30px", color: "white" }} />
+        </span>
 
-        {/* ✅ Notifications — now from Supabase */}
+        {/* Notifications */}
         <div ref={notifRef} style={{ position: "relative" }}>
           <div
             onClick={() => setShowNotifications((prev) => !prev)}
             style={{ position: "relative", cursor: "pointer", display: "flex" }}
           >
-            <NotificationsActiveIcon
-              sx={{
-                fontSize: "30px",
-                color: showNotifications ? "#ff4444" : "white",
-                transition: "color 0.2s",
-                animation: unreadCount > 0 ? "bellShake 1.5s infinite" : "none",
-              }}
-            />
+            <NotificationsActiveIcon sx={{
+              fontSize: "30px",
+              color: showNotifications ? "#ff4444" : "white",
+              transition: "color 0.2s",
+              animation: unreadCount > 0 ? "bellShake 1.5s infinite" : "none",
+            }} />
             {unreadCount > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: "-4px",
-                  right: "-4px",
-                  background: "red",
-                  color: "white",
-                  borderRadius: "50%",
-                  fontSize: "10px",
-                  fontWeight: "700",
-                  width: "18px",
-                  height: "18px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "2px solid #0f0f0f",
-                  animation: "badgePop 0.3s ease",
-                }}
-              >
+              <span style={{
+                position: "absolute", top: "-4px", right: "-4px",
+                background: "red", color: "white", borderRadius: "50%",
+                fontSize: "10px", fontWeight: "700", width: "18px", height: "18px",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: "2px solid #0f0f0f", animation: "badgePop 0.3s ease",
+              }}>
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
           </div>
 
           {showNotifications && (
-            <div
-              style={{
-                position: "absolute",
-                top: "42px",
-                right: "-10px",
-                width: "360px",
-                background: "#212121",
-                borderRadius: "12px",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
-                zIndex: 99999,
-                border: "1px solid #333",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "14px 16px",
-                  borderBottom: "1px solid #333",
-                }}
-              >
-                <span
-                  style={{
-                    color: "white",
-                    fontWeight: "600",
-                    fontSize: "16px",
-                  }}
-                >
+            <div style={{
+              position: "absolute", top: "42px", right: "-10px", width: "360px",
+              background: "#212121", borderRadius: "12px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
+              zIndex: 99999, border: "1px solid #333", overflow: "hidden",
+            }}>
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "14px 16px", borderBottom: "1px solid #333",
+              }}>
+                <span style={{ color: "white", fontWeight: "600", fontSize: "16px" }}>
                   Notifications
                 </span>
                 {unreadCount > 0 && (
-                  <span
-                    onClick={markAllRead}
-                    style={{
-                      color: "#3ea6ff",
-                      fontSize: "13px",
-                      cursor: "pointer",
-                      fontWeight: "500",
-                    }}
-                  >
+                  <span onClick={markAllRead} style={{ color: "#3ea6ff", fontSize: "13px", cursor: "pointer", fontWeight: "500" }}>
                     Mark all as read
                   </span>
                 )}
@@ -1248,17 +960,8 @@ const Navbar = ({
 
               <div style={{ maxHeight: "400px", overflowY: "auto" }}>
                 {notifications.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "32px 16px",
-                      textAlign: "center",
-                      color: "#555",
-                      fontSize: "14px",
-                    }}
-                  >
-                    <div style={{ fontSize: "32px", marginBottom: "8px" }}>
-                      🔔
-                    </div>
+                  <div style={{ padding: "32px 16px", textAlign: "center", color: "#555", fontSize: "14px" }}>
+                    <div style={{ fontSize: "32px", marginBottom: "8px" }}>🔔</div>
                     No notifications yet
                   </div>
                 ) : (
@@ -1269,100 +972,42 @@ const Navbar = ({
                         key={n.id}
                         onClick={() => markOneRead(n.id)}
                         style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: "12px",
+                          display: "flex", alignItems: "flex-start", gap: "12px",
                           padding: "12px 16px",
-                          background: n.read
-                            ? "transparent"
-                            : "rgba(255,255,255,0.05)",
-                          borderBottom: "1px solid #2a2a2a",
-                          cursor: "pointer",
-                          transition: "background 0.2s",
+                          background: n.read ? "transparent" : "rgba(255,255,255,0.05)",
+                          borderBottom: "1px solid #2a2a2a", cursor: "pointer", transition: "background 0.2s",
                         }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = "#2a2a2a")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = n.read
-                            ? "transparent"
-                            : "rgba(255,255,255,0.05)")
-                        }
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = n.read ? "transparent" : "rgba(255,255,255,0.05)")}
                       >
-                        <div
-                          style={{
-                            width: "40px",
-                            height: "40px",
-                            borderRadius: "50%",
-                            background: color,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontWeight: "700",
-                            fontSize: "15px",
-                            color: "white",
-                            flexShrink: 0,
-                          }}
-                        >
+                        <div style={{
+                          width: "40px", height: "40px", borderRadius: "50%",
+                          background: color, display: "flex", alignItems: "center",
+                          justifyContent: "center", fontWeight: "700", fontSize: "15px",
+                          color: "white", flexShrink: 0,
+                        }}>
                           {n.avatar}
                         </div>
                         <div style={{ flex: 1 }}>
-                          <p
-                            style={{
-                              margin: 0,
-                              color: n.read ? "#aaa" : "white",
-                              fontSize: "13px",
-                              lineHeight: "1.4",
-                            }}
-                          >
+                          <p style={{ margin: 0, color: n.read ? "#aaa" : "white", fontSize: "13px", lineHeight: "1.4" }}>
                             <span style={{ marginRight: "5px" }}>{icon}</span>
                             {n.message}
                           </p>
-                          <span style={{ color: "#666", fontSize: "11px" }}>
-                            {n.time}
-                          </span>
+                          <span style={{ color: "#666", fontSize: "11px" }}>{n.time}</span>
                         </div>
                         {!n.read && (
-                          <div
-                            style={{
-                              width: "8px",
-                              height: "8px",
-                              borderRadius: "50%",
-                              background: "#3ea6ff",
-                              flexShrink: 0,
-                              marginTop: "4px",
-                            }}
-                          />
+                          <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#3ea6ff", flexShrink: 0, marginTop: "4px" }} />
                         )}
                       </div>
                     );
                   })
                 )}
-                {showRecordModal && (
-  <RecordModal
-    onClose={() => setShowRecordModal(false)}
-    currentUser={currentUser}
-  />
-)}
               </div>
 
-              <div
-                style={{
-                  padding: "12px",
-                  textAlign: "center",
-                  borderTop: "1px solid #333",
-                }}
-              >
+              <div style={{ padding: "12px", textAlign: "center", borderTop: "1px solid #333" }}>
                 <span
-                  style={{
-                    color: "#3ea6ff",
-                    fontSize: "13px",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => {
-                    setShowNotifications(false);
-                    navigate("/notifications");
-                  }}
+                  style={{ color: "#3ea6ff", fontSize: "13px", cursor: "pointer" }}
+                  onClick={() => { setShowNotifications(false); navigate("/notifications"); }}
                 >
                   See all notifications
                 </span>
@@ -1379,50 +1024,31 @@ const Navbar = ({
           className="navbar-right-logo"
           onError={(e) => {
             e.target.onerror = null;
-            e.target.src =
-              "https://ui-avatars.com/api/?name=User&background=444&color=fff&size=40";
+            e.target.src = "https://ui-avatars.com/api/?name=User&background=444&color=fff&size=40";
           }}
         />
         {navbarModal && (
           <div className="navbar-modal">
             {currentUser && (
-              <div
-                style={{
-                  padding: "10px 16px",
-                  color: "#aaa",
-                  fontSize: "12px",
-                  borderBottom: "1px solid #333",
-                  pointerEvents: "none",
-                }}
-              >
+              <div style={{ padding: "10px 16px", color: "#aaa", fontSize: "12px", borderBottom: "1px solid #333", pointerEvents: "none" }}>
                 👤 @{currentUser}
               </div>
             )}
-            <div className="navbar-modal-option" onClick={handleprofile}>
-              🙍 Profile
-            </div>
+            <div className="navbar-modal-option" onClick={handleprofile}>🙍 Profile</div>
             {currentUser ? (
-              <div
-                className="navbar-modal-option"
-                onClick={handleLogout}
-                style={{ color: "#ff4444" }}
-              >
+              <div className="navbar-modal-option" onClick={handleLogout} style={{ color: "#ff4444" }}>
                 🚪 Logout
               </div>
             ) : (
-              <div
-                className="navbar-modal-option"
-                onClick={() => {
-                  setLogin(true);
-                  setNavbarModal(false);
-                }}
-              >
+              <div className="navbar-modal-option" onClick={() => { setLogin(true); setNavbarModal(false); }}>
                 🔑 Login
               </div>
             )}
           </div>
         )}
       </div>
+
+      {/* ── MODALS — always at root level of navbar div ── */}
 
       {login && (
         <Login
@@ -1435,66 +1061,42 @@ const Navbar = ({
         />
       )}
 
+      {/* ✅ RecordModal — correctly placed OUTSIDE notifications, at root level */}
+      {showRecordModal && (
+        <RecordModal
+          onClose={() => setShowRecordModal(false)}
+          currentUser={currentUser}
+        />
+      )}
+
+      {/* Voice listening overlay */}
       {isListening && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.7)",
-            zIndex: 99999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexDirection: "column",
-            gap: "20px",
-          }}
-        >
-          <div
-            style={{
-              background: "#212121",
-              borderRadius: "16px",
-              padding: "40px 60px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "20px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
-            }}
-          >
-            <div
-              style={{
-                width: "80px",
-                height: "80px",
-                borderRadius: "50%",
-                background: "red",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                animation: "pulse 1.2s infinite",
-              }}
-            >
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)", zIndex: 99999,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexDirection: "column", gap: "20px",
+        }}>
+          <div style={{
+            background: "#212121", borderRadius: "16px", padding: "40px 60px",
+            display: "flex", flexDirection: "column", alignItems: "center",
+            gap: "20px", boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
+          }}>
+            <div style={{
+              width: "80px", height: "80px", borderRadius: "50%", background: "red",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              animation: "pulse 1.2s infinite",
+            }}>
               <KeyboardVoiceIcon sx={{ fontSize: "40px", color: "white" }} />
             </div>
-            <p style={{ color: "white", fontSize: "20px", fontWeight: "600" }}>
-              Listening...
-            </p>
-            <p style={{ color: "#aaa", fontSize: "14px" }}>
-              Speak now to search
-            </p>
+            <p style={{ color: "white", fontSize: "20px", fontWeight: "600" }}>Listening...</p>
+            <p style={{ color: "#aaa", fontSize: "14px" }}>Speak now to search</p>
             <button
               onClick={stopVoiceSearch}
               style={{
-                marginTop: "10px",
-                padding: "8px 24px",
-                borderRadius: "8px",
-                border: "1px solid #555",
-                background: "transparent",
-                color: "white",
-                cursor: "pointer",
-                fontSize: "14px",
+                marginTop: "10px", padding: "8px 24px", borderRadius: "8px",
+                border: "1px solid #555", background: "transparent",
+                color: "white", cursor: "pointer", fontSize: "14px",
               }}
             >
               Cancel
@@ -1502,6 +1104,7 @@ const Navbar = ({
           </div>
         </div>
       )}
+
     </div>
   );
 };

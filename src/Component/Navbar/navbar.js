@@ -675,9 +675,9 @@ const Navbar = ({
               : "rgba(255,255,255,0.05)",
             transition:
               "border-color 0.25s, background 0.25s, box-shadow 0.25s",
-            boxShadow: logoHovered
-              ? "0 0 12px rgba(255,0,0,0.7), 0 0 24px rgba(255,0,0,0.3)"
-              : "0 0 8px rgba(255,255,255,0.25), 0 0 2px rgba(255,255,255,0.4)",
+            border: logoHovered
+              ? "2px solid rgba(255,0,0,1)"
+              : "1px solid rgba(255, 255, 255, 0.35)", // ← was: "2px solid rgba(255,255,255,0.6)"
           }}
           onMouseEnter={() => setLogoHovered(true)}
           onMouseLeave={() => setLogoHovered(false)}

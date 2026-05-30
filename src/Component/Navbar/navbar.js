@@ -167,18 +167,10 @@ let _searchHistory = [];
 
 const getSuggestions = (q) => {
   if (!q.trim())
-    return {
-      items: [],
-      category: null,
-      trending: [],
-      history: _searchHistory.slice(0, 3),
-    };
+    return { items: [], category: null, trending: [], history: _searchHistory.slice(0, 3) };
   let category = "default";
   for (const [cat, pattern] of Object.entries(CATEGORY_PATTERNS)) {
-    if (pattern.test(q)) {
-      category = cat;
-      break;
-    }
+    if (pattern.test(q)) { category = cat; break; }
   }
   const suffixes = CATEGORY_SUFFIXES[category];
   const items = suffixes.slice(0, 5).map(({ suffix, tag }) => ({
@@ -206,48 +198,19 @@ const addToHistory = (q) => {
 const TagBadge = ({ tag }) => {
   if (!tag) return null;
   const styles = {
-    live: {
-      bg: "rgba(251,146,60,0.15)",
-      color: "#fb923c",
-      border: "1px solid rgba(124,51,0,0.4)",
-      text: "🔴 LIVE",
-    },
-    new: {
-      bg: "rgba(74,222,128,0.12)",
-      color: "#4ade80",
-      border: "none",
-      text: "NEW",
-    },
-    trend: {
-      bg: "rgba(255,112,102,0.12)",
-      color: "#ff7066",
-      border: "none",
-      text: "↑ TRENDING",
-    },
-    music: {
-      bg: "rgba(167,139,250,0.12)",
-      color: "#a78bfa",
-      border: "none",
-      text: "♪ MUSIC",
-    },
+    live: { bg: "rgba(251,146,60,0.15)", color: "#fb923c", border: "1px solid rgba(124,51,0,0.4)", text: "🔴 LIVE" },
+    new: { bg: "rgba(74,222,128,0.12)", color: "#4ade80", border: "none", text: "NEW" },
+    trend: { bg: "rgba(255,112,102,0.12)", color: "#ff7066", border: "none", text: "↑ TRENDING" },
+    music: { bg: "rgba(167,139,250,0.12)", color: "#a78bfa", border: "none", text: "♪ MUSIC" },
   };
   const s = styles[tag];
   if (!s) return null;
   return (
-    <span
-      style={{
-        marginLeft: "auto",
-        flexShrink: 0,
-        fontSize: "10px",
-        fontWeight: "700",
-        letterSpacing: "0.04em",
-        padding: "2px 7px",
-        borderRadius: "10px",
-        background: s.bg,
-        color: s.color,
-        border: s.border || "none",
-      }}
-    >
+    <span style={{
+      marginLeft: "auto", flexShrink: 0, fontSize: "10px", fontWeight: "700",
+      letterSpacing: "0.04em", padding: "2px 7px", borderRadius: "10px",
+      background: s.bg, color: s.color, border: s.border || "none",
+    }}>
       {s.text}
     </span>
   );
@@ -286,10 +249,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
   const [login, setLogin] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestionData, setSuggestionData] = useState({
-    items: [],
-    category: null,
-    trending: [],
-    history: [],
+    items: [], category: null, trending: [], history: [],
   });
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -299,15 +259,18 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
   const [logoKey, setLogoKey] = useState(0);
   const [searchBarActive, setSearchBarActive] = useState(false);
   const [logoHovered, setLogoHovered] = useState(false);
-  const [showRecordModal, setShowRecordModal] = useState(false); // ✅ Record modal state
+  const [showRecordModal, setShowRecordModal] = useState(false);
+  const [showUploadDropdown, setShowUploadDropdown] = useState(false); // ✅ upload dropdown state
 
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
+  const uploadDropdownRef = useRef(null); // ✅ ref for upload dropdown
   const recognitionRef = useRef(null);
   const inputRef = useRef(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  // ── Load profile picture ──
   useEffect(() => {
     const loadPic = async () => {
       if (currentUser) {
@@ -338,11 +301,9 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
     loadPic();
   }, [currentUser]);
 
+  // ── Load notifications ──
   useEffect(() => {
-    if (!currentUser) {
-      setNotifications([]);
-      return;
-    }
+    if (!currentUser) { setNotifications([]); return; }
     const loadNotifications = async () => {
       const { data, error } = await supabase
         .from("notifications")
@@ -351,50 +312,45 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
         .order("created_at", { ascending: false })
         .limit(30);
       if (!error && data) {
-        setNotifications(
-          data.map((n) => ({
-            id: n.id,
-            type: n.type,
-            message: n.message,
-            avatar: n.sender_username?.[0]?.toUpperCase() || "?",
-            time: timeAgo(n.created_at),
-            read: n.is_read,
-          })),
-        );
+        setNotifications(data.map((n) => ({
+          id: n.id, type: n.type, message: n.message,
+          avatar: n.sender_username?.[0]?.toUpperCase() || "?",
+          time: timeAgo(n.created_at), read: n.is_read,
+        })));
       }
     };
     loadNotifications();
 
     const channel = supabase
       .channel("notifications-channel")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `recipient_username=eq.${currentUser}`,
-        },
-        (payload) => {
-          const n = payload.new;
-          setNotifications((prev) => [
-            {
-              id: n.id,
-              type: n.type,
-              message: n.message,
-              avatar: n.sender_username?.[0]?.toUpperCase() || "?",
-              time: "just now",
-              read: false,
-            },
-            ...prev,
-          ]);
-        },
-      )
+      .on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "notifications",
+        filter: `recipient_username=eq.${currentUser}`,
+      }, (payload) => {
+        const n = payload.new;
+        setNotifications((prev) => [{
+          id: n.id, type: n.type, message: n.message,
+          avatar: n.sender_username?.[0]?.toUpperCase() || "?",
+          time: "just now", read: false,
+        }, ...prev]);
+      })
       .subscribe();
 
     return () => supabase.removeChannel(channel);
   }, [currentUser]);
 
+  // ── Close upload dropdown on outside click (using ref) ── ✅ FIXED
+  useEffect(() => {
+    const h = (e) => {
+      if (uploadDropdownRef.current && !uploadDropdownRef.current.contains(e.target)) {
+        setShowUploadDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  // ── Mark all notifications read ──
   const markAllRead = async () => {
     if (!currentUser) return;
     await supabase
@@ -405,6 +361,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
+  // ── Mark one notification read ──
   const markOneRead = async (id) => {
     await supabase.from("notifications").update({ is_read: true }).eq("id", id);
     setNotifications((prev) =>
@@ -412,11 +369,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
     );
   };
 
-  useEffect(() => {
-    setShowNotifications(false);
-    setNavbarModal(false);
-  }, [location.pathname]);
-
+  // ── Close search dropdown on outside click ──
   useEffect(() => {
     const h = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -428,6 +381,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
+  // ── Close notifications on outside click ──
   useEffect(() => {
     const h = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target))
@@ -437,6 +391,14 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
+  // ── Close modals on route change ──
+  useEffect(() => {
+    setShowNotifications(false);
+    setNavbarModal(false);
+    setShowUploadDropdown(false); // ✅ also close upload dropdown on navigate
+  }, [location.pathname]);
+
+  // ── Logo animation ──
   useEffect(() => {
     const interval = setInterval(() => setLogoKey((prev) => prev + 1), 3000);
     return () => clearInterval(interval);
@@ -473,8 +435,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
       setShowDropdown(true);
     } else {
       setSuggestionData({
-        items: [],
-        category: null,
+        items: [], category: null,
         trending: TRENDING_GLOBAL.slice(0, 4),
         history: _searchHistory.slice(0, 3),
       });
@@ -535,10 +496,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
 
   const startVoiceSearch = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-      alert("Voice search not supported. Try Chrome.");
-      return;
-    }
+    if (!SR) { alert("Voice search not supported. Try Chrome."); return; }
     setIsListening(true);
     let gotResult = false;
     speak("Please speak now", () => {
@@ -561,9 +519,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
         }
       };
       recognition.onend = () => {
-        if (!gotResult) {
-          try { recognition.start(); } catch (e) {}
-        }
+        if (!gotResult) { try { recognition.start(); } catch (e) {} }
       };
       recognition.start();
     });
@@ -580,6 +536,13 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
   const historyCount = suggestionData.history.length;
   const suggCount = suggestionData.items.length;
 
+  // ── Upload dropdown handler ── ✅ FIXED: no more || short-circuit
+  const handleUploadBtnClick = () => {
+    setNavbarModal(false);
+    setShowNotifications(false);
+    setShowUploadDropdown((prev) => !prev);
+  };
+
   return (
     <div className="navbar">
 
@@ -593,18 +556,10 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
           to="/"
           className="navbar-logo-link"
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "2px",
-            textDecoration: "none",
-            padding: "5px",
-            borderRadius: "12px",
-            border: logoHovered
-              ? "2px solid rgba(255,0,0,1)"
-              : "2px solid rgba(255,255,255,0.6)",
-            background: logoHovered
-              ? "rgba(255,0,0,0.12)"
-              : "rgba(255,255,255,0.05)",
+            display: "flex", alignItems: "center", gap: "2px",
+            textDecoration: "none", padding: "5px", borderRadius: "12px",
+            border: logoHovered ? "2px solid rgba(255,0,0,1)" : "2px solid rgba(255,255,255,0.6)",
+            background: logoHovered ? "rgba(255,0,0,0.12)" : "rgba(255,255,255,0.05)",
             transition: "border-color 0.25s, background 0.25s, box-shadow 0.25s",
             boxShadow: logoHovered
               ? "0 0 12px rgba(255,0,0,0.7), 0 0 24px rgba(255,0,0,0.3)"
@@ -612,10 +567,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
           }}
           onMouseEnter={() => setLogoHovered(true)}
           onMouseLeave={() => setLogoHovered(false)}
-          onClick={() => {
-            setSearchQuery("");
-            window.location.href = "/";
-          }}
+          onClick={() => { setSearchQuery(""); window.location.href = "/"; }}
         >
           <svg width="38" height="38" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect width="42" height="42" rx="8" fill="#ff0000" />
@@ -627,13 +579,10 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
               ZIXPLON
             </text>
           </svg>
-
           <div style={{ display: "flex", alignItems: "flex-start", position: "relative" }}>
             <span key={logoKey} className="logoText" style={{ display: "inline-flex", alignItems: "center" }}>
               {"ZIXPLON".split("").map((char, i) => (
-                <span key={i} className="logoChar" style={{ animationDelay: `${i * 0.08}s` }}>
-                  {char}
-                </span>
+                <span key={i} className="logoChar" style={{ animationDelay: `${i * 0.08}s` }}>{char}</span>
               ))}
             </span>
             {countryCode && (
@@ -655,8 +604,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
         <div
           className="navbar_searchBox"
           style={{
-            position: "relative",
-            transition: "box-shadow 0.2s",
+            position: "relative", transition: "box-shadow 0.2s",
             boxShadow: searchBarActive ? "0 0 0 2px rgba(62,166,255,0.35)" : "none",
             borderRadius: searchBarActive && showDropdown ? "20px 20px 0 0" : "20px",
           }}
@@ -673,8 +621,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
               setSearchBarActive(true);
               if (searchQuery.trim()) setSuggestionData(getSuggestions(searchQuery));
               else setSuggestionData({
-                items: [],
-                category: null,
+                items: [], category: null,
                 trending: TRENDING_GLOBAL.slice(0, 4),
                 history: _searchHistory.slice(0, 3),
               });
@@ -690,8 +637,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
                 e.preventDefault();
                 setSearchQuery("");
                 setSuggestionData({
-                  items: [],
-                  category: null,
+                  items: [], category: null,
                   trending: TRENDING_GLOBAL.slice(0, 4),
                   history: _searchHistory.slice(0, 3),
                 });
@@ -730,7 +676,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
           <KeyboardVoiceIcon sx={{ color: isListening ? "red" : "white", transition: "color 0.2s" }} />
         </div>
 
-        {/* Suggestions Dropdown */}
+        {/* ── Suggestions Dropdown ── */}
         {showDropdown && (suggestionData.history.length > 0 || suggestionData.items.length > 0 || suggestionData.trending.length > 0) && (
           <div style={{
             position: "absolute", top: "48px", left: 0,
@@ -779,9 +725,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
                       }}
                       style={{ marginLeft: "auto", color: "#444", fontSize: "16px", lineHeight: 1, cursor: "pointer", padding: "0 4px" }}
                       title="Remove"
-                    >
-                      ×
-                    </span>
+                    >×</span>
                   </div>
                 ))}
                 {(suggestionData.items.length > 0 || suggestionData.trending.length > 0) && (
@@ -889,28 +833,69 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
           </svg>
         </span>
 
-        {/* ✅ Record / Live button */}
-        <span
-          onClick={() => setShowRecordModal(true)}
-          title="Record / Go Live"
-          style={{ cursor: "pointer", position: "relative", display: "flex", alignItems: "center" }}
-        >
-          <span style={{
-            position: "absolute", top: "-3px", right: "-3px",
-            width: "8px", height: "8px", borderRadius: "50%",
-            background: "#ff0000", animation: "pulse 1.5s infinite",
-            border: "1.5px solid #0f0f0f",
-          }} />
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="white">
-            <circle cx="12" cy="12" r="5" fill="#ff4444" />
-            <path d="M17 10.5V7a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h12a1 1 0 001-1v-3.5l4 4v-11l-4 4z" fill="white" />
-          </svg>
-        </span>
+        {/* ✅ Upload Button with Dropdown — ref-based outside click, fixed onClick */}
+        <div ref={uploadDropdownRef} style={{ position: "relative" }}>
+          <span
+            onClick={handleUploadBtnClick}
+            style={{ cursor: "pointer", display: "flex", alignItems: "center" }}
+            title="Upload / Record"
+          >
+            <VideoCallIcon sx={{ fontSize: "30px", color: "white" }} />
+          </span>
 
-        {/* Upload */}
-        <span onClick={() => navigate("/763/upload")} style={{ cursor: "pointer" }}>
-          <VideoCallIcon sx={{ fontSize: "30px", color: "white" }} />
-        </span>
+          {showUploadDropdown && (
+            <div style={{
+              position: "absolute", top: "42px", right: 0,
+              background: "#212121", borderRadius: "12px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
+              zIndex: 99999, border: "1px solid #333",
+              overflow: "hidden", minWidth: "210px",
+            }}>
+              {/* Upload Video / Short */}
+              <div
+                onClick={() => {
+                  setShowUploadDropdown(false);
+                  navigate("/763/upload");
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: "12px",
+                  padding: "13px 16px", cursor: "pointer", color: "white",
+                  fontSize: "14px", transition: "background 0.2s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <VideoCallIcon sx={{ fontSize: "22px", color: "#aaa" }} />
+                Upload Video / Short
+              </div>
+
+              {/* Divider */}
+              <div style={{ height: "1px", background: "#333" }} />
+
+              {/* Record / Go Live */}
+              <div
+                onClick={() => {
+                  setShowUploadDropdown(false);
+                  setShowRecordModal(true);
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: "12px",
+                  padding: "13px 16px", cursor: "pointer", color: "white",
+                  fontSize: "14px", transition: "background 0.2s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <span style={{
+                  width: "8px", height: "8px", borderRadius: "50%",
+                  background: "#ff0000", display: "inline-block",
+                  animation: "pulse 1.5s infinite", flexShrink: 0,
+                }} />
+                🔴 Record / Go Live
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Notifications */}
         <div ref={notifRef} style={{ position: "relative" }}>
@@ -1048,8 +1033,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
         )}
       </div>
 
-      {/* ── MODALS — always at root level of navbar div ── */}
-
+      {/* ── MODALS ── */}
       {login && (
         <Login
           key={Date.now()}
@@ -1061,7 +1045,7 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
         />
       )}
 
-      {/* ✅ RecordModal — correctly placed OUTSIDE notifications, at root level */}
+      {/* ✅ RecordModal — at root level, outside all other divs */}
       {showRecordModal && (
         <RecordModal
           onClose={() => setShowRecordModal(false)}
@@ -1104,6 +1088,26 @@ const Navbar = ({ currentUser, setCurrentUser, setSideNavbarFunc, sideNavbar }) 
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes bellShake {
+          0%, 100% { transform: rotate(0deg); }
+          20% { transform: rotate(-15deg); }
+          40% { transform: rotate(15deg); }
+          60% { transform: rotate(-10deg); }
+          80% { transform: rotate(10deg); }
+        }
+        @keyframes badgePop {
+          0% { transform: scale(0); }
+          70% { transform: scale(1.2); }
+          100% { transform: scale(1); }
+        }
+        @keyframes spinIcon {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
 
     </div>
   );

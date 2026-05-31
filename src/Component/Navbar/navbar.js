@@ -739,6 +739,7 @@ const handleInstall = async () => {
             </span>
             {countryCode && (
               <span
+                className="navbar-country-badge"  {/* ← add this */}
                 style={{
                   fontSize: "9px",
                   fontWeight: "800",

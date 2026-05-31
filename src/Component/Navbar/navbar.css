@@ -253,6 +253,12 @@
     display: none !important;
   }
 
+  @media (max-width: 768px) {
+  .navbar-country-badge {
+    display: none !important;
+  }
+}
+
   .navbar {
     padding: 0 8px;
     gap: 6px;

@@ -4,15 +4,15 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 92vh;        /* ← change height to min-height */
+  min-height: 92vh;
   font-family: "Oswald", sans-serif;
   font-optical-sizing: auto;
   font-weight: 400;
   font-style: normal;
   background-color: black;
   color: white;
-  padding-bottom: 40px;    /* ← add this so content doesn't touch footer */
-  box-sizing: border-box;  /* ← add this */
+  padding-bottom: 40px;
+  box-sizing: border-box;
 }
 
 .uploadBox {
@@ -21,7 +21,7 @@
   margin-top: 20px;
   box-shadow: 0.5px 0.5px 8px white;
   padding: 25px;
-  box-sizing: border-box;  /* ← add this */
+  box-sizing: border-box;
 }
 
 .uploadVideoTitle {
@@ -57,6 +57,7 @@
   gap: 30px;
   justify-content: center;
   margin-top: 30px;
+  flex-wrap: wrap;
 }
 
 .uploadBtns-form {
@@ -68,10 +69,10 @@
   cursor: pointer;
   color: white;
   text-decoration: none;
-  &:hover {
-    background-color: white;
-    color: black;
-  }
+}
+.uploadBtns-form:hover {
+  background-color: white;
+  color: black;
 }
 
 .upload_file_row {
@@ -79,6 +80,7 @@
   align-items: center;
   gap: 14px;
   width: 70%;
+  flex-wrap: wrap;
 }
 
 .upload_file_label {
@@ -101,6 +103,13 @@
   white-space: nowrap;
 }
 .upload_file_btn:hover { background: #ff4444; border-color: #ff4444; }
+
+.upload_thumb_row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
 
 .upload_thumb_preview {
   width: 80px;
@@ -150,18 +159,19 @@
   color: #888;
   font-size: 0.85rem;
 }
+
 /* ── Mode Toggle ── */
 .upload_mode_toggle {
   display: flex;
   gap: 10px;
   justify-content: center;
   margin: 10px 0 6px;
-  flex-wrap: wrap;        /* ✅ allows 3rd button to wrap if needed */
-  width: 100%;            /* ✅ use full width */
+  flex-wrap: wrap;
+  width: 100%;
 }
 
 .upload_mode_btn {
-  padding: 10px 20px;     /* ✅ reduced from 32px so 3 buttons fit */
+  padding: 10px 20px;
   border-radius: 24px;
   border: 2px solid #444;
   color: #aaa;
@@ -170,8 +180,8 @@
   cursor: pointer;
   transition: all 0.2s;
   background: transparent;
-  white-space: nowrap;    /* ✅ prevents text wrapping inside button */
-  position: relative;     /* ✅ needed for the pulsing dot positioning */
+  white-space: nowrap;
+  position: relative;
 }
 
 .upload_mode_btn:hover {
@@ -192,4 +202,101 @@
   font-size: 0.8rem;
   margin: 0 0 10px;
   padding: 0 16px;
+}
+
+/* ══════════════════════════════════════
+   MOBILE — max 768px
+══════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  .uploadBox {
+    width: 92% !important;
+    margin: 12px auto !important;
+    padding: 16px !important;
+    box-shadow: 0.5px 0.5px 6px rgba(255,255,255,0.3) !important;
+  }
+
+  .uploadVideoTitle {
+    font-size: 22px !important;
+  }
+
+  .uploadForm {
+    gap: 16px !important;
+    margin-top: 16px !important;
+  }
+
+  .uploadFormInputs {
+    width: 100% !important;
+    height: 42px !important;
+    font-size: 14px !important;
+  }
+
+  .upload_file_row {
+    width: 100% !important;
+    gap: 10px !important;
+  }
+
+  .upload_file_label {
+    font-size: 0.85rem !important;
+    min-width: 80px;
+  }
+
+  .upload_file_btn {
+    font-size: 0.8rem !important;
+    padding: 8px 10px !important;
+  }
+
+  .upload_mode_toggle {
+    gap: 8px !important;
+  }
+
+  .upload_mode_btn {
+    font-size: 13px !important;
+    padding: 8px 14px !important;
+  }
+
+  .uploadBtns {
+    gap: 12px !important;
+    margin-top: 20px !important;
+  }
+
+  .uploadBtns-form {
+    font-size: 15px !important;
+    padding: 10px 18px !important;
+  }
+
+  .upload_success_screen h2 {
+    font-size: 1.2rem !important;
+  }
+
+  .upload_success_preview {
+    max-width: 100% !important;
+  }
+}
+
+/* ══════════════════════════════════════
+   VERY SMALL — max 480px
+══════════════════════════════════════ */
+@media (max-width: 480px) {
+
+  .uploadBox {
+    width: 96% !important;
+    padding: 12px !important;
+  }
+
+  .upload_mode_btn {
+    font-size: 12px !important;
+    padding: 7px 10px !important;
+  }
+
+  .uploadBtns {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .uploadBtns-form {
+    width: 100% !important;
+    text-align: center !important;
+  }
 }

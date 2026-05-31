@@ -248,6 +248,10 @@
    MOBILE RESPONSIVE — max 768px
 ══════════════════════════════════════ */
 @media (max-width: 768px) {
+  /* Hide IN country badge on mobile */
+  .navbar-logo-link > div > span:last-child {
+    display: none !important;
+  }
 
   .navbar {
     padding: 0 8px;

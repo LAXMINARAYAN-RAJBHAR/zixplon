@@ -5,6 +5,7 @@ import SlideshowIcon from "@mui/icons-material/Slideshow";
 import SearchIcon from "@mui/icons-material/Search";
 import VideoCallIcon from "@mui/icons-material/VideoCall";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 
 const BottomNav = ({ currentUser }) => {
   const location = useLocation();
@@ -48,7 +49,6 @@ const BottomNav = ({ currentUser }) => {
             font-size: 10px;
             font-weight: 500;
           }
-          /* Push page content above bottom nav on mobile */
           .homePage,
           .video,
           .reels_container,
@@ -62,28 +62,28 @@ const BottomNav = ({ currentUser }) => {
 
       <nav className="bottom-nav">
         <Link to="/" className="bottom-nav-item">
-          <HomeIcon sx={{ fontSize: "24px", color: isActive("/") ? activeColor : inactiveColor }} />
+          <HomeIcon sx={{ fontSize: "22px", color: isActive("/") ? activeColor : inactiveColor }} />
           <span className="bottom-nav-label" style={{ color: isActive("/") ? activeColor : inactiveColor }}>Home</span>
         </Link>
 
         <Link to="/reels" className="bottom-nav-item">
-          <SlideshowIcon sx={{ fontSize: "24px", color: isActive("/reels") ? activeColor : inactiveColor }} />
+          <SlideshowIcon sx={{ fontSize: "22px", color: isActive("/reels") ? activeColor : inactiveColor }} />
           <span className="bottom-nav-label" style={{ color: isActive("/reels") ? activeColor : inactiveColor }}>Shorts</span>
         </Link>
 
-        <Link to="/?search=true" className="bottom-nav-item">
-          <SearchIcon sx={{ fontSize: "24px", color: inactiveColor }} />
-          <span className="bottom-nav-label" style={{ color: inactiveColor }}>Search</span>
+        <Link to="/local-player" className="bottom-nav-item">
+          <FolderOpenIcon sx={{ fontSize: "22px", color: isActive("/local-player") ? activeColor : inactiveColor }} />
+          <span className="bottom-nav-label" style={{ color: isActive("/local-player") ? activeColor : inactiveColor }}>Player</span>
         </Link>
 
         <Link to="/763/upload" className="bottom-nav-item">
-          <VideoCallIcon sx={{ fontSize: "24px", color: isActive("/763/upload") ? activeColor : inactiveColor }} />
+          <VideoCallIcon sx={{ fontSize: "22px", color: isActive("/763/upload") ? activeColor : inactiveColor }} />
           <span className="bottom-nav-label" style={{ color: isActive("/763/upload") ? activeColor : inactiveColor }}>Upload</span>
         </Link>
 
         <Link to={currentUser ? `/user/${currentUser}` : "/signup"} className="bottom-nav-item">
-          <AccountCircleIcon sx={{ fontSize: "24px", color: inactiveColor }} />
-          <span className="bottom-nav-label" style={{ color: inactiveColor }}>
+          <AccountCircleIcon sx={{ fontSize: "22px", color: isActive(`/user/${currentUser}`) ? activeColor : inactiveColor }} />
+          <span className="bottom-nav-label" style={{ color: isActive(`/user/${currentUser}`) ? activeColor : inactiveColor }}>
             {currentUser ? "Profile" : "Sign In"}
           </span>
         </Link>

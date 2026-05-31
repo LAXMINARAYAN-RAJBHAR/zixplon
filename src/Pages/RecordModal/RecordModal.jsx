@@ -183,15 +183,14 @@ const RecordModal = ({ onClose, currentUser }) => {
         .replace(".webm", ".jpg");
 
       const { error } = await supabase.from("videos").insert({
-        title: title.trim(),
-        video_url: videoUrl,
-        thumbnail_url: thumbnailUrl,
-        channel: currentUser,
-        username: currentUser,
-        category: category,
-        duration: formatTime(timer),
-        created_at: new Date().toISOString(),
-      });
+  title: title.trim(),
+  video_url: videoUrl,
+  thumbnail_url: thumbnailUrl,
+  channel: currentUser,
+  category: category,
+  duration: formatTime(timer),
+  created_at: new Date().toISOString(),
+});
 
       if (error) throw error;
 

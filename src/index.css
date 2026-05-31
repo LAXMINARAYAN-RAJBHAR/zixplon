@@ -24,5 +24,11 @@ html, body, #root {
 @media (max-width: 768px) {
   * {
     -webkit-tap-highlight-color: transparent;
+    touch-action: pan-x pan-y;  /* ← add this, prevents pinch zoom */
+  }
+  
+  html {
+    touch-action: pan-x pan-y;
+    -ms-touch-action: pan-x pan-y;
   }
 }

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbDownAltOutlinedIcon from "@mui/icons-material/ThumbDownAltOutlined";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
+import ReplyIcon from "@mui/icons-material/Reply";
 import "./reels.css";
 import { Link, useLocation, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
@@ -1022,7 +1022,7 @@ const ReelItem = ({ reel, allReels }) => {
           </div>
 
           <div className="reel_action_btn" onClick={handleShare}>
-            <ShareOutlinedIcon style={{ color: "white" }} />
+            <ReplyIcon style={{ color: "white", transform: "scaleX(-1)" }} />
             <span>Share</span>
           </div>
         </div>

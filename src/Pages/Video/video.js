@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import "./video.css";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbDownAltOutlinedIcon from "@mui/icons-material/ThumbDownAltOutlined";
-import ShareIcon from "@mui/icons-material/Share";
+import ReplyIcon from "@mui/icons-material/Reply";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import useViewTracker from "../../Component/Reels/useViewTracker";
@@ -1091,7 +1091,7 @@ const Video = () => {
               onClick={handleShare}
               title="Share"
             >
-              <ShareIcon fontSize="small" />
+              <ReplyIcon fontSize="small" style={{ transform: "scaleX(-1)" }} />
               <span>Share</span>
             </div>
           </div>

@@ -1,5 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Titan+One&display=swap'); /* ✅ Added Titan One */
+@import url('https://fonts.googleapis.com/css2?family=Titan+One&display=swap');
 
 @keyframes pulse {
   0%   { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.6); }
@@ -9,225 +9,16 @@
 
 @keyframes fadeInScale {
   from { opacity: 0; transform: translateY(-50%) scale(0.6); }
-  to   { opacity: 1; transform: translateY(-50%) scale(1);   }
-}
-
-.navbar{
-    height: 56px;
-    box-sizing: border-box;
-    padding: 10px 16px;
-    display: flex;
-    align-items: center;
-    width: 100%;
-    justify-content: space-between;
-    top: 0;
-    position: fixed;
-    background-color: black;
-    z-index: 10;
-}
-.sidebar {              /* whatever your sidebar class is */
-  z-index: 15;          /* ✅ higher than navbar's z-index: 10 */
-}
-
-.navbar-left{
-    gap: 4px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: fit-content;
-}
-.navbarHamberger{
-    width: 40px;
-    height: 40px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    border-radius: 50%;        /* ✅ circular hover */
-    transition: background-color 0.2s ease;  /* ✅ smooth effect */
-}
-.navbarHamberger:hover {
-  background-color: rgba(255, 255, 255, 0.15);
-  border-radius: 50%;
-}
-
-/* ✅ Fix: Cap navbar-left width so it never overlaps middle */
-.navbar-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  max-width: 220px;
-}
-
-/* ✅ Fix: Smaller logo so it fits inside 56px navbar */
-.mylogo {
-  width: 42px;
-  height: 42px;
-  transition: filter 0.3s ease;
-}
-
-.mylogo:hover {
-  filter: drop-shadow(0 0 8px #ff0000) drop-shadow(0 0 16px #ff4444);
-  transform: scale(1.1);
-}
-/* ── Logo link border ── */
-.navbar-logo-link {
-  display: flex !important;
-  align-items: center !important;
-  gap: 2px !important;  /* ← was 8px, now 2px */
-  text-decoration: none !important;
-}
-
-/* ── Logo text chars ── */
-.logoText {
-  display: inline-flex;
-  align-items: center;
-  font-size: 18px;
-  font-weight: 700;
-  color: white;
-  letter-spacing: 0.01em;
-  cursor: pointer;
-}
-
-.logoChar {
-  display: inline-block;
-  animation: logoBounce 0.6s ease forwards;
-  opacity: 0;
-  transform: translateY(4px);
+  to   { opacity: 1; transform: translateY(-50%) scale(1); }
 }
 
 @keyframes logoBounce {
   to { opacity: 1; transform: translateY(0); }
 }
-.navbar {
-  display: flex;
-  align-items: center;   /* vertically centers all sections */
-  justify-content: space-between; /* left, middle, right spaced out */
-  padding: 0 20px;       /* optional spacing */
-  z-index: 9999;    /* navbar stays above page content */
-}
 
-.navbar-right {
-  display: flex;
-  align-items: center;   /* centers logo + text vertically */
-  gap: 10px;             /* spacing between logo and text */
-}
-
-/* Left Navbar Parts Ends */
-
-.navbar-middle{
-    display: flex;
-    gap: 10px;
-    width: 50%;
-}
-
-.navbar_searchBox{
-    width: 80%;
-    display: flex;
-}
 @keyframes spinIcon {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
-}
-.navbar_searchBoxInput{
-    width: 100%;
-    height: 40px;
-    border-top-left-radius: 20px;
-    border-bottom-left-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.35);   /* brighter border */
-    background-color: #121212;
-    color: white;
-    font-size: 16px;
-
-    padding-left: 30px;
-    &:focus{
-        outline: none;
-    }
-    &::placeholder{
-        font-size: 16px;
-    }
-}
-.navbar_searchIconBox {
-  cursor: pointer;
-  width: 70px;
-  border: 1px solid rgba(255, 255, 255, 0.35);   /* brighter border */
-  background: rgba(60, 60, 60, 0.85);             /* brighter background */
-  backdrop-filter: blur(8px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-top-right-radius: 20px;
-  border-bottom-right-radius: 20px;
-  transition: all 0.3s ease;
-}
-
-.navbar_searchIconBox:hover {
-  background: rgba(90, 90, 90, 0.95);
-  box-shadow: 0 0 12px rgba(0, 255, 255, 0.85);
-  border-color: rgba(255, 255, 255, 0.6);
-}
-.navbar_searchIconBox svg {
-  color: white;
-  font-size: 22px;
-}
-
-
-.navbar_mike {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: rgba(60, 60, 60, 0.85);      /* brighter */
-  border: 1px solid rgba(255, 255, 255, 0.35);   /* subtle bright border */
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.navbar_mike:hover {
-  background-color: rgba(90, 90, 90, 0.95);
-  box-shadow: 0 0 12px rgba(0, 255, 255, 0.85);
-  border-color: rgba(255, 255, 255, 0.6);
-}
-.navbar_mike svg {
-  color: white;
-  font-size: 20px;
-}
-
-
-
-/* ---------middle navbar section------- */
-.navbar-right{
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-}
-.navbar-right-logo{
-    width: 30px;
-    border-radius: 50%;
-    cursor: pointer;
-}
-
-.navbar-modal {
-  position: absolute;
-  z-index: 99999;  /* ← Add this */
-  top: 50px;
-  right: 0;
-  background: #212121;
-  border-radius: 8px;
-  border: 1px solid #333;
-  min-width: 150px;
-}
-.navbar-modal-option{
-    background-color: rgb(85, 85, 85);
-    padding: 10px;
-    cursor: pointer;
-    &:hover{
-        background-color: rgb(34, 33, 33);
-    }
 }
 
 @keyframes bellShake {
@@ -245,8 +36,311 @@
   100% { transform: scale(1); }
 }
 
-@keyframes pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); }
-  70%  { box-shadow: 0 0 0 6px rgba(255, 0, 0, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+/* ── Base Navbar ── */
+.navbar {
+  height: 56px;
+  box-sizing: border-box;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  justify-content: space-between;
+  top: 0;
+  position: fixed;
+  background-color: black;
+  z-index: 9999;
+  gap: 8px;
+}
+
+.sidebar {
+  z-index: 15;
+}
+
+/* ── LEFT ── */
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  max-width: 220px;
+}
+
+.navbarHamberger {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.navbarHamberger:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.navbar-logo-link {
+  display: flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  text-decoration: none !important;
+}
+
+.mylogo {
+  width: 42px;
+  height: 42px;
+  transition: filter 0.3s ease;
+}
+
+.mylogo:hover {
+  filter: drop-shadow(0 0 8px #ff0000) drop-shadow(0 0 16px #ff4444);
+  transform: scale(1.1);
+}
+
+.logoText {
+  display: inline-flex;
+  align-items: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+
+.logoChar {
+  display: inline-block;
+  animation: logoBounce 0.6s ease forwards;
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+/* ── MIDDLE ── */
+.navbar-middle {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+}
+
+.navbar_searchBox {
+  width: 100%;
+  display: flex;
+  position: relative;
+}
+
+.navbar_searchBoxInput {
+  width: 100%;
+  height: 40px;
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background-color: #121212;
+  color: white;
+  font-size: 16px;
+  padding-left: 16px;
+  box-sizing: border-box;
+}
+
+.navbar_searchBoxInput:focus {
+  outline: none;
+}
+
+.navbar_searchBoxInput::placeholder {
+  font-size: 16px;
+}
+
+.navbar_searchIconBox {
+  cursor: pointer;
+  width: 56px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(60, 60, 60, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
+  transition: all 0.3s ease;
+}
+
+.navbar_searchIconBox:hover {
+  background: rgba(90, 90, 90, 0.95);
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.navbar_searchIconBox svg {
+  color: white;
+  font-size: 22px;
+}
+
+.navbar_mike {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(60, 60, 60, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.navbar_mike:hover {
+  background-color: rgba(90, 90, 90, 0.95);
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.85);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.navbar_mike svg {
+  color: white;
+  font-size: 20px;
+}
+
+/* ── RIGHT ── */
+.navbar-right {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.navbar-right-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  object-fit: cover;
+}
+
+.navbar-modal {
+  position: absolute;
+  z-index: 99999;
+  top: 50px;
+  right: 0;
+  background: #212121;
+  border-radius: 8px;
+  border: 1px solid #333;
+  min-width: 150px;
+}
+
+.navbar-modal-option {
+  background-color: rgb(85, 85, 85);
+  padding: 10px;
+  cursor: pointer;
+}
+
+.navbar-modal-option:hover {
+  background-color: rgb(34, 33, 33);
+}
+
+/* ══════════════════════════════════════
+   MOBILE RESPONSIVE — max 768px
+══════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  .navbar {
+    padding: 0 8px;
+    gap: 6px;
+    height: 56px;
+  }
+
+  /* Hide logoText and country badge on mobile — keep only SVG icon */
+  .logoText {
+    display: none !important;
+  }
+
+  .navbar-logo-link span[style*="background: #cc0000"] {
+    display: none !important;
+  }
+
+  .navbar-left {
+    max-width: fit-content;
+    gap: 2px;
+  }
+
+  /* Smaller hamburger */
+  .navbarHamberger {
+    width: 32px;
+    height: 32px;
+  }
+
+  /* Search takes remaining space */
+  .navbar-middle {
+    flex: 1;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .navbar_searchBox {
+    width: 100%;
+  }
+
+  .navbar_searchBoxInput {
+    height: 36px;
+    font-size: 14px;
+    padding-left: 12px;
+  }
+
+  .navbar_searchBoxInput::placeholder {
+    font-size: 14px;
+  }
+
+  .navbar_searchIconBox {
+    width: 42px;
+  }
+
+  /* Hide mic on very small screens */
+  .navbar_mike {
+    display: none;
+  }
+
+  /* Right side — show only essential icons */
+  .navbar-right {
+    gap: 6px;
+  }
+
+  .navbar-right-logo {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* Hide local player icon on mobile */
+  .navbar-right > span:first-child {
+    display: none;
+  }
+}
+
+/* ══════════════════════════════════════
+   VERY SMALL — max 480px
+══════════════════════════════════════ */
+@media (max-width: 480px) {
+
+  .navbar {
+    padding: 0 6px;
+    gap: 4px;
+  }
+
+  .navbar_searchBoxInput {
+    height: 34px;
+    font-size: 13px;
+    padding-left: 10px;
+  }
+
+  .navbar_searchIconBox {
+    width: 36px;
+  }
+
+  .navbar-right {
+    gap: 4px;
+  }
 }

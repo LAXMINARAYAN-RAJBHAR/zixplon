@@ -8,13 +8,17 @@ body {
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
-/* ── Global scroll fix ── */
 html, body, #root {
   height: 100%;
   overflow-x: hidden;
-  /* ✅ NO overflow-y: hidden here — that kills page scroll */
+}
+
+/* ── Mobile only fixes ── */
+@media (max-width: 768px) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
 }

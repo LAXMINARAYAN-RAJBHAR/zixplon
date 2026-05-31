@@ -13,11 +13,8 @@
 
 .homePage_options {
   position: fixed;
-  margin-bottom: 0;
-  display: flex;
-  position: fixed;
-  top: /* your navbar height */;
-  left: 0;              /* default: full width */
+  top: 56px;
+  left: 0;
   right: 0;
   z-index: 100;
   overflow: hidden;
@@ -26,7 +23,7 @@
   transition: left 0.9s ease;
 }
 .homePage_options.sidebar-open {
-  left: 274px;          /* sidebar open: shift right */
+  left: 274px;
 }
 .homePage_options_track {
   display: flex;
@@ -38,13 +35,13 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+.homePage_options_track::-webkit-scrollbar { display: none; }
 
 .homePage_options_track.dragging {
   cursor: grabbing;
   animation-play-state: paused;
 }
 
-/* Remove the old :hover pause rule — dragging handles it now */
 .homePage_options_track:hover {
   animation-play-state: paused;
 }
@@ -53,7 +50,7 @@
   width: 12px;
 }
 
-.homePage_option {         /* ✅ added dot */
+.homePage_option {
   flex: 0 0 auto;
   height: 30px;
   padding: 1px 10px;
@@ -65,7 +62,9 @@
   justify-content: center;
   align-items: center;
   cursor: pointer;
+  white-space: nowrap;
 }
+
 .home_mainPage {
   padding-top: 50px;
   display: block;
@@ -74,15 +73,14 @@
   grid-template-columns: repeat(3, 1fr);
   padding: 50px 20px 20px 20px;
   width: 100%;
-  margin-left: 270px; /* ✅ pushes content after sidebar */
-  width: calc(100% - 270px); /* ✅ takes remaining width */
+  margin-left: 270px;
+  width: calc(100% - 270px);
   transition: margin-left 0.3s ease, width 0.3s ease;
 }
 .home_mainPage.sidebar-open {
   margin-left: 250px;
   width: calc(100% - 250px);
 }
-
 .home_mainPage.sidebar-closed {
   margin-left: 0px;
   width: 100%;
@@ -113,7 +111,7 @@
   position: relative;
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 9;    /* ← ADD THIS */
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   border-radius: 12px;
   background: #222;
@@ -121,9 +119,9 @@
 
 .youtube_thumbnailPic {
   width: 100%;
-  height: 100%;             /* ← ADD THIS */
-  aspect-ratio: 16 / 9;    /* ← ADD THIS */
-  object-fit: cover;        /* ← ADD THIS */
+  height: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
   border-radius: 12px;
   display: block;
 }
@@ -131,7 +129,7 @@
 .youtube_timingThumbnail {
   position: absolute;
   bottom: 0;
-  right: 0; /* ✅ Pins it to the bottom-right corner */
+  right: 0;
   background-color: rgba(0, 0, 0, 0.8);
   color: #fff;
   font-size: 12px;
@@ -141,15 +139,16 @@
 
 .youtubeTitleBox {
   display: flex;
-  flex-direction: row;   /* ✅ profile pic on left, info on right */
+  flex-direction: row;
   align-items: flex-start;
   gap: 8px;
   padding: 8px 0;
 }
+
 .youtube_videoTitle {
   font-size: 14px;
   font-weight: 600;
-  color: #0a0202;           /* ✅ black text */
+  color: #0a0202;
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -162,13 +161,15 @@
   color: #aaa;
   margin: 0;
 }
+
 .youtubeVideoInfo {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex: 1;          /* ✅ takes remaining width */
-  min-width: 0;     /* ✅ allows text to wrap/truncate properly */
+  flex: 1;
+  min-width: 0;
 }
+
 .youtubeBoxProfile {
   display: flex;
   align-items: center;
@@ -181,26 +182,23 @@
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
-  background-color: #555;  /* ✅ grey fallback when image fails to load */
+  background-color: #555;
 }
+
 .youtube_ChannelName {
   font-size: 13px;
   margin-top: 6px;
   text-align: center;
-
-  /* ✅ Gradient text */
   background: linear-gradient(90deg, #f9d423, #ff4e50);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-
-  /* ✅ Highlight glow effect */
   filter: drop-shadow(0 0 6px rgba(255, 100, 50, 0.7));
   font-weight: 600;
 }
 
 .youtube_ChannelName:hover {
-  color: #ff00ff; /* Neon magenta on hover */
+  color: #ff00ff;
   text-shadow: 0 0 5px #ff00ff, 0 0 15px #ff00ff, 0 0 30px #ff00ff;
 }
 
@@ -229,7 +227,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-left: 4px;        /* visually centers the ▶ */
+  padding-left: 4px;
   opacity: 0;
   transform: scale(0.8);
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -240,12 +238,11 @@
   transform: scale(1);
 }
 
-/* ✅ Remove internal padding from shorts header too */
 .homePage_shortsHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 0 12px 0;  /* ← removed left padding */
+  padding: 0 0 12px 0;
 }
 
 .homePage_shortsTitle {
@@ -271,25 +268,36 @@
   border-radius: 4px;
 }
 
+.homePage_shortsRow {
+  display: flex;
+  gap: 1px;
+  overflow-x: auto;
+  padding: 0 0 8px 0;
+  scrollbar-width: none;
+  width: 100%;
+  justify-content: space-between;
+}
+
 .homePage_shortsRow::-webkit-scrollbar {
   display: none;
 }
 
 .homePage_shortCard {
   flex: 1;
-  min-width: 80px;      /* ← smaller minimum */
-  max-width: 110px;     /* ← smaller maximum */
+  min-width: 80px;
+  max-width: 110px;
 }
 
 .homePage_shortThumbnail {
   position: relative;
   width: 100%;
-  height: 160px;        /* ← was 240px */
+  height: 160px;
   border-radius: 12px;
   overflow: hidden;
 }
+
 .homePage_shortTitle {
-  font-size: 11px;      /* ← add this if you have it, or add the rule */
+  font-size: 11px;
 }
 
 .homePage_shortImg {
@@ -318,50 +326,34 @@
   font-size: 13px;
   margin-top: 6px;
   text-align: center;
-
-  /* ✅ Gradient text */
   background: linear-gradient(90deg, #f9d423, #ff4e50);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-
-  /* ✅ Highlight glow effect */
   filter: drop-shadow(0 0 6px rgba(255, 100, 50, 0.7));
   font-weight: 600;
 }
 
-/* Reels Section Modification Poertion CSS */
-
-/* ✅ Remove internal padding from shorts row — let parent handle left alignment */
-.homePage_shortsRow {
-  display: flex;
-  gap: 1px;             /* ← was 5px, reduce further if needed */
-  overflow-x: auto;
-  padding: 0 0 8px 0;
-  scrollbar-width: none;
-  width: 100%;
-  justify-content: space-between;
+.hp-watch-mobile {
+  position: fixed; top: 60px; left: 0; right: 0; bottom: 0;
+  z-index: 9999; background: #0f0f0f;
+  display: flex; flex-direction: column;
+  font-family: 'Segoe UI', sans-serif;
+  height: 100dvh; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-
-.hp-watch-mobile { 
-  position:fixed; top:60px; left:0; right:0; bottom:0; 
-  z-index:9999; background:#0f0f0f; 
-  display:flex; flex-direction:column; 
-  font-family:'Segoe UI',sans-serif; 
-  height:100dvh; overflow-y:auto; 
-  -webkit-overflow-scrolling:touch; 
-}
 .hp-watch-root {
   position: fixed;
-  top: 55px;   /* ← same value */
+  top: 55px;
   left: 0; right: 0; bottom: 0;
   z-index: 999;
 }
+
 :root {
-  --navbar-height: 55px; /* set your actual navbar height here */
+  --navbar-height: 55px;
 }
-/* Force iframe visible */
+
 .hp-watch-mobile iframe,
 #hp-yt-player-container iframe,
 #hp-yt-player iframe {
@@ -373,6 +365,76 @@
   position: static !important;
 }
 
+/* ══════════════════════════════════════
+   MOBILE — max 768px
+══════════════════════════════════════ */
+@media (max-width: 768px) {
 
+  /* Options bar starts right below navbar */
+  .homePage_options {
+    top: 56px;
+    left: 0 !important;
+  }
 
+  /* Main page — no sidebar margin on mobile */
+  .home_mainPage,
+  .home_mainPage.sidebar-open,
+  .home_mainPage.sidebar-closed {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding: 50px 8px 20px 8px !important;
+  }
 
+  /* Video grid — 2 columns on mobile */
+  .youtube_VideoGrid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  /* Smaller video card height */
+  .youtube_Video {
+    height: auto !important;
+  }
+
+  /* Shorts row — scroll on mobile */
+  .homePage_shortsRow {
+    justify-content: flex-start !important;
+    gap: 6px !important;
+  }
+
+  .homePage_shortCard {
+    min-width: 90px !important;
+    max-width: 90px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .homePage_shortThumbnail {
+    height: 140px !important;
+  }
+
+  /* Smaller channel name */
+  .youtube_ChannelName {
+    font-size: 11px !important;
+  }
+
+  .youtube_videoTitle {
+    font-size: 12px !important;
+  }
+}
+
+/* ══════════════════════════════════════
+   VERY SMALL — max 480px
+══════════════════════════════════════ */
+@media (max-width: 480px) {
+
+  .youtube_VideoGrid {
+    grid-template-columns: repeat(1, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .home_mainPage,
+  .home_mainPage.sidebar-open,
+  .home_mainPage.sidebar-closed {
+    padding: 50px 6px 20px 6px !important;
+  }
+}

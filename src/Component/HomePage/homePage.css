@@ -382,7 +382,7 @@
   .home_mainPage.sidebar-closed {
     margin-left: 0 !important;
     width: 100% !important;
-    padding: 50px 8px 20px 8px !important;
+    padding: 50px 6px 80px 6px !important;
   }
 
   /* Video grid — 2 columns on mobile */
@@ -420,6 +420,12 @@
   .youtube_videoTitle {
     font-size: 12px !important;
   }
+
+  /* Hide sidebar completely on mobile */
+  .home-sideNavbar,
+  .homeSideNavbarHide {
+    display: none !important;
+  }
 }
 
 /* ══════════════════════════════════════
@@ -428,13 +434,13 @@
 @media (max-width: 480px) {
 
   .youtube_VideoGrid {
-    grid-template-columns: repeat(1, 1fr) !important;
-    gap: 12px !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
   }
 
   .home_mainPage,
   .home_mainPage.sidebar-open,
   .home_mainPage.sidebar-closed {
-    padding: 50px 6px 20px 6px !important;
+    padding: 50px 4px 80px 4px !important;
   }
 }

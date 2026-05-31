@@ -22,6 +22,7 @@ import Help from "./Pages/Help/help";
 import ContactSupport from "./Pages/ContactSupport/contactSupport";
 import ReportProblem from "./Pages/ReportProblem/reportProblem";
 import { supabase } from "./config/supabase";
+import BottomNav from './Component/BottomNav/BottomNav';
 import {
   AboutPage,
   PrivacyPolicyPage,
@@ -145,6 +146,7 @@ function App() {
           <Route path="/dmca" element={<DmcaPage />} />
           <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
           <Route path="/advertise" element={<AdvertisePage />} />
+          <BottomNav currentUser={currentUser} />
         </Routes>
       </div>
       {!hideFooter && <Footer />}

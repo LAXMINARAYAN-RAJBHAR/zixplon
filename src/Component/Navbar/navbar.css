@@ -248,16 +248,21 @@
    MOBILE RESPONSIVE — max 768px
 ══════════════════════════════════════ */
 @media (max-width: 768px) {
-  /* Hide IN country badge on mobile */
-  .navbar-logo-link > div > span:last-child {
+
+  /* Hide hamburger on mobile — bottom nav handles navigation */
+  .navbarHamberger {
     display: none !important;
   }
 
-  @media (max-width: 768px) {
+  /* Hide logoText on mobile — keep only SVG icon */
+  .logoText {
+    display: none !important;
+  }
+
+  /* Hide IN country badge on mobile */
   .navbar-country-badge {
     display: none !important;
   }
-}
 
   .navbar {
     padding: 0 8px;
@@ -265,30 +270,16 @@
     height: 56px;
   }
 
-  /* Hide logoText and country badge on mobile — keep only SVG icon */
-  .logoText {
-    display: none !important;
-  }
-
-  .navbar-logo-link span[style*="background: #cc0000"] {
-    display: none !important;
-  }
-
   .navbar-left {
     max-width: fit-content;
     gap: 2px;
-  }
-
-  /* Smaller hamburger */
-  .navbarHamberger {
-    width: 32px;
-    height: 32px;
   }
 
   /* Search takes remaining space */
   .navbar-middle {
     flex: 1;
     min-width: 0;
+    max-width: none;
     gap: 4px;
   }
 
@@ -310,12 +301,12 @@
     width: 42px;
   }
 
-  /* Hide mic on very small screens */
+  /* Hide mic on mobile */
   .navbar_mike {
-    display: none;
+    display: none !important;
   }
 
-  /* Right side — show only essential icons */
+  /* Right side */
   .navbar-right {
     gap: 6px;
   }
@@ -325,9 +316,9 @@
     height: 28px;
   }
 
-  /* Hide local player icon on mobile */
+  /* Hide local player icon on mobile — it's in bottom nav */
   .navbar-right > span:first-child {
-    display: none;
+    display: none !important;
   }
 }
 

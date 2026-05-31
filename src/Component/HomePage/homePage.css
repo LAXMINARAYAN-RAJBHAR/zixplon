@@ -388,7 +388,7 @@
   /* Video grid — 2 columns on mobile */
   .youtube_VideoGrid {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 8px !important;
+    gap: 6px !important;
   }
 
   /* Smaller video card height */
@@ -396,10 +396,47 @@
     height: auto !important;
   }
 
+  /* Fix video info overflow */
+  .youtubeTitleBox {
+    padding: 4px 0 !important;
+    gap: 4px !important;
+    flex-direction: column !important;
+  }
+
+  .youtubeBoxProfile {
+    gap: 4px !important;
+  }
+
+  .youtube_thumbnail_Profile {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  .youtubeVideoInfo {
+    width: 100% !important;
+  }
+
+  .youtube_videoTitle {
+    font-size: 11px !important;
+    -webkit-line-clamp: 2 !important;
+  }
+
+  .youtubeVideo_Views {
+    font-size: 10px !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+  }
+
+  .youtube_ChannelName {
+    font-size: 10px !important;
+    margin-top: 2px !important;
+  }
+
   /* Shorts row — scroll on mobile */
   .homePage_shortsRow {
     justify-content: flex-start !important;
     gap: 6px !important;
+    padding-right: 6px !important;
   }
 
   .homePage_shortCard {
@@ -412,19 +449,26 @@
     height: 140px !important;
   }
 
-  /* Smaller channel name */
-  .youtube_ChannelName {
-    font-size: 11px !important;
-  }
-
-  .youtube_videoTitle {
-    font-size: 12px !important;
+  .homePage_shortUser,
+  .homePage_shortTitle {
+    font-size: 10px !important;
   }
 
   /* Hide sidebar completely on mobile */
   .home-sideNavbar,
   .homeSideNavbarHide {
     display: none !important;
+  }
+
+  /* Fix thumbnail wrapper */
+  .youtube_thumbnailWrapper {
+    border-radius: 8px !important;
+  }
+
+  /* Fix timing badge */
+  .youtube_timingThumbnail {
+    font-size: 10px !important;
+    padding: 1px 4px !important;
   }
 }
 
@@ -435,7 +479,7 @@
 
   .youtube_VideoGrid {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 6px !important;
+    gap: 4px !important;
   }
 
   .home_mainPage,

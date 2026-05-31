@@ -319,25 +319,25 @@ const Navbar = ({
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const [installPrompt, setInstallPrompt] = useState(null);
-const [showInstall, setShowInstall] = useState(false);
+  const [showInstall, setShowInstall] = useState(false);
 
-useEffect(() => {
-  const handler = (e) => {
-    e.preventDefault();
-    setInstallPrompt(e);
-    setShowInstall(true);
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      setShowInstall(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") setShowInstall(false);
+    setInstallPrompt(null);
   };
-  window.addEventListener("beforeinstallprompt", handler);
-  return () => window.removeEventListener("beforeinstallprompt", handler);
-}, []);
-
-const handleInstall = async () => {
-  if (!installPrompt) return;
-  installPrompt.prompt();
-  const { outcome } = await installPrompt.userChoice;
-  if (outcome === "accepted") setShowInstall(false);
-  setInstallPrompt(null);
-};
 
   // ── Load profile picture ──
   useEffect(() => {
@@ -822,7 +822,7 @@ const handleInstall = async () => {
               title="Clear search"
               style={{
                 position: "absolute",
-                right: "64px",
+                right: window.innerWidth <= 768 ? "46px" : "64px",
                 top: "50%",
                 transform: "translateY(-50%)",
                 cursor: "pointer",
@@ -1160,25 +1160,25 @@ const handleInstall = async () => {
         </span>
 
         {showInstall && (
-  <span
-    onClick={handleInstall}
-    title="Install Zixplon App"
-    style={{
-      cursor: "pointer",
-      display: "flex",
-      alignItems: "center",
-      gap: "4px",
-      background: "#ff0000",
-      color: "white",
-      fontSize: "12px",
-      fontWeight: "600",
-      padding: "4px 10px",
-      borderRadius: "20px",
-    }}
-  >
-    ⬇ Install App
-  </span>
-)}
+          <span
+            onClick={handleInstall}
+            title="Install Zixplon App"
+            style={{
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              background: "#ff0000",
+              color: "white",
+              fontSize: "12px",
+              fontWeight: "600",
+              padding: "4px 10px",
+              borderRadius: "20px",
+            }}
+          >
+            ⬇ Install App
+          </span>
+        )}
 
         {/* ── Upload Button — direct navigate, no dropdown ── */}
         <span

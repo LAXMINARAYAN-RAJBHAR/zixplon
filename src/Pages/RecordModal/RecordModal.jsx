@@ -2,10 +2,10 @@ import React, { useState, useRef, useEffect } from "react";
 import { supabase } from "../../config/supabase";
 
 const RecordModal = ({ onClose, currentUser }) => {
-  const [mode, setMode] = useState(null); // "record" | "live"
+  const [mode, setMode] = useState(null);
   const [recording, setRecording] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [preview, setPreview] = useState(null); // blob URL
+  const [preview, setPreview] = useState(null);
   const [recordedBlob, setRecordedBlob] = useState(null);
   const [timer, setTimer] = useState(0);
   const [uploading, setUploading] = useState(false);
@@ -23,13 +23,15 @@ const RecordModal = ({ onClose, currentUser }) => {
   const streamRef = useRef(null);
   const timerRef = useRef(null);
 
+  const CLOUDINARY_CLOUD_NAME = "dwoqk0yue";
+  const CLOUDINARY_UPLOAD_PRESET = "youtube-clone";
+
   const categories = [
     "All","Music","Gaming","Sports","Tech","News","Comedy",
     "Cooking","Travel","AI","Web Development","Astronomy",
     "History","Live","Mixes","Indian Music","DD News",
   ];
 
-  // Start camera preview
   const startCamera = async (facing = cameraFacing, mic = micOn) => {
     try {
       if (streamRef.current) {
@@ -64,7 +66,6 @@ const RecordModal = ({ onClose, currentUser }) => {
     // eslint-disable-next-line
   }, [mode]);
 
-  // Timer
   useEffect(() => {
     if (recording && !paused) {
       timerRef.current = setInterval(() => setTimer((t) => t + 1), 1000);
@@ -156,28 +157,31 @@ const RecordModal = ({ onClose, currentUser }) => {
     setUploadProgress(10);
 
     try {
-      // Upload to Cloudinary
       const formData = new FormData();
       formData.append("file", recordedBlob, `rec_${Date.now()}.webm`);
-      formData.append("upload_preset", process.env.REACT_APP_CLOUDINARY_UPLOAD_PRESET);
+      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
       formData.append("resource_type", "video");
 
       setUploadProgress(30);
 
-      const cloudName = process.env.REACT_APP_CLOUDINARY_CLOUD_NAME;
       const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`,
         { method: "POST", body: formData }
       );
+
       const data = await res.json();
-      if (!data.secure_url) throw new Error("Cloudinary upload failed");
+
+      if (!data.secure_url) {
+        throw new Error(data.error?.message || "Cloudinary upload failed");
+      }
 
       setUploadProgress(70);
 
       const videoUrl = data.secure_url;
-      const thumbnailUrl = data.secure_url.replace("/upload/", "/upload/so_0/").replace(".webm", ".jpg");
+      const thumbnailUrl = data.secure_url
+        .replace("/upload/", "/upload/so_0/")
+        .replace(".webm", ".jpg");
 
-      // Save to Supabase
       const { error } = await supabase.from("videos").insert({
         title: title.trim(),
         video_url: videoUrl,
@@ -259,7 +263,14 @@ const RecordModal = ({ onClose, currentUser }) => {
             <video
               src={preview}
               controls
-              style={{ width: "100%", borderRadius: "10px", background: "#000", maxHeight: "320px" }}
+              controlsList="nodownload"
+              onContextMenu={(e) => e.preventDefault()}
+              style={{
+                width: "100%",
+                borderRadius: "10px",
+                background: "#000",
+                maxHeight: "320px",
+              }}
             />
             {!uploadDone ? (
               <>
@@ -278,32 +289,65 @@ const RecordModal = ({ onClose, currentUser }) => {
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
-                <div style={{ display: "flex", gap: "10px", marginTop: "16px", flexWrap: "wrap" }}>
-                  <ActionBtn onClick={retake} bg="#272727" color="white">🔄 Retake</ActionBtn>
-                  <ActionBtn onClick={downloadVideo} bg="#272727" color="white">⬇ Download</ActionBtn>
+                <div style={{
+                  display: "flex",
+                  gap: "10px",
+                  marginTop: "16px",
+                  flexWrap: "wrap",
+                }}>
+                  <ActionBtn onClick={retake} bg="#272727" color="white">
+                    🔄 Retake
+                  </ActionBtn>
+                  <ActionBtn onClick={downloadVideo} bg="#272727" color="white">
+                    ⬇ Download
+                  </ActionBtn>
                   <ActionBtn
                     onClick={uploadVideo}
                     bg="#ff0000"
                     color="white"
                     disabled={uploading}
                   >
-                    {uploading ? `Uploading ${uploadProgress}%...` : "⬆ Upload to ZIXPLON"}
+                    {uploading
+                      ? `Uploading ${uploadProgress}%...`
+                      : "⬆ Upload to ZIXPLON"}
                   </ActionBtn>
                 </div>
                 {uploading && (
-                  <div style={{ marginTop: "12px", background: "#222", borderRadius: "8px", overflow: "hidden" }}>
-                    <div style={{ height: "6px", background: "#ff0000", width: `${uploadProgress}%`, transition: "width 0.4s" }} />
+                  <div style={{
+                    marginTop: "12px",
+                    background: "#222",
+                    borderRadius: "8px",
+                    overflow: "hidden",
+                  }}>
+                    <div style={{
+                      height: "6px",
+                      background: "#ff0000",
+                      width: `${uploadProgress}%`,
+                      transition: "width 0.4s",
+                    }} />
                   </div>
                 )}
               </>
             ) : (
               <div style={{ textAlign: "center", padding: "20px 0" }}>
                 <div style={{ fontSize: "40px" }}>✅</div>
-                <p style={{ color: "white", fontWeight: "600", fontSize: "16px", marginTop: "10px" }}>
+                <p style={{
+                  color: "white",
+                  fontWeight: "600",
+                  fontSize: "16px",
+                  marginTop: "10px",
+                }}>
                   Uploaded successfully!
                 </p>
-                <p style={{ color: "#aaa", fontSize: "13px" }}>Your video is now live on ZIXPLON</p>
-                <ActionBtn onClick={onClose} bg="#ff0000" color="white" style={{ marginTop: "16px" }}>
+                <p style={{ color: "#aaa", fontSize: "13px" }}>
+                  Your video is now live on ZIXPLON
+                </p>
+                <ActionBtn
+                  onClick={onClose}
+                  bg="#ff0000"
+                  color="white"
+                  style={{ marginTop: "16px" }}
+                >
                   Done
                 </ActionBtn>
               </div>
@@ -322,13 +366,21 @@ const RecordModal = ({ onClose, currentUser }) => {
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             {mode === "live" && (
               <span style={{
-                background: "#ff0000", color: "white", fontSize: "11px",
-                fontWeight: "700", padding: "2px 8px", borderRadius: "4px",
+                background: "#ff0000",
+                color: "white",
+                fontSize: "11px",
+                fontWeight: "700",
+                padding: "2px 8px",
+                borderRadius: "4px",
                 animation: "pulse 1.2s infinite",
-              }}>● LIVE</span>
+              }}>
+                ● LIVE
+              </span>
             )}
             <span style={{ color: "white", fontWeight: "700", fontSize: "16px" }}>
-              {mode === "live" ? `📡 Live Stream · ${liveViewers} watching` : "🎥 Record Video"}
+              {mode === "live"
+                ? `📡 Live Stream · ${liveViewers} watching`
+                : "🎥 Record Video"}
             </span>
             {recording && (
               <span style={{ color: "#ff4444", fontWeight: "700", fontSize: "14px" }}>
@@ -336,7 +388,9 @@ const RecordModal = ({ onClose, currentUser }) => {
               </span>
             )}
           </div>
-          <button onClick={() => { stopCamera(); onClose(); }} style={closeBtnStyle}>✕</button>
+          <button onClick={() => { stopCamera(); onClose(); }} style={closeBtnStyle}>
+            ✕
+          </button>
         </div>
 
         <div style={{ position: "relative", background: "#000" }}>
@@ -345,22 +399,36 @@ const RecordModal = ({ onClose, currentUser }) => {
             autoPlay
             playsInline
             muted
-            style={{ width: "100%", maxHeight: "380px", objectFit: "cover", display: "block" }}
+            style={{
+              width: "100%",
+              maxHeight: "380px",
+              objectFit: "cover",
+              display: "block",
+            }}
           />
-          {/* Recording indicator */}
           {recording && (
             <div style={{
-              position: "absolute", top: "12px", left: "12px",
+              position: "absolute",
+              top: "12px",
+              left: "12px",
               background: paused ? "#ff9800" : "#ff0000",
-              color: "white", fontSize: "11px", fontWeight: "700",
-              padding: "3px 10px", borderRadius: "4px",
+              color: "white",
+              fontSize: "11px",
+              fontWeight: "700",
+              padding: "3px 10px",
+              borderRadius: "4px",
               animation: paused ? "none" : "pulse 1s infinite",
             }}>
               {paused ? "⏸ PAUSED" : "● REC"}
             </div>
           )}
-          {/* Top-right controls */}
-          <div style={{ position: "absolute", top: "12px", right: "12px", display: "flex", gap: "8px" }}>
+          <div style={{
+            position: "absolute",
+            top: "12px",
+            right: "12px",
+            display: "flex",
+            gap: "8px",
+          }}>
             <IconBtn onClick={flipCamera} title="Flip camera">🔄</IconBtn>
             <IconBtn onClick={toggleMic} title={micOn ? "Mute mic" : "Unmute mic"}>
               {micOn ? "🎤" : "🔇"}
@@ -368,8 +436,14 @@ const RecordModal = ({ onClose, currentUser }) => {
           </div>
         </div>
 
-        {/* Controls */}
-        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", flexWrap: "wrap" }}>
+        <div style={{
+          padding: "16px 20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}>
           {mode === "record" && (
             <>
               {!recording ? (
@@ -379,11 +453,17 @@ const RecordModal = ({ onClose, currentUser }) => {
               ) : (
                 <>
                   {!paused ? (
-                    <ActionBtn onClick={pauseRecording} bg="#ff9800" color="white">⏸ Pause</ActionBtn>
+                    <ActionBtn onClick={pauseRecording} bg="#ff9800" color="white">
+                      ⏸ Pause
+                    </ActionBtn>
                   ) : (
-                    <ActionBtn onClick={resumeRecording} bg="#4caf50" color="white">▶ Resume</ActionBtn>
+                    <ActionBtn onClick={resumeRecording} bg="#4caf50" color="white">
+                      ▶ Resume
+                    </ActionBtn>
                   )}
-                  <ActionBtn onClick={stopRecording} bg="#272727" color="white">⏹ Stop & Preview</ActionBtn>
+                  <ActionBtn onClick={stopRecording} bg="#272727" color="white">
+                    ⏹ Stop & Preview
+                  </ActionBtn>
                 </>
               )}
             </>
@@ -414,15 +494,33 @@ const ModeCard = ({ icon, title, desc, onClick }) => (
   <div
     onClick={onClick}
     style={{
-      flex: 1, background: "#1a1a1a", border: "1px solid #333",
-      borderRadius: "12px", padding: "20px 16px", cursor: "pointer",
-      textAlign: "center", transition: "all 0.2s",
+      flex: 1,
+      background: "#1a1a1a",
+      border: "1px solid #333",
+      borderRadius: "12px",
+      padding: "20px 16px",
+      cursor: "pointer",
+      textAlign: "center",
+      transition: "all 0.2s",
     }}
-    onMouseEnter={(e) => { e.currentTarget.style.border = "1px solid #ff0000"; e.currentTarget.style.background = "#1f0000"; }}
-    onMouseLeave={(e) => { e.currentTarget.style.border = "1px solid #333"; e.currentTarget.style.background = "#1a1a1a"; }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.border = "1px solid #ff0000";
+      e.currentTarget.style.background = "#1f0000";
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.border = "1px solid #333";
+      e.currentTarget.style.background = "#1a1a1a";
+    }}
   >
     <div style={{ fontSize: "32px", marginBottom: "10px" }}>{icon}</div>
-    <div style={{ color: "white", fontWeight: "700", fontSize: "15px", marginBottom: "6px" }}>{title}</div>
+    <div style={{
+      color: "white",
+      fontWeight: "700",
+      fontSize: "15px",
+      marginBottom: "6px",
+    }}>
+      {title}
+    </div>
     <div style={{ color: "#aaa", fontSize: "12px", lineHeight: "1.5" }}>{desc}</div>
   </div>
 );
@@ -434,10 +532,14 @@ const ActionBtn = ({ onClick, bg, color, children, disabled, style }) => (
     style={{
       background: disabled ? "#333" : bg,
       color: disabled ? "#666" : color,
-      border: "none", borderRadius: "20px",
-      padding: "9px 20px", cursor: disabled ? "not-allowed" : "pointer",
-      fontWeight: "700", fontSize: "14px",
-      transition: "opacity 0.2s", ...style,
+      border: "none",
+      borderRadius: "20px",
+      padding: "9px 20px",
+      cursor: disabled ? "not-allowed" : "pointer",
+      fontWeight: "700",
+      fontSize: "14px",
+      transition: "opacity 0.2s",
+      ...style,
     }}
     onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.opacity = "0.85"; }}
     onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
@@ -451,9 +553,12 @@ const IconBtn = ({ onClick, title, children }) => (
     onClick={onClick}
     title={title}
     style={{
-      background: "rgba(0,0,0,0.6)", border: "1px solid #555",
-      borderRadius: "8px", padding: "6px 10px",
-      cursor: "pointer", fontSize: "16px",
+      background: "rgba(0,0,0,0.6)",
+      border: "1px solid #555",
+      borderRadius: "8px",
+      padding: "6px 10px",
+      cursor: "pointer",
+      fontSize: "16px",
     }}
   >
     {children}
@@ -462,21 +567,28 @@ const IconBtn = ({ onClick, title, children }) => (
 
 // ── Styles ──
 const overlayStyle = {
-  position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-  background: "rgba(0,0,0,0.85)", zIndex: 999999,
-  display: "flex", alignItems: "center", justifyContent: "center",
+  position: "fixed",
+  top: 0, left: 0, right: 0, bottom: 0,
+  background: "rgba(0,0,0,0.85)",
+  zIndex: 999999,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
   padding: "16px",
 };
 
 const modalStyle = {
-  background: "#0f0f0f", borderRadius: "16px",
-  border: "1px solid #333", width: "100%",
+  background: "#0f0f0f",
+  borderRadius: "16px",
+  border: "1px solid #333",
+  width: "100%",
   boxShadow: "0 24px 80px rgba(0,0,0,0.9)",
   overflow: "hidden",
 };
 
 const headerStyle = {
-  display: "flex", alignItems: "center",
+  display: "flex",
+  alignItems: "center",
   justifyContent: "space-between",
   padding: "14px 20px",
   borderBottom: "1px solid #222",
@@ -484,19 +596,30 @@ const headerStyle = {
 };
 
 const closeBtnStyle = {
-  background: "#272727", border: "none",
-  color: "#aaa", cursor: "pointer",
-  fontSize: "16px", borderRadius: "50%",
-  width: "30px", height: "30px",
-  display: "flex", alignItems: "center", justifyContent: "center",
+  background: "#272727",
+  border: "none",
+  color: "#aaa",
+  cursor: "pointer",
+  fontSize: "16px",
+  borderRadius: "50%",
+  width: "30px",
+  height: "30px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 const inputStyle = {
-  width: "100%", background: "#1a1a1a",
-  border: "1px solid #333", borderRadius: "8px",
-  color: "white", fontSize: "14px",
-  padding: "10px 14px", outline: "none",
-  boxSizing: "border-box", marginTop: "14px",
+  width: "100%",
+  background: "#1a1a1a",
+  border: "1px solid #333",
+  borderRadius: "8px",
+  color: "white",
+  fontSize: "14px",
+  padding: "10px 14px",
+  outline: "none",
+  boxSizing: "border-box",
+  marginTop: "14px",
 };
 
 export default RecordModal;

@@ -22,14 +22,14 @@ import Help from "./Pages/Help/help";
 import ContactSupport from "./Pages/ContactSupport/contactSupport";
 import ReportProblem from "./Pages/ReportProblem/reportProblem";
 import { supabase } from "./config/supabase";
-import BottomNav from './Component/BottomNav/BottomNav';
+import BottomNav from "./Component/BottomNav/BottomNav";
 import {
   AboutPage,
   PrivacyPolicyPage,
   DmcaPage,
   CommunityGuidelinesPage,
   AdvertisePage,
-} from "./Pages/ZixplonPages"; // ← ReportPage removed, using existing ReportProblem
+} from "./Pages/ZixplonPages";
 
 function App() {
   const location = useLocation();
@@ -140,15 +140,18 @@ function App() {
           <Route path="/feedback" element={<Feedback />} />
           <Route path="/help" element={<Help />} />
           <Route path="/contact" element={<ContactSupport />} />
-          <Route path="/report" element={<ReportProblem />} />  {/* ← single /report route */}
+          <Route path="/report" element={<ReportProblem />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/dmca" element={<DmcaPage />} />
           <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
           <Route path="/advertise" element={<AdvertisePage />} />
-          <BottomNav currentUser={currentUser} />
         </Routes>
       </div>
+
+      {/* ✅ BottomNav OUTSIDE Routes — only visible on mobile */}
+      <BottomNav currentUser={currentUser} />
+
       {!hideFooter && <Footer />}
     </div>
   );

@@ -9,54 +9,52 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { supabase } from "../../config/supabase";
 import RecordModal from "../RecordModal/RecordModal";
 
+// ── Storage provider labels ──
+const PROVIDERS = [
+  { id: "cloudinary", label: "☁️ Cloudinary", desc: "Up to 4GB" },
+  { id: "supabase",   label: "🟢 Supabase",   desc: "Up to 50MB" },
+  { id: "archive",    label: "🏛️ Archive.org", desc: "Unlimited Free!" },
+];
+
 const VideoUpload = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
     const user = localStorage.getItem("username");
-    if (!user) {
-      navigate("/signup");
-    }
+    if (!user) navigate("/signup");
   }, []);
 
-  const [uploadMode, setUploadMode] = useState("video");
+  const [uploadMode, setUploadMode]       = useState("video");
+  const [provider, setProvider]           = useState("cloudinary"); // ← NEW
   const [showRecordModal, setShowRecordModal] = useState(false);
   const currentUser = localStorage.getItem("username") || "";
 
   const [inputField, setInputField] = useState({
-    title: "",
-    description: "",
-    videoLink: "",
-    thumbnail: "",
-    videoType: "",
+    title: "", description: "", videoLink: "", thumbnail: "", videoType: "",
   });
 
-  const [loader, setLoader] = useState(false);
-  const [thumbLoader, setThumbLoader] = useState(false);
+  const [loader, setLoader]               = useState(false);
+  const [thumbLoader, setThumbLoader]     = useState(false);
   const [videoUploaded, setVideoUploaded] = useState(false);
   const [imageUploaded, setImageUploaded] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [thumbSource, setThumbSource] = useState("");
+  const [submitted, setSubmitted]         = useState(false);
+  const [error, setError]                 = useState("");
+  const [saving, setSaving]               = useState(false);
+  const [thumbSource, setThumbSource]     = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [archiveItemId, setArchiveItemId] = useState(""); // ← NEW
 
   const durationRef = useRef("00:00");
 
   // ── Reset form when switching mode ──
   const switchMode = (mode) => {
     setUploadMode(mode);
-    setInputField({
-      title: "",
-      description: "",
-      videoLink: "",
-      thumbnail: "",
-      videoType: "",
-    });
+    setInputField({ title: "", description: "", videoLink: "", thumbnail: "", videoType: "" });
     setVideoUploaded(false);
     setImageUploaded(false);
     setThumbSource("");
     setError("");
+    setArchiveItemId("");
     durationRef.current = "00:00";
   };
 
@@ -68,13 +66,12 @@ const VideoUpload = () => {
       videoEl.onloadedmetadata = () => {
         window.URL.revokeObjectURL(videoEl.src);
         const totalSec = Math.floor(videoEl.duration);
-        const hrs = Math.floor(totalSec / 3600);
+        const hrs  = Math.floor(totalSec / 3600);
         const mins = Math.floor((totalSec % 3600) / 60);
         const secs = totalSec % 60;
-        durationRef.current =
-          hrs > 0
-            ? `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
-            : `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+        durationRef.current = hrs > 0
+          ? `${String(hrs).padStart(2,"0")}:${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`
+          : `${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`;
         resolve(durationRef.current);
       };
       videoEl.src = URL.createObjectURL(file);
@@ -84,26 +81,20 @@ const VideoUpload = () => {
   // ── Capture thumbnail from video at 1 second ──
   const captureThumbnail = (file) => {
     return new Promise((resolve) => {
-      const video = document.createElement("video");
+      const video  = document.createElement("video");
       const canvas = document.createElement("canvas");
-      video.preload = "metadata";
-      video.muted = true;
+      video.preload   = "metadata";
+      video.muted     = true;
       video.playsInline = true;
-      video.onloadeddata = () => {
-        video.currentTime = 1;
-      };
+      video.onloadeddata = () => { video.currentTime = 1; };
       video.onseeked = () => {
-        canvas.width = video.videoWidth;
+        canvas.width  = video.videoWidth;
         canvas.height = video.videoHeight;
         canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob(
-          (blob) => {
-            URL.revokeObjectURL(video.src);
-            resolve(blob);
-          },
-          "image/jpeg",
-          0.85,
-        );
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(video.src);
+          resolve(blob);
+        }, "image/jpeg", 0.85);
       };
       video.src = URL.createObjectURL(file);
     });
@@ -115,8 +106,7 @@ const VideoUpload = () => {
     data.append("file", blob, "thumbnail.jpg");
     data.append("upload_preset", "youtube-clone");
     const res = await axios.post(
-      "https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload",
-      data,
+      "https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", data,
     );
     return res.data.secure_url;
   };
@@ -126,21 +116,165 @@ const VideoUpload = () => {
     setError("");
   };
 
-  // ── Upload video + auto-capture thumbnail ──
+  // ════════════════════════════════════════════════
+  // ── UPLOAD TO CLOUDINARY ──
+  // ════════════════════════════════════════════════
+  const uploadToCloudinary = async (file) => {
+    const CLOUD_NAME    = "dwoqk0yue";
+    const UPLOAD_PRESET = "youtube-clone";
+    const CHUNK_SIZE    = 20 * 1024 * 1024;
+    const totalChunks   = Math.ceil(file.size / CHUNK_SIZE);
+
+    if (file.size <= CHUNK_SIZE) {
+      const videoData = new FormData();
+      videoData.append("file", file);
+      videoData.append("upload_preset", UPLOAD_PRESET);
+      const res = await axios.post(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
+        videoData,
+        {
+          onUploadProgress: (e) => setUploadProgress(Math.round((e.loaded * 100) / e.total)),
+          timeout: 0,
+        },
+      );
+      return res.data.secure_url;
+    }
+
+    // Chunked upload
+    const uniqueUploadId = `uq_${Date.now()}`;
+    let videoUrl = "";
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+      const start = chunkIndex * CHUNK_SIZE;
+      const end   = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+      const chunkData = new FormData();
+      chunkData.append("file", chunk);
+      chunkData.append("upload_preset", UPLOAD_PRESET);
+      const res = await axios.post(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
+        chunkData,
+        {
+          headers: {
+            "X-Unique-Upload-Id": uniqueUploadId,
+            "Content-Range": `bytes ${start}-${end - 1}/${file.size}`,
+          },
+          timeout: 0,
+          onUploadProgress: (e) => {
+            const overall = Math.round(((chunkIndex + e.loaded / e.total) / totalChunks) * 100);
+            setUploadProgress(overall);
+          },
+        },
+      );
+      if (chunkIndex === totalChunks - 1) videoUrl = res.data.secure_url;
+    }
+    return videoUrl;
+  };
+
+  // ════════════════════════════════════════════════
+  // ── UPLOAD TO SUPABASE STORAGE ──
+  // ════════════════════════════════════════════════
+  const uploadToSupabase = async (file) => {
+    const fileName = `${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
+    const folder   = uploadMode === "reel" ? "reels" : "videos";
+    const { error } = await supabase.storage
+      .from("media")
+      .upload(`${folder}/${fileName}`, file, { cacheControl: "3600", upsert: false });
+    if (error) throw error;
+    const { data: urlData } = supabase.storage
+      .from("media")
+      .getPublicUrl(`${folder}/${fileName}`);
+    return urlData.publicUrl;
+  };
+
+  // ════════════════════════════════════════════════
+  // ── UPLOAD TO INTERNET ARCHIVE ──
+  // ════════════════════════════════════════════════
+  const uploadToArchive = async (file) => {
+    const ACCESS_KEY = process.env.REACT_APP_ARCHIVE_ACCESS;
+    const SECRET_KEY = process.env.REACT_APP_ARCHIVE_SECRET;
+
+    if (!ACCESS_KEY || !SECRET_KEY) {
+      throw new Error(
+        "Internet Archive API keys not set. Add REACT_APP_ARCHIVE_ACCESS and REACT_APP_ARCHIVE_SECRET to your .env file."
+      );
+    }
+
+    // Create a unique identifier for this upload
+    const username   = (localStorage.getItem("username") || "user").toLowerCase().replace(/\s+/g, "");
+    const identifier = `zixplon-${username}-${Date.now()}`;
+    const fileName   = file.name.replace(/\s+/g, "_");
+
+    setArchiveItemId(identifier);
+
+    // Upload using Internet Archive S3-like API
+    const uploadUrl = `https://s3.us.archive.org/${identifier}/${fileName}`;
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", uploadUrl);
+      xhr.setRequestHeader(
+        "Authorization",
+        `LOW ${ACCESS_KEY}:${SECRET_KEY}`
+      );
+      xhr.setRequestHeader("Content-Type", file.type);
+      xhr.setRequestHeader("x-archive-meta-mediatype",
+        uploadMode === "reel" ? "movies" : "movies"
+      );
+      xhr.setRequestHeader("x-archive-meta-title",
+        inputField.title || file.name
+      );
+      xhr.setRequestHeader("x-archive-meta-description",
+        inputField.description || "Uploaded via ZIXPLON"
+      );
+      xhr.setRequestHeader("x-archive-meta-subject", "zixplon;video");
+      xhr.setRequestHeader("x-archive-auto-make-bucket", "1");
+      xhr.setRequestHeader("x-archive-meta-licenseurl",
+        "http://creativecommons.org/licenses/by/4.0/"
+      );
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          // Direct download URL for the video
+          const directUrl = `https://archive.org/download/${identifier}/${fileName}`;
+          resolve(directUrl);
+        } else {
+          reject(new Error(`Archive upload failed: ${xhr.status} ${xhr.statusText}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error("Network error during Archive upload"));
+      xhr.send(file);
+    });
+  };
+
+  // ════════════════════════════════════════════════
+  // ── MAIN UPLOAD HANDLER ──
+  // ════════════════════════════════════════════════
   const uploadVideo = async (e) => {
     setLoader(true);
     setError("");
     setUploadProgress(0);
+
     const files = e.target.files;
-    if (!files || files.length === 0) {
+    if (!files || files.length === 0) { setLoader(false); return; }
+    const file = files[0];
+
+    const MAX_SIZE = 4 * 1024 * 1024 * 1024; // 4GB
+    if (file.size > MAX_SIZE) {
+      setError("File too large. Maximum size is 4GB.");
       setLoader(false);
       return;
     }
-    const file = files[0];
 
-    const MAX_SIZE = 4 * 1024 * 1024 * 1024;
-    if (file.size > MAX_SIZE) {
-      setError("File too large. Maximum size is 4GB.");
+    // Warn if Supabase selected for large file
+    if (provider === "supabase" && file.size > 50 * 1024 * 1024) {
+      setError("Supabase limit is 50MB. Please choose Cloudinary or Archive.org for large files.");
       setLoader(false);
       return;
     }
@@ -151,63 +285,19 @@ const VideoUpload = () => {
         captureThumbnail(file),
       ]);
 
-      const CLOUD_NAME = "dwoqk0yue";
-      const UPLOAD_PRESET = "youtube-clone";
-      const CHUNK_SIZE = 20 * 1024 * 1024;
-      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
       let videoUrl = "";
 
-      if (file.size <= CHUNK_SIZE) {
-        const videoData = new FormData();
-        videoData.append("file", file);
-        videoData.append("upload_preset", UPLOAD_PRESET);
-        const videoRes = await axios.post(
-          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
-          videoData,
-          {
-            onUploadProgress: (e) => {
-              setUploadProgress(Math.round((e.loaded * 100) / e.total));
-            },
-            timeout: 0,
-          },
-        );
-        videoUrl = videoRes.data.secure_url;
-      } else {
-        const uniqueUploadId = `uq_${Date.now()}`;
-        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-          const start = chunkIndex * CHUNK_SIZE;
-          const end = Math.min(start + CHUNK_SIZE, file.size);
-          const chunk = file.slice(start, end);
-
-          const chunkData = new FormData();
-          chunkData.append("file", chunk);
-          chunkData.append("upload_preset", UPLOAD_PRESET);
-
-          const res = await axios.post(
-            `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
-            chunkData,
-            {
-              headers: {
-                "X-Unique-Upload-Id": uniqueUploadId,
-                "Content-Range": `bytes ${start}-${end - 1}/${file.size}`,
-              },
-              timeout: 0,
-              onUploadProgress: (e) => {
-                const chunkProgress = e.loaded / e.total;
-                const overall = Math.round(
-                  ((chunkIndex + chunkProgress) / totalChunks) * 100,
-                );
-                setUploadProgress(overall);
-              },
-            },
-          );
-
-          if (chunkIndex === totalChunks - 1) {
-            videoUrl = res.data.secure_url;
-          }
-        }
+      // ── Pick provider ──
+      if (provider === "cloudinary") {
+        videoUrl = await uploadToCloudinary(file);
+      } else if (provider === "supabase") {
+        videoUrl = await uploadToSupabase(file);
+        setUploadProgress(100);
+      } else if (provider === "archive") {
+        videoUrl = await uploadToArchive(file);
       }
 
+      // Auto-capture thumbnail if not manually set
       let thumbnailUrl = inputField.thumbnail;
       if (!imageUploaded) {
         thumbnailUrl = await uploadThumbnailToCloudinary(thumbnailBlob);
@@ -225,8 +315,8 @@ const VideoUpload = () => {
     } catch (err) {
       setLoader(false);
       setUploadProgress(0);
-      setError("Upload failed. Please try again.");
-      console.log("Upload error:", err.response?.data || err);
+      setError(err.message || "Upload failed. Please try again.");
+      console.error("Upload error:", err);
     }
   };
 
@@ -235,17 +325,13 @@ const VideoUpload = () => {
     setThumbLoader(true);
     setError("");
     const files = e.target.files;
-    if (!files || files.length === 0) {
-      setThumbLoader(false);
-      return;
-    }
+    if (!files || files.length === 0) { setThumbLoader(false); return; }
     const data = new FormData();
     data.append("file", files[0]);
     data.append("upload_preset", "youtube-clone");
     try {
       const res = await axios.post(
-        "https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload",
-        data,
+        "https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", data,
       );
       setInputField((prev) => ({ ...prev, thumbnail: res.data.secure_url }));
       setImageUploaded(true);
@@ -254,15 +340,14 @@ const VideoUpload = () => {
     } catch (err) {
       setThumbLoader(false);
       setError("Thumbnail upload failed. Please try again.");
-      console.log("Thumbnail error:", err.response?.data || err);
     }
   };
 
-  // ── Save to Supabase ──
+  // ── Save to Supabase DB ──
   const handleSubmit = async () => {
-    if (!inputField.title) return setError("Please enter a title.");
+    if (!inputField.title)       return setError("Please enter a title.");
     if (!inputField.description) return setError("Please enter a description.");
-    if (!inputField.videoLink) return setError("Please upload a video.");
+    if (!inputField.videoLink)   return setError("Please upload a video.");
     if (uploadMode === "video" && !inputField.videoType)
       return setError("Please enter a category.");
 
@@ -271,45 +356,39 @@ const VideoUpload = () => {
 
     try {
       if (uploadMode === "video") {
-        const { error: videoError } = await supabase.from("videos").insert([
-          {
-            title: inputField.title,
-            description: inputField.description,
-            video_url: inputField.videoLink,
-            thumbnail_url: inputField.thumbnail,
-            category: inputField.videoType,
-            channel: localStorage.getItem("username") || "Anonymous",
-            duration: durationRef.current,
-          },
-        ]);
+        const { error: videoError } = await supabase.from("videos").insert([{
+          title:         inputField.title,
+          description:   inputField.description,
+          video_url:     inputField.videoLink,
+          thumbnail_url: inputField.thumbnail,
+          category:      inputField.videoType,
+          channel:       localStorage.getItem("username") || "Anonymous",
+          username:      localStorage.getItem("username") || "anonymous",
+          duration:      durationRef.current,
+          storage_provider: provider, // ← tracks which provider was used
+        }]);
         if (videoError) throw videoError;
       } else {
-        const reelInsertData = {
-          title: inputField.title,
+        const { error: reelError } = await supabase.from("reels").insert([{
+          title:       inputField.title,
           description: inputField.description,
-          video_url: inputField.videoLink,
-          thumbnail: inputField.thumbnail,
-          user: localStorage.getItem("username") || "Anonymous",
-          username: (localStorage.getItem("username") || "anonymous")
-            .toLowerCase()
-            .replace(/\s+/g, ""),
-          duration: durationRef.current,
-          likes: 0,
-          comments: 0,
-        };
-        const { error: reelError } = await supabase.from("reels").insert([reelInsertData]);
-        if (reelError) {
-          console.error("REEL INSERT ERROR:", JSON.stringify(reelError, null, 2));
-          throw reelError;
-        }
+          video_url:   inputField.videoLink,
+          thumbnail:   inputField.thumbnail,
+          user:        localStorage.getItem("username") || "Anonymous",
+          username:    (localStorage.getItem("username") || "anonymous").toLowerCase().replace(/\s+/g, ""),
+          duration:    durationRef.current,
+          likes:       0,
+          comments:    0,
+          storage_provider: provider,
+        }]);
+        if (reelError) throw reelError;
       }
-
       setSaving(false);
       setSubmitted(true);
     } catch (err) {
       setSaving(false);
       setError("Failed to save. Please try again.");
-      console.log("FULL SAVE ERROR:", err);
+      console.error("Save error:", err);
     }
   };
 
@@ -322,6 +401,22 @@ const VideoUpload = () => {
             <CheckCircleOutlineIcon sx={{ fontSize: "64px", color: "#4caf50" }} />
             <h2>{uploadMode === "reel" ? "Reel" : "Video"} Uploaded Successfully!</h2>
             <p>Your {uploadMode === "reel" ? "reel" : "video"} is now live on ZIXPLON&reg;</p>
+
+            {/* Archive.org link */}
+            {provider === "archive" && archiveItemId && (
+              <a
+                href={`https://archive.org/details/${archiveItemId}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  color: "#3ea6ff", fontSize: "13px", marginBottom: "12px",
+                  display: "block", textDecoration: "none",
+                }}
+              >
+                🏛️ View on Internet Archive →
+              </a>
+            )}
+
             <video
               src={inputField.videoLink}
               poster={inputField.thumbnail}
@@ -342,6 +437,7 @@ const VideoUpload = () => {
                   setVideoUploaded(false);
                   setImageUploaded(false);
                   setThumbSource("");
+                  setArchiveItemId("");
                   durationRef.current = "00:00";
                 }}
               >
@@ -369,7 +465,7 @@ const VideoUpload = () => {
           Upload
         </div>
 
-        {/* ── Mode Toggle — Video | Shorts | 🔴 Record / Live ── */}
+        {/* ── Mode Toggle ── */}
         <div className="upload_mode_toggle">
           <div
             className={`upload_mode_btn ${uploadMode === "video" ? "active" : ""}`}
@@ -383,28 +479,20 @@ const VideoUpload = () => {
           >
             📱 Shorts
           </div>
-          {/* ✅ Record / Live tab */}
           <div
             className="upload_mode_btn"
             onClick={() => setShowRecordModal(true)}
             style={{ position: "relative", cursor: "pointer" }}
           >
-            {/* Pulsing red dot */}
             <span style={{
-              position: "absolute",
-              top: "-4px",
-              right: "-4px",
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: "#ff0000",
-              animation: "recordPulse 1.2s infinite",
+              position: "absolute", top: "-4px", right: "-4px",
+              width: "8px", height: "8px", borderRadius: "50%",
+              background: "#ff0000", animation: "recordPulse 1.2s infinite",
             }} />
             🔴 Record / Live
           </div>
         </div>
 
-        {/* ✅ RecordModal — at root level so it renders as true fullscreen overlay */}
         {showRecordModal && (
           <RecordModal
             onClose={() => setShowRecordModal(false)}
@@ -415,15 +503,84 @@ const VideoUpload = () => {
         <style>{`
           @keyframes recordPulse {
             0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.4; transform: scale(1.3); }
+            50%       { opacity: 0.4; transform: scale(1.3); }
           }
         `}</style>
 
         {uploadMode === "reel" && (
           <p className="upload_mode_hint">
-            Reels are short vertical videos — they will appear in the Reels / Shorts section.
+            Reels are short vertical videos — they appear in the Reels / Shorts section.
           </p>
         )}
+
+        {/* ── Storage Provider Selector ── */}
+        <div style={{ marginBottom: "16px" }}>
+          <p style={{ color: "#aaa", fontSize: "13px", marginBottom: "8px" }}>
+            📦 Storage Provider:
+          </p>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {PROVIDERS.map((p) => (
+              <div
+                key={p.id}
+                onClick={() => setProvider(p.id)}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: "20px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  border: provider === p.id ? "2px solid orange" : "2px solid #333",
+                  background: provider === p.id ? "rgba(255,165,0,0.15)" : "#1a1a1a",
+                  color: provider === p.id ? "orange" : "#aaa",
+                  transition: "all 0.2s",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "2px",
+                }}
+              >
+                <span>{p.label}</span>
+                <span style={{ fontSize: "10px", fontWeight: "400", color: "#666" }}>
+                  {p.desc}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Provider info box */}
+          {provider === "archive" && (
+            <div style={{
+              marginTop: "10px", padding: "10px 14px",
+              background: "rgba(62,166,255,0.08)",
+              border: "1px solid rgba(62,166,255,0.2)",
+              borderRadius: "8px", fontSize: "12px", color: "#3ea6ff",
+            }}>
+              🏛️ <strong>Internet Archive</strong> — Free unlimited storage for movies and videos.
+              Requires <code>REACT_APP_ARCHIVE_ACCESS</code> and <code>REACT_APP_ARCHIVE_SECRET</code> in your .env file.
+              Get keys at <a href="https://archive.org/account/s3.php" target="_blank" rel="noreferrer" style={{ color: "#3ea6ff" }}>archive.org/account/s3.php</a>
+            </div>
+          )}
+          {provider === "supabase" && (
+            <div style={{
+              marginTop: "10px", padding: "10px 14px",
+              background: "rgba(0,200,100,0.08)",
+              border: "1px solid rgba(0,200,100,0.2)",
+              borderRadius: "8px", fontSize: "12px", color: "#4ade80",
+            }}>
+              🟢 <strong>Supabase Storage</strong> — Best for small videos under 50MB. Fast and reliable.
+            </div>
+          )}
+          {provider === "cloudinary" && (
+            <div style={{
+              marginTop: "10px", padding: "10px 14px",
+              background: "rgba(255,165,0,0.08)",
+              border: "1px solid rgba(255,165,0,0.2)",
+              borderRadius: "8px", fontSize: "12px", color: "orange",
+            }}>
+              ☁️ <strong>Cloudinary</strong> — Good for videos up to 4GB with chunked upload support.
+            </div>
+          )}
+        </div>
 
         {/* ── Form ── */}
         <div className="uploadForm">
@@ -441,7 +598,6 @@ const VideoUpload = () => {
             placeholder="Description"
             className="uploadFormInputs"
           />
-
           {uploadMode === "video" && (
             <input
               type="text"
@@ -495,9 +651,7 @@ const VideoUpload = () => {
             >
               {imageUploaded ? "✅ Change Thumbnail" : "📷 Choose Image"}
             </span>
-            {thumbLoader && (
-              <CircularProgress size={20} sx={{ color: "orange", ml: 1 }} />
-            )}
+            {thumbLoader && <CircularProgress size={20} sx={{ color: "orange", ml: 1 }} />}
           </div>
 
           {/* ── Thumbnail Preview ── */}
@@ -522,18 +676,21 @@ const VideoUpload = () => {
               <Box sx={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <CircularProgress size={28} sx={{ color: "orange" }} />
                 <span style={{ color: "#aaa", fontSize: "0.9rem" }}>
-                  Uploading... {uploadProgress}%
+                  {provider === "archive" ? "🏛️ Uploading to Archive.org..." : "Uploading..."} {uploadProgress}%
                 </span>
               </Box>
               <div style={{ width: "100%", background: "#333", borderRadius: "8px", height: "8px" }}>
                 <div style={{
                   width: `${uploadProgress}%`,
-                  background: "orange",
-                  height: "100%",
-                  borderRadius: "8px",
-                  transition: "width 0.3s",
+                  background: provider === "archive" ? "#3ea6ff" : "orange",
+                  height: "100%", borderRadius: "8px", transition: "width 0.3s",
                 }} />
               </div>
+              {provider === "archive" && (
+                <p style={{ color: "#555", fontSize: "11px", margin: 0 }}>
+                  Large files may take a few minutes. Do not close this tab.
+                </p>
+              )}
             </Box>
           )}
 
@@ -547,11 +704,7 @@ const VideoUpload = () => {
             className={`uploadBtns-form ${loader || saving || thumbLoader ? "uploadBtns-disabled" : ""}`}
             onClick={!loader && !saving && !thumbLoader ? handleSubmit : undefined}
           >
-            {saving
-              ? "Saving..."
-              : loader
-                ? "Uploading..."
-                : `Upload ${uploadMode === "reel" ? "Reel" : "Video"}`}
+            {saving ? "Saving..." : loader ? `Uploading... ${uploadProgress}%` : `Upload ${uploadMode === "reel" ? "Reel" : "Video"}`}
           </div>
           <Link to={"/"} className="uploadBtns-form">
             Home

@@ -603,7 +603,7 @@ const VideoUpload = () => {
               type="text"
               value={inputField.videoType}
               onChange={(e) => handleOnChangeInput(e, "videoType")}
-              placeholder="Category (e.g. Music, Gaming, News)"
+              placeholder="Category (e.g. Music, Gaming, News, Long Videos,)"
               className="uploadFormInputs"
             />
           )}

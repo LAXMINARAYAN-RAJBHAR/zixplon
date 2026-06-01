@@ -721,8 +721,8 @@ const SearchResults = () => {
     // Search local videos
     const matchedVideos = localVideos.filter(
       (v) =>
-        v?.title?.toLowerCase().includes(lowerQ) ||
-        v?.channel?.toLowerCase().includes(lowerQ),
+        v.title.toLowerCase().includes(lowerQ) ||
+        v.channel.toLowerCase().includes(lowerQ),
     );
     setLocalVideoResults(matchedVideos);
 

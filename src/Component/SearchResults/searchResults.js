@@ -698,8 +698,8 @@ const SearchResults = () => {
     // Search profiles
     const matchedProfiles = reelsData.filter(
       (r) =>
-        r.user.toLowerCase().includes(lowerQ) ||
-        r.username.toLowerCase().includes(lowerQ),
+        r?.user?.toLowerCase().includes(lowerQ) ||
+        r?.username?.toLowerCase().includes(lowerQ),
     );
     const uniqueProfiles = [
       ...new Map(matchedProfiles.map((p) => [p.username, p])).values(),

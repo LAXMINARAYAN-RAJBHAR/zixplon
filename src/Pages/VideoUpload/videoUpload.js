@@ -77,8 +77,8 @@ const VideoUpload = () => {
   // ── Speed & ETA calculator ──
   const updateSpeedAndETA = (loadedBytes, totalBytes) => {
     if (!uploadStartTime.current) return;
-    const elapsed = (Date.now() - uploadStartTime.current) / 1000; // seconds
-    if (elapsed < 1) return; // wait at least 1s before calculating
+    const elapsed = (Date.now() - uploadStartTime.current) / 1000;
+    if (elapsed < 1) return;
     const speedBps = loadedBytes / elapsed;
     const speedMBps = speedBps / (1024 * 1024);
     const remaining = totalBytes - loadedBytes;
@@ -95,10 +95,12 @@ const VideoUpload = () => {
   };
 
   // ── Auto-select provider based on file size ──
+  // Files < 100MB → Cloudinary | Files >= 100MB → Archive.org
+  // (Cloudinary free plan limit is 100MB for video)
   const autoSelectProvider = (file) => {
     const sizeMB = file.size / (1024 * 1024);
     console.log(
-      `File size: ${sizeMB.toFixed(1)} MB → provider: ${sizeMB < 500 ? "cloudinary" : "archive"}`,
+      `File size: ${sizeMB.toFixed(1)} MB → provider: ${sizeMB < 100 ? "cloudinary" : "archive"}`,
     );
     if (sizeMB < 100) return "cloudinary";
     return "archive";
@@ -269,11 +271,12 @@ const VideoUpload = () => {
     setArchiveItemId(identifier);
     setArchiveStatus("Connecting to Archive.org...");
 
-    // ── SPEED FIX: 200MB chunks (was 50MB) — fewer round-trips to USA ──
+    // ── 200MB chunks — fewer round-trips to USA ──
     const CHUNK_SIZE = 200 * 1024 * 1024;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    // ── SPEED FIX: 6 parallel uploads (was 3) ──
-    const PARALLEL = 6;
+
+    // ── FIXED: 2 parallel uploads (was 6) — prevents spam detection ──
+    const PARALLEL = 2;
 
     const safeTitle = sanitizeForHeader(titleOverride || file.name);
     const safeDesc = sanitizeForHeader(
@@ -325,7 +328,6 @@ const VideoUpload = () => {
             setArchiveStatus(
               `Uploading part ${chunkIndex + 1} of ${totalChunks}...`,
             );
-            // Speed & ETA — cumulative bytes sent so far
             updateSpeedAndETA(totalUploadedBytes + chunkUploaded, file.size);
           }
         };
@@ -369,6 +371,10 @@ const VideoUpload = () => {
     for (let i = 0; i < chunkIndices.length; i += PARALLEL) {
       const batch = chunkIndices.slice(i, i + PARALLEL);
       await Promise.all(batch.map((idx) => uploadChunk(idx)));
+      // ── FIXED: 500ms pause between batches to avoid spam detection ──
+      if (i + PARALLEL < chunkIndices.length) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
     }
 
     setUploadProgress(100);
@@ -405,12 +411,20 @@ const VideoUpload = () => {
 
     const selectedProvider = autoSelectProvider(file);
 
-// Force archive for anything Cloudinary can't handle
-const forcedProvider = selectedProvider === "cloudinary" && file.size > 100 * 1024 * 1024 
-  ? "archive" 
-  : selectedProvider;
+    // ── Safety: force archive if file exceeds Cloudinary's 100MB free limit ──
+    const forcedProvider =
+      selectedProvider === "cloudinary" && file.size > 100 * 1024 * 1024
+        ? "archive"
+        : selectedProvider;
 
-setActiveProvider(forcedProvider);
+    console.log(
+      "Final provider:",
+      forcedProvider,
+      "| File size MB:",
+      (file.size / (1024 * 1024)).toFixed(1),
+    );
+
+    setActiveProvider(forcedProvider);
 
     try {
       const [, thumbnailBlob] = await Promise.all([
@@ -419,12 +433,12 @@ setActiveProvider(forcedProvider);
       ]);
 
       let videoUrl = "";
-      if (selectedProvider === "supabase") {
+      if (forcedProvider === "supabase") {
         videoUrl = await uploadToSupabase(file);
         setUploadProgress(100);
-      } else if (selectedProvider === "cloudinary") {
+      } else if (forcedProvider === "cloudinary") {
         videoUrl = await uploadToCloudinary(file);
-      } else if (selectedProvider === "archive") {
+      } else if (forcedProvider === "archive") {
         videoUrl = await uploadToArchive(file, inputField.title);
       }
 
@@ -590,7 +604,9 @@ setActiveProvider(forcedProvider);
               </div>
               <div
                 className="uploadBtns-form"
-                onClick={() => navigate(uploadMode === "reel" ? "/reels" : "/")}
+                onClick={() =>
+                  navigate(uploadMode === "reel" ? "/reels" : "/")
+                }
               >
                 {uploadMode === "reel" ? "Go to Reels" : "Go Home"}
               </div>
@@ -733,7 +749,9 @@ setActiveProvider(forcedProvider);
             />
             <span
               className="upload_file_btn"
-              onClick={() => document.getElementById("thumbnailInput").click()}
+              onClick={() =>
+                document.getElementById("thumbnailInput").click()
+              }
             >
               {imageUploaded ? "✅ Change Thumbnail" : "📷 Choose Image"}
             </span>
@@ -750,7 +768,11 @@ setActiveProvider(forcedProvider);
                 className="upload_thumb_preview"
               />
               <span
-                style={{ color: "#888", fontSize: "0.78rem", marginTop: "4px" }}
+                style={{
+                  color: "#888",
+                  fontSize: "0.78rem",
+                  marginTop: "4px",
+                }}
               >
                 {thumbSource === "manual"
                   ? "✏️ Custom thumbnail"
@@ -839,7 +861,9 @@ setActiveProvider(forcedProvider);
 
         <div className="uploadBtns">
           <div
-            className={`uploadBtns-form ${loader || saving || thumbLoader ? "uploadBtns-disabled" : ""}`}
+            className={`uploadBtns-form ${
+              loader || saving || thumbLoader ? "uploadBtns-disabled" : ""
+            }`}
             onClick={
               !loader && !saving && !thumbLoader ? handleSubmit : undefined
             }

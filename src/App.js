@@ -35,14 +35,12 @@ function App() {
   const location = useLocation();
   const [sideNavbar, setSideNavbar] = useState(false);
   const [currentUser, setCurrentUser] = useState(
-    localStorage.getItem("username") || null,
+    localStorage.getItem("username") || null
   );
 
   useEffect(() => {
     const handleAuthRedirect = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const user = session.user;
         const name =
@@ -60,10 +58,7 @@ function App() {
         localStorage.setItem("userId", user.id);
         if (pic) localStorage.setItem("profilePic", pic);
         setCurrentUser(name);
-        if (
-          window.location.hash &&
-          window.location.hash.includes("access_token")
-        ) {
+        if (window.location.hash && window.location.hash.includes("access_token")) {
           window.history.replaceState({}, document.title, "/");
         }
       }
@@ -71,102 +66,54 @@ function App() {
     handleAuthRedirect();
   }, []);
 
-  // ✅ AFTER — consistent name resolution everywhere
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        const u = session.user;
-        const name =
-          localStorage.getItem("username") || // trust saved username first
-          u.user_metadata?.channelName ||
-          u.user_metadata?.username ||
-          u.user_metadata?.full_name ||
-          u.email?.split("@")[0];
-        setCurrentUser(name);
-        localStorage.setItem("username", name);
-      }
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        const u = session.user;
-        const name =
-          localStorage.getItem("username") || // trust saved username first
-          u.user_metadata?.channelName ||
-          u.user_metadata?.username ||
-          u.user_metadata?.full_name ||
-          u.email?.split("@")[0];
-        setCurrentUser(name);
-        localStorage.setItem("username", name);
-      } else {
-        setCurrentUser(null);
-        localStorage.removeItem("username");
-        localStorage.removeItem("email");
-        localStorage.removeItem("userId");
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+useEffect(() => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) {
+      const u = session.user;
+      const name =
+        localStorage.getItem("username") ||   // trust saved username first
+        u.user_metadata?.channelName ||
+        u.user_metadata?.username ||
+        u.user_metadata?.full_name ||
+        u.email?.split("@")[0];
+      setCurrentUser(name);
+      localStorage.setItem("username", name);
+    }
+  });
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    if (session?.user) {
+      const u = session.user;
+      const name =
+        localStorage.getItem("username") ||   // trust saved username first
+        u.user_metadata?.channelName ||
+        u.user_metadata?.username ||
+        u.user_metadata?.full_name ||
+        u.email?.split("@")[0];
+      setCurrentUser(name);
+      localStorage.setItem("username", name);
+    } else {
+      setCurrentUser(null);
+      localStorage.removeItem("username");
+      localStorage.removeItem("email");
+      localStorage.removeItem("userId");
+    }
+  });
+  return () => subscription.unsubscribe();
+}, []);
 
   const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      type: "upload",
-      message: "TechWorld uploaded: 'React 19 Features'",
-      time: "2m ago",
-      read: false,
-      avatar: "T",
-    },
-    {
-      id: 2,
-      type: "like",
-      message: "Alex liked your video 'My Portfolio Tour'",
-      time: "10m ago",
-      read: false,
-      avatar: "A",
-    },
-    {
-      id: 3,
-      type: "comment",
-      message: "Sara commented: 'Great content! 🔥'",
-      time: "25m ago",
-      read: false,
-      avatar: "S",
-    },
-    {
-      id: 4,
-      type: "subscriber",
-      message: "John subscribed to your channel",
-      time: "1h ago",
-      read: false,
-      avatar: "J",
-    },
-    {
-      id: 5,
-      type: "upload",
-      message: "CodeWithMe uploaded: 'Node.js Crash Course'",
-      time: "2h ago",
-      read: true,
-      avatar: "C",
-    },
-    {
-      id: 6,
-      type: "like",
-      message: "Priya liked your video 'CSS Animations'",
-      time: "3h ago",
-      read: true,
-      avatar: "P",
-    },
+    { id: 1, type: "upload", message: "TechWorld uploaded: 'React 19 Features'", time: "2m ago", read: false, avatar: "T" },
+    { id: 2, type: "like", message: "Alex liked your video 'My Portfolio Tour'", time: "10m ago", read: false, avatar: "A" },
+    { id: 3, type: "comment", message: "Sara commented: 'Great content! 🔥'", time: "25m ago", read: false, avatar: "S" },
+    { id: 4, type: "subscriber", message: "John subscribed to your channel", time: "1h ago", read: false, avatar: "J" },
+    { id: 5, type: "upload", message: "CodeWithMe uploaded: 'Node.js Crash Course'", time: "2h ago", read: true, avatar: "C" },
+    { id: 6, type: "like", message: "Priya liked your video 'CSS Animations'", time: "3h ago", read: true, avatar: "P" },
   ]);
 
   const hideFooter = ["/youtube", "/reels"].includes(location.pathname);
 
   return (
-    <div
-      className="App"
-      style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}
-    >
+    <div className="App" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
       <ScrollToTop />
       <Navbar
         currentUser={currentUser}
@@ -180,64 +127,24 @@ function App() {
         <Routes>
           <Route path="/" element={<Home sideNavbar={sideNavbar} />} />
           <Route path="/video/:id" element={<Video />} />
-          <Route
-            path="/user/:username"
-            element={<Profile sideNavbar={sideNavbar} />}
-          />
+          <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} />} />
           <Route path="/:id/upload" element={<VideoUpload />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/reels" element={<Reels />} />
           <Route path="/reels/:id" element={<Reels />} />
           <Route path="/search" element={<SearchResults />} />
           <Route path="/youtube" element={<YouTubeSearch />} />
-          <Route
-            path="/notifications"
-            element={<Notifications notifications={notifications} />}
-          />
-          <Route
-            path="/history"
-            element={<ComingSoon title="History" sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/playlist"
-            element={<ComingSoon title="Playlist" sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/your-videos"
-            element={<ComingSoon title="Your Videos" sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/watch-later"
-            element={<ComingSoon title="Watch Later" sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/liked-videos"
-            element={
-              <ComingSoon title="Liked Videos" sideNavbar={sideNavbar} />
-            }
-          />
-          <Route
-            path="/your-clips"
-            element={<ComingSoon title="Your Clips" sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/subscription"
-            element={
-              <ComingSoon title="Subscription" sideNavbar={sideNavbar} />
-            }
-          />
-          <Route
-            path="/live-tv"
-            element={<LiveTVPage sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/local-player"
-            element={<LocalMediaPlayer sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/terms-and-conditions"
-            element={<TermsAndConditions />}
-          />
+          <Route path="/notifications" element={<Notifications notifications={notifications} />} />
+          <Route path="/history" element={<ComingSoon title="History" sideNavbar={sideNavbar} />} />
+          <Route path="/playlist" element={<ComingSoon title="Playlist" sideNavbar={sideNavbar} />} />
+          <Route path="/your-videos" element={<ComingSoon title="Your Videos" sideNavbar={sideNavbar} />} />
+          <Route path="/watch-later" element={<ComingSoon title="Watch Later" sideNavbar={sideNavbar} />} />
+          <Route path="/liked-videos" element={<ComingSoon title="Liked Videos" sideNavbar={sideNavbar} />} />
+          <Route path="/your-clips" element={<ComingSoon title="Your Clips" sideNavbar={sideNavbar} />} />
+          <Route path="/subscription" element={<ComingSoon title="Subscription" sideNavbar={sideNavbar} />} />
+          <Route path="/live-tv" element={<LiveTVPage sideNavbar={sideNavbar} />} />
+          <Route path="/local-player" element={<LocalMediaPlayer sideNavbar={sideNavbar} />} />
+          <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
           <Route path="/feedback" element={<Feedback />} />
           <Route path="/help" element={<Help />} />
           <Route path="/contact" element={<ContactSupport />} />
@@ -245,10 +152,7 @@ function App() {
           <Route path="/about" element={<AboutPage />} />
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
           <Route path="/dmca" element={<DmcaPage />} />
-          <Route
-            path="/community-guidelines"
-            element={<CommunityGuidelinesPage />}
-          />
+          <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
           <Route path="/advertise" element={<AdvertisePage />} />
         </Routes>
       </div>

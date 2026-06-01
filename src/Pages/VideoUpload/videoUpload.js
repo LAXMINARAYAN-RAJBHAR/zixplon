@@ -42,7 +42,13 @@ const VideoUpload = () => {
   const [uploadProgress, setUploadProgress]   = useState(0);
   const [archiveItemId, setArchiveItemId]     = useState("");
   const [activeProvider, setActiveProvider]   = useState("");
-  const [archiveStatus, setArchiveStatus]     = useState(""); // FIX: show detailed archive status
+  const [archiveStatus, setArchiveStatus]     = useState("");
+
+  // ── Speed & ETA tracking ──
+  const [uploadSpeed, setUploadSpeed]       = useState(0);
+  const [timeRemaining, setTimeRemaining]   = useState("");
+  const uploadStartTime                     = useRef(null);
+  const uploadedBytesRef                    = useRef(0);
 
   const durationRef = useRef("00:00");
 
@@ -56,12 +62,36 @@ const VideoUpload = () => {
     setActiveProvider("");
     setUploadProgress(0);
     setArchiveStatus("");
-    durationRef.current = "00:00";
+    setUploadSpeed(0);
+    setTimeRemaining("");
+    uploadStartTime.current   = null;
+    uploadedBytesRef.current  = 0;
+    durationRef.current       = "00:00";
   };
 
   const switchMode = (mode) => {
     setUploadMode(mode);
     resetState();
+  };
+
+  // ── Speed & ETA calculator ──
+  const updateSpeedAndETA = (loadedBytes, totalBytes) => {
+    if (!uploadStartTime.current) return;
+    const elapsed = (Date.now() - uploadStartTime.current) / 1000; // seconds
+    if (elapsed < 1) return; // wait at least 1s before calculating
+    const speedBps   = loadedBytes / elapsed;
+    const speedMBps  = speedBps / (1024 * 1024);
+    const remaining  = totalBytes - loadedBytes;
+    const remainSecs = remaining / speedBps;
+
+    setUploadSpeed(speedMBps.toFixed(1));
+    if (remainSecs > 3600) {
+      setTimeRemaining(`~${Math.ceil(remainSecs / 3600)}h remaining`);
+    } else if (remainSecs > 60) {
+      setTimeRemaining(`~${Math.ceil(remainSecs / 60)} min remaining`);
+    } else {
+      setTimeRemaining(`~${Math.ceil(remainSecs)} sec remaining`);
+    }
   };
 
   // ── Auto-select provider based on file size ──
@@ -140,7 +170,10 @@ const VideoUpload = () => {
         `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
         videoData,
         {
-          onUploadProgress: (e) => setUploadProgress(Math.round((e.loaded * 100) / e.total)),
+          onUploadProgress: (e) => {
+            setUploadProgress(Math.round((e.loaded * 100) / e.total));
+            updateSpeedAndETA(e.loaded, file.size);
+          },
           timeout: 0,
         },
       );
@@ -149,6 +182,7 @@ const VideoUpload = () => {
 
     const uniqueUploadId = `uq_${Date.now()}`;
     let videoUrl = "";
+    let totalUploaded = 0;
     for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
       const start = chunkIndex * CHUNK_SIZE;
       const end   = Math.min(start + CHUNK_SIZE, file.size);
@@ -168,9 +202,11 @@ const VideoUpload = () => {
           onUploadProgress: (e) => {
             const overall = Math.round(((chunkIndex + e.loaded / e.total) / totalChunks) * 100);
             setUploadProgress(overall);
+            updateSpeedAndETA(totalUploaded + e.loaded, file.size);
           },
         },
       );
+      totalUploaded += (end - start);
       if (chunkIndex === totalChunks - 1) videoUrl = res.data.secure_url;
     }
     return videoUrl;
@@ -189,7 +225,6 @@ const VideoUpload = () => {
     return urlData.publicUrl;
   };
 
-  // ── FIX 1: Sanitize title for Archive headers ──
   const sanitizeForHeader = (str) =>
     str.replace(/[^\w\s\-.,!?()]/g, "").trim() || "Untitled";
 
@@ -197,7 +232,6 @@ const VideoUpload = () => {
     const ACCESS_KEY = process.env.REACT_APP_ARCHIVE_ACCESS;
     const SECRET_KEY = process.env.REACT_APP_ARCHIVE_SECRET;
 
-    // ── FIX 2: Validate keys exist before attempting upload ──
     if (!ACCESS_KEY || !SECRET_KEY) {
       throw new Error(
         "Internet Archive API keys are missing. Add REACT_APP_ARCHIVE_ACCESS and REACT_APP_ARCHIVE_SECRET to your .env file and restart."
@@ -206,14 +240,12 @@ const VideoUpload = () => {
 
     const username = (localStorage.getItem("username") || "user")
       .toLowerCase()
-      .replace(/[^a-z0-9]/g, ""); // FIX 3: only alphanumeric in identifier
+      .replace(/[^a-z0-9]/g, "");
 
-    // ── FIX 4: More unique identifier to avoid 400 "already exists" collisions ──
     const identifier = `zixplon-${username}-${Date.now()}-${Math.random()
       .toString(36)
       .slice(2, 7)}`;
 
-    // ── FIX 5: Clean filename — no spaces or special chars ──
     const fileName = file.name
       .replace(/\s+/g, "_")
       .replace(/[^\w.\-]/g, "");
@@ -221,13 +253,16 @@ const VideoUpload = () => {
     setArchiveItemId(identifier);
     setArchiveStatus("Connecting to Archive.org...");
 
-    const CHUNK_SIZE  = 50 * 1024 * 1024;
+    // ── SPEED FIX: 200MB chunks (was 50MB) — fewer round-trips to USA ──
+    const CHUNK_SIZE  = 200 * 1024 * 1024;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    const PARALLEL    = 3;
+    // ── SPEED FIX: 6 parallel uploads (was 3) ──
+    const PARALLEL    = 6;
 
-    // Use titleOverride (passed at call time) so we have the real title
     const safeTitle = sanitizeForHeader(titleOverride || file.name);
     const safeDesc  = sanitizeForHeader(inputField.description || "Uploaded via ZIXPLON");
+
+    let totalUploadedBytes = 0;
 
     const uploadChunk = (chunkIndex) => {
       return new Promise((resolve, reject) => {
@@ -255,22 +290,25 @@ const VideoUpload = () => {
           "http://creativecommons.org/licenses/by/4.0/"
         );
 
-        // ── FIX 6: Per-chunk progress ──
+        let chunkUploaded = 0;
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
+            chunkUploaded = e.loaded;
             const overall = Math.round(
               ((chunkIndex + e.loaded / e.total) / totalChunks) * 100
             );
             setUploadProgress(overall);
             setArchiveStatus(
-              `Uploading chunk ${chunkIndex + 1} of ${totalChunks}...`
+              `Uploading part ${chunkIndex + 1} of ${totalChunks}...`
             );
+            // Speed & ETA — cumulative bytes sent so far
+            updateSpeedAndETA(totalUploadedBytes + chunkUploaded, file.size);
           }
         };
 
         xhr.onload = () => {
-          // ── FIX 7: Log full response for debugging ──
           if (xhr.status >= 200 && xhr.status < 300) {
+            totalUploadedBytes += (end - start);
             resolve(chunkFileName);
           } else {
             console.error(
@@ -278,7 +316,6 @@ const VideoUpload = () => {
               xhr.status,
               xhr.responseText
             );
-            // ── FIX 8: Human-readable error from Archive response ──
             let reason = `Status ${xhr.status}`;
             try {
               const parser = new DOMParser();
@@ -304,17 +341,15 @@ const VideoUpload = () => {
     };
 
     const chunkIndices = Array.from({ length: totalChunks }, (_, i) => i);
-    let completed = 0;
 
     for (let i = 0; i < chunkIndices.length; i += PARALLEL) {
       const batch = chunkIndices.slice(i, i + PARALLEL);
       await Promise.all(batch.map((idx) => uploadChunk(idx)));
-      completed += batch.length;
-      setUploadProgress(Math.round((completed / totalChunks) * 100));
     }
 
     setUploadProgress(100);
     setArchiveStatus("Upload complete! Processing on Archive.org...");
+    setTimeRemaining("");
 
     return totalChunks === 1
       ? `https://archive.org/download/${identifier}/${fileName}`
@@ -326,6 +361,10 @@ const VideoUpload = () => {
     setError("");
     setUploadProgress(0);
     setArchiveStatus("");
+    setUploadSpeed(0);
+    setTimeRemaining("");
+    uploadStartTime.current  = Date.now();
+    uploadedBytesRef.current = 0;
 
     const files = e.target.files;
     if (!files || files.length === 0) { setLoader(false); return; }
@@ -353,11 +392,9 @@ const VideoUpload = () => {
       } else if (selectedProvider === "cloudinary") {
         videoUrl = await uploadToCloudinary(file);
       } else if (selectedProvider === "archive") {
-        // ── FIX 9: Pass current title at call time so it's not empty ──
         videoUrl = await uploadToArchive(file, inputField.title);
       }
 
-      // Only auto-capture thumbnail if user hasn't uploaded one manually
       let thumbnailUrl = inputField.thumbnail;
       if (!imageUploaded) {
         thumbnailUrl = await uploadThumbnailToCloudinary(thumbnailBlob);
@@ -372,6 +409,7 @@ const VideoUpload = () => {
       setLoader(false);
       setUploadProgress(0);
       setArchiveStatus("");
+      setTimeRemaining("");
       setError(err.message || "Upload failed. Please try again.");
       console.error("Upload error:", err);
     }
@@ -623,14 +661,18 @@ const VideoUpload = () => {
 
           {loader && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+
+              {/* Status line */}
               <Box sx={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <CircularProgress size={28} sx={{ color: "orange" }} />
                 <span style={{ color: "#aaa", fontSize: "0.9rem" }}>
                   {activeProvider === "archive"
-                    ? `🏛️ ${archiveStatus || `Uploading to Archive.org... ${uploadProgress}%`}`
-                    : `☁️ Uploading... ${uploadProgress}%`}
+                    ? `🏛️ ${archiveStatus || "Uploading to Archive.org..."}`
+                    : `☁️ Uploading to Cloudinary...`}
                 </span>
               </Box>
+
+              {/* Progress bar */}
               <div style={{ width: "100%", background: "#333", borderRadius: "8px", height: "8px" }}>
                 <div style={{
                   width: `${uploadProgress}%`,
@@ -638,9 +680,27 @@ const VideoUpload = () => {
                   height: "100%", borderRadius: "8px", transition: "width 0.3s",
                 }} />
               </div>
+
+              {/* Speed & ETA row */}
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ color: "#666", fontSize: "0.8rem" }}>
+                  {uploadProgress}% complete
+                  {uploadSpeed > 0 ? ` • ${uploadSpeed} MB/s` : ""}
+                </span>
+                {timeRemaining && (
+                  <span style={{
+                    color: activeProvider === "archive" ? "#3ea6ff" : "orange",
+                    fontSize: "0.8rem",
+                    fontWeight: 500,
+                  }}>
+                    ⏱ {timeRemaining}
+                  </span>
+                )}
+              </Box>
+
               {activeProvider === "archive" && (
                 <p style={{ color: "#555", fontSize: "11px", margin: 0 }}>
-                  ⚠️ Large files may take a few minutes. Do not close this tab.
+                  ⚠️ Large files may take several minutes from India to US servers. Do not close this tab.
                 </p>
               )}
             </Box>

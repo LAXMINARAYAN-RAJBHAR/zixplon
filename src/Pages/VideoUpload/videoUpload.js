@@ -65,7 +65,6 @@ const VideoUpload = () => {
   // ── Auto-select provider based on file size ──
   const autoSelectProvider = (file) => {
     const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB < 50)  return "supabase";
     if (sizeMB < 500) return "cloudinary";
     return "archive";
   };

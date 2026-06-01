@@ -9,6 +9,14 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { supabase } from "../../config/supabase";
 import RecordModal from "../RecordModal/RecordModal";
 
+const INITIAL_FIELDS = {
+  title: "",
+  description: "",
+  videoLink: "",
+  thumbnail: "",
+  videoType: "",
+};
+
 const VideoUpload = () => {
   const navigate = useNavigate();
 
@@ -21,13 +29,7 @@ const VideoUpload = () => {
   const [showRecordModal, setShowRecordModal] = useState(false);
   const currentUser = localStorage.getItem("username") || "";
 
-  const [inputField, setInputField] = useState({
-    title: "",
-    description: "",
-    videoLink: "",
-    thumbnail: "",
-    videoType: "",
-  });
+  const [inputField, setInputField] = useState({ ...INITIAL_FIELDS });
 
   const [loader, setLoader]                   = useState(false);
   const [thumbLoader, setThumbLoader]         = useState(false);
@@ -43,16 +45,21 @@ const VideoUpload = () => {
 
   const durationRef = useRef("00:00");
 
-  const switchMode = (mode) => {
-    setUploadMode(mode);
-    setInputField({ title: "", description: "", videoLink: "", thumbnail: "", videoType: "" });
+  const resetState = () => {
+    setInputField({ ...INITIAL_FIELDS });
     setVideoUploaded(false);
     setImageUploaded(false);
     setThumbSource("");
     setError("");
     setArchiveItemId("");
     setActiveProvider("");
+    setUploadProgress(0);
     durationRef.current = "00:00";
+  };
+
+  const switchMode = (mode) => {
+    setUploadMode(mode);
+    resetState();
   };
 
   // ── Auto-select provider based on file size ──
@@ -114,7 +121,7 @@ const VideoUpload = () => {
   };
 
   const handleOnChangeInput = (event, name) => {
-    setInputField({ ...inputField, [name]: event.target.value });
+    setInputField((prev) => ({ ...prev, [name]: event.target.value }));
     setError("");
   };
 
@@ -174,7 +181,7 @@ const VideoUpload = () => {
     const { error } = await supabase.storage
       .from("media")
       .upload(`${folder}/${fileName}`, file, { cacheControl: "3600", upsert: false });
-    if (error) throw error;
+    if (error) throw new Error(`Storage error: ${error.message}`);
     const { data: urlData } = supabase.storage
       .from("media")
       .getPublicUrl(`${folder}/${fileName}`);
@@ -251,7 +258,6 @@ const VideoUpload = () => {
       return;
     }
 
-    // ── Silently auto-select best provider ──
     const selectedProvider = autoSelectProvider(file);
     setActiveProvider(selectedProvider);
 
@@ -271,6 +277,7 @@ const VideoUpload = () => {
         videoUrl = await uploadToArchive(file);
       }
 
+      // Only auto-capture thumbnail if user hasn't uploaded one manually
       let thumbnailUrl = inputField.thumbnail;
       if (!imageUploaded) {
         thumbnailUrl = await uploadThumbnailToCloudinary(thumbnailBlob);
@@ -312,7 +319,7 @@ const VideoUpload = () => {
   const handleSubmit = async () => {
     if (!inputField.title)       return setError("Please enter a title.");
     if (!inputField.description) return setError("Please enter a description.");
-    if (!inputField.videoLink)   return setError("Please upload a video.");
+    if (!inputField.videoLink)   return setError("Please upload a video first.");
     if (uploadMode === "video" && !inputField.videoType)
       return setError("Please enter a category.");
 
@@ -331,26 +338,34 @@ const VideoUpload = () => {
           username:      localStorage.getItem("username") || "anonymous",
           duration:      durationRef.current,
         }]);
-        if (videoError) throw videoError;
+        if (videoError) {
+          console.error("Supabase videos error:", videoError);
+          throw new Error(videoError.message);
+        }
       } else {
+        // FIX: use "uploaded_by" instead of "user" (reserved keyword in PostgreSQL)
         const { error: reelError } = await supabase.from("reels").insert([{
           title:       inputField.title,
           description: inputField.description,
           video_url:   inputField.videoLink,
           thumbnail:   inputField.thumbnail,
-          user:        localStorage.getItem("username") || "Anonymous",
+          uploaded_by: localStorage.getItem("username") || "Anonymous",
           username:    (localStorage.getItem("username") || "anonymous").toLowerCase().replace(/\s+/g, ""),
           duration:    durationRef.current,
           likes:       0,
           comments:    0,
         }]);
-        if (reelError) throw reelError;
+        if (reelError) {
+          console.error("Supabase reels error:", reelError);
+          throw new Error(reelError.message);
+        }
       }
       setSaving(false);
       setSubmitted(true);
     } catch (err) {
       setSaving(false);
-      setError("Failed to save. Please try again.");
+      // Show the actual error so you can debug it
+      setError(err.message || "Failed to save. Please try again.");
       console.error("Save error:", err);
     }
   };
@@ -384,13 +399,7 @@ const VideoUpload = () => {
                 className="uploadBtns-form"
                 onClick={() => {
                   setSubmitted(false);
-                  setInputField({ title: "", description: "", videoLink: "", thumbnail: "", videoType: "" });
-                  setVideoUploaded(false);
-                  setImageUploaded(false);
-                  setThumbSource("");
-                  setArchiveItemId("");
-                  setActiveProvider("");
-                  durationRef.current = "00:00";
+                  resetState();
                 }}
               >
                 Upload Another
@@ -414,13 +423,23 @@ const VideoUpload = () => {
         </div>
 
         <div className="upload_mode_toggle">
-          <div className={`upload_mode_btn ${uploadMode === "video" ? "active" : ""}`} onClick={() => switchMode("video")}>
+          <div
+            className={`upload_mode_btn ${uploadMode === "video" ? "active" : ""}`}
+            onClick={() => switchMode("video")}
+          >
             🎬 Video
           </div>
-          <div className={`upload_mode_btn ${uploadMode === "reel" ? "active" : ""}`} onClick={() => switchMode("reel")}>
+          <div
+            className={`upload_mode_btn ${uploadMode === "reel" ? "active" : ""}`}
+            onClick={() => switchMode("reel")}
+          >
             📱 Shorts
           </div>
-          <div className="upload_mode_btn" onClick={() => setShowRecordModal(true)} style={{ position: "relative", cursor: "pointer" }}>
+          <div
+            className="upload_mode_btn"
+            onClick={() => setShowRecordModal(true)}
+            style={{ position: "relative", cursor: "pointer" }}
+          >
             <span style={{
               position: "absolute", top: "-4px", right: "-4px",
               width: "8px", height: "8px", borderRadius: "50%",
@@ -430,7 +449,9 @@ const VideoUpload = () => {
           </div>
         </div>
 
-        {showRecordModal && <RecordModal onClose={() => setShowRecordModal(false)} currentUser={currentUser} />}
+        {showRecordModal && (
+          <RecordModal onClose={() => setShowRecordModal(false)} currentUser={currentUser} />
+        )}
 
         <style>{`
           @keyframes recordPulse {
@@ -465,15 +486,26 @@ const VideoUpload = () => {
               type="text"
               value={inputField.videoType}
               onChange={(e) => handleOnChangeInput(e, "videoType")}
-              placeholder="Category (e.g. Music, Gaming, News, Long Videos)"
+              placeholder="Category (e.g. Music, Gaming, News)"
               className="uploadFormInputs"
             />
           )}
 
           <div className="upload_file_row">
-            <span className="upload_file_label">{uploadMode === "reel" ? "Reel Video" : "Video"}</span>
-            <input type="file" accept="video/mp4,video/webm,video/*" onChange={uploadVideo} style={{ display: "none" }} id="videoInput" />
-            <span className="upload_file_btn" onClick={() => document.getElementById("videoInput").click()}>
+            <span className="upload_file_label">
+              {uploadMode === "reel" ? "Reel Video" : "Video"}
+            </span>
+            <input
+              type="file"
+              accept="video/mp4,video/webm,video/*"
+              onChange={uploadVideo}
+              style={{ display: "none" }}
+              id="videoInput"
+            />
+            <span
+              className="upload_file_btn"
+              onClick={() => document.getElementById("videoInput").click()}
+            >
               {videoUploaded
                 ? `✅ Change ${uploadMode === "reel" ? "Reel" : "Video"}`
                 : `🎬 Choose ${uploadMode === "reel" ? "Reel" : "Video"}`}
@@ -485,8 +517,17 @@ const VideoUpload = () => {
               Thumbnail
               <span style={{ color: "#888", fontSize: "0.75rem", marginLeft: "6px" }}>(optional)</span>
             </span>
-            <input type="file" accept="image/*" onChange={uploadManualThumbnail} style={{ display: "none" }} id="thumbnailInput" />
-            <span className="upload_file_btn" onClick={() => document.getElementById("thumbnailInput").click()}>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={uploadManualThumbnail}
+              style={{ display: "none" }}
+              id="thumbnailInput"
+            />
+            <span
+              className="upload_file_btn"
+              onClick={() => document.getElementById("thumbnailInput").click()}
+            >
               {imageUploaded ? "✅ Change Thumbnail" : "📷 Choose Image"}
             </span>
             {thumbLoader && <CircularProgress size={20} sx={{ color: "orange", ml: 1 }} />}
@@ -534,7 +575,11 @@ const VideoUpload = () => {
             className={`uploadBtns-form ${loader || saving || thumbLoader ? "uploadBtns-disabled" : ""}`}
             onClick={!loader && !saving && !thumbLoader ? handleSubmit : undefined}
           >
-            {saving ? "Saving..." : loader ? `Uploading... ${uploadProgress}%` : `Upload ${uploadMode === "reel" ? "Reel" : "Video"}`}
+            {saving
+              ? "Saving..."
+              : loader
+              ? `Uploading... ${uploadProgress}%`
+              : `Upload ${uploadMode === "reel" ? "Reel" : "Video"}`}
           </div>
           <Link to={"/"} className="uploadBtns-form">Home</Link>
         </div>

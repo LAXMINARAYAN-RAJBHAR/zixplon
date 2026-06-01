@@ -411,7 +411,6 @@ const VideoUpload = () => {
             channel: localStorage.getItem("username") || "Anonymous",
             username: localStorage.getItem("username") || "anonymous",
             duration: durationRef.current,
-            storage_provider: provider,
           },
         ]);
         if (videoError) throw videoError;
@@ -429,7 +428,6 @@ const VideoUpload = () => {
             duration: durationRef.current,
             likes: 0,
             comments: 0,
-            storage_provider: provider,
           },
         ]);
         if (reelError) throw reelError;

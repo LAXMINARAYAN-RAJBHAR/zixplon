@@ -468,7 +468,7 @@ const VideoUpload = () => {
           video_url:   inputField.videoLink,
           thumbnail:   inputField.thumbnail,
           uploaded_by: localStorage.getItem("username") || "Anonymous",
-          username:    (localStorage.getItem("username") || "anonymous"),
+          username:    (localStorage.getItem("username") || "anonymous").toLowerCase().replace(/\s+/g, ""),
           duration:    durationRef.current,
           likes:       0,
           comments:    0,

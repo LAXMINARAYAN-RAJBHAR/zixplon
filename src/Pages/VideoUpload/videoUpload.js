@@ -100,7 +100,7 @@ const VideoUpload = () => {
     console.log(
       `File size: ${sizeMB.toFixed(1)} MB → provider: ${sizeMB < 500 ? "cloudinary" : "archive"}`,
     );
-    if (sizeMB < 500) return "cloudinary";
+    if (sizeMB < 100) return "cloudinary";
     return "archive";
   };
 
@@ -404,13 +404,13 @@ const VideoUpload = () => {
     }
 
     const selectedProvider = autoSelectProvider(file);
-    console.log(
-      "Selected provider:",
-      selectedProvider,
-      "| File size MB:",
-      (file.size / (1024 * 1024)).toFixed(1),
-    );
-    setActiveProvider(selectedProvider);
+
+// Force archive for anything Cloudinary can't handle
+const forcedProvider = selectedProvider === "cloudinary" && file.size > 100 * 1024 * 1024 
+  ? "archive" 
+  : selectedProvider;
+
+setActiveProvider(forcedProvider);
 
     try {
       const [, thumbnailBlob] = await Promise.all([

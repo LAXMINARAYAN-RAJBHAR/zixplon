@@ -22,10 +22,13 @@ const allVideos = [
 ];
 
 // ─── Helper: normalize a username string to a URL-safe key ───────────────────
-const toKey = (str = "") => str.toLowerCase().replace(/\s+/g, "_");
+// FIX: guard against null/undefined before calling toLowerCase
+const toKey = (str = "") => (str || "").toLowerCase().replace(/\s+/g, "_");
 
 // ─── Helper: does a candidate username match the URL key? ────────────────────
+// FIX: return false immediately if either argument is null/undefined/empty
 const matchesKey = (candidate = "", key = "") => {
+  if (!candidate || !key) return false;
   const c = candidate.toLowerCase();
   return (
     c === key ||
@@ -327,12 +330,6 @@ const Profile = ({ sideNavbar }) => {
   }
 
   return (
-    /*
-      FIX 1 — SCROLL:
-      The outer .profile wrapper must NOT be overflow:hidden or have a fixed height.
-      The inner .profile_page / .profile_page_inactive must also NOT be overflow:hidden.
-      Both are handled in profile.css (see the updated CSS block at the bottom).
-    */
     <div className="profile">
       <SideNavbar sideNavbar={sideNavbar} />
 
@@ -363,7 +360,6 @@ const Profile = ({ sideNavbar }) => {
             </div>
             <div className="profile_top_section_info">{user.about}</div>
 
-            {/* FIX 2 — OWNER BUTTONS always shown when isOwner is true */}
             {user.isOwner && (
               <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px" }}>
                 <Link
@@ -408,13 +404,12 @@ const Profile = ({ sideNavbar }) => {
                       <div className="profileVideo_block_detai_name">{video.title}</div>
                       <div className="profileVideo_block_detai_about">{video.channel}</div>
                       <div style={{ color: "#aaa", fontSize: "12px", marginTop: "4px", display: "flex", gap: "10px" }}>
-                      <span>👁 {videoCounts[String(video.id)]?.views ?? 0}</span>
-                      <span>👍 {videoCounts[String(video.id)]?.likes ?? 0}</span>
+                        <span>👁 {videoCounts[String(video.id)]?.views ?? 0}</span>
+                        <span>👍 {videoCounts[String(video.id)]?.likes ?? 0}</span>
                       </div>
                     </div>
                   </Link>
 
-                  {/* FIX 3 — DELETE button (only for DB videos owned by this user) */}
                   {user.isOwner && !String(video.id).startsWith("hard_") && typeof video.id === "number" && (
                     <button
                       onClick={() => confirmDelete("video", video.id, null, video.title)}
@@ -469,13 +464,12 @@ const Profile = ({ sideNavbar }) => {
                       <div className="profileVideo_block_detai_name">{reel.title}</div>
                       <div className="profileVideo_block_detai_about">{reel.description}</div>
                       <div style={{ color: "#aaa", fontSize: "12px", marginTop: "4px", display: "flex", gap: "10px" }}>
-                      <span>👁 {reelCounts[`db_${reel.dbId}`]?.views ?? 0}</span>
-                      <span>👍 {reelCounts[String(reel.dbId)]?.likes ?? 0}</span>
+                        <span>👁 {reelCounts[`db_${reel.dbId}`]?.views ?? 0}</span>
+                        <span>👍 {reelCounts[String(reel.dbId)]?.likes ?? 0}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* DELETE button for DB reels */}
                   {user.isOwner && reel.id.startsWith("db_") && (
                     <button
                       onClick={() => confirmDelete("reel", reel.id, reel.dbId, reel.title)}

@@ -42,6 +42,7 @@ const VideoUpload = () => {
   const [uploadProgress, setUploadProgress]   = useState(0);
   const [archiveItemId, setArchiveItemId]     = useState("");
   const [activeProvider, setActiveProvider]   = useState("");
+  const [archiveStatus, setArchiveStatus]     = useState(""); // FIX: show detailed archive status
 
   const durationRef = useRef("00:00");
 
@@ -54,6 +55,7 @@ const VideoUpload = () => {
     setArchiveItemId("");
     setActiveProvider("");
     setUploadProgress(0);
+    setArchiveStatus("");
     durationRef.current = "00:00";
   };
 
@@ -187,57 +189,133 @@ const VideoUpload = () => {
     return urlData.publicUrl;
   };
 
-  const uploadToArchive = async (file) => {
+  // ── FIX 1: Sanitize title for Archive headers ──
+  const sanitizeForHeader = (str) =>
+    str.replace(/[^\w\s\-.,!?()]/g, "").trim() || "Untitled";
+
+  const uploadToArchive = async (file, titleOverride = "") => {
     const ACCESS_KEY = process.env.REACT_APP_ARCHIVE_ACCESS;
     const SECRET_KEY = process.env.REACT_APP_ARCHIVE_SECRET;
+
+    // ── FIX 2: Validate keys exist before attempting upload ──
     if (!ACCESS_KEY || !SECRET_KEY) {
-      throw new Error("Internet Archive API keys not set.");
+      throw new Error(
+        "Internet Archive API keys are missing. Add REACT_APP_ARCHIVE_ACCESS and REACT_APP_ARCHIVE_SECRET to your .env file and restart."
+      );
     }
-    const username   = (localStorage.getItem("username") || "user").toLowerCase().replace(/\s+/g, "");
-    const identifier = `zixplon-${username}-${Date.now()}`;
-    const fileName   = file.name.replace(/\s+/g, "_");
+
+    const username = (localStorage.getItem("username") || "user")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, ""); // FIX 3: only alphanumeric in identifier
+
+    // ── FIX 4: More unique identifier to avoid 400 "already exists" collisions ──
+    const identifier = `zixplon-${username}-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 7)}`;
+
+    // ── FIX 5: Clean filename — no spaces or special chars ──
+    const fileName = file.name
+      .replace(/\s+/g, "_")
+      .replace(/[^\w.\-]/g, "");
+
     setArchiveItemId(identifier);
+    setArchiveStatus("Connecting to Archive.org...");
+
     const CHUNK_SIZE  = 50 * 1024 * 1024;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     const PARALLEL    = 3;
+
+    // Use titleOverride (passed at call time) so we have the real title
+    const safeTitle = sanitizeForHeader(titleOverride || file.name);
+    const safeDesc  = sanitizeForHeader(inputField.description || "Uploaded via ZIXPLON");
+
     const uploadChunk = (chunkIndex) => {
       return new Promise((resolve, reject) => {
         const start = chunkIndex * CHUNK_SIZE;
         const end   = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
-        const chunkFileName = totalChunks === 1
-          ? fileName
-          : `${fileName}.part${String(chunkIndex).padStart(4, "0")}`;
+
+        const chunkFileName =
+          totalChunks === 1
+            ? fileName
+            : `${fileName}.part${String(chunkIndex).padStart(4, "0")}`;
+
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", `https://s3.us.archive.org/${identifier}/${chunkFileName}`);
+
         xhr.setRequestHeader("Authorization", `LOW ${ACCESS_KEY}:${SECRET_KEY}`);
-        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
         xhr.setRequestHeader("x-archive-meta-mediatype", "movies");
-        xhr.setRequestHeader("x-archive-meta-title", inputField.title || file.name);
-        xhr.setRequestHeader("x-archive-meta-description", inputField.description || "Uploaded via ZIXPLON");
+        xhr.setRequestHeader("x-archive-meta-title", safeTitle);
+        xhr.setRequestHeader("x-archive-meta-description", safeDesc);
         xhr.setRequestHeader("x-archive-meta-subject", "zixplon;video");
         xhr.setRequestHeader("x-archive-auto-make-bucket", "1");
-        xhr.setRequestHeader("x-archive-meta-licenseurl", "http://creativecommons.org/licenses/by/4.0/");
+        xhr.setRequestHeader(
+          "x-archive-meta-licenseurl",
+          "http://creativecommons.org/licenses/by/4.0/"
+        );
+
+        // ── FIX 6: Per-chunk progress ──
         xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+          if (e.lengthComputable) {
+            const overall = Math.round(
+              ((chunkIndex + e.loaded / e.total) / totalChunks) * 100
+            );
+            setUploadProgress(overall);
+            setArchiveStatus(
+              `Uploading chunk ${chunkIndex + 1} of ${totalChunks}...`
+            );
+          }
         };
+
         xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) resolve(chunkFileName);
-          else reject(new Error(`Chunk ${chunkIndex} failed: ${xhr.status}`));
+          // ── FIX 7: Log full response for debugging ──
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(chunkFileName);
+          } else {
+            console.error(
+              `Archive chunk ${chunkIndex} failed`,
+              xhr.status,
+              xhr.responseText
+            );
+            // ── FIX 8: Human-readable error from Archive response ──
+            let reason = `Status ${xhr.status}`;
+            try {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(xhr.responseText, "text/xml");
+              const msg = doc.querySelector("Message, Error")?.textContent;
+              if (msg) reason = msg;
+            } catch (_) {}
+            reject(new Error(`Archive upload failed: ${reason}`));
+          }
         };
-        xhr.onerror = () => reject(new Error(`Network error on chunk ${chunkIndex}`));
+
+        xhr.onerror = () => {
+          console.error(`Network/CORS error on chunk ${chunkIndex}`);
+          reject(
+            new Error(
+              "Network error uploading to Archive.org. This may be a CORS issue — consider proxying through your backend."
+            )
+          );
+        };
+
         xhr.send(chunk);
       });
     };
+
     const chunkIndices = Array.from({ length: totalChunks }, (_, i) => i);
     let completed = 0;
+
     for (let i = 0; i < chunkIndices.length; i += PARALLEL) {
       const batch = chunkIndices.slice(i, i + PARALLEL);
       await Promise.all(batch.map((idx) => uploadChunk(idx)));
       completed += batch.length;
       setUploadProgress(Math.round((completed / totalChunks) * 100));
     }
+
     setUploadProgress(100);
+    setArchiveStatus("Upload complete! Processing on Archive.org...");
+
     return totalChunks === 1
       ? `https://archive.org/download/${identifier}/${fileName}`
       : `https://archive.org/download/${identifier}/${fileName}.part0000`;
@@ -247,6 +325,8 @@ const VideoUpload = () => {
     setLoader(true);
     setError("");
     setUploadProgress(0);
+    setArchiveStatus("");
+
     const files = e.target.files;
     if (!files || files.length === 0) { setLoader(false); return; }
     const file = files[0];
@@ -273,7 +353,8 @@ const VideoUpload = () => {
       } else if (selectedProvider === "cloudinary") {
         videoUrl = await uploadToCloudinary(file);
       } else if (selectedProvider === "archive") {
-        videoUrl = await uploadToArchive(file);
+        // ── FIX 9: Pass current title at call time so it's not empty ──
+        videoUrl = await uploadToArchive(file, inputField.title);
       }
 
       // Only auto-capture thumbnail if user hasn't uploaded one manually
@@ -290,6 +371,7 @@ const VideoUpload = () => {
     } catch (err) {
       setLoader(false);
       setUploadProgress(0);
+      setArchiveStatus("");
       setError(err.message || "Upload failed. Please try again.");
       console.error("Upload error:", err);
     }
@@ -342,7 +424,6 @@ const VideoUpload = () => {
           throw new Error(videoError.message);
         }
       } else {
-        // FIX: use "uploaded_by" instead of "user" (reserved keyword in PostgreSQL)
         const { error: reelError } = await supabase.from("reels").insert([{
           title:       inputField.title,
           description: inputField.description,
@@ -363,7 +444,6 @@ const VideoUpload = () => {
       setSubmitted(true);
     } catch (err) {
       setSaving(false);
-      // Show the actual error so you can debug it
       setError(err.message || "Failed to save. Please try again.");
       console.error("Save error:", err);
     }
@@ -547,7 +627,7 @@ const VideoUpload = () => {
                 <CircularProgress size={28} sx={{ color: "orange" }} />
                 <span style={{ color: "#aaa", fontSize: "0.9rem" }}>
                   {activeProvider === "archive"
-                    ? `🏛️ Uploading to Archive.org... ${uploadProgress}%`
+                    ? `🏛️ ${archiveStatus || `Uploading to Archive.org... ${uploadProgress}%`}`
                     : `☁️ Uploading... ${uploadProgress}%`}
                 </span>
               </Box>

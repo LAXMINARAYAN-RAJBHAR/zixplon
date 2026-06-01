@@ -9,19 +9,25 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { supabase } from "../../config/supabase";
 import RecordModal from "../RecordModal/RecordModal";
 
+const PROVIDERS = [
+  { id: "cloudinary", label: "☁️ Cloudinary", desc: "Up to 4GB" },
+  { id: "supabase", label: "🟢 Supabase", desc: "Up to 50MB" },
+  { id: "archive", label: "🏛️ Archive.org", desc: "Unlimited Free!" },
+];
+
 const VideoUpload = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
     const user = localStorage.getItem("username");
-    if (!user) {
-      navigate("/signup");
-    }
+    if (!user) navigate("/signup");
   }, []);
 
   const [uploadMode, setUploadMode] = useState("video");
+  const [provider, setProvider] = useState("cloudinary");
   const [showRecordModal, setShowRecordModal] = useState(false);
   const currentUser = localStorage.getItem("username") || "";
+  const isAdmin = currentUser === "s43799652";
 
   const [inputField, setInputField] = useState({
     title: "",
@@ -40,10 +46,10 @@ const VideoUpload = () => {
   const [saving, setSaving] = useState(false);
   const [thumbSource, setThumbSource] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [archiveItemId, setArchiveItemId] = useState("");
 
   const durationRef = useRef("00:00");
 
-  // ── Reset form when switching mode ──
   const switchMode = (mode) => {
     setUploadMode(mode);
     setInputField({
@@ -57,10 +63,10 @@ const VideoUpload = () => {
     setImageUploaded(false);
     setThumbSource("");
     setError("");
+    setArchiveItemId("");
     durationRef.current = "00:00";
   };
 
-  // ── Get video duration ──
   const getVideoDuration = (file) => {
     return new Promise((resolve) => {
       const videoEl = document.createElement("video");
@@ -81,7 +87,6 @@ const VideoUpload = () => {
     });
   };
 
-  // ── Capture thumbnail from video at 1 second ──
   const captureThumbnail = (file) => {
     return new Promise((resolve) => {
       const video = document.createElement("video");
@@ -95,7 +100,9 @@ const VideoUpload = () => {
       video.onseeked = () => {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas
+          .getContext("2d")
+          .drawImage(video, 0, 0, canvas.width, canvas.height);
         canvas.toBlob(
           (blob) => {
             URL.revokeObjectURL(video.src);
@@ -109,7 +116,6 @@ const VideoUpload = () => {
     });
   };
 
-  // ── Upload thumbnail blob to Cloudinary ──
   const uploadThumbnailToCloudinary = async (blob) => {
     const data = new FormData();
     data.append("file", blob, "thumbnail.jpg");
@@ -126,7 +132,178 @@ const VideoUpload = () => {
     setError("");
   };
 
-  // ── Upload video + auto-capture thumbnail ──
+  const uploadToCloudinary = async (file) => {
+    const CLOUD_NAME = "dwoqk0yue";
+    const UPLOAD_PRESET = "youtube-clone";
+    const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB — faster upload
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+    if (file.size <= CHUNK_SIZE) {
+      const videoData = new FormData();
+      videoData.append("file", file);
+      videoData.append("upload_preset", UPLOAD_PRESET);
+      const res = await axios.post(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
+        videoData,
+        {
+          onUploadProgress: (e) =>
+            setUploadProgress(Math.round((e.loaded * 100) / e.total)),
+          timeout: 0,
+        },
+      );
+      return res.data.secure_url;
+    }
+
+    const uniqueUploadId = `uq_${Date.now()}`;
+    let videoUrl = "";
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+      const start = chunkIndex * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+      const chunkData = new FormData();
+      chunkData.append("file", chunk);
+      chunkData.append("upload_preset", UPLOAD_PRESET);
+      const res = await axios.post(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
+        chunkData,
+        {
+          headers: {
+            "X-Unique-Upload-Id": uniqueUploadId,
+            "Content-Range": `bytes ${start}-${end - 1}/${file.size}`,
+          },
+          timeout: 0,
+          onUploadProgress: (e) => {
+            const overall = Math.round(
+              ((chunkIndex + e.loaded / e.total) / totalChunks) * 100,
+            );
+            setUploadProgress(overall);
+          },
+        },
+      );
+      if (chunkIndex === totalChunks - 1) videoUrl = res.data.secure_url;
+    }
+    return videoUrl;
+  };
+
+  const uploadToSupabase = async (file) => {
+    const fileName = `${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
+    const folder = uploadMode === "reel" ? "reels" : "videos";
+    const { error } = await supabase.storage
+      .from("media")
+      .upload(`${folder}/${fileName}`, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+    if (error) throw error;
+    const { data: urlData } = supabase.storage
+      .from("media")
+      .getPublicUrl(`${folder}/${fileName}`);
+    return urlData.publicUrl;
+  };
+
+  const uploadToArchive = async (file) => {
+    const ACCESS_KEY = process.env.REACT_APP_ARCHIVE_ACCESS;
+    const SECRET_KEY = process.env.REACT_APP_ARCHIVE_SECRET;
+
+    if (!ACCESS_KEY || !SECRET_KEY) {
+      throw new Error(
+        "Internet Archive API keys not set. Add REACT_APP_ARCHIVE_ACCESS and REACT_APP_ARCHIVE_SECRET to your .env file.",
+      );
+    }
+
+    const username = (localStorage.getItem("username") || "user")
+      .toLowerCase()
+      .replace(/\s+/g, "");
+    const identifier = `zixplon-${username}-${Date.now()}`;
+    const fileName = file.name.replace(/\s+/g, "_");
+    setArchiveItemId(identifier);
+
+    const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB chunks
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const PARALLEL = 3; // upload 3 chunks at once
+    let uploadedBytes = 0;
+
+    const uploadChunk = (chunkIndex) => {
+      return new Promise((resolve, reject) => {
+        const start = chunkIndex * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+        const chunkFileName =
+          totalChunks === 1
+            ? fileName
+            : `${fileName}.part${String(chunkIndex).padStart(4, "0")}`;
+
+        const xhr = new XMLHttpRequest();
+        xhr.open(
+          "PUT",
+          `https://s3.us.archive.org/${identifier}/${chunkFileName}`,
+        );
+        xhr.setRequestHeader(
+          "Authorization",
+          `LOW ${ACCESS_KEY}:${SECRET_KEY}`,
+        );
+        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.setRequestHeader("x-archive-meta-mediatype", "movies");
+        xhr.setRequestHeader(
+          "x-archive-meta-title",
+          inputField.title || file.name,
+        );
+        xhr.setRequestHeader(
+          "x-archive-meta-description",
+          inputField.description || "Uploaded via ZIXPLON",
+        );
+        xhr.setRequestHeader("x-archive-meta-subject", "zixplon;video");
+        xhr.setRequestHeader("x-archive-auto-make-bucket", "1");
+        xhr.setRequestHeader(
+          "x-archive-meta-licenseurl",
+          "http://creativecommons.org/licenses/by/4.0/",
+        );
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            uploadedBytes += e.loaded;
+            const pct = Math.min(
+              Math.round((uploadedBytes / file.size) * 100),
+              99,
+            );
+            setUploadProgress(pct);
+            // Reset so we don't double-count
+            uploadedBytes -= e.loaded;
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve(chunkFileName);
+          else reject(new Error(`Chunk ${chunkIndex} failed: ${xhr.status}`));
+        };
+        xhr.onerror = () =>
+          reject(new Error(`Network error on chunk ${chunkIndex}`));
+        xhr.send(chunk);
+      });
+    };
+
+    // Upload chunks in parallel batches
+    const chunkIndices = Array.from({ length: totalChunks }, (_, i) => i);
+    let completed = 0;
+
+    for (let i = 0; i < chunkIndices.length; i += PARALLEL) {
+      const batch = chunkIndices.slice(i, i + PARALLEL);
+      await Promise.all(batch.map((idx) => uploadChunk(idx)));
+      completed += batch.length;
+      setUploadProgress(Math.round((completed / totalChunks) * 100));
+    }
+
+    setUploadProgress(100);
+
+    // Return direct URL (single file or first part)
+    const directUrl =
+      totalChunks === 1
+        ? `https://archive.org/download/${identifier}/${fileName}`
+        : `https://archive.org/download/${identifier}/${fileName}.part0000`;
+
+    return directUrl;
+  };
+
   const uploadVideo = async (e) => {
     setLoader(true);
     setError("");
@@ -138,9 +315,15 @@ const VideoUpload = () => {
     }
     const file = files[0];
 
-    const MAX_SIZE = 4 * 1024 * 1024 * 1024;
-    if (file.size > MAX_SIZE) {
+    if (file.size > 4 * 1024 * 1024 * 1024) {
       setError("File too large. Maximum size is 4GB.");
+      setLoader(false);
+      return;
+    }
+    if (provider === "supabase" && file.size > 50 * 1024 * 1024) {
+      setError(
+        "Supabase limit is 50MB. Please choose Cloudinary or Archive.org for large files.",
+      );
       setLoader(false);
       return;
     }
@@ -151,62 +334,12 @@ const VideoUpload = () => {
         captureThumbnail(file),
       ]);
 
-      const CLOUD_NAME = "dwoqk0yue";
-      const UPLOAD_PRESET = "youtube-clone";
-      const CHUNK_SIZE = 20 * 1024 * 1024;
-      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
       let videoUrl = "";
-
-      if (file.size <= CHUNK_SIZE) {
-        const videoData = new FormData();
-        videoData.append("file", file);
-        videoData.append("upload_preset", UPLOAD_PRESET);
-        const videoRes = await axios.post(
-          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
-          videoData,
-          {
-            onUploadProgress: (e) => {
-              setUploadProgress(Math.round((e.loaded * 100) / e.total));
-            },
-            timeout: 0,
-          },
-        );
-        videoUrl = videoRes.data.secure_url;
-      } else {
-        const uniqueUploadId = `uq_${Date.now()}`;
-        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-          const start = chunkIndex * CHUNK_SIZE;
-          const end = Math.min(start + CHUNK_SIZE, file.size);
-          const chunk = file.slice(start, end);
-
-          const chunkData = new FormData();
-          chunkData.append("file", chunk);
-          chunkData.append("upload_preset", UPLOAD_PRESET);
-
-          const res = await axios.post(
-            `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
-            chunkData,
-            {
-              headers: {
-                "X-Unique-Upload-Id": uniqueUploadId,
-                "Content-Range": `bytes ${start}-${end - 1}/${file.size}`,
-              },
-              timeout: 0,
-              onUploadProgress: (e) => {
-                const chunkProgress = e.loaded / e.total;
-                const overall = Math.round(
-                  ((chunkIndex + chunkProgress) / totalChunks) * 100,
-                );
-                setUploadProgress(overall);
-              },
-            },
-          );
-
-          if (chunkIndex === totalChunks - 1) {
-            videoUrl = res.data.secure_url;
-          }
-        }
-      }
+      if (provider === "cloudinary") videoUrl = await uploadToCloudinary(file);
+      else if (provider === "supabase") {
+        videoUrl = await uploadToSupabase(file);
+        setUploadProgress(100);
+      } else if (provider === "archive") videoUrl = await uploadToArchive(file);
 
       let thumbnailUrl = inputField.thumbnail;
       if (!imageUploaded) {
@@ -225,12 +358,11 @@ const VideoUpload = () => {
     } catch (err) {
       setLoader(false);
       setUploadProgress(0);
-      setError("Upload failed. Please try again.");
-      console.log("Upload error:", err.response?.data || err);
+      setError(err.message || "Upload failed. Please try again.");
+      console.error("Upload error:", err);
     }
   };
 
-  // ── Manual thumbnail upload ──
   const uploadManualThumbnail = async (e) => {
     setThumbLoader(true);
     setError("");
@@ -254,11 +386,9 @@ const VideoUpload = () => {
     } catch (err) {
       setThumbLoader(false);
       setError("Thumbnail upload failed. Please try again.");
-      console.log("Thumbnail error:", err.response?.data || err);
     }
   };
 
-  // ── Save to Supabase ──
   const handleSubmit = async () => {
     if (!inputField.title) return setError("Please enter a title.");
     if (!inputField.description) return setError("Please enter a description.");
@@ -279,49 +409,71 @@ const VideoUpload = () => {
             thumbnail_url: inputField.thumbnail,
             category: inputField.videoType,
             channel: localStorage.getItem("username") || "Anonymous",
+            username: localStorage.getItem("username") || "anonymous",
             duration: durationRef.current,
+            storage_provider: provider,
           },
         ]);
         if (videoError) throw videoError;
       } else {
-        const reelInsertData = {
-          title: inputField.title,
-          description: inputField.description,
-          video_url: inputField.videoLink,
-          thumbnail: inputField.thumbnail,
-          user: localStorage.getItem("username") || "Anonymous",
-          username: (localStorage.getItem("username") || "anonymous")
-            .toLowerCase()
-            .replace(/\s+/g, ""),
-          duration: durationRef.current,
-          likes: 0,
-          comments: 0,
-        };
-        const { error: reelError } = await supabase.from("reels").insert([reelInsertData]);
-        if (reelError) {
-          console.error("REEL INSERT ERROR:", JSON.stringify(reelError, null, 2));
-          throw reelError;
-        }
+        const { error: reelError } = await supabase.from("reels").insert([
+          {
+            title: inputField.title,
+            description: inputField.description,
+            video_url: inputField.videoLink,
+            thumbnail: inputField.thumbnail,
+            user: localStorage.getItem("username") || "Anonymous",
+            username: (localStorage.getItem("username") || "anonymous")
+              .toLowerCase()
+              .replace(/\s+/g, ""),
+            duration: durationRef.current,
+            likes: 0,
+            comments: 0,
+            storage_provider: provider,
+          },
+        ]);
+        if (reelError) throw reelError;
       }
-
       setSaving(false);
       setSubmitted(true);
     } catch (err) {
       setSaving(false);
       setError("Failed to save. Please try again.");
-      console.log("FULL SAVE ERROR:", err);
+      console.error("Save error:", err);
     }
   };
 
-  // ── Success Screen ──
   if (submitted)
     return (
       <div className="videoUpload">
         <div className="uploadBox">
           <div className="upload_success_screen">
-            <CheckCircleOutlineIcon sx={{ fontSize: "64px", color: "#4caf50" }} />
-            <h2>{uploadMode === "reel" ? "Reel" : "Video"} Uploaded Successfully!</h2>
-            <p>Your {uploadMode === "reel" ? "reel" : "video"} is now live on ZIXPLON&reg;</p>
+            <CheckCircleOutlineIcon
+              sx={{ fontSize: "64px", color: "#4caf50" }}
+            />
+            <h2>
+              {uploadMode === "reel" ? "Reel" : "Video"} Uploaded Successfully!
+            </h2>
+            <p>
+              Your {uploadMode === "reel" ? "reel" : "video"} is now live on
+              ZIXPLON&reg;
+            </p>
+            {provider === "archive" && archiveItemId && (
+              <a
+                href={`https://archive.org/details/${archiveItemId}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  color: "#3ea6ff",
+                  fontSize: "13px",
+                  marginBottom: "12px",
+                  display: "block",
+                  textDecoration: "none",
+                }}
+              >
+                🏛️ View on Internet Archive →
+              </a>
+            )}
             <video
               src={inputField.videoLink}
               poster={inputField.thumbnail}
@@ -338,10 +490,17 @@ const VideoUpload = () => {
                 className="uploadBtns-form"
                 onClick={() => {
                   setSubmitted(false);
-                  setInputField({ title: "", description: "", videoLink: "", thumbnail: "", videoType: "" });
+                  setInputField({
+                    title: "",
+                    description: "",
+                    videoLink: "",
+                    thumbnail: "",
+                    videoType: "",
+                  });
                   setVideoUploaded(false);
                   setImageUploaded(false);
                   setThumbSource("");
+                  setArchiveItemId("");
                   durationRef.current = "00:00";
                 }}
               >
@@ -362,14 +521,11 @@ const VideoUpload = () => {
   return (
     <div className="videoUpload">
       <div className="uploadBox">
-
-        {/* ── Title ── */}
         <div className="uploadVideoTitle">
           <CloudUploadIcon sx={{ fontSize: "54px", color: "orange" }} />
           Upload
         </div>
 
-        {/* ── Mode Toggle — Video | Shorts | 🔴 Record / Live ── */}
         <div className="upload_mode_toggle">
           <div
             className={`upload_mode_btn ${uploadMode === "video" ? "active" : ""}`}
@@ -383,28 +539,27 @@ const VideoUpload = () => {
           >
             📱 Shorts
           </div>
-          {/* ✅ Record / Live tab */}
           <div
             className="upload_mode_btn"
             onClick={() => setShowRecordModal(true)}
             style={{ position: "relative", cursor: "pointer" }}
           >
-            {/* Pulsing red dot */}
-            <span style={{
-              position: "absolute",
-              top: "-4px",
-              right: "-4px",
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: "#ff0000",
-              animation: "recordPulse 1.2s infinite",
-            }} />
+            <span
+              style={{
+                position: "absolute",
+                top: "-4px",
+                right: "-4px",
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                background: "#ff0000",
+                animation: "recordPulse 1.2s infinite",
+              }}
+            />
             🔴 Record / Live
           </div>
         </div>
 
-        {/* ✅ RecordModal — at root level so it renders as true fullscreen overlay */}
         {showRecordModal && (
           <RecordModal
             onClose={() => setShowRecordModal(false)}
@@ -415,23 +570,127 @@ const VideoUpload = () => {
         <style>{`
           @keyframes recordPulse {
             0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.4; transform: scale(1.3); }
+            50%       { opacity: 0.4; transform: scale(1.3); }
           }
         `}</style>
 
         {uploadMode === "reel" && (
           <p className="upload_mode_hint">
-            Reels are short vertical videos — they will appear in the Reels / Shorts section.
+            Reels are short vertical videos — they appear in the Reels / Shorts
+            section.
           </p>
         )}
 
-        {/* ── Form ── */}
+        {/* ── Storage Provider Selector (Admin only) ── */}
+        {isAdmin && (
+          <div style={{ marginBottom: "16px" }}>
+            <p style={{ color: "#aaa", fontSize: "13px", marginBottom: "8px" }}>
+              📦 Storage Provider:
+            </p>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {PROVIDERS.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => setProvider(p.id)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "20px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    border:
+                      provider === p.id ? "2px solid orange" : "2px solid #333",
+                    background:
+                      provider === p.id ? "rgba(255,165,0,0.15)" : "#1a1a1a",
+                    color: provider === p.id ? "orange" : "#aaa",
+                    transition: "all 0.2s",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "2px",
+                  }}
+                >
+                  <span>{p.label}</span>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: "400",
+                      color: "#666",
+                    }}
+                  >
+                    {p.desc}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {provider === "archive" && (
+              <div
+                style={{
+                  marginTop: "10px",
+                  padding: "10px 14px",
+                  background: "rgba(62,166,255,0.08)",
+                  border: "1px solid rgba(62,166,255,0.2)",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "#3ea6ff",
+                }}
+              >
+                🏛️ <strong>Internet Archive</strong> — Free unlimited storage
+                for movies and videos. Get keys at{" "}
+                <a
+                  href="https://archive.org/account/s3.php"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "#3ea6ff" }}
+                >
+                  archive.org/account/s3.php
+                </a>
+              </div>
+            )}
+            {provider === "supabase" && (
+              <div
+                style={{
+                  marginTop: "10px",
+                  padding: "10px 14px",
+                  background: "rgba(0,200,100,0.08)",
+                  border: "1px solid rgba(0,200,100,0.2)",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "#4ade80",
+                }}
+              >
+                🟢 <strong>Supabase Storage</strong> — Best for small videos
+                under 50MB.
+              </div>
+            )}
+            {provider === "cloudinary" && (
+              <div
+                style={{
+                  marginTop: "10px",
+                  padding: "10px 14px",
+                  background: "rgba(255,165,0,0.08)",
+                  border: "1px solid rgba(255,165,0,0.2)",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "orange",
+                }}
+              >
+                ☁️ <strong>Cloudinary</strong> — Good for videos up to 4GB with
+                chunked upload support.
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="uploadForm">
           <input
             type="text"
             value={inputField.title}
             onChange={(e) => handleOnChangeInput(e, "title")}
-            placeholder={uploadMode === "reel" ? "Reel Title" : "Title of Video"}
+            placeholder={
+              uploadMode === "reel" ? "Reel Title" : "Title of Video"
+            }
             className="uploadFormInputs"
           />
           <input
@@ -441,18 +700,16 @@ const VideoUpload = () => {
             placeholder="Description"
             className="uploadFormInputs"
           />
-
           {uploadMode === "video" && (
             <input
               type="text"
               value={inputField.videoType}
               onChange={(e) => handleOnChangeInput(e, "videoType")}
-              placeholder="Category (e.g. Music, Gaming, News)"
+              placeholder="Category (e.g. Music, Gaming, News, Long Videos)"
               className="uploadFormInputs"
             />
           )}
 
-          {/* ── Video Upload ── */}
           <div className="upload_file_row">
             <span className="upload_file_label">
               {uploadMode === "reel" ? "Reel Video" : "Video"}
@@ -474,11 +731,16 @@ const VideoUpload = () => {
             </span>
           </div>
 
-          {/* ── Thumbnail Upload ── */}
           <div className="upload_file_row">
             <span className="upload_file_label">
               Thumbnail
-              <span style={{ color: "#888", fontSize: "0.75rem", marginLeft: "6px" }}>
+              <span
+                style={{
+                  color: "#888",
+                  fontSize: "0.75rem",
+                  marginLeft: "6px",
+                }}
+              >
                 (optional)
               </span>
             </span>
@@ -500,7 +762,6 @@ const VideoUpload = () => {
             )}
           </div>
 
-          {/* ── Thumbnail Preview ── */}
           {inputField.thumbnail && (
             <div className="upload_thumb_row">
               <img
@@ -508,7 +769,9 @@ const VideoUpload = () => {
                 alt="Thumbnail preview"
                 className="upload_thumb_preview"
               />
-              <span style={{ color: "#888", fontSize: "0.78rem", marginTop: "4px" }}>
+              <span
+                style={{ color: "#888", fontSize: "0.78rem", marginTop: "4px" }}
+              >
                 {thumbSource === "manual"
                   ? "✏️ Custom thumbnail"
                   : "🎞️ Auto-captured from video"}
@@ -516,48 +779,84 @@ const VideoUpload = () => {
             </div>
           )}
 
-          {/* ── Upload Progress ── */}
           {loader && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                width: "100%",
+              }}
+            >
               <Box sx={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <CircularProgress size={28} sx={{ color: "orange" }} />
                 <span style={{ color: "#aaa", fontSize: "0.9rem" }}>
-                  Uploading... {uploadProgress}%
+                  {provider === "archive"
+                    ? `🏛️ Uploading to Archive.org... ${uploadProgress}%`
+                    : `☁️ Uploading... ${uploadProgress}%`}
                 </span>
               </Box>
-              <div style={{ width: "100%", background: "#333", borderRadius: "8px", height: "8px" }}>
-                <div style={{
-                  width: `${uploadProgress}%`,
-                  background: "orange",
-                  height: "100%",
+              <div
+                style={{
+                  width: "100%",
+                  background: "#333",
                   borderRadius: "8px",
-                  transition: "width 0.3s",
-                }} />
+                  height: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${uploadProgress}%`,
+                    background: provider === "archive" ? "#3ea6ff" : "orange",
+                    height: "100%",
+                    borderRadius: "8px",
+                    transition: "width 0.3s",
+                  }}
+                />
               </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "11px",
+                  color: "#555",
+                }}
+              >
+                <span>
+                  {provider === "archive"
+                    ? "⚡ Parallel upload active"
+                    : "Uploading..."}
+                </span>
+                <span>{uploadProgress}%</span>
+              </div>
+              {provider === "archive" && (
+                <p style={{ color: "#555", fontSize: "11px", margin: 0 }}>
+                  ⚠️ Large files may take a few minutes. Do not close this tab.
+                </p>
+              )}
             </Box>
           )}
 
-          {/* ── Error ── */}
           {error && <p className="upload_error_msg">{error}</p>}
         </div>
 
-        {/* ── Buttons ── */}
         <div className="uploadBtns">
           <div
             className={`uploadBtns-form ${loader || saving || thumbLoader ? "uploadBtns-disabled" : ""}`}
-            onClick={!loader && !saving && !thumbLoader ? handleSubmit : undefined}
+            onClick={
+              !loader && !saving && !thumbLoader ? handleSubmit : undefined
+            }
           >
             {saving
               ? "Saving..."
               : loader
-                ? "Uploading..."
+                ? `Uploading... ${uploadProgress}%`
                 : `Upload ${uploadMode === "reel" ? "Reel" : "Video"}`}
           </div>
           <Link to={"/"} className="uploadBtns-form">
             Home
           </Link>
         </div>
-
       </div>
     </div>
   );

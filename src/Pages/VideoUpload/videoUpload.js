@@ -59,9 +59,7 @@ const VideoUpload = () => {
     try {
       if ("wakeLock" in navigator) {
         wakeLockRef.current = await navigator.wakeLock.request("screen");
-        console.log(
-          "✅ Wake Lock acquired — screen will stay on during upload",
-        );
+        console.log("✅ Wake Lock acquired — screen will stay on during upload");
       }
     } catch (err) {
       console.warn("Wake Lock not available:", err.message);
@@ -136,7 +134,6 @@ const VideoUpload = () => {
 
   // ── Auto-select provider based on file size ──
   // Files < 100MB → Cloudinary | Files >= 100MB → Archive.org
-  // (Cloudinary free plan limit is 100MB for video)
   const autoSelectProvider = (file) => {
     const sizeMB = file.size / (1024 * 1024);
     console.log(
@@ -300,53 +297,37 @@ const VideoUpload = () => {
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "");
 
-    // ── FIXED: 16 random hex chars instead of 5 ──
+    // ── 16 random hex chars — globally unique bucket name ──
     const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(8)))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
-    // ── Use let so we can reassign if bucket already exists ──
     let identifier = `zixplon-${username}-${Date.now()}-${randomPart}`;
 
-    // ── CHECK before uploading — regenerate if bucket already taken ──
+    // ── CHECK bucket before uploading — regenerate if already taken ──
     try {
-      const checkRes = await fetch(
-        `https://archive.org/metadata/${identifier}`,
-      );
+      const checkRes = await fetch(`https://archive.org/metadata/${identifier}`);
       const checkData = await checkRes.json();
       if (checkData && checkData.metadata) {
-        // Bucket exists — generate a fresh one
-        const retryRandom = Array.from(
-          crypto.getRandomValues(new Uint8Array(8)),
-        )
+        const retryRandom = Array.from(crypto.getRandomValues(new Uint8Array(8)))
           .map((b) => b.toString(16).padStart(2, "0"))
           .join("");
         identifier = `zixplon-${username}-${Date.now()}-${retryRandom}`;
       }
     } catch (_) {
-      // If check fails, continue anyway — identifier is likely fine
+      // continue — identifier is likely fine
     }
 
-    const originalExt = file.name.split(".").pop().toLowerCase();
-    const allowedExts = [
-      "mp4",
-      "mpeg4",
-      "m4b",
-      "m4v",
-      "webm",
-      "mkv",
-      "avi",
-      "mov",
-    ];
-    const safeExt = allowedExts.includes(originalExt) ? originalExt : "mp4";
-
+    // ── FIXED: Always force .mp4 extension — Archive.org only reliably accepts .mp4 ──
     const baseName = file.name
-      .replace(/\.[^/.]+$/, "") // remove extension
-      .replace(/\s+/g, "_") // spaces → underscores
-      .replace(/[^\w\-]/g, "") // remove ALL special chars including ()
-      .slice(0, 80); // max 80 chars
+      .replace(/\.[^/.]+$/, "")   // strip original extension
+      .replace(/\s+/g, "_")       // spaces → underscores
+      .replace(/[^\w\-]/g, "")    // remove ALL special chars: ()[]{}#@! etc
+      .slice(0, 80);              // max 80 chars
 
-    const fileName = `${baseName}.${safeExt}`;
+    const fileName = `${baseName || "video"}.mp4`; // always .mp4
+
+    console.log("Archive filename:", fileName);
 
     setArchiveItemId(identifier);
     setArchiveStatus("Connecting to Archive.org...");
@@ -355,7 +336,7 @@ const VideoUpload = () => {
     const CHUNK_SIZE = 200 * 1024 * 1024;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
-    // ── FIXED: 2 parallel uploads (was 6) — prevents spam detection ──
+    // ── 2 parallel uploads — prevents spam detection ──
     const PARALLEL = 2;
 
     const safeTitle = sanitizeForHeader(titleOverride || file.name);
@@ -382,20 +363,9 @@ const VideoUpload = () => {
           `https://s3.us.archive.org/${identifier}/${chunkFileName}`,
         );
 
-        xhr.setRequestHeader(
-          "Authorization",
-          `LOW ${ACCESS_KEY}:${SECRET_KEY}`,
-        );
-        const mimeMap = {
-          mp4: "video/mp4",
-          mpeg4: "video/mp4",
-          m4v: "video/mp4",
-          webm: "video/webm",
-          mkv: "video/x-matroska",
-          avi: "video/x-msvideo",
-          mov: "video/quicktime",
-        };
-        xhr.setRequestHeader("Content-Type", mimeMap[safeExt] || "video/mp4");
+        xhr.setRequestHeader("Authorization", `LOW ${ACCESS_KEY}:${SECRET_KEY}`);
+        // ── Always video/mp4 — Archive.org is strict about this ──
+        xhr.setRequestHeader("Content-Type", "video/mp4");
         xhr.setRequestHeader("x-archive-meta-mediatype", "movies");
         xhr.setRequestHeader("x-archive-meta-title", safeTitle);
         xhr.setRequestHeader("x-archive-meta-description", safeDesc);
@@ -424,11 +394,7 @@ const VideoUpload = () => {
             totalUploadedBytes += end - start;
             resolve(chunkFileName);
           } else {
-            console.error(
-              `Archive chunk ${chunkIndex} failed`,
-              xhr.status,
-              xhr.responseText,
-            );
+            console.error(`Archive chunk ${chunkIndex} failed`, xhr.status, xhr.responseText);
             let reason = `Status ${xhr.status}`;
             try {
               const parser = new DOMParser();
@@ -458,7 +424,7 @@ const VideoUpload = () => {
     for (let i = 0; i < chunkIndices.length; i += PARALLEL) {
       const batch = chunkIndices.slice(i, i + PARALLEL);
       await Promise.all(batch.map((idx) => uploadChunk(idx)));
-      // ── FIXED: 500ms pause between batches to avoid spam detection ──
+      // 500ms pause between batches — avoids spam detection
       if (i + PARALLEL < chunkIndices.length) {
         await new Promise((r) => setTimeout(r, 500));
       }
@@ -508,10 +474,10 @@ const VideoUpload = () => {
         : selectedProvider;
 
     console.log(
-      "Final provider:",
-      forcedProvider,
-      "| File size MB:",
-      (file.size / (1024 * 1024)).toFixed(1),
+      "Final provider:", forcedProvider,
+      "| File size MB:", (file.size / (1024 * 1024)).toFixed(1),
+      "| File name:", file.name,
+      "| File type:", file.type,
     );
 
     setActiveProvider(forcedProvider);
@@ -546,7 +512,7 @@ const VideoUpload = () => {
       setVideoUploaded(true);
       setUploadProgress(100);
       setLoader(false);
-      releaseWakeLock(); // ── Screen can sleep again ──
+      releaseWakeLock();
     } catch (err) {
       setLoader(false);
       setUploadProgress(0);
@@ -554,7 +520,7 @@ const VideoUpload = () => {
       setTimeRemaining("");
       setError(err.message || "Upload failed. Please try again.");
       console.error("Upload error:", err);
-      releaseWakeLock(); // ── Screen can sleep again ──
+      releaseWakeLock();
     }
   };
 
@@ -647,16 +613,9 @@ const VideoUpload = () => {
       <div className="videoUpload">
         <div className="uploadBox">
           <div className="upload_success_screen">
-            <CheckCircleOutlineIcon
-              sx={{ fontSize: "64px", color: "#4caf50" }}
-            />
-            <h2>
-              {uploadMode === "reel" ? "Reel" : "Video"} Uploaded Successfully!
-            </h2>
-            <p>
-              Your {uploadMode === "reel" ? "reel" : "video"} is now live on
-              ZIXPLON&reg;
-            </p>
+            <CheckCircleOutlineIcon sx={{ fontSize: "64px", color: "#4caf50" }} />
+            <h2>{uploadMode === "reel" ? "Reel" : "Video"} Uploaded Successfully!</h2>
+            <p>Your {uploadMode === "reel" ? "reel" : "video"} is now live on ZIXPLON&reg;</p>
             {activeProvider === "archive" && archiveItemId && (
               <a
                 href={`https://archive.org/details/${archiveItemId}`}
@@ -687,10 +646,7 @@ const VideoUpload = () => {
             <div className="uploadBtns">
               <div
                 className="uploadBtns-form"
-                onClick={() => {
-                  setSubmitted(false);
-                  resetState();
-                }}
+                onClick={() => { setSubmitted(false); resetState(); }}
               >
                 Upload Another
               </div>
@@ -749,10 +705,7 @@ const VideoUpload = () => {
         </div>
 
         {showRecordModal && (
-          <RecordModal
-            onClose={() => setShowRecordModal(false)}
-            currentUser={currentUser}
-          />
+          <RecordModal onClose={() => setShowRecordModal(false)} currentUser={currentUser} />
         )}
 
         <style>{`
@@ -764,8 +717,7 @@ const VideoUpload = () => {
 
         {uploadMode === "reel" && (
           <p className="upload_mode_hint">
-            Reels are short vertical videos — they appear in the Reels / Shorts
-            section.
+            Reels are short vertical videos — they appear in the Reels / Shorts section.
           </p>
         )}
 
@@ -774,9 +726,7 @@ const VideoUpload = () => {
             type="text"
             value={inputField.title}
             onChange={(e) => handleOnChangeInput(e, "title")}
-            placeholder={
-              uploadMode === "reel" ? "Reel Title" : "Title of Video"
-            }
+            placeholder={uploadMode === "reel" ? "Reel Title" : "Title of Video"}
             className="uploadFormInputs"
           />
           <input
@@ -820,13 +770,7 @@ const VideoUpload = () => {
           <div className="upload_file_row">
             <span className="upload_file_label">
               Thumbnail
-              <span
-                style={{
-                  color: "#888",
-                  fontSize: "0.75rem",
-                  marginLeft: "6px",
-                }}
-              >
+              <span style={{ color: "#888", fontSize: "0.75rem", marginLeft: "6px" }}>
                 (optional)
               </span>
             </span>
@@ -855,13 +799,7 @@ const VideoUpload = () => {
                 alt="Thumbnail preview"
                 className="upload_thumb_preview"
               />
-              <span
-                style={{
-                  color: "#888",
-                  fontSize: "0.78rem",
-                  marginTop: "4px",
-                }}
-              >
+              <span style={{ color: "#888", fontSize: "0.78rem", marginTop: "4px" }}>
                 {thumbSource === "manual"
                   ? "✏️ Custom thumbnail"
                   : "🎞️ Auto-captured from video"}
@@ -870,14 +808,7 @@ const VideoUpload = () => {
           )}
 
           {loader && (
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-                width: "100%",
-              }}
-            >
+            <Box sx={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
               {/* Status line */}
               <Box sx={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <CircularProgress size={28} sx={{ color: "orange" }} />
@@ -889,19 +820,11 @@ const VideoUpload = () => {
               </Box>
 
               {/* Progress bar */}
-              <div
-                style={{
-                  width: "100%",
-                  background: "#333",
-                  borderRadius: "8px",
-                  height: "8px",
-                }}
-              >
+              <div style={{ width: "100%", background: "#333", borderRadius: "8px", height: "8px" }}>
                 <div
                   style={{
                     width: `${uploadProgress}%`,
-                    background:
-                      activeProvider === "archive" ? "#3ea6ff" : "orange",
+                    background: activeProvider === "archive" ? "#3ea6ff" : "orange",
                     height: "100%",
                     borderRadius: "8px",
                     transition: "width 0.3s",
@@ -910,13 +833,7 @@ const VideoUpload = () => {
               </div>
 
               {/* Speed & ETA row */}
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ color: "#666", fontSize: "0.8rem" }}>
                   {uploadProgress}% complete
                   {uploadSpeed > 0 ? ` • ${uploadSpeed} MB/s` : ""}
@@ -924,8 +841,7 @@ const VideoUpload = () => {
                 {timeRemaining && (
                   <span
                     style={{
-                      color:
-                        activeProvider === "archive" ? "#3ea6ff" : "orange",
+                      color: activeProvider === "archive" ? "#3ea6ff" : "orange",
                       fontSize: "0.8rem",
                       fontWeight: 500,
                     }}
@@ -937,9 +853,8 @@ const VideoUpload = () => {
 
               {activeProvider === "archive" && (
                 <p style={{ color: "#555", fontSize: "11px", margin: 0 }}>
-                  ⚠️ Large files may take several minutes from India to US
-                  servers. Screen will stay on automatically — do not close this
-                  tab.
+                  ⚠️ Large files may take several minutes from India to US servers.
+                  Screen will stay on automatically — do not close this tab.
                 </p>
               )}
             </Box>
@@ -950,12 +865,8 @@ const VideoUpload = () => {
 
         <div className="uploadBtns">
           <div
-            className={`uploadBtns-form ${
-              loader || saving || thumbLoader ? "uploadBtns-disabled" : ""
-            }`}
-            onClick={
-              !loader && !saving && !thumbLoader ? handleSubmit : undefined
-            }
+            className={`uploadBtns-form ${loader || saving || thumbLoader ? "uploadBtns-disabled" : ""}`}
+            onClick={!loader && !saving && !thumbLoader ? handleSubmit : undefined}
           >
             {saving
               ? "Saving..."

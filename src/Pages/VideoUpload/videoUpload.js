@@ -52,6 +52,39 @@ const VideoUpload = () => {
 
   const durationRef = useRef("00:00");
 
+  // ── Wake Lock — keeps screen on during upload ──
+  const wakeLockRef = useRef(null);
+
+  const requestWakeLock = async () => {
+    try {
+      if ("wakeLock" in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request("screen");
+        console.log("✅ Wake Lock acquired — screen will stay on during upload");
+      }
+    } catch (err) {
+      console.warn("Wake Lock not available:", err.message);
+    }
+  };
+
+  const releaseWakeLock = () => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release();
+      wakeLockRef.current = null;
+      console.log("🔓 Wake Lock released");
+    }
+  };
+
+  // Re-acquire wake lock if page becomes visible again (e.g. user switches tabs)
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible" && loader && wakeLockRef.current === null) {
+        await requestWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [loader]);
+
   const resetState = () => {
     setInputField({ ...INITIAL_FIELDS });
     setVideoUploaded(false);
@@ -249,27 +282,44 @@ const VideoUpload = () => {
     str.replace(/[^\w\s\-.,!?()]/g, "").trim() || "Untitled";
 
   const uploadToArchive = async (file, titleOverride = "") => {
-    const ACCESS_KEY = process.env.REACT_APP_ARCHIVE_ACCESS;
-    const SECRET_KEY = process.env.REACT_APP_ARCHIVE_SECRET;
+  const ACCESS_KEY = process.env.REACT_APP_ARCHIVE_ACCESS;
+  const SECRET_KEY = process.env.REACT_APP_ARCHIVE_SECRET;
 
-    if (!ACCESS_KEY || !SECRET_KEY) {
-      throw new Error(
-        "Internet Archive API keys are missing. Add REACT_APP_ARCHIVE_ACCESS and REACT_APP_ARCHIVE_SECRET to your .env file and restart.",
-      );
+  if (!ACCESS_KEY || !SECRET_KEY) {
+    throw new Error("Internet Archive API keys are missing.");
+  }
+
+  const username = (localStorage.getItem("username") || "user")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+  // ── FIXED: 16 random hex chars instead of 5 ──
+  const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  // ── Use let so we can reassign if bucket already exists ──
+  let identifier = `zixplon-${username}-${Date.now()}-${randomPart}`;
+
+  // ── CHECK before uploading — regenerate if bucket already taken ──
+  try {
+    const checkRes = await fetch(`https://archive.org/metadata/${identifier}`);
+    const checkData = await checkRes.json();
+    if (checkData && checkData.metadata) {
+      // Bucket exists — generate a fresh one
+      const retryRandom = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+      identifier = `zixplon-${username}-${Date.now()}-${retryRandom}`;
     }
+  } catch (_) {
+    // If check fails, continue anyway — identifier is likely fine
+  }
 
-    const username = (localStorage.getItem("username") || "user")
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, "");
+  const fileName = file.name.replace(/\s+/g, "_").replace(/[^\w.\-]/g, "");
 
-    const identifier = `zixplon-${username}-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 7)}`;
-
-    const fileName = file.name.replace(/\s+/g, "_").replace(/[^\w.\-]/g, "");
-
-    setArchiveItemId(identifier);
-    setArchiveStatus("Connecting to Archive.org...");
+  setArchiveItemId(identifier);
+  setArchiveStatus("Connecting to Archive.org...");
 
     // ── 200MB chunks — fewer round-trips to USA ──
     const CHUNK_SIZE = 200 * 1024 * 1024;
@@ -394,6 +444,9 @@ const VideoUpload = () => {
     uploadStartTime.current = Date.now();
     uploadedBytesRef.current = 0;
 
+    // ── Keep screen awake during upload ──
+    await requestWakeLock();
+
     const files = e.target.files;
     if (!files || files.length === 0) {
       setLoader(false);
@@ -454,6 +507,7 @@ const VideoUpload = () => {
       setVideoUploaded(true);
       setUploadProgress(100);
       setLoader(false);
+      releaseWakeLock(); // ── Screen can sleep again ──
     } catch (err) {
       setLoader(false);
       setUploadProgress(0);
@@ -461,6 +515,7 @@ const VideoUpload = () => {
       setTimeRemaining("");
       setError(err.message || "Upload failed. Please try again.");
       console.error("Upload error:", err);
+      releaseWakeLock(); // ── Screen can sleep again ──
     }
   };
 
@@ -848,7 +903,7 @@ const VideoUpload = () => {
               {activeProvider === "archive" && (
                 <p style={{ color: "#555", fontSize: "11px", margin: 0 }}>
                   ⚠️ Large files may take several minutes from India to US
-                  servers. Do not close this tab.
+                  servers. Screen will stay on automatically — do not close this tab.
                 </p>
               )}
             </Box>

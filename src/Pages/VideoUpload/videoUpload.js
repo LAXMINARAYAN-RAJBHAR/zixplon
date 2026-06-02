@@ -325,9 +325,7 @@ const VideoUpload = () => {
               ((chunkIndex + e.loaded / e.total) / totalChunks) * 100,
             );
             setUploadProgress(overall);
-            setArchiveStatus(
-              `Uploading part ${chunkIndex + 1} of ${totalChunks}...`,
-            );
+            setArchiveStatus("Uploading your video...");
             updateSpeedAndETA(totalUploadedBytes + chunkUploaded, file.size);
           }
         };

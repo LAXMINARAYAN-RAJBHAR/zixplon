@@ -59,7 +59,9 @@ const VideoUpload = () => {
     try {
       if ("wakeLock" in navigator) {
         wakeLockRef.current = await navigator.wakeLock.request("screen");
-        console.log("✅ Wake Lock acquired — screen will stay on during upload");
+        console.log(
+          "✅ Wake Lock acquired — screen will stay on during upload",
+        );
       }
     } catch (err) {
       console.warn("Wake Lock not available:", err.message);
@@ -77,12 +79,17 @@ const VideoUpload = () => {
   // Re-acquire wake lock if page becomes visible again (e.g. user switches tabs)
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible" && loader && wakeLockRef.current === null) {
+      if (
+        document.visibilityState === "visible" &&
+        loader &&
+        wakeLockRef.current === null
+      ) {
         await requestWakeLock();
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [loader]);
 
   const resetState = () => {
@@ -282,44 +289,67 @@ const VideoUpload = () => {
     str.replace(/[^\w\s\-.,!?()]/g, "").trim() || "Untitled";
 
   const uploadToArchive = async (file, titleOverride = "") => {
-  const ACCESS_KEY = process.env.REACT_APP_ARCHIVE_ACCESS;
-  const SECRET_KEY = process.env.REACT_APP_ARCHIVE_SECRET;
+    const ACCESS_KEY = process.env.REACT_APP_ARCHIVE_ACCESS;
+    const SECRET_KEY = process.env.REACT_APP_ARCHIVE_SECRET;
 
-  if (!ACCESS_KEY || !SECRET_KEY) {
-    throw new Error("Internet Archive API keys are missing.");
-  }
-
-  const username = (localStorage.getItem("username") || "user")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-
-  // ── FIXED: 16 random hex chars instead of 5 ──
-  const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(8)))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-
-  // ── Use let so we can reassign if bucket already exists ──
-  let identifier = `zixplon-${username}-${Date.now()}-${randomPart}`;
-
-  // ── CHECK before uploading — regenerate if bucket already taken ──
-  try {
-    const checkRes = await fetch(`https://archive.org/metadata/${identifier}`);
-    const checkData = await checkRes.json();
-    if (checkData && checkData.metadata) {
-      // Bucket exists — generate a fresh one
-      const retryRandom = Array.from(crypto.getRandomValues(new Uint8Array(8)))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-      identifier = `zixplon-${username}-${Date.now()}-${retryRandom}`;
+    if (!ACCESS_KEY || !SECRET_KEY) {
+      throw new Error("Internet Archive API keys are missing.");
     }
-  } catch (_) {
-    // If check fails, continue anyway — identifier is likely fine
-  }
 
-  const fileName = file.name.replace(/\s+/g, "_").replace(/[^\w.\-]/g, "");
+    const username = (localStorage.getItem("username") || "user")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
 
-  setArchiveItemId(identifier);
-  setArchiveStatus("Connecting to Archive.org...");
+    // ── FIXED: 16 random hex chars instead of 5 ──
+    const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    // ── Use let so we can reassign if bucket already exists ──
+    let identifier = `zixplon-${username}-${Date.now()}-${randomPart}`;
+
+    // ── CHECK before uploading — regenerate if bucket already taken ──
+    try {
+      const checkRes = await fetch(
+        `https://archive.org/metadata/${identifier}`,
+      );
+      const checkData = await checkRes.json();
+      if (checkData && checkData.metadata) {
+        // Bucket exists — generate a fresh one
+        const retryRandom = Array.from(
+          crypto.getRandomValues(new Uint8Array(8)),
+        )
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+        identifier = `zixplon-${username}-${Date.now()}-${retryRandom}`;
+      }
+    } catch (_) {
+      // If check fails, continue anyway — identifier is likely fine
+    }
+
+    const originalExt = file.name.split(".").pop().toLowerCase();
+    const allowedExts = [
+      "mp4",
+      "mpeg4",
+      "m4b",
+      "m4v",
+      "webm",
+      "mkv",
+      "avi",
+      "mov",
+    ];
+    const safeExt = allowedExts.includes(originalExt) ? originalExt : "mp4";
+
+    const baseName = file.name
+      .replace(/\.[^/.]+$/, "") // remove extension
+      .replace(/\s+/g, "_") // spaces → underscores
+      .replace(/[^\w\-]/g, "") // remove ALL special chars including ()
+      .slice(0, 80); // max 80 chars
+
+    const fileName = `${baseName}.${safeExt}`;
+
+    setArchiveItemId(identifier);
+    setArchiveStatus("Connecting to Archive.org...");
 
     // ── 200MB chunks — fewer round-trips to USA ──
     const CHUNK_SIZE = 200 * 1024 * 1024;
@@ -356,7 +386,16 @@ const VideoUpload = () => {
           "Authorization",
           `LOW ${ACCESS_KEY}:${SECRET_KEY}`,
         );
-        xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
+        const mimeMap = {
+          mp4: "video/mp4",
+          mpeg4: "video/mp4",
+          m4v: "video/mp4",
+          webm: "video/webm",
+          mkv: "video/x-matroska",
+          avi: "video/x-msvideo",
+          mov: "video/quicktime",
+        };
+        xhr.setRequestHeader("Content-Type", mimeMap[safeExt] || "video/mp4");
         xhr.setRequestHeader("x-archive-meta-mediatype", "movies");
         xhr.setRequestHeader("x-archive-meta-title", safeTitle);
         xhr.setRequestHeader("x-archive-meta-description", safeDesc);
@@ -657,9 +696,7 @@ const VideoUpload = () => {
               </div>
               <div
                 className="uploadBtns-form"
-                onClick={() =>
-                  navigate(uploadMode === "reel" ? "/reels" : "/")
-                }
+                onClick={() => navigate(uploadMode === "reel" ? "/reels" : "/")}
               >
                 {uploadMode === "reel" ? "Go to Reels" : "Go Home"}
               </div>
@@ -802,9 +839,7 @@ const VideoUpload = () => {
             />
             <span
               className="upload_file_btn"
-              onClick={() =>
-                document.getElementById("thumbnailInput").click()
-              }
+              onClick={() => document.getElementById("thumbnailInput").click()}
             >
               {imageUploaded ? "✅ Change Thumbnail" : "📷 Choose Image"}
             </span>
@@ -903,7 +938,8 @@ const VideoUpload = () => {
               {activeProvider === "archive" && (
                 <p style={{ color: "#555", fontSize: "11px", margin: 0 }}>
                   ⚠️ Large files may take several minutes from India to US
-                  servers. Screen will stay on automatically — do not close this tab.
+                  servers. Screen will stay on automatically — do not close this
+                  tab.
                 </p>
               )}
             </Box>

@@ -19,8 +19,6 @@ const useCountry = () => {
   useEffect(() => {
     const fetchCountry = async () => {
       const apis = [
-        { url: "https://ipapi.co/json/", parse: (d) => d.country_code },
-        { url: "https://ipwho.is/", parse: (d) => d.country_code },
         { url: "https://api.country.is/", parse: (d) => d.country },
       ];
       for (const api of apis) {
@@ -563,8 +561,6 @@ const Navbar = ({
       setSuggestionData(getSuggestions(allNavItems[activeIndex].text));
     }
   };
-
-  <Link to="/feed">📰 Feed</Link>
 
   const speak = (text, callback) => {
     const utter = new SpeechSynthesisUtterance(text);

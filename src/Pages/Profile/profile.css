@@ -145,3 +145,77 @@
   font-size: 13px;
   margin-top: 2px;
 }
+@media (max-width: 768px) {
+  .profile {
+    padding: 5px 10px 0 10px;
+  }
+
+  .profile_page,
+  .profile_page_inactive {
+    margin-left: 0;
+    margin-top: 56px;
+    width: 100%;
+    padding-bottom: 80px;
+  }
+
+  /* Banner */
+  .profile > div[style*="height: 180px"] {
+    border-radius: 0;
+  }
+
+  /* Profile header stack vertically */
+  .profile_top_section {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+  }
+
+  .profile_top_section_profile {
+    width: auto;
+  }
+
+  .profile_top_section_img {
+    width: 90px;
+    height: 90px;
+  }
+
+  .profile_top_section_About {
+    align-items: center;
+    padding: 0;
+  }
+
+  .profile_top_section_About_Name {
+    font-size: 22px;
+  }
+
+  .profile_top_section_info {
+    font-size: 13px;
+  }
+
+  /* Video/Reel cards — 2 per row on mobile */
+  .profileVideos {
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  .profileVideo_block {
+    width: calc(50% - 5px);
+  }
+
+  .profileVideo_block_thumbnail {
+    height: 100px;
+  }
+
+  .profileVideo_block_detai_name {
+    font-size: 12px;
+  }
+
+  .profileVideo_block_detai_about {
+    font-size: 11px;
+  }
+
+  .profile_videos_title {
+    font-size: 16px;
+  }
+}

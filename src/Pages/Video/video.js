@@ -900,6 +900,11 @@ const Video = () => {
   setDisliked(false);
   setVideoError(false);
   setIsVideoPlaying(false);
+  setTimeout(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, 50);
 }, [id]);
 
   if (dbLoading) {

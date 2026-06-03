@@ -15,11 +15,26 @@
 @media (max-width: 768px) {
   .pf-feed {
     margin-left: 0;
-    padding: 70px 16px 80px;
-    max-width: 400px;    /* add this */
-    width: 100%;         /* add this */
-    margin-right: auto;  /* add this */
-    margin-left: auto;   /* change from 0 to auto */
+    margin-right: 0;
+    padding: 70px 12px 80px;
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .pf-composer,
+  .pf-card {
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;  /* prevents overflow */
+  }
+
+  .pf-composer-top {
+    flex-wrap: wrap;  /* stops avatar pushing content off screen */
+  }
+
+  .pf-action-btn span {
+    font-size: 12px;  /* slightly smaller so Share fits */
   }
 }
 

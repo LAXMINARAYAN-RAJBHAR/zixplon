@@ -897,10 +897,18 @@ const Video = () => {
   }, [id]);
 
   useEffect(() => {
-    setDisliked(false);
-    setVideoError(false);
-    setIsVideoPlaying(false);
-  }, [id]);
+  setDisliked(false);
+  setVideoError(false);
+  setIsVideoPlaying(false);
+  
+  // scroll the video player into view
+  setTimeout(() => {
+    const player = document.querySelector(".video_player_wrapper");
+    if (player) {
+      player.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, 100);
+}, [id]);
 
   if (dbLoading) {
     return (

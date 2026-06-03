@@ -3,8 +3,9 @@ import { supabase } from "../../config/supabase";
 import "./PostFeed.css";
 import PostComposer from "./PostComposer";
 import PostCard from "./PostCard";
+import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 
-const PostFeed = () => {
+const PostFeed = ({ sideNavbar }) => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -203,6 +204,8 @@ const PostFeed = () => {
   }
 
   return (
+  <>
+    <SideNavbar sideNavbar={sideNavbar} />
     <div className="pf-feed">
       <PostComposer currentUser={currentUser} onPost={handleNewPost} />
 
@@ -234,7 +237,8 @@ const PostFeed = () => {
         </button>
       )}
     </div>
-  );
+  </>
+);
 };
 
 export default PostFeed;

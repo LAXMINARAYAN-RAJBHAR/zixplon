@@ -250,7 +250,7 @@ function App() {
             element={<CommunityGuidelinesPage />}
           />
           <Route path="/advertise" element={<AdvertisePage />} />
-          <Route path="/feed" element={<PostFeed />} />
+          <Route path="/feed" element={<PostFeed sideNavbar={sideNavbar} />} />
         </Routes>
       </div>
 

@@ -9,6 +9,13 @@
   padding: 70px 12px 60px;  /* 70px clears top navbar */
   margin-left: 275px;        /* clears the sidebar */
 }
+@media (max-width: 768px) {
+  .pf-feed {
+    margin-left: 0;
+    padding: 70px 12px 80px;
+    max-width: 100%;
+  }
+}
 
 /* ── Shared avatar ── */
 .pf-avatar {

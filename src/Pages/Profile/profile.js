@@ -73,11 +73,11 @@ const Profile = ({ sideNavbar }) => {
 
       if (lsUsername && matchesKey(lsUsername, key)) {
         setUser({
-          name: lsUsername,
-          handle: `@${lsUsername}`,
-          profilePic:
-            lsProfilePic ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=ff0000&color=fff&size=120`,
+  name: lsUsername,
+  handle: `@${lsUsername}`,
+  profilePic:
+    lsProfilePic ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=ff0000&color=fff&size=120&length=2`,
           about: lsAbout || `${lsUsername}'s channel`,
           email: lsEmail,
           isOwner: true,
@@ -348,7 +348,7 @@ const Profile = ({ sideNavbar }) => {
               src={user.profilePic}
               alt={user.name}
               onError={(e) => {
-                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=ff0000&color=fff&size=120`;
+              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=ff0000&color=fff&size=120&length=2`;
               }}
             />
           </div>
@@ -394,7 +394,7 @@ const Profile = ({ sideNavbar }) => {
               {allUserVideos.map((video) => (
                 <div key={video.id} style={{ position: "relative" }}>
                   <Link to={`/video/${video.id}`} className="profileVideo_block">
-                    <div className="profileVideo_block_thumbnail" style={{ position: "relative" }}>
+                    <div className="profileVideo_block_thumbnail reel-thumb" style={{ position: "relative" }}>
                       <img className="profileVideo_block_thumbnail_img" src={video.thumbnail} alt={video.title} />
                       <span style={{ position: "absolute", bottom: "6px", right: "6px", background: "rgba(0,0,0,0.75)", color: "white", fontSize: "11px", padding: "2px 5px", borderRadius: "4px" }}>
                         {video.duration}

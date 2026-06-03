@@ -6,6 +6,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import VideoCallIcon from "@mui/icons-material/VideoCall";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
+import NewspaperIcon from "@mui/icons-material/Newspaper";
 
 const BottomNav = ({ currentUser }) => {
   const location = useLocation();
@@ -76,10 +77,10 @@ const BottomNav = ({ currentUser }) => {
           <span className="bottom-nav-label" style={{ color: isActive("/local-player") ? activeColor : inactiveColor }}>Player</span>
         </Link>
 
-        <Link to="/763/upload" className="bottom-nav-item">
-          <VideoCallIcon sx={{ fontSize: "22px", color: isActive("/763/upload") ? activeColor : inactiveColor }} />
-          <span className="bottom-nav-label" style={{ color: isActive("/763/upload") ? activeColor : inactiveColor }}>Upload</span>
-        </Link>
+        <Link to="/feed" className="bottom-nav-item">
+  <NewspaperIcon sx={{ fontSize: "22px", color: isActive("/feed") ? activeColor : inactiveColor }} />
+  <span className="bottom-nav-label" style={{ color: isActive("/feed") ? activeColor : inactiveColor }}>Feed</span>
+</Link>
 
         <Link to={currentUser ? `/user/${currentUser}` : "/signup"} className="bottom-nav-item">
           <AccountCircleIcon sx={{ fontSize: "22px", color: isActive(`/user/${currentUser}`) ? activeColor : inactiveColor }} />

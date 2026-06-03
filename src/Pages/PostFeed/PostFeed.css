@@ -8,12 +8,18 @@
   margin: 0 auto;
   padding: 70px 12px 60px;  /* 70px clears top navbar */
   margin-left: 275px;        /* clears the sidebar */
+  max-width: 780px;    /* add this */
+  width: 100%;         /* add this */
+  margin-right: auto;  /* add this */
 }
 @media (max-width: 768px) {
   .pf-feed {
     margin-left: 0;
-    padding: 70px 12px 80px;
-    max-width: 100%;
+    padding: 70px 16px 80px;
+    max-width: 480px;    /* add this */
+    width: 100%;         /* add this */
+    margin-right: auto;  /* add this */
+    margin-left: auto;   /* change from 0 to auto */
   }
 }
 

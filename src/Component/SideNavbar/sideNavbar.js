@@ -12,6 +12,7 @@ import WatchLaterIcon from "@mui/icons-material/WatchLater";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import ContentCutIcon from "@mui/icons-material/ContentCut";
 import { Link, useLocation } from "react-router-dom";
+import NewspaperIcon from "@mui/icons-material/Newspaper";
 
 const SideNavbar = ({ sideNavbar }) => {
   const location = useLocation();
@@ -37,6 +38,14 @@ const SideNavbar = ({ sideNavbar }) => {
             <div className="home_sideNavbarTopOptionTitle">Home</div>
           </div>
         </Link>
+
+           {/* Feed */}
+<Link to="/feed" className="home_sideNavbar_link">
+  <div className="home_sideNavbarTopOption" style={isActive("/feed") ? activeStyle : {}}>
+    <NewspaperIcon />
+    <div className="home_sideNavbarTopOptionTitle">Feed</div>
+  </div>
+</Link>
 
         {/* Shorts */}
         <Link to="/reels" className="home_sideNavbar_link">

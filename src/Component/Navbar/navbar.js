@@ -564,6 +564,8 @@ const Navbar = ({
     }
   };
 
+  <Link to="/feed">📰 Feed</Link>
+
   const speak = (text, callback) => {
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-IN";

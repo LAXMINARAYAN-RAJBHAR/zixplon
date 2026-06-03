@@ -900,14 +900,7 @@ const Video = () => {
   setDisliked(false);
   setVideoError(false);
   setIsVideoPlaying(false);
-  // scroll everything possible
   window.scrollTo(0, 0);
-  document.documentElement.scrollTo(0, 0);
-  document.body.scrollTo(0, 0);
-  const videoEl = document.querySelector(".video");
-  if (videoEl) videoEl.scrollTo(0, 0);
-  const suggestions = document.querySelector(".videoSuggestions");
-  if (suggestions) suggestions.scrollTo(0, 0);
 }, [id]);
 
   if (dbLoading) {

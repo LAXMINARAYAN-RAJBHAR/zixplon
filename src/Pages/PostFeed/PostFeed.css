@@ -8,7 +8,7 @@
   margin: 0 auto;
   padding: 70px 12px 60px;  /* 70px clears top navbar */
   margin-left: 275px;        /* clears the sidebar */
-  max-width: 780px;    /* add this */
+  max-width: 680px;    /* add this */
   width: 100%;         /* add this */
   margin-right: auto;  /* add this */
 }

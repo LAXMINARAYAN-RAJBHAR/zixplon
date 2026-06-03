@@ -7,18 +7,101 @@ import { reelsData } from "../../Component/Reels/reels";
 import { supabase } from "../../config/supabase";
 
 const allVideos = [
-  { id: 7679, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTu-l3JR0guZspKsBZkVoakjkQ-qxUCCpkQnw&s", title: "Big Buck Bunny open-source film", duration: "09:56", channel: "Gangeshwary" },
-  { id: 2, thumbnail: "https://i.ytimg.com/vi/ScMzIvxBSi4/hqdefault.jpg", title: "Sample Video 2", duration: "30:00", channel: "Mummy" },
-  { id: 3, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwyNTbTLzlbDj6RSQdV6imNyxNywT3pchKKg&s", title: "3d Lion Stock Photo", duration: "60:00", channel: "Papa" },
-  { id: 4, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpWv_QvC-7P4_8Ubbg2rwn0Om4APOgf6B3yA&s", title: "Sample Video 4", duration: "10:00", channel: "Karthik" },
-  { id: 5, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRZleDiTkppd2k7GVmREMQRs8D8JBbNXuuxUA&s", title: "8k Wallpaper 3d Photos", duration: "18:00", channel: "Annu" },
-  { id: 6, thumbnail: "https://damassets.autodesk.net/content/dam/autodesk/www/industry/3d-animation/create-beautiful-3d-animations-thumb-1204x677.jpg", title: "3D Animation Solutions", duration: "08:00", channel: "Jyoti" },
-  { id: 7, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMxQZtpZz8NgMYzzNMiBm-n4h2oGYovjK2lQ&s", title: "3D Shapes | Types & Examples", duration: "28:00", channel: "Sarita" },
-  { id: 8, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSK5izd-jLAR_UjqnUULPW42Pv_LIpL0W60cQ&s", title: "3d Graphics Pictures", duration: "20:00", channel: "Jaynarayan" },
-  { id: 9, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQN6EQg2_-8zTqUk1YRvLpJinJk67VF0wEZfg&s", title: "Scenery 3d wallpaper", duration: "10:00", channel: "Shyamnarayan" },
-  { id: 10, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRS5r-8k6FyUEN9OYQu5WgyyNqT8lrqgw7dCQ&s", title: "3D Nature Images", duration: "12:00", channel: "Rajbhar" },
-  { id: 11, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeUzhAtZL9ElXiENfplVjR5dCJsUQUG2NuXg&s", title: "5,364,800+ 3d Images", duration: "13:30", channel: "Narayan" },
-  { id: 12, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQdcK3NWfTM_cOjFOH6ArcBdUbu29e0AVjFZw&s", title: "Understanding 3D Computer Graphics", duration: "20:50", channel: "Laxminarayan" },
+  {
+    id: 7679,
+    thumbnail:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTu-l3JR0guZspKsBZkVoakjkQ-qxUCCpkQnw&s",
+    title: "Big Buck Bunny open-source film",
+    duration: "09:56",
+    channel: "Gangeshwary",
+  },
+  {
+    id: 2,
+    thumbnail: "https://i.ytimg.com/vi/ScMzIvxBSi4/hqdefault.jpg",
+    title: "Sample Video 2",
+    duration: "30:00",
+    channel: "Mummy",
+  },
+  {
+    id: 3,
+    thumbnail:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwyNTbTLzlbDj6RSQdV6imNyxNywT3pchKKg&s",
+    title: "3d Lion Stock Photo",
+    duration: "60:00",
+    channel: "Papa",
+  },
+  {
+    id: 4,
+    thumbnail:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpWv_QvC-7P4_8Ubbg2rwn0Om4APOgf6B3yA&s",
+    title: "Sample Video 4",
+    duration: "10:00",
+    channel: "Karthik",
+  },
+  {
+    id: 5,
+    thumbnail:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRZleDiTkppd2k7GVmREMQRs8D8JBbNXuuxUA&s",
+    title: "8k Wallpaper 3d Photos",
+    duration: "18:00",
+    channel: "Annu",
+  },
+  {
+    id: 6,
+    thumbnail:
+      "https://damassets.autodesk.net/content/dam/autodesk/www/industry/3d-animation/create-beautiful-3d-animations-thumb-1204x677.jpg",
+    title: "3D Animation Solutions",
+    duration: "08:00",
+    channel: "Jyoti",
+  },
+  {
+    id: 7,
+    thumbnail:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMxQZtpZz8NgMYzzNMiBm-n4h2oGYovjK2lQ&s",
+    title: "3D Shapes | Types & Examples",
+    duration: "28:00",
+    channel: "Sarita",
+  },
+  {
+    id: 8,
+    thumbnail:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSK5izd-jLAR_UjqnUULPW42Pv_LIpL0W60cQ&s",
+    title: "3d Graphics Pictures",
+    duration: "20:00",
+    channel: "Jaynarayan",
+  },
+  {
+    id: 9,
+    thumbnail:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQN6EQg2_-8zTqUk1YRvLpJinJk67VF0wEZfg&s",
+    title: "Scenery 3d wallpaper",
+    duration: "10:00",
+    channel: "Shyamnarayan",
+  },
+  {
+    id: 10,
+    thumbnail:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRS5r-8k6FyUEN9OYQu5WgyyNqT8lrqgw7dCQ&s",
+    title: "3D Nature Images",
+    duration: "12:00",
+    channel: "Rajbhar",
+  },
+  {
+    id: 11,
+    thumbnail:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeUzhAtZL9ElXiENfplVjR5dCJsUQUG2NuXg&s",
+    title: "5,364,800+ 3d Images",
+    duration: "13:30",
+    channel: "Narayan",
+  },
+  {
+    id: 12,
+    thumbnail:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQdcK3NWfTM_cOjFOH6ArcBdUbu29e0AVjFZw&s",
+    title: "Understanding 3D Computer Graphics",
+    duration: "20:50",
+    channel: "Laxminarayan",
+  },
 ];
 
 // ─── Helper: normalize a username string to a URL-safe key ───────────────────
@@ -42,18 +125,18 @@ const Profile = ({ sideNavbar }) => {
   const key = username?.toLowerCase();
   const navigate = useNavigate();
 
-  const [user, setUser]         = useState(null);
+  const [user, setUser] = useState(null);
   const [dbVideos, setDbVideos] = useState([]);
-  const [dbReels, setDbReels]   = useState([]);
-  const [loading, setLoading]   = useState(true);
+  const [dbReels, setDbReels] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [videoCounts, setVideoCounts] = useState({}); // { [videoId]: { likes, views } }
-  const [reelCounts,  setReelCounts]  = useState({}); // { [reelId]:  { likes, views } }
+  const [reelCounts, setReelCounts] = useState({}); // { [reelId]:  { likes, views } }
 
   // Edit-profile modal state
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [editName, setEditName]   = useState("");
+  const [editName, setEditName] = useState("");
   const [editAbout, setEditAbout] = useState("");
-  const [editPic, setEditPic]     = useState("");
+  const [editPic, setEditPic] = useState("");
   const [editLoading, setEditLoading] = useState(false);
 
   // ─── Confirm-delete state ────────────────────────────────────────────────
@@ -68,20 +151,23 @@ const Profile = ({ sideNavbar }) => {
       // ── 1. Try localStorage (fastest) ──────────────────────────────────
       const lsUsername = localStorage.getItem("username");
       const lsProfilePic = localStorage.getItem("profilePic");
-      const lsAbout    = localStorage.getItem("about");
-      const lsEmail    = localStorage.getItem("email");
+      const lsAbout = localStorage.getItem("about");
+      const lsEmail = localStorage.getItem("email");
 
       if (lsUsername && matchesKey(lsUsername, key)) {
-        setUser({
+        const lsBannerPic = localStorage.getItem("bannerPic"); // 👈 add this above setUser
+
+setUser({
   name: lsUsername,
   handle: `@${lsUsername}`,
   profilePic:
     lsProfilePic ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=ff0000&color=fff&size=120&length=2`,
-          about: lsAbout || `${lsUsername}'s channel`,
-          email: lsEmail,
-          isOwner: true,
-        });
+  about: lsAbout || `${lsUsername}'s channel`,
+  email: lsEmail,
+  isOwner: true,
+  bannerPic: lsBannerPic || null, // 👈 add this line
+});
       } else {
         // ── 2. Try Supabase auth session ──────────────────────────────────
         const { data: authData } = await supabase.auth.getUser();
@@ -91,20 +177,24 @@ const Profile = ({ sideNavbar }) => {
           authUser?.user_metadata?.username;
 
         if (authUsername && matchesKey(authUsername, key)) {
-          setUser({
-            name: authUsername,
-            handle: `@${authUsername}`,
-            profilePic:
-              authUser.user_metadata?.profilePic ||
-              `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`,
-            about: authUser.user_metadata?.about || `${authUsername}'s channel`,
-            email: authUser.email,
-            isOwner: true,
-          });
+  setUser({
+    name: authUsername,
+    handle: `@${authUsername}`,
+    profilePic:
+      authUser.user_metadata?.profilePic ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`,
+    about: authUser.user_metadata?.about || `${authUsername}'s channel`,
+    email: authUser.email,
+    isOwner: true,
+    bannerPic: authUser.user_metadata?.bannerPic || localStorage.getItem("bannerPic") || null, // 👈 add this line
+  });
           // Keep localStorage in sync so future refreshes are instant
           localStorage.setItem("username", authUsername);
           if (authUser.user_metadata?.profilePic)
-            localStorage.setItem("profilePic", authUser.user_metadata.profilePic);
+            localStorage.setItem(
+              "profilePic",
+              authUser.user_metadata.profilePic,
+            );
           if (authUser.user_metadata?.about)
             localStorage.setItem("about", authUser.user_metadata.about);
         } else {
@@ -118,7 +208,7 @@ const Profile = ({ sideNavbar }) => {
 
           if (videoUserData) {
             const match = videoUserData.find(
-              (v) => matchesKey(v.username, key) || matchesKey(v.channel, key)
+              (v) => matchesKey(v.username, key) || matchesKey(v.channel, key),
             );
             if (match) {
               foundUser = {
@@ -138,7 +228,9 @@ const Profile = ({ sideNavbar }) => {
               .limit(200);
 
             if (reelUserData) {
-              const match = reelUserData.find((r) => matchesKey(r.username, key));
+              const match = reelUserData.find((r) =>
+                matchesKey(r.username, key),
+              );
               if (match) {
                 foundUser = {
                   name: match.user || match.username,
@@ -179,7 +271,9 @@ const Profile = ({ sideNavbar }) => {
       if (vData) {
         setDbVideos(
           vData
-            .filter((v) => matchesKey(v.username, key) || matchesKey(v.channel, key))
+            .filter(
+              (v) => matchesKey(v.username, key) || matchesKey(v.channel, key),
+            )
             .map((v) => ({
               id: v.id,
               src: v.video_url,
@@ -187,7 +281,7 @@ const Profile = ({ sideNavbar }) => {
               title: v.title,
               duration: v.duration || "00:00",
               channel: v.channel,
-            }))
+            })),
         );
       }
 
@@ -203,9 +297,10 @@ const Profile = ({ sideNavbar }) => {
             .filter((r) => matchesKey(r.username, key))
             .map((r) => ({
               id: `db_${r.id}`,
-              dbId: r.id,            // raw DB id for deletion
+              dbId: r.id, // raw DB id for deletion
               src: r.video_url,
-              thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99",
+              thumbnail:
+                r.thumbnail || "https://picsum.photos/200/350?random=99",
               title: r.title || "Untitled",
               duration: r.duration || "00:00",
               description: r.description || "",
@@ -213,15 +308,23 @@ const Profile = ({ sideNavbar }) => {
               user: r.user || r.username,
               profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
               likes: 0,
-            }))
+            })),
         );
       }
       // ── Fetch likes & views for all videos ──
       if (vData) {
         const ids = vData.map((v) => String(v.id));
         const [{ data: vLikes }, { data: vViews }] = await Promise.all([
-          supabase.from("likes").select("content_id").eq("content_type", "video").in("content_id", ids),
-          supabase.from("views").select("content_id").eq("content_type", "video").in("content_id", ids),
+          supabase
+            .from("likes")
+            .select("content_id")
+            .eq("content_type", "video")
+            .in("content_id", ids),
+          supabase
+            .from("views")
+            .select("content_id")
+            .eq("content_type", "video")
+            .in("content_id", ids),
         ]);
         const counts = {};
         ids.forEach((id) => {
@@ -237,8 +340,16 @@ const Profile = ({ sideNavbar }) => {
       if (rData) {
         const ids = rData.map((r) => `db_${r.id}`);
         const [{ data: rLikes }, { data: rViews }] = await Promise.all([
-          supabase.from("likes").select("content_id").eq("content_type", "reel").in("content_id", ids),
-          supabase.from("views").select("content_id").eq("content_type", "reel").in("content_id", ids),
+          supabase
+            .from("likes")
+            .select("content_id")
+            .eq("content_type", "reel")
+            .in("content_id", ids),
+          supabase
+            .from("views")
+            .select("content_id")
+            .eq("content_type", "reel")
+            .in("content_id", ids),
         ]);
         const counts = {};
         ids.forEach((id) => {
@@ -255,19 +366,23 @@ const Profile = ({ sideNavbar }) => {
     loadProfile();
   }, [key]);
 
-  const hardcodedReels  = reelsData.filter((r) => r.username?.toLowerCase() === key);
-  const hardcodedVideos = allVideos.filter((v) => v.channel?.toLowerCase() === key);
-  const allUserVideos   = [...dbVideos, ...hardcodedVideos];
-  const allUserReels    = [...dbReels, ...hardcodedReels];
+  const hardcodedReels = reelsData.filter(
+    (r) => r.username?.toLowerCase() === key,
+  );
+  const hardcodedVideos = allVideos.filter(
+    (v) => v.channel?.toLowerCase() === key,
+  );
+  const allUserVideos = [...dbVideos, ...hardcodedVideos];
+  const allUserReels = [...dbReels, ...hardcodedReels];
 
   // ─── Save edited profile ─────────────────────────────────────────────────
   const handleSaveProfile = async () => {
-    const newName  = editName.trim()  || user.name;
+    const newName = editName.trim() || user.name;
     const newAbout = editAbout.trim() || user.about;
-    const newPic   = editPic.trim()   || user.profilePic;
+    const newPic = editPic.trim() || user.profilePic;
 
-    localStorage.setItem("username",   newName);
-    localStorage.setItem("about",      newAbout);
+    localStorage.setItem("username", newName);
+    localStorage.setItem("about", newAbout);
     localStorage.setItem("profilePic", newPic);
 
     await supabase.auth.updateUser({
@@ -311,8 +426,27 @@ const Profile = ({ sideNavbar }) => {
   // ─── Loading / not-found states ──────────────────────────────────────────
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", color: "white", flexDirection: "column", gap: "16px" }}>
-        <div style={{ width: "40px", height: "40px", border: "4px solid #333", borderTop: "4px solid #ff4444", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "60vh",
+          color: "white",
+          flexDirection: "column",
+          gap: "16px",
+        }}
+      >
+        <div
+          style={{
+            width: "40px",
+            height: "40px",
+            border: "4px solid #333",
+            borderTop: "4px solid #ff4444",
+            borderRadius: "50%",
+            animation: "spin 0.8s linear infinite",
+          }}
+        />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -320,11 +454,23 @@ const Profile = ({ sideNavbar }) => {
 
   if (!user) {
     return (
-      <div style={{ color: "white", padding: "40px", textAlign: "center", marginTop: "56px" }}>
+      <div
+        style={{
+          color: "white",
+          padding: "40px",
+          textAlign: "center",
+          marginTop: "56px",
+        }}
+      >
         <div style={{ fontSize: "48px", marginBottom: "16px" }}>👤</div>
         <h2>No profile exists for "@{username}"</h2>
         <p style={{ color: "#aaa" }}>This user hasn't signed up yet.</p>
-        <Link to="/" style={{ color: "#3ea6ff", textDecoration: "none", fontSize: "14px" }}>← Go Home</Link>
+        <Link
+          to="/"
+          style={{ color: "#3ea6ff", textDecoration: "none", fontSize: "14px" }}
+        >
+          ← Go Home
+        </Link>
       </div>
     );
   }
@@ -334,10 +480,103 @@ const Profile = ({ sideNavbar }) => {
       <SideNavbar sideNavbar={sideNavbar} />
 
       <div className={sideNavbar ? "profile_page" : "profile_page_inactive"}>
-
         {/* ── Banner ── */}
-        <div style={{ width: "100%", height: "180px", background: "linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)", borderRadius: "12px", marginBottom: "20px", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 30% 50%, rgba(255,0,0,0.15), transparent 60%)" }} />
+        <div
+          style={{
+            width: "100%",
+            height: "180px",
+            borderRadius: "12px",
+            marginBottom: "20px",
+            position: "relative",
+            overflow: "hidden",
+            background: "#111",
+            cursor: user.isOwner ? "pointer" : "default",
+          }}
+          onClick={() =>
+            user.isOwner && document.getElementById("bannerInput").click()
+          }
+        >
+          {/* Banner image or default gradient */}
+          {user.bannerPic ? (
+            <img
+              src={user.bannerPic}
+              alt="channel banner"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+            />
+          ) : (
+            <>
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background:
+                    "linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background:
+                    "radial-gradient(circle at 30% 50%, rgba(255,0,0,0.15), transparent 60%)",
+                }}
+              />
+            </>
+          )}
+
+          {/* Upload hint — only for owner */}
+          {user.isOwner && (
+            <div
+              style={{
+                position: "absolute",
+                bottom: "10px",
+                right: "14px",
+                background: "rgba(0,0,0,0.6)",
+                color: "white",
+                fontSize: "12px",
+                padding: "5px 12px",
+                borderRadius: "20px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              🖼️ {user.bannerPic ? "Change Banner" : "Add Banner"}
+            </div>
+          )}
+
+          {/* Hidden file input */}
+          <input
+            type="file"
+            id="bannerInput"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={async (e) => {
+              const file = e.target.files[0];
+              if (!file) return;
+              const formData = new FormData();
+              formData.append("file", file);
+              formData.append("upload_preset", "youtube-clone");
+              try {
+                const res = await fetch(
+                  "https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload",
+                  { method: "POST", body: formData },
+                );
+                const data = await res.json();
+                const url = data.secure_url;
+                localStorage.setItem("bannerPic", url);
+                await supabase.auth.updateUser({ data: { bannerPic: url } });
+                setUser((prev) => ({ ...prev, bannerPic: url }));
+              } catch {
+                alert("Banner upload failed. Try again.");
+              }
+            }}
+          />
         </div>
 
         {/* ── Top Section ── */}
@@ -348,7 +587,7 @@ const Profile = ({ sideNavbar }) => {
               src={user.profilePic}
               alt={user.name}
               onError={(e) => {
-              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=ff0000&color=fff&size=120&length=2`;
+                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=ff0000&color=fff&size=120&length=2`;
               }}
             />
           </div>
@@ -356,15 +595,34 @@ const Profile = ({ sideNavbar }) => {
           <div className="profile_top_section_About">
             <div className="profile_top_section_About_Name">{user.name}</div>
             <div className="profile_top_section_info">
-              {user.handle} · {allUserVideos.length} videos · {allUserReels.length} reels
+              {user.handle} · {allUserVideos.length} videos ·{" "}
+              {allUserReels.length} reels
             </div>
             <div className="profile_top_section_info">{user.about}</div>
 
             {user.isOwner && (
-              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  flexWrap: "wrap",
+                  marginTop: "8px",
+                }}
+              >
                 <Link
                   to="/763/upload"
-                  style={{ background: "#ff0000", color: "white", border: "none", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer", textDecoration: "none", display: "inline-block" }}
+                  style={{
+                    background: "#ff0000",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "20px",
+                    padding: "8px 20px",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    textDecoration: "none",
+                    display: "inline-block",
+                  }}
                 >
                   + Upload Video / Reel
                 </Link>
@@ -375,7 +633,16 @@ const Profile = ({ sideNavbar }) => {
                     setEditPic(user.profilePic);
                     setShowEditProfile(true);
                   }}
-                  style={{ background: "#272727", color: "white", border: "1px solid #555", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}
+                  style={{
+                    background: "#272727",
+                    color: "white",
+                    border: "1px solid #555",
+                    borderRadius: "20px",
+                    padding: "8px 20px",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                  }}
                 >
                   ✏️ Edit Profile
                 </button>
@@ -388,37 +655,79 @@ const Profile = ({ sideNavbar }) => {
         {allUserVideos.length > 0 && (
           <div className="profile_videos">
             <div className="profile_videos_title">
-              Videos ({allUserVideos.length}) &nbsp;<ArrowRightIcon />
+              Videos ({allUserVideos.length}) &nbsp;
+              <ArrowRightIcon />
             </div>
             <div className="profileVideos">
               {allUserVideos.map((video) => (
                 <div key={video.id} style={{ position: "relative" }}>
-                  <Link to={`/video/${video.id}`} className="profileVideo_block">
-                    <div className="profileVideo_block_thumbnail reel-thumb" style={{ position: "relative" }}>
-                      <img className="profileVideo_block_thumbnail_img" src={video.thumbnail} alt={video.title} />
-                      <span style={{ position: "absolute", bottom: "6px", right: "6px", background: "rgba(0,0,0,0.75)", color: "white", fontSize: "11px", padding: "2px 5px", borderRadius: "4px" }}>
+                  <Link
+                    to={`/video/${video.id}`}
+                    className="profileVideo_block"
+                  >
+                    <div
+                      className="profileVideo_block_thumbnail reel-thumb"
+                      style={{ position: "relative" }}
+                    >
+                      <img
+                        className="profileVideo_block_thumbnail_img"
+                        src={video.thumbnail}
+                        alt={video.title}
+                      />
+                      <span
+                        style={{
+                          position: "absolute",
+                          bottom: "6px",
+                          right: "6px",
+                          background: "rgba(0,0,0,0.75)",
+                          color: "white",
+                          fontSize: "11px",
+                          padding: "2px 5px",
+                          borderRadius: "4px",
+                        }}
+                      >
                         {video.duration}
                       </span>
                     </div>
                     <div className="profileVideo_block_detail">
-                      <div className="profileVideo_block_detai_name">{video.title}</div>
-                      <div className="profileVideo_block_detai_about">{video.channel}</div>
-                      <div style={{ color: "#aaa", fontSize: "12px", marginTop: "4px", display: "flex", gap: "10px" }}>
-                        <span>👁 {videoCounts[String(video.id)]?.views ?? 0}</span>
-                        <span>👍 {videoCounts[String(video.id)]?.likes ?? 0}</span>
+                      <div className="profileVideo_block_detai_name">
+                        {video.title}
+                      </div>
+                      <div className="profileVideo_block_detai_about">
+                        {video.channel}
+                      </div>
+                      <div
+                        style={{
+                          color: "#aaa",
+                          fontSize: "12px",
+                          marginTop: "4px",
+                          display: "flex",
+                          gap: "10px",
+                        }}
+                      >
+                        <span>
+                          👁 {videoCounts[String(video.id)]?.views ?? 0}
+                        </span>
+                        <span>
+                          👍 {videoCounts[String(video.id)]?.likes ?? 0}
+                        </span>
                       </div>
                     </div>
                   </Link>
 
-                  {user.isOwner && !String(video.id).startsWith("hard_") && typeof video.id === "number" && (
-                    <button
-                      onClick={() => confirmDelete("video", video.id, null, video.title)}
-                      title="Delete video"
-                      style={deleteBtn}
-                    >
-                      🗑️
-                    </button>
-                  )}
+                  {user.isOwner &&
+                    !String(video.id).startsWith("hard_") &&
+                    typeof video.id === "number" && (
+                      <button
+                        onClick={() =>
+                          confirmDelete("video", video.id, null, video.title)
+                        }
+                        title="Delete video"
+                        style={deleteBtn}
+                      >
+                        🗑️
+                      </button>
+                    )}
                 </div>
               ))}
             </div>
@@ -429,7 +738,8 @@ const Profile = ({ sideNavbar }) => {
         {allUserReels.length > 0 && (
           <div className="profile_videos" style={{ marginTop: "30px" }}>
             <div className="profile_videos_title">
-              Reels ({allUserReels.length}) &nbsp;<ArrowRightIcon />
+              Reels ({allUserReels.length}) &nbsp;
+              <ArrowRightIcon />
             </div>
             <div className="profileVideos">
               {allUserReels.map((reel) => (
@@ -451,28 +761,76 @@ const Profile = ({ sideNavbar }) => {
                       })
                     }
                   >
-                    <div className="profileVideo_block_thumbnail" style={{ position: "relative" }}>
-                      <img className="profileVideo_block_thumbnail_img" src={reel.thumbnail} alt={reel.title} />
-                      <span style={{ position: "absolute", top: "6px", left: "6px", background: "rgba(0,0,0,0.7)", color: "white", fontSize: "10px", padding: "2px 6px", borderRadius: "4px", fontWeight: "600" }}>
+                    <div
+                      className="profileVideo_block_thumbnail"
+                      style={{ position: "relative" }}
+                    >
+                      <img
+                        className="profileVideo_block_thumbnail_img"
+                        src={reel.thumbnail}
+                        alt={reel.title}
+                      />
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: "6px",
+                          left: "6px",
+                          background: "rgba(0,0,0,0.7)",
+                          color: "white",
+                          fontSize: "10px",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          fontWeight: "600",
+                        }}
+                      >
                         🎬 Reel
                       </span>
-                      <span style={{ position: "absolute", bottom: "6px", right: "6px", background: "rgba(0,0,0,0.7)", color: "white", fontSize: "11px", padding: "2px 5px", borderRadius: "4px" }}>
+                      <span
+                        style={{
+                          position: "absolute",
+                          bottom: "6px",
+                          right: "6px",
+                          background: "rgba(0,0,0,0.7)",
+                          color: "white",
+                          fontSize: "11px",
+                          padding: "2px 5px",
+                          borderRadius: "4px",
+                        }}
+                      >
                         {reel.duration}
                       </span>
                     </div>
                     <div className="profileVideo_block_detail">
-                      <div className="profileVideo_block_detai_name">{reel.title}</div>
-                      <div className="profileVideo_block_detai_about">{reel.description}</div>
-                      <div style={{ color: "#aaa", fontSize: "12px", marginTop: "4px", display: "flex", gap: "10px" }}>
-                        <span>👁 {reelCounts[`db_${reel.dbId}`]?.views ?? 0}</span>
-                        <span>👍 {reelCounts[String(reel.dbId)]?.likes ?? 0}</span>
+                      <div className="profileVideo_block_detai_name">
+                        {reel.title}
+                      </div>
+                      <div className="profileVideo_block_detai_about">
+                        {reel.description}
+                      </div>
+                      <div
+                        style={{
+                          color: "#aaa",
+                          fontSize: "12px",
+                          marginTop: "4px",
+                          display: "flex",
+                          gap: "10px",
+                        }}
+                      >
+                        <span>
+                          👁 {reelCounts[`db_${reel.dbId}`]?.views ?? 0}
+                        </span>
+                        <span>
+                          👍 {reelCounts[String(reel.dbId)]?.likes ?? 0}
+                        </span>
                       </div>
                     </div>
                   </div>
 
                   {user.isOwner && reel.id.startsWith("db_") && (
                     <button
-                      onClick={() => confirmDelete("reel", reel.id, reel.dbId, reel.title)}
+                      onClick={() =>
+                        confirmDelete("reel", reel.id, reel.dbId, reel.title)
+                      }
                       title="Delete reel"
                       style={deleteBtn}
                     >
@@ -486,7 +844,9 @@ const Profile = ({ sideNavbar }) => {
         )}
 
         {allUserVideos.length === 0 && allUserReels.length === 0 && (
-          <div style={{ color: "#aaa", textAlign: "center", marginTop: "40px" }}>
+          <div
+            style={{ color: "#aaa", textAlign: "center", marginTop: "40px" }}
+          >
             No videos or reels uploaded yet.
           </div>
         )}
@@ -495,34 +855,83 @@ const Profile = ({ sideNavbar }) => {
       {/* ── Edit Profile Modal ── */}
       {showEditProfile && (
         <div
-          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center" }}
-          onClick={(e) => e.target === e.currentTarget && setShowEditProfile(false)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.85)",
+            zIndex: 999999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onClick={(e) =>
+            e.target === e.currentTarget && setShowEditProfile(false)
+          }
         >
-          <div style={{ background: "#212121", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "440px", border: "1px solid #333", display: "flex", flexDirection: "column", gap: "16px" }}>
-            <h2 style={{ color: "white", margin: 0, fontSize: "20px" }}>✏️ Edit Profile</h2>
+          <div
+            style={{
+              background: "#212121",
+              borderRadius: "16px",
+              padding: "32px",
+              width: "100%",
+              maxWidth: "440px",
+              border: "1px solid #333",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+            }}
+          >
+            <h2 style={{ color: "white", margin: 0, fontSize: "20px" }}>
+              ✏️ Edit Profile
+            </h2>
 
             <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
               <img
                 src={editPic || user.profilePic}
                 alt="preview"
-                style={{ width: "72px", height: "72px", borderRadius: "50%", objectFit: "cover", border: "2px solid #ff0000" }}
+                style={{
+                  width: "72px",
+                  height: "72px",
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  border: "2px solid #ff0000",
+                }}
                 onError={(e) => {
                   e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(editName || user.name)}&background=ff0000&color=fff&size=72`;
                 }}
               />
               <div style={{ flex: 1 }}>
-                <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>Paste Image URL</p>
+                <p
+                  style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}
+                >
+                  Paste Image URL
+                </p>
                 <input
                   value={editPic}
                   onChange={(e) => setEditPic(e.target.value)}
                   placeholder="https://..."
-                  style={{ width: "100%", background: "#2a2a2a", border: "1px solid #444", borderRadius: "8px", color: "white", padding: "8px 12px", fontSize: "13px", outline: "none", boxSizing: "border-box" }}
+                  style={{
+                    width: "100%",
+                    background: "#2a2a2a",
+                    border: "1px solid #444",
+                    borderRadius: "8px",
+                    color: "white",
+                    padding: "8px 12px",
+                    fontSize: "13px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
                 />
               </div>
             </div>
 
             <div>
-              <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>Or upload a new photo:</p>
+              <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>
+                Or upload a new photo:
+              </p>
               <input
                 type="file"
                 accept="image/*"
@@ -534,7 +943,10 @@ const Profile = ({ sideNavbar }) => {
                   formData.append("file", file);
                   formData.append("upload_preset", "youtube-clone");
                   try {
-                    const res  = await fetch("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", { method: "POST", body: formData });
+                    const res = await fetch(
+                      "https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload",
+                      { method: "POST", body: formData },
+                    );
                     const data = await res.json();
                     setEditPic(data.secure_url);
                   } catch {
@@ -544,26 +956,60 @@ const Profile = ({ sideNavbar }) => {
                 }}
                 style={{ color: "#aaa", fontSize: "13px" }}
               />
-              {editLoading && <p style={{ color: "#ff9800", fontSize: "12px", margin: "4px 0 0" }}>Uploading photo...</p>}
+              {editLoading && (
+                <p
+                  style={{
+                    color: "#ff9800",
+                    fontSize: "12px",
+                    margin: "4px 0 0",
+                  }}
+                >
+                  Uploading photo...
+                </p>
+              )}
             </div>
 
             <div>
-              <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>Channel Name</p>
+              <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>
+                Channel Name
+              </p>
               <input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 placeholder={user.name}
-                style={{ width: "100%", background: "#2a2a2a", border: "1px solid #444", borderRadius: "8px", color: "white", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
+                style={{
+                  width: "100%",
+                  background: "#2a2a2a",
+                  border: "1px solid #444",
+                  borderRadius: "8px",
+                  color: "white",
+                  padding: "10px 12px",
+                  fontSize: "14px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
               />
             </div>
 
             <div>
-              <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>About</p>
+              <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>
+                About
+              </p>
               <input
                 value={editAbout}
                 onChange={(e) => setEditAbout(e.target.value)}
                 placeholder={user.about}
-                style={{ width: "100%", background: "#2a2a2a", border: "1px solid #444", borderRadius: "8px", color: "white", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
+                style={{
+                  width: "100%",
+                  background: "#2a2a2a",
+                  border: "1px solid #444",
+                  borderRadius: "8px",
+                  color: "white",
+                  padding: "10px 12px",
+                  fontSize: "14px",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
               />
             </div>
 
@@ -571,13 +1017,37 @@ const Profile = ({ sideNavbar }) => {
               <button
                 onClick={handleSaveProfile}
                 disabled={editLoading}
-                style={{ flex: 1, background: editLoading ? "#555" : "#ff0000", color: "white", border: "none", borderRadius: "8px", padding: "12px", fontSize: "15px", fontWeight: "700", cursor: editLoading ? "not-allowed" : "pointer" }}
+                style={{
+                  flex: 1,
+                  background: editLoading ? "#555" : "#ff0000",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  fontSize: "15px",
+                  fontWeight: "700",
+                  cursor: editLoading ? "not-allowed" : "pointer",
+                }}
               >
                 {editLoading ? "Uploading..." : "Save Changes"}
               </button>
               <button
-                onClick={() => { setShowEditProfile(false); setEditName(""); setEditAbout(""); setEditPic(""); }}
-                style={{ flex: 1, background: "none", border: "1px solid #555", color: "#aaa", borderRadius: "8px", padding: "12px", fontSize: "14px", cursor: "pointer" }}
+                onClick={() => {
+                  setShowEditProfile(false);
+                  setEditName("");
+                  setEditAbout("");
+                  setEditPic("");
+                }}
+                style={{
+                  flex: 1,
+                  background: "none",
+                  border: "1px solid #555",
+                  color: "#aaa",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                }}
               >
                 Cancel
               </button>
@@ -589,25 +1059,71 @@ const Profile = ({ sideNavbar }) => {
       {/* ── Confirm Delete Modal ── */}
       {deleteTarget && (
         <div
-          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center" }}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.85)",
+            zIndex: 999999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
           onClick={(e) => e.target === e.currentTarget && setDeleteTarget(null)}
         >
-          <div style={{ background: "#212121", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "380px", border: "1px solid #555", display: "flex", flexDirection: "column", gap: "16px", textAlign: "center" }}>
+          <div
+            style={{
+              background: "#212121",
+              borderRadius: "16px",
+              padding: "32px",
+              width: "100%",
+              maxWidth: "380px",
+              border: "1px solid #555",
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+              textAlign: "center",
+            }}
+          >
             <div style={{ fontSize: "40px" }}>🗑️</div>
-            <h2 style={{ color: "white", margin: 0, fontSize: "18px" }}>Delete {deleteTarget.type}?</h2>
+            <h2 style={{ color: "white", margin: 0, fontSize: "18px" }}>
+              Delete {deleteTarget.type}?
+            </h2>
             <p style={{ color: "#aaa", fontSize: "14px", margin: 0 }}>
-              "<strong style={{ color: "white" }}>{deleteTarget.title}</strong>" will be permanently removed.
+              "<strong style={{ color: "white" }}>{deleteTarget.title}</strong>"
+              will be permanently removed.
             </p>
             <div style={{ display: "flex", gap: "10px" }}>
               <button
                 onClick={handleDelete}
-                style={{ flex: 1, background: "#cc0000", color: "white", border: "none", borderRadius: "8px", padding: "12px", fontSize: "15px", fontWeight: "700", cursor: "pointer" }}
+                style={{
+                  flex: 1,
+                  background: "#cc0000",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  fontSize: "15px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                }}
               >
                 Yes, Delete
               </button>
               <button
                 onClick={() => setDeleteTarget(null)}
-                style={{ flex: 1, background: "none", border: "1px solid #555", color: "#aaa", borderRadius: "8px", padding: "12px", fontSize: "14px", cursor: "pointer" }}
+                style={{
+                  flex: 1,
+                  background: "none",
+                  border: "1px solid #555",
+                  color: "#aaa",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                }}
               >
                 Cancel
               </button>

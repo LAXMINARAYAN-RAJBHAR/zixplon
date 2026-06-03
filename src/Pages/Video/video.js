@@ -641,7 +641,6 @@ const Video = () => {
   const loggedInUser = localStorage.getItem("username") || "Guest";
   const controlsTimer = useRef(null);
   const videoRef = useRef(null);
-  const topRef = useRef(null);
 
   // ── View tracking: records a view after 10s, once per 15 days ──
   useViewTracker({
@@ -972,7 +971,6 @@ const Video = () => {
 
   return (
     <div className="video">
-    <div ref={topRef} style={{ position: "absolute", top: 0 }} />
       <div className="videoPostSection">
         <div
           className="video_player_wrapper"

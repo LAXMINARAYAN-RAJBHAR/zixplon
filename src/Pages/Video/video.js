@@ -897,17 +897,9 @@ const Video = () => {
   }, [id]);
 
   useEffect(() => {
-  console.log("ID changed to:", id);
-  console.log("window.scrollY:", window.scrollY);
-  console.log("document.body.scrollTop:", document.body.scrollTop);
-  console.log("document.documentElement.scrollTop:", document.documentElement.scrollTop);
-  
-  // log all scrollable elements
-  document.querySelectorAll("*").forEach(el => {
-    if (el.scrollTop > 0) {
-      console.log("SCROLLED ELEMENT:", el.className, "scrollTop:", el.scrollTop);
-    }
-  });
+  setDisliked(false);
+  setVideoError(false);
+  setIsVideoPlaying(false);
 }, [id]);
 
   if (dbLoading) {

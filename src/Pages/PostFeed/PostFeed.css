@@ -16,7 +16,7 @@
   .pf-feed {
     margin-left: 0;
     padding: 70px 16px 80px;
-    max-width: 480px;    /* add this */
+    max-width: 450px;    /* add this */
     width: 100%;         /* add this */
     margin-right: auto;  /* add this */
     margin-left: auto;   /* change from 0 to auto */

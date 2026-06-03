@@ -2,10 +2,10 @@ import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
 const ScrollToTop = () => {
-  const location = useLocation();
+  const { pathname, search } = useLocation();  // add search
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [location.pathname, location.key]);  // key changes on every navigation
+  }, [pathname, search]);  // add search here
   return null;
 };
 

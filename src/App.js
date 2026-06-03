@@ -34,7 +34,7 @@ import {
 
 function App() {
   const location = useLocation();
-  const [sideNavbar, setSideNavbar] = useState(false);
+  const [sideNavbar, setSideNavbar] = useState(true);
   const [currentUser, setCurrentUser] = useState(
     localStorage.getItem("username") || null,
   );

@@ -900,11 +900,14 @@ const Video = () => {
   setDisliked(false);
   setVideoError(false);
   setIsVideoPlaying(false);
+  
+  // scroll the video player into view
   setTimeout(() => {
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-  }, 50);
+    const player = document.querySelector(".video_player_wrapper");
+    if (player) {
+      player.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, 100);
 }, [id]);
 
   if (dbLoading) {

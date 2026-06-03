@@ -451,3 +451,37 @@
   60%  { opacity: 1; transform: scale(1)   rotate(0deg); }
   100% { opacity: 0; transform: scale(0.8) rotate(0deg); }
 }
+
+@media (max-width: 768px) {
+  .video {
+    flex-direction: column;
+    padding: 10px 0;
+    margin-top: 56px;
+  }
+
+  .videoPostSection {
+    width: 100%;
+    order: 1;   /* video section comes first */
+  }
+
+  .videoSuggestions {
+    width: 100%;
+    order: 2;   /* suggestions come below */
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .video_youtube_video {
+    height: 220px;
+    border-radius: 0;   /* full width on mobile */
+  }
+
+  .youtube_video_About {
+    width: 100% !important;  /* fixes the hardcoded 875px width */
+    box-sizing: border-box;
+  }
+
+  .addAComment {
+    width: 100% !important;  /* fixes the hardcoded 875px width */
+  }
+}

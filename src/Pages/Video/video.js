@@ -897,11 +897,11 @@ const Video = () => {
   }, [id]);
 
   useEffect(() => {
-    setDisliked(false);
-    setVideoError(false);
-    setIsVideoPlaying(false);
-    window.scrollTo(0, 0);
-  }, [id]);
+  setDisliked(false);
+  setVideoError(false);
+  setIsVideoPlaying(false);
+  window.scrollTo({ top: 0, behavior: "smooth" }); // add this
+}, [id]);
 
   if (dbLoading) {
     return (

@@ -43,7 +43,7 @@ const SideNavbar = ({ sideNavbar }) => {
 <Link to="/feed" className="home_sideNavbar_link">
   <div className="home_sideNavbarTopOption" style={isActive("/feed") ? activeStyle : {}}>
     <NewspaperIcon />
-    <div className="home_sideNavbarTopOptionTitle">Feed</div>
+    <div className="home_sideNavbarTopOptionTitle">Posts</div>
   </div>
 </Link>
 

@@ -79,7 +79,7 @@ const BottomNav = ({ currentUser }) => {
 
         <Link to="/feed" className="bottom-nav-item">
   <NewspaperIcon sx={{ fontSize: "22px", color: isActive("/feed") ? activeColor : inactiveColor }} />
-  <span className="bottom-nav-label" style={{ color: isActive("/feed") ? activeColor : inactiveColor }}>Feed</span>
+  <span className="bottom-nav-label" style={{ color: isActive("/feed") ? activeColor : inactiveColor }}>Posts</span>
 </Link>
 
         <Link to={currentUser ? `/user/${currentUser}` : "/signup"} className="bottom-nav-item">

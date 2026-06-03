@@ -900,6 +900,7 @@ const Video = () => {
     setDisliked(false);
     setVideoError(false);
     setIsVideoPlaying(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [id]);
 
   if (dbLoading) {

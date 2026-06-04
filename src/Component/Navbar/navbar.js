@@ -329,6 +329,12 @@ const Navbar = ({
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
+  useEffect(() => {
+  const handler = () => setLogin(true);
+  window.addEventListener("openLogin", handler);
+  return () => window.removeEventListener("openLogin", handler);
+}, []);
+
   const handleInstall = async () => {
     if (!installPrompt) return;
     installPrompt.prompt();

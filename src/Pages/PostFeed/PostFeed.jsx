@@ -80,9 +80,29 @@ const PostFeed = ({ sideNavbar }) => {
     return () => supabase.removeChannel(channel);
   }, [fetchPosts]);
 
-  const handleNewPost = (post) => {
-    setPosts((prev) => [post, ...prev]);
-  };
+  const handleNewPost = async (post) => {
+  setPosts((prev) => [post, ...prev]);
+
+  // Notify subscribers about new post
+  const uploaderUsername = localStorage.getItem("username");
+  const { data: subUsers } = await supabase
+    .from("subscriptions")
+    .select("subscriber_username")
+    .eq("subscribed_to", uploaderUsername);
+
+  if (subUsers && subUsers.length > 0) {
+    const notifications = subUsers
+      .filter((s) => s.subscriber_username)
+      .map((s) => ({
+        recipient_username: s.subscriber_username,
+        sender_username: uploaderUsername,
+        type: "upload",
+        message: `${uploaderUsername} made a new post: "${post.text?.slice(0, 60) || "Check it out"}"`,
+        is_read: false,
+      }));
+    await supabase.from("notifications").insert(notifications);
+  }
+};
 
   const handleReaction = async (postId, reactionType) => {
     const post = posts.find((p) => p.id === postId);
@@ -207,7 +227,22 @@ const PostFeed = ({ sideNavbar }) => {
   <>
     <SideNavbar sideNavbar={sideNavbar} />
     <div className="pf-feed">
-      <PostComposer currentUser={currentUser} onPost={handleNewPost} />
+      {currentUser && currentUser !== "anonymous"
+  ? <PostComposer currentUser={currentUser} onPost={handleNewPost} />
+  : (
+    <div style={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: "12px", padding: "20px", textAlign: "center", marginBottom: "16px" }}>
+      <p style={{ color: "#aaa", fontSize: "14px", margin: "0 0 12px" }}>
+        🔒 Please log in to post
+      </p>
+      <button
+        onClick={() => window.dispatchEvent(new CustomEvent("openLogin"))}
+        style={{ background: "#ff0000", color: "white", border: "none", borderRadius: "8px", padding: "8px 24px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}
+      >
+        Login
+      </button>
+    </div>
+  )
+}
 
       {error && <p className="pf-error">{error}</p>}
 

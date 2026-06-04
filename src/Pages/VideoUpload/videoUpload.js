@@ -59,7 +59,6 @@ const VideoUpload = () => {
     try {
       if ("wakeLock" in navigator) {
         wakeLockRef.current = await navigator.wakeLock.request("screen");
-        console.log("✅ Wake Lock acquired — screen will stay on during upload");
       }
     } catch (err) {
       console.warn("Wake Lock not available:", err.message);
@@ -70,24 +69,17 @@ const VideoUpload = () => {
     if (wakeLockRef.current) {
       wakeLockRef.current.release();
       wakeLockRef.current = null;
-      console.log("🔓 Wake Lock released");
     }
   };
 
-  // Re-acquire wake lock if page becomes visible again (e.g. user switches tabs)
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (
-        document.visibilityState === "visible" &&
-        loader &&
-        wakeLockRef.current === null
-      ) {
+      if (document.visibilityState === "visible" && loader && wakeLockRef.current === null) {
         await requestWakeLock();
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [loader]);
 
   const resetState = () => {
@@ -121,7 +113,6 @@ const VideoUpload = () => {
     const speedMBps = speedBps / (1024 * 1024);
     const remaining = totalBytes - loadedBytes;
     const remainSecs = remaining / speedBps;
-
     setUploadSpeed(speedMBps.toFixed(1));
     if (remainSecs > 3600) {
       setTimeRemaining(`~${Math.ceil(remainSecs / 3600)}h remaining`);
@@ -133,12 +124,8 @@ const VideoUpload = () => {
   };
 
   // ── Auto-select provider based on file size ──
-  // Files < 100MB → Cloudinary | Files >= 100MB → Archive.org
   const autoSelectProvider = (file) => {
     const sizeMB = file.size / (1024 * 1024);
-    console.log(
-      `File size: ${sizeMB.toFixed(1)} MB → provider: ${sizeMB < 100 ? "cloudinary" : "archive"}`,
-    );
     if (sizeMB < 100) return "cloudinary";
     return "archive";
   };
@@ -170,23 +157,15 @@ const VideoUpload = () => {
       video.preload = "metadata";
       video.muted = true;
       video.playsInline = true;
-      video.onloadeddata = () => {
-        video.currentTime = 1;
-      };
+      video.onloadeddata = () => { video.currentTime = 1; };
       video.onseeked = () => {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        canvas
-          .getContext("2d")
-          .drawImage(video, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob(
-          (blob) => {
-            URL.revokeObjectURL(video.src);
-            resolve(blob);
-          },
-          "image/jpeg",
-          0.85,
-        );
+        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(video.src);
+          resolve(blob);
+        }, "image/jpeg", 0.85);
       };
       video.src = URL.createObjectURL(file);
     });
@@ -197,8 +176,7 @@ const VideoUpload = () => {
     data.append("file", blob, "thumbnail.jpg");
     data.append("upload_preset", "youtube-clone");
     const res = await axios.post(
-      "https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload",
-      data,
+      "https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", data,
     );
     return res.data.secure_url;
   };
@@ -271,10 +249,7 @@ const VideoUpload = () => {
     const folder = uploadMode === "reel" ? "reels" : "videos";
     const { error } = await supabase.storage
       .from("media")
-      .upload(`${folder}/${fileName}`, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
+      .upload(`${folder}/${fileName}`, file, { cacheControl: "3600", upsert: false });
     if (error) throw new Error(`Storage error: ${error.message}`);
     const { data: urlData } = supabase.storage
       .from("media")
@@ -297,14 +272,12 @@ const VideoUpload = () => {
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "");
 
-    // ── 16 random hex chars — globally unique bucket name ──
     const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(8)))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
     let identifier = `zixplon-${username}-${Date.now()}-${randomPart}`;
 
-    // ── CHECK bucket before uploading — regenerate if already taken ──
     try {
       const checkRes = await fetch(`https://archive.org/metadata/${identifier}`);
       const checkData = await checkRes.json();
@@ -314,35 +287,25 @@ const VideoUpload = () => {
           .join("");
         identifier = `zixplon-${username}-${Date.now()}-${retryRandom}`;
       }
-    } catch (_) {
-      // continue — identifier is likely fine
-    }
+    } catch (_) {}
 
-    // ── FIXED: Always force .mp4 extension — Archive.org only reliably accepts .mp4 ──
     const baseName = file.name
-      .replace(/\.[^/.]+$/, "")   // strip original extension
-      .replace(/\s+/g, "_")       // spaces → underscores
-      .replace(/[^\w\-]/g, "")    // remove ALL special chars: ()[]{}#@! etc
-      .slice(0, 80);              // max 80 chars
+      .replace(/\.[^/.]+$/, "")
+      .replace(/\s+/g, "_")
+      .replace(/[^\w\-]/g, "")
+      .slice(0, 80);
 
-    const fileName = `${baseName || "video"}.mp4`; // always .mp4
-
-    console.log("Archive filename:", fileName);
+    const fileName = `${baseName || "video"}.mp4`;
 
     setArchiveItemId(identifier);
     setArchiveStatus("Connecting to Archive.org...");
 
-    // ── 200MB chunks — fewer round-trips to USA ──
     const CHUNK_SIZE = 200 * 1024 * 1024;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-
-    // ── 2 parallel uploads — prevents spam detection ──
     const PARALLEL = 2;
 
     const safeTitle = sanitizeForHeader(titleOverride || file.name);
-    const safeDesc = sanitizeForHeader(
-      inputField.description || "Uploaded via ZIXPLON",
-    );
+    const safeDesc = sanitizeForHeader(inputField.description || "Uploaded via ZIXPLON");
 
     let totalUploadedBytes = 0;
 
@@ -358,23 +321,15 @@ const VideoUpload = () => {
             : `${fileName}.part${String(chunkIndex).padStart(4, "0")}`;
 
         const xhr = new XMLHttpRequest();
-        xhr.open(
-          "PUT",
-          `https://s3.us.archive.org/${identifier}/${chunkFileName}`,
-        );
-
+        xhr.open("PUT", `https://s3.us.archive.org/${identifier}/${chunkFileName}`);
         xhr.setRequestHeader("Authorization", `LOW ${ACCESS_KEY}:${SECRET_KEY}`);
-        // ── Always video/mp4 — Archive.org is strict about this ──
         xhr.setRequestHeader("Content-Type", "video/mp4");
         xhr.setRequestHeader("x-archive-meta-mediatype", "movies");
         xhr.setRequestHeader("x-archive-meta-title", safeTitle);
         xhr.setRequestHeader("x-archive-meta-description", safeDesc);
         xhr.setRequestHeader("x-archive-meta-subject", "zixplon;video");
         xhr.setRequestHeader("x-archive-auto-make-bucket", "1");
-        xhr.setRequestHeader(
-          "x-archive-meta-licenseurl",
-          "http://creativecommons.org/licenses/by/4.0/",
-        );
+        xhr.setRequestHeader("x-archive-meta-licenseurl", "http://creativecommons.org/licenses/by/4.0/");
 
         let chunkUploaded = 0;
         xhr.upload.onprogress = (e) => {
@@ -407,12 +362,7 @@ const VideoUpload = () => {
         };
 
         xhr.onerror = () => {
-          console.error(`Network/CORS error on chunk ${chunkIndex}`);
-          reject(
-            new Error(
-              "Network error uploading to Archive.org. This may be a CORS issue — consider proxying through your backend.",
-            ),
-          );
+          reject(new Error("Network error uploading to Archive.org."));
         };
 
         xhr.send(chunk);
@@ -424,7 +374,6 @@ const VideoUpload = () => {
     for (let i = 0; i < chunkIndices.length; i += PARALLEL) {
       const batch = chunkIndices.slice(i, i + PARALLEL);
       await Promise.all(batch.map((idx) => uploadChunk(idx)));
-      // 500ms pause between batches — avoids spam detection
       if (i + PARALLEL < chunkIndices.length) {
         await new Promise((r) => setTimeout(r, 500));
       }
@@ -449,14 +398,10 @@ const VideoUpload = () => {
     uploadStartTime.current = Date.now();
     uploadedBytesRef.current = 0;
 
-    // ── Keep screen awake during upload ──
     await requestWakeLock();
 
     const files = e.target.files;
-    if (!files || files.length === 0) {
-      setLoader(false);
-      return;
-    }
+    if (!files || files.length === 0) { setLoader(false); return; }
     const file = files[0];
 
     if (file.size > 4 * 1024 * 1024 * 1024) {
@@ -466,19 +411,10 @@ const VideoUpload = () => {
     }
 
     const selectedProvider = autoSelectProvider(file);
-
-    // ── Safety: force archive if file exceeds Cloudinary's 100MB free limit ──
     const forcedProvider =
       selectedProvider === "cloudinary" && file.size > 100 * 1024 * 1024
         ? "archive"
         : selectedProvider;
-
-    console.log(
-      "Final provider:", forcedProvider,
-      "| File size MB:", (file.size / (1024 * 1024)).toFixed(1),
-      "| File name:", file.name,
-      "| File type:", file.type,
-    );
 
     setActiveProvider(forcedProvider);
 
@@ -504,11 +440,7 @@ const VideoUpload = () => {
         setThumbSource("auto");
       }
 
-      setInputField((prev) => ({
-        ...prev,
-        videoLink: videoUrl,
-        thumbnail: thumbnailUrl,
-      }));
+      setInputField((prev) => ({ ...prev, videoLink: videoUrl, thumbnail: thumbnailUrl }));
       setVideoUploaded(true);
       setUploadProgress(100);
       setLoader(false);
@@ -528,18 +460,12 @@ const VideoUpload = () => {
     setThumbLoader(true);
     setError("");
     const files = e.target.files;
-    if (!files || files.length === 0) {
-      setThumbLoader(false);
-      return;
-    }
+    if (!files || files.length === 0) { setThumbLoader(false); return; }
     const data = new FormData();
     data.append("file", files[0]);
     data.append("upload_preset", "youtube-clone");
     try {
-      const res = await axios.post(
-        "https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload",
-        data,
-      );
+      const res = await axios.post("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", data);
       setInputField((prev) => ({ ...prev, thumbnail: res.data.secure_url }));
       setImageUploaded(true);
       setThumbSource("manual");
@@ -550,10 +476,38 @@ const VideoUpload = () => {
     }
   };
 
+  // ── Notify all subscribers when content is uploaded ──
+  const notifySubscribers = async (title, type) => {
+    const uploaderUsername = localStorage.getItem("username");
+    if (!uploaderUsername) return;
+
+    const { data: subUsers } = await supabase
+      .from("subscriptions")
+      .select("subscriber_username")
+      .eq("subscribed_to", uploaderUsername);
+
+    if (!subUsers || subUsers.length === 0) return;
+
+    const notifications = subUsers
+      .filter((s) => s.subscriber_username)
+      .map((s) => ({
+        recipient_username: s.subscriber_username,
+        sender_username: uploaderUsername,
+        type: "upload",
+        message: `${uploaderUsername} uploaded a new ${type}: "${title}"`,
+        is_read: false,
+      }));
+
+    if (notifications.length > 0) {
+      await supabase.from("notifications").insert(notifications);
+    }
+  };
+
+  // ── FIX: handleSubmit is correctly a self-contained async function ──
   const handleSubmit = async () => {
-    if (!inputField.title) return setError("Please enter a title.");
+    if (!inputField.title)       return setError("Please enter a title.");
     if (!inputField.description) return setError("Please enter a description.");
-    if (!inputField.videoLink) return setError("Please upload a video first.");
+    if (!inputField.videoLink)   return setError("Please upload a video first.");
     if (uploadMode === "video" && !inputField.videoType)
       return setError("Please enter a category.");
 
@@ -562,43 +516,38 @@ const VideoUpload = () => {
 
     try {
       if (uploadMode === "video") {
-        const { error: videoError } = await supabase.from("videos").insert([
-          {
-            title: inputField.title,
-            description: inputField.description,
-            video_url: inputField.videoLink,
-            thumbnail_url: inputField.thumbnail,
-            category: inputField.videoType,
-            channel: localStorage.getItem("username") || "Anonymous",
-            username: localStorage.getItem("username") || "anonymous",
-            duration: durationRef.current,
-          },
-        ]);
-        if (videoError) {
-          console.error("Supabase videos error:", videoError);
-          throw new Error(videoError.message);
-        }
+        const { error: videoError } = await supabase.from("videos").insert([{
+          title:         inputField.title,
+          description:   inputField.description,
+          video_url:     inputField.videoLink,
+          thumbnail_url: inputField.thumbnail,
+          category:      inputField.videoType,
+          channel:       localStorage.getItem("username") || "Anonymous",
+          username:      localStorage.getItem("username") || "anonymous",
+          duration:      durationRef.current,
+        }]);
+        if (videoError) throw new Error(videoError.message);
       } else {
-        const { error: reelError } = await supabase.from("reels").insert([
-          {
-            title: inputField.title,
-            description: inputField.description,
-            video_url: inputField.videoLink,
-            thumbnail: inputField.thumbnail,
-            uploaded_by: localStorage.getItem("username") || "Anonymous",
-            username: (localStorage.getItem("username") || "anonymous")
-              .toLowerCase()
-              .replace(/\s+/g, ""),
-            duration: durationRef.current,
-            likes: 0,
-            comments: 0,
-          },
-        ]);
-        if (reelError) {
-          console.error("Supabase reels error:", reelError);
-          throw new Error(reelError.message);
-        }
+        const { error: reelError } = await supabase.from("reels").insert([{
+          title:       inputField.title,
+          description: inputField.description,
+          video_url:   inputField.videoLink,
+          thumbnail:   inputField.thumbnail,
+          uploaded_by: localStorage.getItem("username") || "Anonymous",
+          username:    (localStorage.getItem("username") || "anonymous").toLowerCase().replace(/\s+/g, ""),
+          duration:    durationRef.current,
+          likes:       0,
+          comments:    0,
+        }]);
+        if (reelError) throw new Error(reelError.message);
       }
+
+      // ── Notify subscribers INSIDE handleSubmit, after successful save ──
+      await notifySubscribers(
+        inputField.title,
+        uploadMode === "reel" ? "reel" : "video"
+      );
+
       setSaving(false);
       setSubmitted(true);
     } catch (err) {
@@ -621,39 +570,22 @@ const VideoUpload = () => {
                 href={`https://archive.org/details/${archiveItemId}`}
                 target="_blank"
                 rel="noreferrer"
-                style={{
-                  color: "#3ea6ff",
-                  fontSize: "13px",
-                  marginBottom: "12px",
-                  display: "block",
-                  textDecoration: "none",
-                }}
+                style={{ color: "#3ea6ff", fontSize: "13px", marginBottom: "12px", display: "block", textDecoration: "none" }}
               >
                 🏛️ View on Internet Archive →
               </a>
             )}
-            <video
-              src={inputField.videoLink}
-              poster={inputField.thumbnail}
-              controls
-              className="upload_success_preview"
-            />
+            <video src={inputField.videoLink} poster={inputField.thumbnail} controls className="upload_success_preview" />
             <h3>{inputField.title}</h3>
             <p className="upload_success_meta">
               {uploadMode === "video" ? `${inputField.videoType} • ` : ""}
               {inputField.description}
             </p>
             <div className="uploadBtns">
-              <div
-                className="uploadBtns-form"
-                onClick={() => { setSubmitted(false); resetState(); }}
-              >
+              <div className="uploadBtns-form" onClick={() => { setSubmitted(false); resetState(); }}>
                 Upload Another
               </div>
-              <div
-                className="uploadBtns-form"
-                onClick={() => navigate(uploadMode === "reel" ? "/reels" : "/")}
-              >
+              <div className="uploadBtns-form" onClick={() => navigate(uploadMode === "reel" ? "/reels" : "/")}>
                 {uploadMode === "reel" ? "Go to Reels" : "Go Home"}
               </div>
             </div>
@@ -688,18 +620,11 @@ const VideoUpload = () => {
             onClick={() => setShowRecordModal(true)}
             style={{ position: "relative", cursor: "pointer" }}
           >
-            <span
-              style={{
-                position: "absolute",
-                top: "-4px",
-                right: "-4px",
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
-                background: "#ff0000",
-                animation: "recordPulse 1.2s infinite",
-              }}
-            />
+            <span style={{
+              position: "absolute", top: "-4px", right: "-4px",
+              width: "8px", height: "8px", borderRadius: "50%",
+              background: "#ff0000", animation: "recordPulse 1.2s infinite",
+            }} />
             🔴 Record / Live
           </div>
         </div>
@@ -770,9 +695,7 @@ const VideoUpload = () => {
           <div className="upload_file_row">
             <span className="upload_file_label">
               Thumbnail
-              <span style={{ color: "#888", fontSize: "0.75rem", marginLeft: "6px" }}>
-                (optional)
-              </span>
+              <span style={{ color: "#888", fontSize: "0.75rem", marginLeft: "6px" }}>(optional)</span>
             </span>
             <input
               type="file"
@@ -787,29 +710,20 @@ const VideoUpload = () => {
             >
               {imageUploaded ? "✅ Change Thumbnail" : "📷 Choose Image"}
             </span>
-            {thumbLoader && (
-              <CircularProgress size={20} sx={{ color: "orange", ml: 1 }} />
-            )}
+            {thumbLoader && <CircularProgress size={20} sx={{ color: "orange", ml: 1 }} />}
           </div>
 
           {inputField.thumbnail && (
             <div className="upload_thumb_row">
-              <img
-                src={inputField.thumbnail}
-                alt="Thumbnail preview"
-                className="upload_thumb_preview"
-              />
+              <img src={inputField.thumbnail} alt="Thumbnail preview" className="upload_thumb_preview" />
               <span style={{ color: "#888", fontSize: "0.78rem", marginTop: "4px" }}>
-                {thumbSource === "manual"
-                  ? "✏️ Custom thumbnail"
-                  : "🎞️ Auto-captured from video"}
+                {thumbSource === "manual" ? "✏️ Custom thumbnail" : "🎞️ Auto-captured from video"}
               </span>
             </div>
           )}
 
           {loader && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
-              {/* Status line */}
               <Box sx={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <CircularProgress size={28} sx={{ color: "orange" }} />
                 <span style={{ color: "#aaa", fontSize: "0.9rem" }}>
@@ -819,33 +733,24 @@ const VideoUpload = () => {
                 </span>
               </Box>
 
-              {/* Progress bar */}
               <div style={{ width: "100%", background: "#333", borderRadius: "8px", height: "8px" }}>
-                <div
-                  style={{
-                    width: `${uploadProgress}%`,
-                    background: activeProvider === "archive" ? "#3ea6ff" : "orange",
-                    height: "100%",
-                    borderRadius: "8px",
-                    transition: "width 0.3s",
-                  }}
-                />
+                <div style={{
+                  width: `${uploadProgress}%`,
+                  background: activeProvider === "archive" ? "#3ea6ff" : "orange",
+                  height: "100%", borderRadius: "8px", transition: "width 0.3s",
+                }} />
               </div>
 
-              {/* Speed & ETA row */}
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ color: "#666", fontSize: "0.8rem" }}>
                   {uploadProgress}% complete
                   {uploadSpeed > 0 ? ` • ${uploadSpeed} MB/s` : ""}
                 </span>
                 {timeRemaining && (
-                  <span
-                    style={{
-                      color: activeProvider === "archive" ? "#3ea6ff" : "orange",
-                      fontSize: "0.8rem",
-                      fontWeight: 500,
-                    }}
-                  >
+                  <span style={{
+                    color: activeProvider === "archive" ? "#3ea6ff" : "orange",
+                    fontSize: "0.8rem", fontWeight: 500,
+                  }}>
                     ⏱ {timeRemaining}
                   </span>
                 )}
@@ -853,8 +758,7 @@ const VideoUpload = () => {
 
               {activeProvider === "archive" && (
                 <p style={{ color: "#555", fontSize: "11px", margin: 0 }}>
-                  ⚠️ Large files may take several minutes from India to US servers.
-                  Screen will stay on automatically — do not close this tab.
+                  ⚠️ Large files may take several minutes from India to US servers. Screen will stay on automatically — do not close this tab.
                 </p>
               )}
             </Box>
@@ -874,9 +778,7 @@ const VideoUpload = () => {
                 ? `Uploading... ${uploadProgress}%`
                 : `Upload ${uploadMode === "reel" ? "Reel" : "Video"}`}
           </div>
-          <Link to={"/"} className="uploadBtns-form">
-            Home
-          </Link>
+          <Link to={"/"} className="uploadBtns-form">Home</Link>
         </div>
       </div>
     </div>

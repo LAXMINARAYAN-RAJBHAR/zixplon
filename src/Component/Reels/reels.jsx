@@ -722,8 +722,12 @@ const ReelItem = ({ reel, allReels }) => {
       setSubscribed(false);
     } else {
       const { error } = await supabase
-        .from("subscriptions")
-        .insert({ subscriber_id: userId, subscribed_to: reel.username });
+  .from("subscriptions")
+  .insert({
+    subscriber_id: userId,
+    subscriber_username: localStorage.getItem("username"), // 👈 add this
+    subscribed_to: reel.username,
+  });
       if (!error) setSubscribed(true);
     }
   };

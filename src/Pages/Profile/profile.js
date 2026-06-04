@@ -145,43 +145,27 @@ const Profile = ({ sideNavbar }) => {
     const loadProfile = async () => {
       setLoading(true);
 
-      // ── 1. Try localStorage (fastest) ──────────────────────────────────
+      // ── 1. Try localStorage (fastest) — only for the logged-in owner ──
       const lsUsername = localStorage.getItem("username");
       const lsProfilePic = localStorage.getItem("profilePic");
       const lsAbout = localStorage.getItem("about");
       const lsEmail = localStorage.getItem("email");
-      const lsBannerPic = localStorage.getItem("bannerPic");
 
       if (lsUsername && matchesKey(lsUsername, key)) {
-        // ── FIX: also fetch latest bannerPic from profiles table for owner ──
-        const { data: ownerProfile } = await supabase
-          .from("profiles")
-          .select("banner_pic, profile_pic, about")
-          .eq("username", lsUsername)
-          .maybeSingle();
-
-        const bannerPic =
-          ownerProfile?.banner_pic || lsBannerPic || null;
-        const profilePic =
-          ownerProfile?.profile_pic ||
-          lsProfilePic ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=ff0000&color=fff&size=120&length=2`;
-        const about =
-          ownerProfile?.about || lsAbout || `${lsUsername}'s channel`;
-
-        // Keep localStorage in sync with DB
-        if (bannerPic) localStorage.setItem("bannerPic", bannerPic);
-        if (profilePic) localStorage.setItem("profilePic", profilePic);
-        if (about) localStorage.setItem("about", about);
+        // ✅ FIX: Only use lsBannerPic for the owner's own profile.
+        // Never leak it to other profiles.
+        const lsBannerPic = localStorage.getItem("bannerPic");
 
         setUser({
           name: lsUsername,
           handle: `@${lsUsername}`,
-          profilePic,
-          about,
+          profilePic:
+            lsProfilePic ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=ff0000&color=fff&size=120&length=2`,
+          about: lsAbout || `${lsUsername}'s channel`,
           email: lsEmail,
           isOwner: true,
-          bannerPic,
+          bannerPic: lsBannerPic || null,
         });
       } else {
         // ── 2. Try Supabase auth session ──────────────────────────────────
@@ -192,92 +176,55 @@ const Profile = ({ sideNavbar }) => {
           authUser?.user_metadata?.username;
 
         if (authUsername && matchesKey(authUsername, key)) {
-          // ── FIX: fetch latest from profiles table ──
-          const { data: ownerProfile } = await supabase
-            .from("profiles")
-            .select("banner_pic, profile_pic, about")
-            .eq("username", authUsername)
-            .maybeSingle();
-
-          const bannerPic =
-            ownerProfile?.banner_pic ||
-            authUser.user_metadata?.bannerPic ||
-            localStorage.getItem("bannerPic") ||
-            null;
-          const profilePic =
-            ownerProfile?.profile_pic ||
-            authUser.user_metadata?.profilePic ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`;
-          const about =
-            ownerProfile?.about ||
-            authUser.user_metadata?.about ||
-            `${authUsername}'s channel`;
-
           setUser({
             name: authUsername,
             handle: `@${authUsername}`,
-            profilePic,
-            about,
+            profilePic:
+              authUser.user_metadata?.profilePic ||
+              `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`,
+            about: authUser.user_metadata?.about || `${authUsername}'s channel`,
             email: authUser.email,
             isOwner: true,
-            bannerPic,
+            // ✅ FIX: Prefer Supabase metadata; do NOT fall back to localStorage
+            // here because this path is only reached when lsUsername didn't match,
+            // which means the localStorage data belongs to a different user.
+            bannerPic: authUser.user_metadata?.bannerPic || null,
           });
 
-          // Keep localStorage in sync
+          // Keep localStorage in sync so future refreshes are instant
           localStorage.setItem("username", authUsername);
-          if (profilePic) localStorage.setItem("profilePic", profilePic);
-          if (about) localStorage.setItem("about", about);
-          if (bannerPic) localStorage.setItem("bannerPic", bannerPic);
+          if (authUser.user_metadata?.profilePic)
+            localStorage.setItem("profilePic", authUser.user_metadata.profilePic);
+          if (authUser.user_metadata?.about)
+            localStorage.setItem("about", authUser.user_metadata.about);
+          if (authUser.user_metadata?.bannerPic)
+            localStorage.setItem("bannerPic", authUser.user_metadata.bannerPic);
         } else {
-          // ── 3. Look up other users ────────────────────────────────────
+          // ── 3. Look up other users — fetch their banner from DB ──────────
+          // ✅ FIX: Never read localStorage here. This is someone else's profile.
           let foundUser = null;
 
-          // ── FIX: first check profiles table for this user ──
-          const { data: profileRow } = await supabase
-            .from("profiles")
-            .select("username, banner_pic, profile_pic, about")
-            .eq("username", key)
-            .maybeSingle();
+          const { data: videoUserData } = await supabase
+            .from("videos")
+            .select("channel, username")
+            .limit(200);
 
-          if (profileRow) {
-            foundUser = {
-              name: profileRow.username,
-              handle: `@${profileRow.username}`,
-              profilePic:
-                profileRow.profile_pic ||
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(profileRow.username)}&background=ff0000&color=fff&size=120`,
-              about: profileRow.about || `${profileRow.username}'s channel`,
-              bannerPic: profileRow.banner_pic || null,
-              isOwner: false,
-            };
-          }
-
-          // Fall back to videos table
-          if (!foundUser) {
-            const { data: videoUserData } = await supabase
-              .from("videos")
-              .select("channel, username")
-              .limit(200);
-
-            if (videoUserData) {
-              const match = videoUserData.find(
-                (v) =>
-                  matchesKey(v.username, key) || matchesKey(v.channel, key),
-              );
-              if (match) {
-                foundUser = {
-                  name: match.channel || match.username,
-                  handle: `@${match.username || match.channel}`,
-                  profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.channel || match.username)}&background=ff0000&color=fff&size=120`,
-                  about: `${match.channel || match.username}'s channel`,
-                  bannerPic: null,
-                  isOwner: false,
-                };
-              }
+          if (videoUserData) {
+            const match = videoUserData.find(
+              (v) => matchesKey(v.username, key) || matchesKey(v.channel, key),
+            );
+            if (match) {
+              foundUser = {
+                name: match.channel || match.username,
+                handle: `@${match.username || match.channel}`,
+                profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.channel || match.username)}&background=ff0000&color=fff&size=120`,
+                about: `${match.channel || match.username}'s channel`,
+                isOwner: false,
+                bannerPic: null, // will be populated from profiles table below
+              };
             }
           }
 
-          // Fall back to reels table
           if (!foundUser) {
             const { data: reelUserData } = await supabase
               .from("reels")
@@ -294,18 +241,15 @@ const Profile = ({ sideNavbar }) => {
                   handle: `@${match.username}`,
                   profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.user || match.username)}&background=ff0000&color=fff&size=120`,
                   about: `${match.user || match.username}'s channel`,
-                  bannerPic: null,
                   isOwner: false,
+                  bannerPic: null,
                 };
               }
             }
           }
 
-          // Fall back to hardcoded reels
           if (!foundUser) {
-            const reelUser = reelsData.find((r) =>
-              matchesKey(r.username, key),
-            );
+            const reelUser = reelsData.find((r) => matchesKey(r.username, key));
             if (reelUser) {
               foundUser = {
                 name: reelUser.user,
@@ -314,9 +258,29 @@ const Profile = ({ sideNavbar }) => {
                   reelUser.profilePic ||
                   `https://api.dicebear.com/7.x/initials/svg?seed=${reelUser.user}`,
                 about: `${reelUser.user}'s channel`,
-                bannerPic: null,
                 isOwner: false,
+                bannerPic: null,
               };
+            }
+          }
+
+          // ✅ FIX: Fetch this user's banner from the profiles table in the DB.
+          // This is the only correct source for other users' banners.
+          if (foundUser) {
+            const lookupName = foundUser.name;
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("banner_pic, profile_pic, about")
+              .eq("username", lookupName)
+              .single();
+
+            if (profileData) {
+              foundUser.bannerPic = profileData.banner_pic || null;
+              // Optionally also pick up their stored profile pic / about
+              if (profileData.profile_pic)
+                foundUser.profilePic = profileData.profile_pic;
+              if (profileData.about)
+                foundUser.about = profileData.about;
             }
           }
 
@@ -334,8 +298,7 @@ const Profile = ({ sideNavbar }) => {
         setDbVideos(
           vData
             .filter(
-              (v) =>
-                matchesKey(v.username, key) || matchesKey(v.channel, key),
+              (v) => matchesKey(v.username, key) || matchesKey(v.channel, key),
             )
             .map((v) => ({
               id: v.id,
@@ -375,7 +338,7 @@ const Profile = ({ sideNavbar }) => {
         );
       }
 
-      // ── Fetch likes & views for all videos ──
+      // ── Fetch likes & views for all videos ──────────────────────────────
       if (vData) {
         const ids = vData.map((v) => String(v.id));
         const [{ data: vLikes }, { data: vViews }] = await Promise.all([
@@ -400,7 +363,7 @@ const Profile = ({ sideNavbar }) => {
         setVideoCounts(counts);
       }
 
-      // ── Fetch likes & views for all reels ──
+      // ── Fetch likes & views for all reels ───────────────────────────────
       if (rData) {
         const ids = rData.map((r) => `db_${r.id}`);
         const [{ data: rLikes }, { data: rViews }] = await Promise.all([
@@ -450,19 +413,15 @@ const Profile = ({ sideNavbar }) => {
     localStorage.setItem("about", newAbout);
     localStorage.setItem("profilePic", newPic);
 
-    // ── FIX: save to profiles table so other users see updated info ──
-    await supabase.from("profiles").upsert(
-      {
-        username: newName,
-        profile_pic: newPic,
-        about: newAbout,
-        banner_pic: user.bannerPic || null,
-      },
-      { onConflict: "username" },
-    );
-
     await supabase.auth.updateUser({
       data: { channelName: newName, about: newAbout, profilePic: newPic },
+    });
+
+    // ✅ Also persist to profiles table so other users see updated info
+    await supabase.from("profiles").upsert({
+      username: newName,
+      profile_pic: newPic,
+      about: newAbout,
     });
 
     setUser((prev) => ({
@@ -572,7 +531,6 @@ const Profile = ({ sideNavbar }) => {
             user.isOwner && document.getElementById("bannerInput").click()
           }
         >
-          {/* Banner image or default gradient */}
           {user.bannerPic ? (
             <img
               src={user.bannerPic}
@@ -585,24 +543,25 @@ const Profile = ({ sideNavbar }) => {
               }}
             />
           ) : (
-  <>
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: getUserGradient(user.name),
-      }}
-    />
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        background:
-          "radial-gradient(circle at 30% 50%, rgba(255,255,255,0.05), transparent 60%)",
-      }}
-    />
-  </>
-)}
+            <>
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background:
+                    "linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background:
+                    "radial-gradient(circle at 30% 50%, rgba(255,0,0,0.15), transparent 60%)",
+                }}
+              />
+            </>
+          )}
 
           {/* Upload hint — only for owner */}
           {user.isOwner && (
@@ -625,50 +584,45 @@ const Profile = ({ sideNavbar }) => {
             </div>
           )}
 
-          {/* Hidden file input */}
-          <input
-            type="file"
-            id="bannerInput"
-            accept="image/*"
-            style={{ display: "none" }}
-            onChange={async (e) => {
-              const file = e.target.files[0];
-              if (!file) return;
-              const formData = new FormData();
-              formData.append("file", file);
-              formData.append("upload_preset", "youtube-clone");
-              try {
-                const res = await fetch(
-                  "https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload",
-                  { method: "POST", body: formData },
-                );
-                const data = await res.json();
-                const url = data.secure_url;
+          {/* Hidden file input — only rendered for owner */}
+          {user.isOwner && (
+            <input
+              type="file"
+              id="bannerInput"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const formData = new FormData();
+                formData.append("file", file);
+                formData.append("upload_preset", "youtube-clone");
+                try {
+                  const res = await fetch(
+                    "https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload",
+                    { method: "POST", body: formData },
+                  );
+                  const data = await res.json();
+                  const url = data.secure_url;
 
-                // Save to localStorage
-                localStorage.setItem("bannerPic", url);
+                  // ✅ FIX: Update localStorage, Supabase auth metadata, AND
+                  // the profiles table — all three sources must be in sync.
+                  localStorage.setItem("bannerPic", url);
 
-                // Save to Supabase auth metadata
-                await supabase.auth.updateUser({ data: { bannerPic: url } });
+                  await supabase.auth.updateUser({ data: { bannerPic: url } });
 
-                // ── FIX: save to profiles table so ALL users see this banner ──
-                await supabase.from("profiles").upsert(
-                  {
+                  await supabase.from("profiles").upsert({
                     username: localStorage.getItem("username"),
                     banner_pic: url,
-                    profile_pic:
-                      localStorage.getItem("profilePic") || user.profilePic,
-                    about: localStorage.getItem("about") || user.about,
-                  },
-                  { onConflict: "username" },
-                );
+                  });
 
-                setUser((prev) => ({ ...prev, bannerPic: url }));
-              } catch {
-                alert("Banner upload failed. Try again.");
-              }
-            }}
-          />
+                  setUser((prev) => ({ ...prev, bannerPic: url }));
+                } catch {
+                  alert("Banner upload failed. Try again.");
+                }
+              }}
+            />
+          )}
         </div>
 
         {/* ── Top Section ── */}

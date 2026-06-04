@@ -969,6 +969,7 @@ const ReelItem = ({ reel, allReels }) => {
             loop
             muted={muted}
             playsInline
+            poster={reel.thumbnail}
             controlsList="nodownload"
             onContextMenu={(e) => e.preventDefault()}
             onClick={handleVideoClick}

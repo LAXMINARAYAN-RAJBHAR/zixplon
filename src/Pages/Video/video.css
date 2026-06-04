@@ -1,6 +1,6 @@
 .video{
     background-color: black;
-    margin-top: 56px;
+    margin-top: 64px;
     display: flex;
     color: white;
     padding: 30px 0;
@@ -455,7 +455,7 @@
   .video {
     flex-direction: column;
     padding: 10px 0;
-    margin-top: 56px;
+    margin-top: 64px;
   }
 
   .videoPostSection {

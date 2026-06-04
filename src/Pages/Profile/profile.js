@@ -585,25 +585,24 @@ const Profile = ({ sideNavbar }) => {
               }}
             />
           ) : (
-            <>
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background:
-                    "linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)",
-                }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background:
-                    "radial-gradient(circle at 30% 50%, rgba(255,0,0,0.15), transparent 60%)",
-                }}
-              />
-            </>
-          )}
+  <>
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: getUserGradient(user.name),
+      }}
+    />
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        background:
+          "radial-gradient(circle at 30% 50%, rgba(255,255,255,0.05), transparent 60%)",
+      }}
+    />
+  </>
+)}
 
           {/* Upload hint — only for owner */}
           {user.isOwner && (

@@ -105,11 +105,9 @@ const allVideos = [
 ];
 
 // ─── Helper: normalize a username string to a URL-safe key ───────────────────
-// FIX: guard against null/undefined before calling toLowerCase
 const toKey = (str = "") => (str || "").toLowerCase().replace(/\s+/g, "_");
 
 // ─── Helper: does a candidate username match the URL key? ────────────────────
-// FIX: return false immediately if either argument is null/undefined/empty
 const matchesKey = (candidate = "", key = "") => {
   if (!candidate || !key) return false;
   const c = candidate.toLowerCase();
@@ -129,8 +127,8 @@ const Profile = ({ sideNavbar }) => {
   const [dbVideos, setDbVideos] = useState([]);
   const [dbReels, setDbReels] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [videoCounts, setVideoCounts] = useState({}); // { [videoId]: { likes, views } }
-  const [reelCounts, setReelCounts] = useState({}); // { [reelId]:  { likes, views } }
+  const [videoCounts, setVideoCounts] = useState({});
+  const [reelCounts, setReelCounts] = useState({});
 
   // Edit-profile modal state
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -141,7 +139,6 @@ const Profile = ({ sideNavbar }) => {
 
   // ─── Confirm-delete state ────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState(null);
-  // deleteTarget = { type: "video" | "reel", id, title }
 
   // ─── Load profile ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -153,21 +150,39 @@ const Profile = ({ sideNavbar }) => {
       const lsProfilePic = localStorage.getItem("profilePic");
       const lsAbout = localStorage.getItem("about");
       const lsEmail = localStorage.getItem("email");
+      const lsBannerPic = localStorage.getItem("bannerPic");
 
       if (lsUsername && matchesKey(lsUsername, key)) {
-        const lsBannerPic = localStorage.getItem("bannerPic"); // 👈 add this above setUser
+        // ── FIX: also fetch latest bannerPic from profiles table for owner ──
+        const { data: ownerProfile } = await supabase
+          .from("profiles")
+          .select("banner_pic, profile_pic, about")
+          .eq("username", lsUsername)
+          .maybeSingle();
 
-setUser({
-  name: lsUsername,
-  handle: `@${lsUsername}`,
-  profilePic:
-    lsProfilePic ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=ff0000&color=fff&size=120&length=2`,
-  about: lsAbout || `${lsUsername}'s channel`,
-  email: lsEmail,
-  isOwner: true,
-  bannerPic: lsBannerPic || null, // 👈 add this line
-});
+        const bannerPic =
+          ownerProfile?.banner_pic || lsBannerPic || null;
+        const profilePic =
+          ownerProfile?.profile_pic ||
+          lsProfilePic ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=ff0000&color=fff&size=120&length=2`;
+        const about =
+          ownerProfile?.about || lsAbout || `${lsUsername}'s channel`;
+
+        // Keep localStorage in sync with DB
+        if (bannerPic) localStorage.setItem("bannerPic", bannerPic);
+        if (profilePic) localStorage.setItem("profilePic", profilePic);
+        if (about) localStorage.setItem("about", about);
+
+        setUser({
+          name: lsUsername,
+          handle: `@${lsUsername}`,
+          profilePic,
+          about,
+          email: lsEmail,
+          isOwner: true,
+          bannerPic,
+        });
       } else {
         // ── 2. Try Supabase auth session ──────────────────────────────────
         const { data: authData } = await supabase.auth.getUser();
@@ -177,50 +192,92 @@ setUser({
           authUser?.user_metadata?.username;
 
         if (authUsername && matchesKey(authUsername, key)) {
-  setUser({
-    name: authUsername,
-    handle: `@${authUsername}`,
-    profilePic:
-      authUser.user_metadata?.profilePic ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`,
-    about: authUser.user_metadata?.about || `${authUsername}'s channel`,
-    email: authUser.email,
-    isOwner: true,
-    bannerPic: authUser.user_metadata?.bannerPic || localStorage.getItem("bannerPic") || null, // 👈 add this line
-  });
-          // Keep localStorage in sync so future refreshes are instant
+          // ── FIX: fetch latest from profiles table ──
+          const { data: ownerProfile } = await supabase
+            .from("profiles")
+            .select("banner_pic, profile_pic, about")
+            .eq("username", authUsername)
+            .maybeSingle();
+
+          const bannerPic =
+            ownerProfile?.banner_pic ||
+            authUser.user_metadata?.bannerPic ||
+            localStorage.getItem("bannerPic") ||
+            null;
+          const profilePic =
+            ownerProfile?.profile_pic ||
+            authUser.user_metadata?.profilePic ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`;
+          const about =
+            ownerProfile?.about ||
+            authUser.user_metadata?.about ||
+            `${authUsername}'s channel`;
+
+          setUser({
+            name: authUsername,
+            handle: `@${authUsername}`,
+            profilePic,
+            about,
+            email: authUser.email,
+            isOwner: true,
+            bannerPic,
+          });
+
+          // Keep localStorage in sync
           localStorage.setItem("username", authUsername);
-          if (authUser.user_metadata?.profilePic)
-            localStorage.setItem(
-              "profilePic",
-              authUser.user_metadata.profilePic,
-            );
-          if (authUser.user_metadata?.about)
-            localStorage.setItem("about", authUser.user_metadata.about);
+          if (profilePic) localStorage.setItem("profilePic", profilePic);
+          if (about) localStorage.setItem("about", about);
+          if (bannerPic) localStorage.setItem("bannerPic", bannerPic);
         } else {
-          // ── 3. Look up other users from the videos / reels tables ────────
+          // ── 3. Look up other users ────────────────────────────────────
           let foundUser = null;
 
-          const { data: videoUserData } = await supabase
-            .from("videos")
-            .select("channel, username")
-            .limit(200);
+          // ── FIX: first check profiles table for this user ──
+          const { data: profileRow } = await supabase
+            .from("profiles")
+            .select("username, banner_pic, profile_pic, about")
+            .eq("username", key)
+            .maybeSingle();
 
-          if (videoUserData) {
-            const match = videoUserData.find(
-              (v) => matchesKey(v.username, key) || matchesKey(v.channel, key),
-            );
-            if (match) {
-              foundUser = {
-                name: match.channel || match.username,
-                handle: `@${match.username || match.channel}`,
-                profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.channel || match.username)}&background=ff0000&color=fff&size=120`,
-                about: `${match.channel || match.username}'s channel`,
-                isOwner: false,
-              };
+          if (profileRow) {
+            foundUser = {
+              name: profileRow.username,
+              handle: `@${profileRow.username}`,
+              profilePic:
+                profileRow.profile_pic ||
+                `https://ui-avatars.com/api/?name=${encodeURIComponent(profileRow.username)}&background=ff0000&color=fff&size=120`,
+              about: profileRow.about || `${profileRow.username}'s channel`,
+              bannerPic: profileRow.banner_pic || null,
+              isOwner: false,
+            };
+          }
+
+          // Fall back to videos table
+          if (!foundUser) {
+            const { data: videoUserData } = await supabase
+              .from("videos")
+              .select("channel, username")
+              .limit(200);
+
+            if (videoUserData) {
+              const match = videoUserData.find(
+                (v) =>
+                  matchesKey(v.username, key) || matchesKey(v.channel, key),
+              );
+              if (match) {
+                foundUser = {
+                  name: match.channel || match.username,
+                  handle: `@${match.username || match.channel}`,
+                  profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.channel || match.username)}&background=ff0000&color=fff&size=120`,
+                  about: `${match.channel || match.username}'s channel`,
+                  bannerPic: null,
+                  isOwner: false,
+                };
+              }
             }
           }
 
+          // Fall back to reels table
           if (!foundUser) {
             const { data: reelUserData } = await supabase
               .from("reels")
@@ -237,14 +294,18 @@ setUser({
                   handle: `@${match.username}`,
                   profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.user || match.username)}&background=ff0000&color=fff&size=120`,
                   about: `${match.user || match.username}'s channel`,
+                  bannerPic: null,
                   isOwner: false,
                 };
               }
             }
           }
 
+          // Fall back to hardcoded reels
           if (!foundUser) {
-            const reelUser = reelsData.find((r) => matchesKey(r.username, key));
+            const reelUser = reelsData.find((r) =>
+              matchesKey(r.username, key),
+            );
             if (reelUser) {
               foundUser = {
                 name: reelUser.user,
@@ -253,6 +314,7 @@ setUser({
                   reelUser.profilePic ||
                   `https://api.dicebear.com/7.x/initials/svg?seed=${reelUser.user}`,
                 about: `${reelUser.user}'s channel`,
+                bannerPic: null,
                 isOwner: false,
               };
             }
@@ -272,7 +334,8 @@ setUser({
         setDbVideos(
           vData
             .filter(
-              (v) => matchesKey(v.username, key) || matchesKey(v.channel, key),
+              (v) =>
+                matchesKey(v.username, key) || matchesKey(v.channel, key),
             )
             .map((v) => ({
               id: v.id,
@@ -297,7 +360,7 @@ setUser({
             .filter((r) => matchesKey(r.username, key))
             .map((r) => ({
               id: `db_${r.id}`,
-              dbId: r.id, // raw DB id for deletion
+              dbId: r.id,
               src: r.video_url,
               thumbnail:
                 r.thumbnail || "https://picsum.photos/200/350?random=99",
@@ -311,6 +374,7 @@ setUser({
             })),
         );
       }
+
       // ── Fetch likes & views for all videos ──
       if (vData) {
         const ids = vData.map((v) => String(v.id));
@@ -360,6 +424,7 @@ setUser({
         });
         setReelCounts(counts);
       }
+
       setLoading(false);
     };
 
@@ -384,6 +449,17 @@ setUser({
     localStorage.setItem("username", newName);
     localStorage.setItem("about", newAbout);
     localStorage.setItem("profilePic", newPic);
+
+    // ── FIX: save to profiles table so other users see updated info ──
+    await supabase.from("profiles").upsert(
+      {
+        username: newName,
+        profile_pic: newPic,
+        about: newAbout,
+        banner_pic: user.bannerPic || null,
+      },
+      { onConflict: "username" },
+    );
 
     await supabase.auth.updateUser({
       data: { channelName: newName, about: newAbout, profilePic: newPic },
@@ -569,8 +645,25 @@ setUser({
                 );
                 const data = await res.json();
                 const url = data.secure_url;
+
+                // Save to localStorage
                 localStorage.setItem("bannerPic", url);
+
+                // Save to Supabase auth metadata
                 await supabase.auth.updateUser({ data: { bannerPic: url } });
+
+                // ── FIX: save to profiles table so ALL users see this banner ──
+                await supabase.from("profiles").upsert(
+                  {
+                    username: localStorage.getItem("username"),
+                    banner_pic: url,
+                    profile_pic:
+                      localStorage.getItem("profilePic") || user.profilePic,
+                    about: localStorage.getItem("about") || user.about,
+                  },
+                  { onConflict: "username" },
+                );
+
                 setUser((prev) => ({ ...prev, bannerPic: url }));
               } catch {
                 alert("Banner upload failed. Try again.");

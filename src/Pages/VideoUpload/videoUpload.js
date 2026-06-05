@@ -126,7 +126,7 @@ const VideoUpload = () => {
   // ── Auto-select provider based on file size ──
   const autoSelectProvider = (file) => {
     const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB < 100) return "cloudinary";
+    if (sizeMB < 500) return "cloudinary";
     return "archive";
   };
 
@@ -412,7 +412,7 @@ const VideoUpload = () => {
 
     const selectedProvider = autoSelectProvider(file);
     const forcedProvider =
-      selectedProvider === "cloudinary" && file.size > 100 * 1024 * 1024
+      selectedProvider === "cloudinary" && file.size > 500 * 1024 * 1024
         ? "archive"
         : selectedProvider;
 
@@ -729,7 +729,7 @@ const VideoUpload = () => {
                 <span style={{ color: "#aaa", fontSize: "0.9rem" }}>
                   {activeProvider === "archive"
                     ? `🏛️ ${archiveStatus || "Uploading to Archive.org..."}`
-                    : `☁️ Uploading to Cloudinary...`}
+                    : `☁️ Uploading to Zixplon...`}
                 </span>
               </Box>
 

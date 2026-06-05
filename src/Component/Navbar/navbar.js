@@ -490,10 +490,8 @@ const Navbar = ({
   };
 
   const handleLogout = async () => {
-  // ✅ Clean up scoped banner key before clearing username
-  const username = localStorage.getItem("username");
-  if (username) localStorage.removeItem(`bannerPic_${username}`);
-
+  // ✅ Do NOT remove bannerPic_<username> — it's scoped and safe to keep
+  // It will load instantly when the user logs back in
   await supabase.auth.signOut();
   localStorage.removeItem("username");
   localStorage.removeItem("email");

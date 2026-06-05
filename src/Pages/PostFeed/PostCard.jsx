@@ -162,10 +162,16 @@ const PostCard = ({
             className={`pf-action-btn ${post.myReaction ? "pf-action-active" : ""}`}
             style={myReact ? { color: myReact.color } : {}}
             onClick={() => {
-              if (post.myReaction) onReaction(post.id, post.myReaction);
-              else setShowPicker((v) => !v);
-            }}
-            onMouseEnter={() => setShowPicker(true)}
+  if (!currentUser || currentUser === "anonymous") {
+    window.dispatchEvent(new CustomEvent("openLogin"));
+    return;
+  }
+  if (post.myReaction) onReaction(post.id, post.myReaction);
+  else setShowPicker((v) => !v);
+}}
+onMouseEnter={() => {
+  if (currentUser && currentUser !== "anonymous") setShowPicker(true);
+}}
           >
             {myReact ? myReact.emoji : "👍"}
             <span>{myReact ? myReact.label : "Like"}</span>
@@ -190,11 +196,17 @@ const PostCard = ({
         </div>
 
         <button
-          className="pf-action-btn"
-          onClick={() => onToggleComments(post.id)}
-        >
-          💬 <span>Comment</span>
-        </button>
+  className="pf-action-btn"
+  onClick={() => {
+    if (!currentUser || currentUser === "anonymous") {
+      window.dispatchEvent(new CustomEvent("openLogin"));
+      return;
+    }
+    onToggleComments(post.id);
+  }}
+>
+  💬 <span>Comment</span>
+</button>
 
         {/* Share */}
         <div className="pf-action-wrap" ref={shareRef}>
@@ -238,12 +250,22 @@ const PostCard = ({
               {currentUser.slice(0, 2).toUpperCase()}
             </div>
             <input
-              className="pf-comment-input"
-              placeholder="Write a comment… (Enter to send)"
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              onKeyDown={handleCommentSubmit}
-            />
+  className="pf-comment-input"
+  placeholder={
+    !currentUser || currentUser === "anonymous"
+      ? "Login to comment…"
+      : "Write a comment… (Enter to send)"
+  }
+  value={commentText}
+  onChange={(e) => setCommentText(e.target.value)}
+  onKeyDown={handleCommentSubmit}
+  disabled={!currentUser || currentUser === "anonymous"}
+  style={
+    !currentUser || currentUser === "anonymous"
+      ? { opacity: 0.5, cursor: "not-allowed" }
+      : {}
+  }
+/>
           </div>
         </div>
       )}

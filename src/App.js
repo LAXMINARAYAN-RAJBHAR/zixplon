@@ -39,6 +39,12 @@ function App() {
     localStorage.getItem("username") || null,
   );
 
+  // ── Warm up Supabase connection on app load ──
+  // Prevents the cold-start delay on the first real query
+  useEffect(() => {
+    supabase.from("videos").select("id").limit(1).then(() => {});
+  }, []);
+
   useEffect(() => {
     const handleAuthRedirect = async () => {
       const {
@@ -47,10 +53,10 @@ function App() {
       if (session?.user) {
         const user = session.user;
         const name =
-  user.user_metadata?.channelName ||
-  user.user_metadata?.full_name ||
-  user.user_metadata?.username ||
-  user.email?.split("@")[0];
+          user.user_metadata?.channelName ||
+          user.user_metadata?.full_name ||
+          user.user_metadata?.username ||
+          user.email?.split("@")[0];
         const pic =
           user.user_metadata?.profilePic ||
           user.user_metadata?.avatar_url ||
@@ -77,7 +83,7 @@ function App() {
       if (session?.user) {
         const u = session.user;
         const name =
-          localStorage.getItem("username") || // trust saved username first
+          localStorage.getItem("username") ||
           u.user_metadata?.channelName ||
           u.user_metadata?.username ||
           u.user_metadata?.full_name ||
@@ -92,7 +98,7 @@ function App() {
       if (session?.user) {
         const u = session.user;
         const name =
-          localStorage.getItem("username") || // trust saved username first
+          localStorage.getItem("username") ||
           u.user_metadata?.channelName ||
           u.user_metadata?.username ||
           u.user_metadata?.full_name ||

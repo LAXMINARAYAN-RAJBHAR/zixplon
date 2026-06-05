@@ -105,6 +105,10 @@ const PostFeed = ({ sideNavbar }) => {
 };
 
   const handleReaction = async (postId, reactionType) => {
+    if (!currentUser || currentUser === "anonymous") {
+    window.dispatchEvent(new CustomEvent("openLogin"));
+    return;
+  }
     const post = posts.find((p) => p.id === postId);
     if (!post) return;
 
@@ -142,6 +146,10 @@ const PostFeed = ({ sideNavbar }) => {
   };
 
   const handleComment = async (postId, text) => {
+    if (!currentUser || currentUser === "anonymous") {
+    window.dispatchEvent(new CustomEvent("openLogin"));
+    return;
+  }
     if (!text.trim()) return;
     const { data, error: err } = await supabase
       .from("post_comments")

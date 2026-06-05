@@ -7,6 +7,13 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import useViewTracker from "../../Component/Reels/useViewTracker";
 
+const getCloudinaryThumbnail = (videoUrl) => {
+  if (!videoUrl || !videoUrl.includes("cloudinary.com")) return null;
+  return videoUrl
+    .replace("/video/upload/", "/video/upload/so_1,vs_1/")
+    .replace(/\.(mp4|webm|mov|avi|mkv)(\?.*)?$/i, ".jpg");
+};
+
 const getVideoType = (src) => {
   if (!src) return "video/mp4";
   const ext = src.split(".").pop().split("?")[0].toLowerCase();
@@ -662,7 +669,7 @@ const Video = () => {
           data.map((v) => ({
             id: String(v.id),
             src: v.video_url,
-            thumbnail: v.thumbnail_url,
+            thumbnail: v.thumbnail_url || getCloudinaryThumbnail(v.video_url),
             title: v.title,
             duration: v.duration || "00:00",
             channel: v.channel,

@@ -728,7 +728,7 @@ const VideoUpload = () => {
                 <CircularProgress size={28} sx={{ color: "orange" }} />
                 <span style={{ color: "#aaa", fontSize: "0.9rem" }}>
                   {activeProvider === "archive"
-                    ? `🏛️ ${archiveStatus || "Uploading to Archive.org..."}`
+                    ? `🏛️ ${archiveStatus || "Uploading to Zixplon..."}`
                     : `☁️ Uploading to Zixplon...`}
                 </span>
               </Box>

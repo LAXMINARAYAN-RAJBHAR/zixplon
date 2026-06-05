@@ -490,16 +490,20 @@ const Navbar = ({
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    localStorage.removeItem("username");
-    localStorage.removeItem("email");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("profilePic");
-    localStorage.removeItem("about");
-    setCurrentUser(null);
-    setNavbarModal(false);
-    navigate("/");
-  };
+  // ✅ Clean up scoped banner key before clearing username
+  const username = localStorage.getItem("username");
+  if (username) localStorage.removeItem(`bannerPic_${username}`);
+
+  await supabase.auth.signOut();
+  localStorage.removeItem("username");
+  localStorage.removeItem("email");
+  localStorage.removeItem("userId");
+  localStorage.removeItem("profilePic");
+  localStorage.removeItem("about");
+  setCurrentUser(null);
+  setNavbarModal(false);
+  navigate("/");
+};
 
   const setLoginModal = () => setLogin(false);
 

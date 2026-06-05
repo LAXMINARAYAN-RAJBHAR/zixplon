@@ -118,6 +118,24 @@ const matchesKey = (candidate = "", key = "") => {
   );
 };
 
+// ─── Helper: get banner from localStorage using username-scoped key ──────────
+const getBannerFromStorage = (username) => {
+  if (!username) return null;
+  return localStorage.getItem(`bannerPic_${username}`) || null;
+};
+
+// ─── Helper: set banner in localStorage using username-scoped key ────────────
+const setBannerInStorage = (username, url) => {
+  if (!username) return;
+  localStorage.setItem(`bannerPic_${username}`, url);
+};
+
+// ─── Helper: remove banner from localStorage using username-scoped key ───────
+const removeBannerFromStorage = (username) => {
+  if (!username) return;
+  localStorage.removeItem(`bannerPic_${username}`);
+};
+
 const Profile = ({ sideNavbar }) => {
   const { username } = useParams();
   const key = username?.toLowerCase();
@@ -152,9 +170,8 @@ const Profile = ({ sideNavbar }) => {
       const lsEmail = localStorage.getItem("email");
 
       if (lsUsername && matchesKey(lsUsername, key)) {
-        // ✅ FIX: Only use lsBannerPic for the owner's own profile.
-        // Never leak it to other profiles.
-        const lsBannerPic = localStorage.getItem("bannerPic");
+        // ✅ FIX: Use username-scoped key so other profiles never see this banner
+        const lsBannerPic = getBannerFromStorage(lsUsername);
 
         setUser({
           name: lsUsername,
@@ -176,6 +193,9 @@ const Profile = ({ sideNavbar }) => {
           authUser?.user_metadata?.username;
 
         if (authUsername && matchesKey(authUsername, key)) {
+          // ✅ FIX: Use username-scoped key, never fall back to generic "bannerPic"
+          const lsBannerPic = getBannerFromStorage(authUsername);
+
           setUser({
             name: authUsername,
             handle: `@${authUsername}`,
@@ -185,10 +205,10 @@ const Profile = ({ sideNavbar }) => {
             about: authUser.user_metadata?.about || `${authUsername}'s channel`,
             email: authUser.email,
             isOwner: true,
-            // ✅ FIX: Prefer Supabase metadata; do NOT fall back to localStorage
-            // here because this path is only reached when lsUsername didn't match,
-            // which means the localStorage data belongs to a different user.
-            bannerPic: authUser.user_metadata?.bannerPic || null,
+            bannerPic:
+              lsBannerPic ||
+              authUser.user_metadata?.bannerPic ||
+              null,
           });
 
           // Keep localStorage in sync so future refreshes are instant
@@ -197,8 +217,9 @@ const Profile = ({ sideNavbar }) => {
             localStorage.setItem("profilePic", authUser.user_metadata.profilePic);
           if (authUser.user_metadata?.about)
             localStorage.setItem("about", authUser.user_metadata.about);
+          // ✅ FIX: Sync Supabase banner to username-scoped localStorage key
           if (authUser.user_metadata?.bannerPic)
-            localStorage.setItem("bannerPic", authUser.user_metadata.bannerPic);
+            setBannerInStorage(authUsername, authUser.user_metadata.bannerPic);
         } else {
           // ── 3. Look up other users — fetch their banner from DB ──────────
           // ✅ FIX: Never read localStorage here. This is someone else's profile.
@@ -220,7 +241,7 @@ const Profile = ({ sideNavbar }) => {
                 profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.channel || match.username)}&background=ff0000&color=fff&size=120`,
                 about: `${match.channel || match.username}'s channel`,
                 isOwner: false,
-                bannerPic: null, // will be populated from profiles table below
+                bannerPic: null,
               };
             }
           }
@@ -264,7 +285,7 @@ const Profile = ({ sideNavbar }) => {
             }
           }
 
-          // ✅ FIX: Fetch this user's banner from the profiles table in the DB.
+          // ✅ Fetch this user's banner from the profiles table in the DB.
           // This is the only correct source for other users' banners.
           if (foundUser) {
             const lookupName = foundUser.name;
@@ -276,7 +297,6 @@ const Profile = ({ sideNavbar }) => {
 
             if (profileData) {
               foundUser.bannerPic = profileData.banner_pic || null;
-              // Optionally also pick up their stored profile pic / about
               if (profileData.profile_pic)
                 foundUser.profilePic = profileData.profile_pic;
               if (profileData.about)
@@ -408,6 +428,15 @@ const Profile = ({ sideNavbar }) => {
     const newName = editName.trim() || user.name;
     const newAbout = editAbout.trim() || user.about;
     const newPic = editPic.trim() || user.profilePic;
+
+    // ✅ FIX: If username changed, migrate the banner to the new scoped key
+    if (newName !== user.name) {
+      const existingBanner = getBannerFromStorage(user.name);
+      if (existingBanner) {
+        setBannerInStorage(newName, existingBanner);
+        removeBannerFromStorage(user.name);
+      }
+    }
 
     localStorage.setItem("username", newName);
     localStorage.setItem("about", newAbout);
@@ -605,14 +634,15 @@ const Profile = ({ sideNavbar }) => {
                   const data = await res.json();
                   const url = data.secure_url;
 
-                  // ✅ FIX: Update localStorage, Supabase auth metadata, AND
-                  // the profiles table — all three sources must be in sync.
-                  localStorage.setItem("bannerPic", url);
+                  // ✅ FIX: Use username-scoped key so banner never leaks to
+                  // other profiles on the same device
+                  const ownerUsername = localStorage.getItem("username");
+                  setBannerInStorage(ownerUsername, url);
 
                   await supabase.auth.updateUser({ data: { bannerPic: url } });
 
                   await supabase.from("profiles").upsert({
-                    username: localStorage.getItem("username"),
+                    username: ownerUsername,
                     banner_pic: url,
                   });
 

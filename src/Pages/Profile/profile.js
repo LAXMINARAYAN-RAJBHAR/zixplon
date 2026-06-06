@@ -176,10 +176,9 @@ const Profile = ({ sideNavbar }) => {
 
       if (lsUsername && matchesKey(lsUsername, key)) {
         const { data: ownerProfile } = await supabase.from("profiles").select("banner_pic, profile_pic, about").eq("username", lsUsername).maybeSingle();
-        const bannerPic = ownerProfile?.banner_pic || authUser.user_metadata?.bannerPic || lsBannerPic || null;
+        const bannerPic = ownerProfile?.banner_pic || null;
         const profilePic = ownerProfile?.profile_pic || lsProfilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=ff0000&color=fff&size=120&length=2`;
         const about = ownerProfile?.about || lsAbout || `${lsUsername}'s channel`;
-        if (bannerPic) localStorage.setItem("bannerPic", bannerPic);
         if (profilePic) localStorage.setItem("profilePic", profilePic);
         if (about) localStorage.setItem("about", about);
         setUser({ name: lsUsername, handle: `@${lsUsername}`, profilePic, about, email: lsEmail, isOwner: true, bannerPic });
@@ -189,14 +188,13 @@ const Profile = ({ sideNavbar }) => {
         const authUsername = authUser?.user_metadata?.channelName || authUser?.user_metadata?.username;
         if (authUsername && matchesKey(authUsername, key)) {
           const { data: ownerProfile } = await supabase.from("profiles").select("banner_pic, profile_pic, about").eq("username", authUsername).maybeSingle();
-          const bannerPic = ownerProfile?.banner_pic || authUser.user_metadata?.bannerPic || lsBannerPic || null;
+          const bannerPic = ownerProfile?.banner_pic || authUser.user_metadata?.bannerPic || null;
           const profilePic = ownerProfile?.profile_pic || authUser.user_metadata?.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`;
           const about = ownerProfile?.about || authUser.user_metadata?.about || `${authUsername}'s channel`;
           setUser({ name: authUsername, handle: `@${authUsername}`, profilePic, about, email: authUser.email, isOwner: true, bannerPic });
           localStorage.setItem("username", authUsername);
           if (profilePic) localStorage.setItem("profilePic", profilePic);
           if (about) localStorage.setItem("about", about);
-          if (bannerPic) localStorage.setItem("bannerPic", bannerPic);
         } else {
           let foundUser = null;
           const { data: profileRow } = await supabase.from("profiles").select("username, banner_pic, profile_pic, about").eq("username", key).maybeSingle();

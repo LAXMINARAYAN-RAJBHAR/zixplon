@@ -67,7 +67,7 @@ const PostFeed = ({ sideNavbar }) => {
   useEffect(() => {
     fetchPosts(true);
 
-    // Realtime subscription for new posts
+    // ── FIX: listen to both INSERT and DELETE events ──
     const channel = supabase
       .channel("posts-realtime")
       .on(
@@ -75,40 +75,52 @@ const PostFeed = ({ sideNavbar }) => {
         { event: "INSERT", schema: "public", table: "posts" },
         () => fetchPosts(true)
       )
+      .on(
+        "postgres_changes",
+        // ── FIX: on DELETE, remove the post from local state immediately ──
+        { event: "DELETE", schema: "public", table: "posts" },
+        (payload) => {
+          const deletedId = payload.old?.id;
+          if (deletedId) {
+            setPosts((prev) => prev.filter((p) => p.id !== deletedId));
+            offsetRef.current = Math.max(0, offsetRef.current - 1);
+          }
+        }
+      )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
   }, [fetchPosts]);
 
   const handleNewPost = async (post) => {
-  setPosts((prev) => [post, ...prev]);
+    setPosts((prev) => [post, ...prev]);
 
-  // Notify subscribers about new post
-  const uploaderUsername = localStorage.getItem("username");
-  const { data: subUsers } = await supabase
-    .from("subscriptions")
-    .select("subscriber_username")
-    .eq("subscribed_to", uploaderUsername);
+    // Notify subscribers about new post
+    const uploaderUsername = localStorage.getItem("username");
+    const { data: subUsers } = await supabase
+      .from("subscriptions")
+      .select("subscriber_username")
+      .eq("subscribed_to", uploaderUsername);
 
-  if (subUsers && subUsers.length > 0) {
-    const notifications = subUsers
-      .filter((s) => s.subscriber_username)
-      .map((s) => ({
-        recipient_username: s.subscriber_username,
-        sender_username: uploaderUsername,
-        type: "upload",
-        message: `${uploaderUsername} made a new post: "${post.text?.slice(0, 60) || "Check it out"}"`,
-        is_read: false,
-      }));
-    await supabase.from("notifications").insert(notifications);
-  }
-};
+    if (subUsers && subUsers.length > 0) {
+      const notifications = subUsers
+        .filter((s) => s.subscriber_username)
+        .map((s) => ({
+          recipient_username: s.subscriber_username,
+          sender_username: uploaderUsername,
+          type: "upload",
+          message: `${uploaderUsername} made a new post: "${post.text?.slice(0, 60) || "Check it out"}"`,
+          is_read: false,
+        }));
+      await supabase.from("notifications").insert(notifications);
+    }
+  };
 
   const handleReaction = async (postId, reactionType) => {
     if (!currentUser || currentUser === "anonymous") {
-    window.dispatchEvent(new CustomEvent("openLogin"));
-    return;
-  }
+      window.dispatchEvent(new CustomEvent("openLogin"));
+      return;
+    }
     const post = posts.find((p) => p.id === postId);
     if (!post) return;
 
@@ -147,9 +159,9 @@ const PostFeed = ({ sideNavbar }) => {
 
   const handleComment = async (postId, text) => {
     if (!currentUser || currentUser === "anonymous") {
-    window.dispatchEvent(new CustomEvent("openLogin"));
-    return;
-  }
+      window.dispatchEvent(new CustomEvent("openLogin"));
+      return;
+    }
     if (!text.trim()) return;
     const { data, error: err } = await supabase
       .from("post_comments")
@@ -203,9 +215,23 @@ const PostFeed = ({ sideNavbar }) => {
     }
   };
 
+  // ── FIX: delete now removes from DB and immediately from all users' state ──
   const handleDeletePost = async (postId) => {
-    await supabase.from("posts").delete().eq("id", postId).eq("username", currentUser);
+    // Remove from local state immediately (optimistic)
     setPosts((all) => all.filter((p) => p.id !== postId));
+    offsetRef.current = Math.max(0, offsetRef.current - 1);
+
+    // Delete from Supabase — realtime DELETE event will sync other users
+    const { error: delErr } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", postId)
+      .eq("username", currentUser);
+
+    if (delErr) {
+      // Rollback if delete failed
+      fetchPosts(true);
+    }
   };
 
   const loadMore = () => {
@@ -232,56 +258,77 @@ const PostFeed = ({ sideNavbar }) => {
   }
 
   return (
-  <>
-    <SideNavbar sideNavbar={sideNavbar} />
-    <div className="pf-feed">
-      {currentUser && currentUser !== "anonymous"
-  ? <PostComposer currentUser={currentUser} onPost={handleNewPost} />
-  : (
-    <div style={{ background: "#1a1a1a", border: "1px solid #333", borderRadius: "12px", padding: "20px", textAlign: "center", marginBottom: "16px" }}>
-      <p style={{ color: "#aaa", fontSize: "14px", margin: "0 0 12px" }}>
-        🔒 Please log in to post
-      </p>
-      <button
-        onClick={() => window.dispatchEvent(new CustomEvent("openLogin"))}
-        style={{ background: "#ff0000", color: "white", border: "none", borderRadius: "8px", padding: "8px 24px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}
-      >
-        Login
-      </button>
-    </div>
-  )
-}
+    <>
+      <SideNavbar sideNavbar={sideNavbar} />
+      <div className="pf-feed">
+        {currentUser && currentUser !== "anonymous" ? (
+          <PostComposer currentUser={currentUser} onPost={handleNewPost} />
+        ) : (
+          <div
+            style={{
+              background: "#1a1a1a",
+              border: "1px solid #333",
+              borderRadius: "12px",
+              padding: "20px",
+              textAlign: "center",
+              marginBottom: "16px",
+            }}
+          >
+            <p style={{ color: "#aaa", fontSize: "14px", margin: "0 0 12px" }}>
+              🔒 Please log in to post
+            </p>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent("openLogin"))}
+              style={{
+                background: "#ff0000",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                padding: "8px 24px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              Login
+            </button>
+          </div>
+        )}
 
-      {error && <p className="pf-error">{error}</p>}
+        {error && <p className="pf-error">{error}</p>}
 
-      {posts.length === 0 && !loading && (
-        <div className="pf-empty">
-          <span className="pf-empty-icon">📭</span>
-          <p>No posts yet. Be the first to share something!</p>
-        </div>
-      )}
+        {posts.length === 0 && !loading && (
+          <div className="pf-empty">
+            <span className="pf-empty-icon">📭</span>
+            <p>No posts yet. Be the first to share something!</p>
+          </div>
+        )}
 
-      {posts.map((post) => (
-        <PostCard
-          key={post.id}
-          post={post}
-          currentUser={currentUser}
-          onReaction={handleReaction}
-          onComment={handleComment}
-          onToggleComments={handleToggleComments}
-          onShare={handleShare}
-          onDelete={handleDeletePost}
-        />
-      ))}
+        {posts.map((post) => (
+          <PostCard
+            key={post.id}
+            post={post}
+            currentUser={currentUser}
+            onReaction={handleReaction}
+            onComment={handleComment}
+            onToggleComments={handleToggleComments}
+            onShare={handleShare}
+            onDelete={handleDeletePost}
+          />
+        ))}
 
-      {hasMore && (
-        <button className="pf-load-more" onClick={loadMore} disabled={loadingMore}>
-          {loadingMore ? "Loading…" : "Load more posts"}
-        </button>
-      )}
-    </div>
-  </>
-);
+        {hasMore && (
+          <button
+            className="pf-load-more"
+            onClick={loadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? "Loading…" : "Load more posts"}
+          </button>
+        )}
+      </div>
+    </>
+  );
 };
 
 export default PostFeed;

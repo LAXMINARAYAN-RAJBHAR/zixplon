@@ -2255,19 +2255,27 @@ const HomePage = ({ sideNavbar }) => {
     <div className="homePage_shortsSection">
       <div className="homePage_shortsHeader">
         <span className="homePage_shortsTitle">
-  <img 
-    src="/mylogo1.png" 
-    alt="Zixplon" 
-    style={{ 
-      width: "24px", 
-      height: "24px", 
-      objectFit: "contain",
-      verticalAlign: "middle",
-      marginRight: "6px"
-    }} 
-  />
-  {title}
-</span>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "22px",
+              height: "22px",
+              background: "#e53935",
+              color: "white",
+              fontWeight: "900",
+              fontSize: "16px",
+              fontFamily: "Arial Black, sans-serif",
+              marginRight: "0px",
+              flexShrink: 0,
+              verticalAlign: "middle",
+            }}
+          >
+            Z
+          </span>
+          {title}
+        </span>
       </div>
       <div className="homePage_shortsRow">
         {data.map((short) => (

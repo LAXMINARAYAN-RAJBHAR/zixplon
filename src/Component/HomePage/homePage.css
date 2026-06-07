@@ -404,6 +404,13 @@
   gap: 10px;
 }
 
+.homePage_shortsTitle span img {
+  clip-path: none !important;
+  -webkit-clip-path: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+}
+
 /* Section bar + label */
 .homePage_shortsTitle {
   font-size: 12px;

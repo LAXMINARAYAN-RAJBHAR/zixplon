@@ -143,6 +143,124 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
   );
 };
 
+// ─── Subscribers Modal ────────────────────────────────────────────────────────
+const SubscribersModal = ({ channelUsername, onClose }) => {
+  const [subscribers, setSubscribers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const handleKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKey);
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", handleKey); document.body.style.overflow = ""; };
+  }, [onClose]);
+
+  useEffect(() => {
+    const fetchSubscribers = async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("subscriber_username, created_at")
+        .eq("channel_username", channelUsername)
+        .order("created_at", { ascending: false });
+      setSubscribers(data || []);
+      setLoading(false);
+    };
+    fetchSubscribers();
+  }, [channelUsername]);
+
+  return (
+    <div
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)",
+        zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <div style={{
+        background: "#1a1a1a", borderRadius: "16px", width: "100%", maxWidth: "420px",
+        maxHeight: "75vh", display: "flex", flexDirection: "column",
+        border: "1px solid #2a2a2a", overflow: "hidden",
+      }}>
+        {/* Modal Header */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "20px 24px 16px", borderBottom: "1px solid #2a2a2a",
+        }}>
+          <div>
+            <h2 style={{ color: "white", margin: 0, fontSize: "18px", fontWeight: "700" }}>
+              👥 Subscribers
+            </h2>
+            <p style={{ color: "#888", margin: "2px 0 0", fontSize: "13px" }}>
+              {subscribers.length} {subscribers.length === 1 ? "person" : "people"} subscribed
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "rgba(255,255,255,0.08)", border: "none", color: "white",
+              width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer",
+              fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >✕</button>
+        </div>
+
+        {/* Subscriber List */}
+        <div style={{ overflowY: "auto", flex: 1, padding: "12px 16px" }}>
+          {loading ? (
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
+              <div style={{
+                width: "32px", height: "32px", border: "3px solid #333",
+                borderTop: "3px solid #ff4444", borderRadius: "50%",
+                animation: "spin 0.8s linear infinite",
+              }} />
+            </div>
+          ) : subscribers.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px 0", color: "#666" }}>
+              <div style={{ fontSize: "36px", marginBottom: "10px" }}>👤</div>
+              <p style={{ margin: 0, fontSize: "14px" }}>No subscribers yet.</p>
+            </div>
+          ) : (
+            subscribers.map((sub, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "flex", alignItems: "center", gap: "12px",
+                  padding: "10px 8px", borderRadius: "10px",
+                  transition: "background 0.15s",
+                  cursor: "default",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#262626"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              >
+                {/* Avatar */}
+                <div style={{
+                  width: "40px", height: "40px", borderRadius: "50%",
+                  background: "linear-gradient(135deg, #ff4444, #cc0000)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "white", fontWeight: "700", fontSize: "14px", flexShrink: 0,
+                  textTransform: "uppercase",
+                }}>
+                  {(sub.subscriber_username || "?").slice(0, 2).toUpperCase()}
+                </div>
+                {/* Info */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: "white", fontWeight: "600", fontSize: "14px" }}>
+                    {sub.subscriber_username}
+                  </div>
+                  <div style={{ color: "#666", fontSize: "12px" }}>
+                    Subscribed {timeAgo(sub.created_at)}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Main Profile Component ───────────────────────────────────────────────────
 const Profile = ({ sideNavbar }) => {
   const { username } = useParams();
@@ -157,6 +275,12 @@ const Profile = ({ sideNavbar }) => {
   const [loading, setLoading] = useState(true);
   const [videoCounts, setVideoCounts] = useState({});
   const [reelCounts, setReelCounts] = useState({});
+
+  // ── Subscriber state ──────────────────────────────────────────────────────
+  const [subscriberCount, setSubscriberCount] = useState(0);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subLoading, setSubLoading] = useState(false);
+  const [showSubscribersModal, setShowSubscribersModal] = useState(false);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName] = useState("");
@@ -176,7 +300,6 @@ const Profile = ({ sideNavbar }) => {
 
       if (lsUsername && matchesKey(lsUsername, key)) {
         const { data: ownerProfile } = await supabase.from("profiles").select("banner_pic, profile_pic, about").eq("username", lsUsername).maybeSingle();
-        // ✅ FIX: fallback to lsBannerPic if Supabase has no banner saved
         const bannerPic = ownerProfile?.banner_pic || lsBannerPic || null;
         const profilePic = ownerProfile?.profile_pic || lsProfilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=ff0000&color=fff&size=120&length=2`;
         const about = ownerProfile?.about || lsAbout || `${lsUsername}'s channel`;
@@ -189,7 +312,6 @@ const Profile = ({ sideNavbar }) => {
         const authUsername = authUser?.user_metadata?.channelName || authUser?.user_metadata?.username;
         if (authUsername && matchesKey(authUsername, key)) {
           const { data: ownerProfile } = await supabase.from("profiles").select("banner_pic, profile_pic, about").eq("username", authUsername).maybeSingle();
-          // ✅ FIX: fallback to lsBannerPic if Supabase has no banner saved
           const bannerPic = ownerProfile?.banner_pic || lsBannerPic || authUser.user_metadata?.bannerPic || null;
           const profilePic = ownerProfile?.profile_pic || authUser.user_metadata?.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`;
           const about = ownerProfile?.about || authUser.user_metadata?.about || `${authUsername}'s channel`;
@@ -269,6 +391,27 @@ const Profile = ({ sideNavbar }) => {
         })));
       }
 
+      // ── Fetch subscriber count & subscription status ──────────────────────
+      const { count: subCount } = await supabase
+        .from("subscriptions")
+        .select("*", { count: "exact", head: true })
+        .eq("channel_username", key);
+
+      const currentUser = localStorage.getItem("username") || "";
+      let alreadySubscribed = false;
+      if (currentUser && currentUser.toLowerCase() !== key) {
+        const { data: subCheck } = await supabase
+          .from("subscriptions")
+          .select("id")
+          .eq("subscriber_username", currentUser)
+          .eq("channel_username", key)
+          .maybeSingle();
+        alreadySubscribed = !!subCheck;
+      }
+      setSubscriberCount(subCount || 0);
+      setIsSubscribed(alreadySubscribed);
+      // ─────────────────────────────────────────────────────────────────────
+
       setLoading(false);
     };
     loadProfile();
@@ -278,6 +421,31 @@ const Profile = ({ sideNavbar }) => {
   const hardcodedVideos = allVideos.filter((v) => v.channel?.toLowerCase() === key);
   const allUserVideos = [...dbVideos, ...hardcodedVideos];
   const allUserReels = [...dbReels, ...hardcodedReels];
+
+  // ── Subscribe / Unsubscribe handler ───────────────────────────────────────
+  const handleSubscribe = async () => {
+    const currentUser = localStorage.getItem("username") || "";
+    if (!currentUser) { alert("Please log in to subscribe."); return; }
+    if (currentUser.toLowerCase() === key) return;
+
+    setSubLoading(true);
+    if (isSubscribed) {
+      await supabase
+        .from("subscriptions")
+        .delete()
+        .eq("subscriber_username", currentUser)
+        .eq("channel_username", key);
+      setIsSubscribed(false);
+      setSubscriberCount((n) => Math.max(0, n - 1));
+    } else {
+      await supabase
+        .from("subscriptions")
+        .insert({ subscriber_username: currentUser, channel_username: key });
+      setIsSubscribed(true);
+      setSubscriberCount((n) => n + 1);
+    }
+    setSubLoading(false);
+  };
 
   const handleSaveProfile = async () => {
     const newName = editName.trim() || user.name;
@@ -381,21 +549,97 @@ const Profile = ({ sideNavbar }) => {
           </div>
           <div className="profile_top_section_About">
             <div className="profile_top_section_About_Name">{user.name}</div>
+
+            {/* ── Info line with clickable subscriber count ── */}
             <div className="profile_top_section_info">
-              {user.handle} · {allUserVideos.length} videos · {allUserReels.length} reels · {userPosts.length} posts
+              {user.handle} ·{" "}
+              <button
+                onClick={() => setShowSubscribersModal(true)}
+                title="View subscribers"
+                style={{
+                  background: "none", border: "none", padding: 0,
+                  color: "inherit", fontSize: "inherit", cursor: "pointer",
+                  textDecoration: "underline", textDecorationStyle: "dotted",
+                  textUnderlineOffset: "3px",
+                }}
+              >
+                {subscriberCount.toLocaleString()} subscriber{subscriberCount !== 1 ? "s" : ""}
+              </button>
+              {" "}· {allUserVideos.length} videos · {allUserReels.length} reels · {userPosts.length} posts
             </div>
+
             <div className="profile_top_section_info">{user.about}</div>
-            {user.isOwner && (
-              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px" }}>
-                <Link to="/763/upload" style={{ background: "#ff0000", color: "white", border: "none", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer", textDecoration: "none", display: "inline-block" }}>
-                  + Upload Video / Reel
-                </Link>
-                <button onClick={() => { setEditName(user.name); setEditAbout(user.about); setEditPic(user.profilePic); setShowEditProfile(true); }}
-                  style={{ background: "#272727", color: "white", border: "1px solid #555", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}>
-                  ✏️ Edit Profile
+
+            {/* ── Buttons row ── */}
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px" }}>
+              {user.isOwner ? (
+                <>
+                  <Link
+                    to="/763/upload"
+                    style={{
+                      background: "#ff0000", color: "white", border: "none",
+                      borderRadius: "20px", padding: "8px 20px", fontSize: "14px",
+                      fontWeight: "600", cursor: "pointer", textDecoration: "none", display: "inline-block",
+                    }}
+                  >
+                    + Upload Video / Reel
+                  </Link>
+                  <button
+                    onClick={() => { setEditName(user.name); setEditAbout(user.about); setEditPic(user.profilePic); setShowEditProfile(true); }}
+                    style={{
+                      background: "#272727", color: "white", border: "1px solid #555",
+                      borderRadius: "20px", padding: "8px 20px", fontSize: "14px",
+                      fontWeight: "600", cursor: "pointer",
+                    }}
+                  >
+                    ✏️ Edit Profile
+                  </button>
+                  {/* Owner can also see subscriber list via the count link above,
+                      but we add a dedicated button for clarity */}
+                  <button
+                    onClick={() => setShowSubscribersModal(true)}
+                    style={{
+                      background: "#272727", color: "white", border: "1px solid #555",
+                      borderRadius: "20px", padding: "8px 20px", fontSize: "14px",
+                      fontWeight: "600", cursor: "pointer",
+                    }}
+                  >
+                    👥 View Subscribers
+                  </button>
+                </>
+              ) : (
+                /* ── Subscribe button for visitors ── */
+                <button
+                  onClick={handleSubscribe}
+                  disabled={subLoading}
+                  style={{
+                    background: isSubscribed ? "#272727" : "#ff0000",
+                    color: "white",
+                    border: isSubscribed ? "1px solid #555" : "none",
+                    borderRadius: "20px",
+                    padding: "8px 24px",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: subLoading ? "not-allowed" : "pointer",
+                    transition: "all 0.2s",
+                    opacity: subLoading ? 0.7 : 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  {subLoading
+                    ? <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ width: "14px", height: "14px", border: "2px solid rgba(255,255,255,0.4)", borderTop: "2px solid white", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
+                        {isSubscribed ? "Unsubscribing..." : "Subscribing..."}
+                      </span>
+                    : isSubscribed
+                      ? "✓ Subscribed"
+                      : "Subscribe"
+                  }
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
@@ -479,6 +723,14 @@ const Profile = ({ sideNavbar }) => {
         )}
       </div>
 
+      {/* ── Subscribers Modal ── */}
+      {showSubscribersModal && (
+        <SubscribersModal
+          channelUsername={key}
+          onClose={() => setShowSubscribersModal(false)}
+        />
+      )}
+
       {/* Edit Profile Modal */}
       {showEditProfile && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -541,10 +793,17 @@ const Profile = ({ sideNavbar }) => {
           </div>
         </div>
       )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 };
 
-const deleteBtn = { position: "absolute", top: "6px", right: "6px", background: "rgba(200,0,0,0.85)", border: "none", borderRadius: "6px", color: "white", fontSize: "14px", padding: "4px 7px", cursor: "pointer", zIndex: 10, lineHeight: 1 };
+const deleteBtn = {
+  position: "absolute", top: "6px", right: "6px",
+  background: "rgba(200,0,0,0.85)", border: "none", borderRadius: "6px",
+  color: "white", fontSize: "14px", padding: "4px 7px",
+  cursor: "pointer", zIndex: 10, lineHeight: 1,
+};
 
 export default Profile;

@@ -720,19 +720,22 @@
     padding: 56px 5px 80px 5px !important;
   }
 
-  /* 2 columns on phone */
   .youtube_VideoGrid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 5px !important;
   }
 
-  /* Shorts — 3 per row on phone */
+  /* Shorts — 2 column grid on phone */
   .homePage_shortsRow {
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)) !important;
-    gap: 5px !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    overflow-x: unset !important;
   }
 
-  .homePage_shortThumbnail { height: 120px !important; }
+  .homePage_shortThumbnail { height: 170px !important; }
+
+  .homePage_shortTitle { font-size: 11px !important; }
+  .homePage_shortUser { font-size: 10px !important; }
 
   .youtube_videoTitle { font-size: 10px !important; }
   .youtubeVideo_Views { font-size: 9px !important; }
@@ -764,12 +767,17 @@
     gap: 4px !important;
   }
 
+  /* Shorts — 2 column grid on very small phones */
   .homePage_shortsRow {
-    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)) !important;
+    grid-template-columns: repeat(2, 1fr) !important;
     gap: 4px !important;
+    overflow-x: unset !important;
   }
 
-  .homePage_shortThumbnail { height: 110px !important; }
+  .homePage_shortThumbnail { height: 150px !important; }
+
+  .homePage_shortTitle { font-size: 10px !important; }
+  .homePage_shortUser { font-size: 9px !important; }
 
   .youtube_videoTitle { font-size: 9px !important; }
   .youtubeVideo_Views { font-size: 8px !important; }

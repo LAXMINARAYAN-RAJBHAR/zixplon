@@ -614,13 +614,13 @@ const defaultComments = [
   {
     id: 1,
     user: "UserName",
-    text: "This is the cool web App Project",
+    text: "Nice Video",
     date: "2024-09-30",
   },
   {
     id: 2,
     user: "UserName",
-    text: "This is the cool web App Project",
+    text: "This is the cool Video",
     date: "2024-09-30",
   },
 ];

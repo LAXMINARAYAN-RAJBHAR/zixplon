@@ -1,9 +1,7 @@
-.home{
-    display: flex;
-    width: 100%;
-    padding: 50px 13px 0 13px;
-    box-sizing: border-box;
-    /* overflow-x:hidden; */
+.home {
+  display: flex;
+  width: 100%;
+  padding: 50px 13px 0 13px;
+  box-sizing: border-box;
+  background: #07070F;
 }
-
-

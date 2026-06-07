@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+
 /* ── Outer wrapper ── */
 .profile {
   display: flex;
@@ -5,9 +7,10 @@
   min-height: calc(100vh - 56px);
   padding: 10px 13px 0 13px;
   box-sizing: border-box;
-  background-color: black;
-  color: white;
+  background: #07070F;
+  color: #e8e8f5;
   position: relative;
+  font-family: 'Space Grotesk', sans-serif;
 }
 
 /* ── Content column ── */
@@ -17,7 +20,7 @@
   overflow: visible;
   flex: 1;
   margin-left: 270px;
-  color: white;
+  color: #e8e8f5;
   margin-top: 56px;
   padding-bottom: 60px;
   transition: margin-left 0.3s ease;
@@ -28,8 +31,8 @@
   flex-direction: column;
   overflow: visible;
   flex: 1;
-  margin-left: 0px;
-  color: white;
+  margin-left: 0;
+  color: #e8e8f5;
   margin-top: 56px;
   padding-bottom: 60px;
   transition: margin-left 0.3s ease;
@@ -42,17 +45,16 @@
   padding: 0 0 20px 0;
 }
 
-.profile_top_section_profile {
-  width: 140px;
-  flex-shrink: 0;
-}
+.profile_top_section_profile { width: 140px; flex-shrink: 0; }
 
 .profile_top_section_img {
   width: 120px;
   height: 120px;
-  border-radius: 50%;
+  border-radius: 0;
   object-fit: cover;
-  border: 3px solid #ff0000;
+  border: 2px solid #b4a1ff;
+  clip-path: polygon(10% 0%,90% 0%,100% 10%,100% 90%,90% 100%,10% 100%,0% 90%,0% 10%);
+  box-shadow: 0 0 20px rgba(180,161,255,0.3);
 }
 
 .profile_top_section_About {
@@ -64,36 +66,55 @@
 }
 
 .profile_top_section_About_Name {
-  font-size: 36px;
-  font-weight: 600;
+  font-size: 32px;
+  font-weight: 800;
+  font-family: 'Space Grotesk', sans-serif;
+  background: linear-gradient(90deg, #e8e8f5 0%, #b4a1ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .profile_top_section_info {
-  font-size: 16px;
-  color: rgb(153, 153, 153);
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  color: #555580;
+  letter-spacing: 0.5px;
 }
 
 /* ── Videos / Reels section ── */
-.profile_videos {
-  width: 100%;
-}
+.profile_videos { width: 100%; }
 
 .profile_videos_title {
-  font-size: 22px;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
   padding-bottom: 10px;
-  color: rgb(207, 206, 206);
-  font-weight: 500;
+  color: #e8e8f5;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgb(153, 153, 153);
+  gap: 8px;
+  border-bottom: 1px solid #1e1e35;
+  text-transform: uppercase;
 }
 
-/* ── Card grid — desktop ── */
+.profile_videos_title::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 16px;
+  background: #b4a1ff;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(180,161,255,0.5);
+}
+
+/* ── Card grid ── */
 .profileVideos {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-  padding: 12px 0;
+  gap: 14px;
+  padding: 14px 0;
   width: 100%;
   box-sizing: border-box;
 }
@@ -102,21 +123,61 @@
 .profileVideo_block {
   width: 100%;
   text-decoration: none;
-  color: white;
+  color: #e8e8f5;
   cursor: pointer;
   display: block;
   box-sizing: border-box;
+  position: relative;
+  background: #0c0c1e;
+  border: 1px solid #1e1e35;
+  transition: border-color 0.2s, transform 0.15s;
+}
+
+.profileVideo_block:hover {
+  border-color: #b4a1ff55;
+  transform: translateY(-2px);
+}
+
+/* Corner brackets */
+.profileVideo_block::before,
+.profileVideo_block::after {
+  content: '';
+  position: absolute;
+  width: 8px; height: 8px;
+  z-index: 2; pointer-events: none;
+}
+.profileVideo_block::before {
+  top: 0; left: 0;
+  border-top: 1.5px solid #b4a1ff;
+  border-left: 1.5px solid #b4a1ff;
+}
+.profileVideo_block::after {
+  top: 0; right: 0;
+  border-top: 1.5px solid #b4a1ff;
+  border-right: 1.5px solid #b4a1ff;
 }
 
 .profileVideo_block_thumbnail {
   width: 100%;
   aspect-ratio: 16 / 10;
   overflow: hidden;
-  border-radius: 8px;
-  background: #111;
+  border-radius: 0;
+  background: #111128;
+  position: relative;
 }
 
-/* Reels use portrait ratio */
+/* CRT scanlines on thumbnails */
+.profileVideo_block_thumbnail::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.1) 3px),
+    linear-gradient(to top, rgba(7,7,15,0.7) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
 .profileVideo_block_thumbnail.reel-thumb {
   aspect-ratio: 9 / 14;
 }
@@ -126,20 +187,29 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  filter: brightness(0.75) saturate(0.65);
+  transition: filter 0.2s;
+}
+
+.profileVideo_block:hover .profileVideo_block_thumbnail_img {
+  filter: brightness(0.9) saturate(0.8);
 }
 
 .profileVideo_block_detail {
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding: 6px 0;
+  padding: 8px 8px 10px;
   box-sizing: border-box;
+  background: #0c0c1e;
 }
 
 .profileVideo_block_detai_name {
   width: 100%;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+  color: #dde0f5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -148,31 +218,25 @@
 }
 
 .profileVideo_block_detai_about {
-  color: #ababab;
-  font-size: 12px;
-  margin-top: 3px;
+  font-family: 'Space Mono', monospace;
+  color: #555580;
+  font-size: 10px;
+  margin-top: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: 0.5px;
 }
 
 /* ── Tablet ── */
 @media (max-width: 1024px) {
-  .profile_page {
-    margin-left: 0;
-  }
-
-  .profileVideos {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 12px;
-  }
+  .profile_page { margin-left: 0; }
+  .profileVideos { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
 }
 
 /* ── Mobile ── */
 @media (max-width: 768px) {
-  .profile {
-    padding: 5px 8px 0 8px;
-  }
+  .profile { padding: 5px 8px 0 8px; }
 
   .profile_page,
   .profile_page_inactive {
@@ -182,7 +246,6 @@
     padding-bottom: 80px;
   }
 
-  /* Profile header stacks vertically */
   .profile_top_section {
     flex-direction: column;
     align-items: center;
@@ -191,79 +254,34 @@
     padding: 0 0 16px 0;
   }
 
-  .profile_top_section_profile {
-    width: auto;
-  }
+  .profile_top_section_profile { width: auto; }
 
-  .profile_top_section_img {
-    width: 90px;
-    height: 90px;
-  }
+  .profile_top_section_img { width: 90px; height: 90px; }
 
-  .profile_top_section_About {
-    align-items: center;
-    padding: 0;
-  }
+  .profile_top_section_About { align-items: center; padding: 0; }
 
-  .profile_top_section_About_Name {
-    font-size: 22px;
-  }
+  .profile_top_section_About_Name { font-size: 22px; }
 
-  .profile_top_section_info {
-    font-size: 13px;
-  }
+  .profile_top_section_info { font-size: 11px; }
 
-  /* ── FIX: strict 2-column grid on mobile ── */
   .profileVideos {
-    display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
     padding: 10px 0;
-    width: 100%;
-    box-sizing: border-box;
   }
 
-  /* card fills its grid cell exactly */
-  .profileVideo_block {
-    width: 100%;
-    min-width: 0;        /* prevents grid blowout */
-  }
+  .profileVideo_block { width: 100%; min-width: 0; }
 
-  .profileVideo_block_thumbnail {
-    aspect-ratio: 16 / 10;
-    height: unset;       /* let aspect-ratio control height */
-  }
+  .profileVideo_block_thumbnail { aspect-ratio: 16 / 10; height: unset; }
+  .profileVideo_block_thumbnail.reel-thumb { aspect-ratio: 9 / 14; height: unset; }
 
-  .profileVideo_block_thumbnail.reel-thumb {
-    aspect-ratio: 9 / 14;
-    height: unset;
-  }
-
-  .profileVideo_block_detai_name {
-    font-size: 12px;
-    -webkit-line-clamp: 2;
-  }
-
-  .profileVideo_block_detai_about {
-    font-size: 11px;
-  }
-
-  .profile_videos_title {
-    font-size: 16px;
-  }
+  .profileVideo_block_detai_name { font-size: 11px; }
+  .profileVideo_block_detai_about { font-size: 9px; }
+  .profile_videos_title { font-size: 10px; }
 }
 
-/* ── Small phones (≤ 400px) ── */
 @media (max-width: 400px) {
-  .profile {
-    padding: 4px 6px 0 6px;
-  }
-
-  .profileVideos {
-    gap: 6px;
-  }
-
-  .profileVideo_block_detai_name {
-    font-size: 11px;
-  }
+  .profile { padding: 4px 6px 0 6px; }
+  .profileVideos { gap: 6px; }
+  .profileVideo_block_detai_name { font-size: 10px; }
 }

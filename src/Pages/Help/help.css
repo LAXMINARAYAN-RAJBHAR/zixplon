@@ -1,24 +1,92 @@
 .help_container {
   max-width: 700px;
   margin: 60px auto;
-  padding: 40px;
-  background: #111;
-  border-radius: 10px;
-  color: #fff;
+  padding: 36px;
+  background: #0c0c1e;
+  border: 1px solid #1e1e35;
+  border-radius: 0;
+  color: #e8e8f5;
+  font-family: 'Space Grotesk', sans-serif;
+  position: relative;
 }
-
-.help_container h1 { font-size: 1.8rem; margin-bottom: 8px; }
-.help_container p  { color: #aaa; margin-bottom: 30px; }
-.help_container a  { color: #ff4444; text-decoration: none; margin-top: 30px; display: inline-block; }
-
+ 
+.help_container::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 14px; height: 14px;
+  border-top: 2px solid #b4a1ff;
+  border-left: 2px solid #b4a1ff;
+}
+ 
+.help_container h1 {
+  font-family: 'Space Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  color: #e8e8f5;
+}
+ 
+.help_container p  { color: #555580; margin-bottom: 24px; font-size: 13px; }
+ 
+.help_container a {
+  font-family: 'Space Mono', monospace;
+  color: #b4a1ff;
+  text-decoration: none;
+  font-size: 11px;
+  letter-spacing: 1px;
+  margin-top: 24px;
+  display: inline-block;
+  border-bottom: 1px solid #b4a1ff44;
+  transition: color 0.15s;
+}
+.help_container a:hover { color: #e8e8f5; }
+ 
 .faq_item {
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  margin-bottom: 10px;
-  padding: 16px;
+  border: 1px solid #1e1e35;
+  border-radius: 0;
+  margin-bottom: 8px;
+  padding: 14px 16px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  position: relative;
+  background: #0c0c1e;
 }
-.faq_item:hover   { background: #1a1a1a; }
-.faq_question     { display: flex; justify-content: space-between; font-weight: 600; font-size: 0.95rem; }
-.faq_answer       { margin-top: 12px; color: #aaa; font-size: 0.9rem; line-height: 1.6; }
+ 
+.faq_item::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 6px; height: 6px;
+  border-top: 1px solid #b4a1ff44;
+  border-left: 1px solid #b4a1ff44;
+  transition: border-color 0.2s;
+}
+ 
+.faq_item:hover {
+  background: #111128;
+  border-color: #2a2a45;
+}
+ 
+.faq_item:hover::before { border-color: #b4a1ff; }
+ 
+.faq_question {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #dde0f5;
+}
+ 
+.faq_answer {
+  margin-top: 10px;
+  font-family: 'Space Grotesk', sans-serif;
+  color: #555580;
+  font-size: 13px;
+  line-height: 1.6;
+  border-left: 2px solid #1e1e35;
+  padding-left: 10px;
+}

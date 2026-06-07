@@ -441,18 +441,18 @@
   color: #b4a1ff;
 }
 
-/* ── Shorts row ── */
+/* ── Shorts row — FIXED: use grid instead of flex ── */
 .homePage_shortsRow {
-  display: flex !important;
-  flex-wrap: wrap !important;
+  display: grid !important;
+  grid-template-columns: repeat(10, 1fr);
   gap: 8px;
   width: 100%;
 }
 
+/* ── Short card — FIXED: let grid control width ── */
 .homePage_shortCard {
-  flex: 0 0 calc(10% - 8px);  /* ~10 per row on desktop */
-  width: calc(10% - 8px);
-  min-width: 80px;
+  width: 100%;
+  min-width: 0;
 }
 
 .homePage_shortCard:hover .homePage_shortThumbnail {
@@ -682,8 +682,9 @@
     max-width: 80px !important;
   }
 
-  /* Shorts — auto-fill grid on tablet */
+  /* ── Shorts — auto-fill grid on tablet (NOW WORKS) ── */
   .homePage_shortsRow {
+    display: grid !important;
     grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)) !important;
     gap: 6px !important;
   }
@@ -721,8 +722,9 @@
     gap: 5px !important;
   }
 
-  /* Shorts — 3 per row on phone */
+  /* ── Shorts — 3–4 per row on phone (NOW WORKS) ── */
   .homePage_shortsRow {
+    display: grid !important;
     grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)) !important;
     gap: 5px !important;
   }
@@ -759,7 +761,9 @@
     gap: 4px !important;
   }
 
+  /* ── Shorts — 3 per row on very small phones (NOW WORKS) ── */
   .homePage_shortsRow {
+    display: grid !important;
     grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)) !important;
     gap: 4px !important;
   }

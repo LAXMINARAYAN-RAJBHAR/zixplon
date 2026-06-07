@@ -629,48 +629,148 @@
   position: static !important;
 }
 
-/* ══ MOBILE: Shorts as single horizontal scroll row ══ */
+/* ══════════════════════════════════════
+   MOBILE — max 768px
+══════════════════════════════════════ */
 @media (max-width: 768px) {
-  .homePage_shortsRow {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
+
+  .homePage_options {
+    top: 56px;
+    left: 0 !important;
+  }
+
+  .home_mainPage,
+  .home_mainPage.sidebar-open,
+  .home_mainPage.sidebar-closed {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding: 56px 8px 80px 8px !important;
+  }
+
+  /* 2 column video grid on tablet */
+  .youtube_VideoGrid {
+    grid-template-columns: repeat(2, 1fr) !important;
     gap: 8px !important;
-    padding-bottom: 8px !important;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
   }
 
-  .homePage_shortCard {
-    flex: 0 0 100px !important;   /* fixed width per card */
-    width: 100px !important;
-    scroll-snap-align: start;
+  .youtube_Video { height: auto !important; }
+
+  .youtubeTitleBox {
+    padding: 5px 6px 7px !important;
+    gap: 5px !important;
+    flex-direction: column !important;
   }
 
-  .homePage_shortThumbnail {
-    height: 158px !important;
+  .youtubeBoxProfile { gap: 4px !important; }
+
+  .youtube_thumbnail_Profile {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  .youtubeVideoInfo { width: 100% !important; }
+
+  .youtube_videoTitle {
+    font-size: 11px !important;
+    -webkit-line-clamp: 2 !important;
+  }
+
+  .youtubeVideo_Views {
+    font-size: 9px !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+  }
+
+  .youtube_ChannelName {
+    font-size: 9px !important;
+    margin-top: 0 !important;
+    max-width: 80px !important;
+  }
+
+  /* Shorts — auto-fill grid on tablet */
+  .homePage_shortsRow {
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)) !important;
+    gap: 6px !important;
+  }
+
+  .homePage_shortThumbnail { height: 130px !important; }
+
+  .homePage_shortUser,
+  .homePage_shortTitle { font-size: 9px !important; }
+
+  .home-sideNavbar,
+  .homeSideNavbarHide { display: none !important; }
+
+  .youtube_thumbnailWrapper { border-radius: 0 !important; }
+
+  .youtube_timingThumbnail {
+    font-size: 9px !important;
+    padding: 1px 4px !important;
   }
 }
 
+/* ══════════════════════════════════════
+   MOBILE PHONE — max 480px
+══════════════════════════════════════ */
 @media (max-width: 480px) {
-  .homePage_shortCard {
-    flex: 0 0 88px !important;
-    width: 88px !important;
+
+  .home_mainPage,
+  .home_mainPage.sidebar-open,
+  .home_mainPage.sidebar-closed {
+    padding: 56px 5px 80px 5px !important;
   }
 
-  .homePage_shortThumbnail {
-    height: 140px !important;
+  /* 2 columns on phone */
+  .youtube_VideoGrid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 5px !important;
+  }
+
+  /* Shorts — 3 per row on phone */
+  .homePage_shortsRow {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)) !important;
+    gap: 5px !important;
+  }
+
+  .homePage_shortThumbnail { height: 120px !important; }
+
+  .youtube_videoTitle { font-size: 10px !important; }
+  .youtubeVideo_Views { font-size: 9px !important; }
+
+  .youtube_thumbnail_Profile {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .homePage_shortsTitle {
+    font-size: 10px !important;
+    letter-spacing: 1.5px !important;
   }
 }
 
+/* ══════════════════════════════════════
+   VERY SMALL — max 360px
+══════════════════════════════════════ */
 @media (max-width: 360px) {
-  .homePage_shortCard {
-    flex: 0 0 78px !important;
-    width: 78px !important;
+
+  .home_mainPage,
+  .home_mainPage.sidebar-open,
+  .home_mainPage.sidebar-closed {
+    padding: 56px 4px 80px 4px !important;
   }
 
-  .homePage_shortThumbnail {
-    height: 125px !important;
+  .youtube_VideoGrid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 4px !important;
   }
+
+  .homePage_shortsRow {
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)) !important;
+    gap: 4px !important;
+  }
+
+  .homePage_shortThumbnail { height: 110px !important; }
+
+  .youtube_videoTitle { font-size: 9px !important; }
+  .youtubeVideo_Views { font-size: 8px !important; }
 }

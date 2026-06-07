@@ -98,7 +98,6 @@
   font-family: 'Space Grotesk', sans-serif;
   box-sizing: border-box;
   caret-color: #b4a1ff;
-  clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
  
@@ -135,7 +134,7 @@
   color: #b4a1ff;
   text-decoration: none;
   background: transparent;
-  clip-path: polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);
+  border-left: 3px solid #b4a1ff;
   transition: all 0.2s;
   text-transform: uppercase;
 }

@@ -678,7 +678,7 @@ const ShortCard = ({
   }, [watchedContentIds, short.dbId]);
 
   const vcKey = short.id ? "reel_" + short.id : null;
-// short.id = "db_14" — matches fetchViewCounts key
+  // short.id = "db_14" — matches fetchViewCounts key
 
   return (
     <div
@@ -2011,8 +2011,11 @@ const HomePage = ({ sideNavbar }) => {
           likes: r.likes ?? 0,
         }));
         setDbReels(formatted);
-        fetchViewCounts(formatted.map((r) => r.id), "reel");
-// r.id = "db_14" — matches what useViewTracker saves
+        fetchViewCounts(
+          formatted.map((r) => r.id),
+          "reel",
+        );
+        // r.id = "db_14" — matches what useViewTracker saves
       }
     };
     fetchDbReels();
@@ -2213,13 +2216,11 @@ const HomePage = ({ sideNavbar }) => {
           ),
         );
       } else {
-        await supabase
-          .from("likes")
-          .insert({
-            user_id: userId,
-            content_id: String(videoId),
-            content_type: "video",
-          });
+        await supabase.from("likes").insert({
+          user_id: userId,
+          content_id: String(videoId),
+          content_type: "video",
+        });
         await supabase.rpc("increment_likes", {
           p_table: "videos",
           p_id: videoId,
@@ -2253,7 +2254,20 @@ const HomePage = ({ sideNavbar }) => {
   const ShortsRow = ({ data, title }) => (
     <div className="homePage_shortsSection">
       <div className="homePage_shortsHeader">
-        <span className="homePage_shortsTitle">🎬 {title}</span>
+        <span className="homePage_shortsTitle">
+  <img 
+    src="/mylogo1.png" 
+    alt="Zixplon" 
+    style={{ 
+      width: "24px", 
+      height: "24px", 
+      objectFit: "contain",
+      verticalAlign: "middle",
+      marginRight: "6px"
+    }} 
+  />
+  {title}
+</span>
       </div>
       <div className="homePage_shortsRow">
         {data.map((short) => (
@@ -2608,18 +2622,31 @@ const HomePage = ({ sideNavbar }) => {
           <div style={{ padding: "16px 20px" }}>
             {/* Search header */}
             <div style={{ marginBottom: "20px" }}>
-              <h2 style={{ color: "white", fontSize: "18px", fontWeight: "700", margin: "0 0 6px" }}>
+              <h2
+                style={{
+                  color: "white",
+                  fontSize: "18px",
+                  fontWeight: "700",
+                  margin: "0 0 6px",
+                }}
+              >
                 🔍 Results for "{searchQuery}"
               </h2>
               <span style={{ color: "#555", fontSize: "13px" }}>
-                {searchedLocalVideos.length} local videos · {searchedReels.length} reels · {ytVideos.length} YouTube
+                {searchedLocalVideos.length} local videos ·{" "}
+                {searchedReels.length} reels · {ytVideos.length} YouTube
               </span>
             </div>
 
             {/* Reels */}
             {searchedReels.length > 0 && (
               <div style={{ marginBottom: "40px" }}>
-                <SectionLabel color="#ff6600" bg="#ff660022" text="🎬 REELS" count={searchedReels.length} />
+                <SectionLabel
+                  color="#ff6600"
+                  bg="#ff660022"
+                  text="🎬 REELS"
+                  count={searchedReels.length}
+                />
                 <div className="homePage_shortsRow">
                   {searchedReels.map((short) => (
                     <ShortCard
@@ -2639,10 +2666,20 @@ const HomePage = ({ sideNavbar }) => {
             {/* Local + DB Videos */}
             {searchedLocalVideos.length > 0 && (
               <div style={{ marginBottom: "40px" }}>
-                <SectionLabel color="#aaa" bg="#272727" text="🎬 LOCAL VIDEOS" count={searchedLocalVideos.length} />
+                <SectionLabel
+                  color="#aaa"
+                  bg="#272727"
+                  text="🎬 LOCAL VIDEOS"
+                  count={searchedLocalVideos.length}
+                />
                 <div className="youtube_VideoGrid">
                   {searchedLocalVideos.map((v) => (
-                    <VideoCard key={v.id} video={v} isUploaded={v.isUploaded || false} showDelete={v.isUploaded} />
+                    <VideoCard
+                      key={v.id}
+                      video={v}
+                      isUploaded={v.isUploaded || false}
+                      showDelete={v.isUploaded}
+                    />
                   ))}
                 </div>
               </div>
@@ -2651,15 +2688,26 @@ const HomePage = ({ sideNavbar }) => {
             {/* YouTube */}
             {ytLoading && (
               <div style={{ marginBottom: "40px" }}>
-                <SectionLabel color="#ff4444" bg="#ff000022" text="▶ YOUTUBE — searching..." />
+                <SectionLabel
+                  color="#ff4444"
+                  bg="#ff000022"
+                  text="▶ YOUTUBE — searching..."
+                />
                 <div className="youtube_VideoGrid">
-                  {[...Array(8)].map((_, i) => <SkeletonCard key={i} />)}
+                  {[...Array(8)].map((_, i) => (
+                    <SkeletonCard key={i} />
+                  ))}
                 </div>
               </div>
             )}
             {!ytLoading && ytVideos.length > 0 && (
               <div style={{ marginBottom: "40px" }}>
-                <SectionLabel color="#ff4444" bg="#ff000022" text="▶ YOUTUBE" count={ytVideos.length} />
+                <SectionLabel
+                  color="#ff4444"
+                  bg="#ff000022"
+                  text="▶ YOUTUBE"
+                  count={ytVideos.length}
+                />
                 <div className="youtube_VideoGrid">
                   {ytVideos.map((item) => (
                     <YouTubeVideoCard key={item.id.videoId} item={item} />
@@ -2669,17 +2717,29 @@ const HomePage = ({ sideNavbar }) => {
             )}
 
             {/* No results */}
-            {!ytLoading && searchedLocalVideos.length === 0 && searchedReels.length === 0 && ytVideos.length === 0 && (
-              <div style={{ textAlign: "center", marginTop: "80px" }}>
-                <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔍</div>
-                <p style={{ color: "#555", fontSize: "16px" }}>
-                  No results for "<span style={{ color: "#aaa" }}>{searchQuery}</span>"
-                </p>
-                <p style={{ color: "#444", fontSize: "13px", marginTop: "8px" }}>
-                  Try different keywords
-                </p>
-              </div>
-            )}
+            {!ytLoading &&
+              searchedLocalVideos.length === 0 &&
+              searchedReels.length === 0 &&
+              ytVideos.length === 0 && (
+                <div style={{ textAlign: "center", marginTop: "80px" }}>
+                  <div style={{ fontSize: "48px", marginBottom: "16px" }}>
+                    🔍
+                  </div>
+                  <p style={{ color: "#555", fontSize: "16px" }}>
+                    No results for "
+                    <span style={{ color: "#aaa" }}>{searchQuery}</span>"
+                  </p>
+                  <p
+                    style={{
+                      color: "#444",
+                      fontSize: "13px",
+                      marginTop: "8px",
+                    }}
+                  >
+                    Try different keywords
+                  </p>
+                </div>
+              )}
           </div>
         ) : selectedOption === "All" ? (
           <>

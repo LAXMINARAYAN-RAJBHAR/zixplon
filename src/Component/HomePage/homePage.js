@@ -1035,7 +1035,7 @@ const HomePage = ({ sideNavbar }) => {
               const rows = [];
               const totalRows = Math.ceil(allVids.length / 12);
               for (let rowIndex = 0; rowIndex < totalRows; rowIndex++) {
-                const rowReels = allReels.slice(rowIndex * 10, rowIndex * 10 + 10);
+                const rowReels = allReels.slice(rowIndex * 12, rowIndex * 12 + 12);
                 rows.push(
                   <React.Fragment key={rowIndex}>
                     {rowReels.length > 0 && <ShortsRow data={rowReels} title={rowIndex === 0 ? "Shorts" : "More Shorts"} />}

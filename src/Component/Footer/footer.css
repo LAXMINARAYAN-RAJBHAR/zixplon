@@ -8,7 +8,7 @@
   font-size: 10px;
   letter-spacing: 0.5px;
   margin-top: auto;
-  /* ── Sit below everything interactive ── */
+  /* Sit below all overlays, modals, and players */
   position: relative;
   z-index: 1;
 }
@@ -48,22 +48,28 @@
 }
 
 /* ══════════════════════════════════════
-   MOBILE — hide footer when reels / any
-   fullscreen player is open
+   MOBILE — max 768px
 ══════════════════════════════════════ */
 @media (max-width: 768px) {
 
-  /* Hide footer on mobile while a fullscreen reel/video is open.
-     Works by detecting the body class that your Reels component
-     should set — see instructions below. */
-  body.reels-open .footer,
-  body.player-open .footer {
+  /* Add bottom padding so footer content
+     sits above the fixed bottom nav bar  */
+  .footer {
+    padding-bottom: calc(12px + 72px);
+  }
+
+  /* ── Hide footer completely when Reels page is open ──
+     Triggered by document.body.classList.add("reels-open")
+     in the Reels component useEffect on mount,
+     and removed on unmount.                              */
+  body.reels-open .footer {
     display: none !important;
   }
 
-  /* Also push footer below the fixed bottom nav bar
-     so it never overlaps the nav (80px = bottom nav height) */
-  .footer {
-    padding-bottom: calc(12px + 80px);
+  /* ── Also hide if any other fullscreen player is open ──
+     Add body.player-open anywhere else you open a
+     fullscreen video player.                             */
+  body.player-open .footer {
+    display: none !important;
   }
 }

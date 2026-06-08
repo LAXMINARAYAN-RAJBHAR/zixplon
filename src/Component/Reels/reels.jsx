@@ -9,546 +9,51 @@ import { supabase } from "../../config/supabase";
 import useViewTracker from "./useViewTracker";
 
 export const reelsData = [
-  {
-    id: "rc_1",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Jyoti",
-    username: "jyoti",
-    profilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=1",
-    title: "Big Buck Bunny",
-    duration: "0:32",
-    description: "This is a cool reel 🔥",
-    likes: 0,
-  },
-  {
-    id: "rc_2",
-    src: "https://www.w3schools.com/html/movie.mp4",
-    user: "Laxminarayan",
-    username: "laxminarayan",
-    profilePic: "https://randomuser.me/api/portraits/women/2.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=2",
-    title: "My Favourite Movie",
-    duration: "0:53",
-    description: "Another awesome reel 🎬",
-    likes: 0,
-  },
-  {
-    id: "rc_3",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-    user: "Anuradha",
-    username: "anuradha",
-    profilePic: "https://randomuser.me/api/portraits/men/3.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=3",
-    title: "Funny Moments",
-    duration: "0:32",
-    description: "Beautiful Flower 🌸",
-    likes: 0,
-  },
-  {
-    id: "rc_4",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4",
-    user: "Karthik",
-    username: "karthik",
-    profilePic: "https://randomuser.me/api/portraits/women/4.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=4",
-    title: "Travel Vlog",
-    duration: "0:53",
-    description: "Friday Vibes 🎉",
-    likes: 0,
-  },
-  {
-    id: "rc_5",
-    src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4",
-    user: "Shyamnarayan",
-    username: "shyamnarayan",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_6",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Jaynarayan",
-    username: "jaynarayan",
-    profilePic: "https://randomuser.me/api/portraits/women/6.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=6",
-    title: "Evening Vibes",
-    duration: "0:53",
-    description: "Sample Reel 🎥",
-    likes: 0,
-  },
-  {
-    id: "rc_7",
-    src: "https://www.w3schools.com/html/movie.mp4",
-    user: "Gangeshwary",
-    username: "gangeshwary",
-    profilePic: "https://randomuser.me/api/portraits/men/7.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=7",
-    title: "Morning Routine",
-    duration: "0:32",
-    description: "Cool Reel 🔥",
-    likes: 0,
-  },
-  {
-    id: "rc_8",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-    user: "Papa",
-    username: "papa",
-    profilePic: "https://randomuser.me/api/portraits/men/8.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=8",
-    title: "Weekend Fun",
-    duration: "0:53",
-    description: "This is a cool reel 🔥",
-    likes: 0,
-  },
-  {
-    id: "rc_9",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4",
-    user: "Mummy",
-    username: "mummy",
-    profilePic: "https://randomuser.me/api/portraits/women/9.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=9",
-    title: "Kitchen Special",
-    duration: "0:32",
-    description: "Another awesome reel 🎬",
-    likes: 0,
-  },
-  {
-    id: "rc_10",
-    src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4",
-    user: "Sandeep",
-    username: "sandeep",
-    profilePic: "https://randomuser.me/api/portraits/men/10.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=10",
-    title: "City Life",
-    duration: "0:53",
-    description: "Beautiful Bulb",
-    likes: 0,
-  },
-  {
-    id: "rc_11",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Mandeep",
-    username: "mandeep",
-    profilePic: "https://randomuser.me/api/portraits/men/10.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=10",
-    title: "City Life",
-    duration: "0:53",
-    description: "Beautiful Bulb",
-    likes: 0,
-  },
-  {
-    id: "rc_12",
-    src: "https://www.w3schools.com/html/movie.mp4",
-    user: "Tillu",
-    username: "tillu",
-    profilePic: "https://randomuser.me/api/portraits/men/10.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=10",
-    title: "City Life",
-    duration: "0:53",
-    description: "Beautiful Bulb",
-    likes: 0,
-  },
-  {
-    id: "rc_13",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-    user: "Moti",
-    username: "moti",
-    profilePic: "https://randomuser.me/api/portraits/men/10.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=10",
-    title: "City Life",
-    duration: "0:53",
-    description: "Beautiful Bulb",
-    likes: 0,
-  },
-  {
-    id: "rc_14",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Reena",
-    username: "reena",
-    profilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=1",
-    title: "Big Buck Bunny",
-    duration: "0:32",
-    description: "This is a cool reel 🔥",
-    likes: 0,
-  },
-  {
-    id: "rc_15",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Seema",
-    username: "seema",
-    profilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=1",
-    title: "Big Buck Bunny",
-    duration: "0:32",
-    description: "This is a cool reel 🔥",
-    likes: 0,
-  },
-  {
-    id: "rc_16",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Bipin",
-    username: "bipin",
-    profilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=1",
-    title: "Big Buck Bunny",
-    duration: "0:32",
-    description: "This is a cool reel 🔥",
-    likes: 0,
-  },
-  {
-    id: "rc_17",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Vivek",
-    username: "vivek",
-    profilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=1",
-    title: "Big Buck Bunny",
-    duration: "0:32",
-    description: "This is a cool reel 🔥",
-    likes: 0,
-  },
-  {
-    id: "rc_18",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Sheru",
-    username: "sheru",
-    profilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=1",
-    title: "Big Buck Bunny",
-    duration: "0:32",
-    description: "This is a cool reel 🔥",
-    likes: 0,
-  },
-  {
-    id: "rc_19",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Jiyalal",
-    username: "jiyalal",
-    profilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=1",
-    title: "Big Buck Bunny",
-    duration: "0:32",
-    description: "This is a cool reel 🔥",
-    likes: 0,
-  },
-  {
-    id: "rc_20",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Hiralal",
-    username: "hiralal",
-    profilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=1",
-    title: "Big Buck Bunny",
-    duration: "0:32",
-    description: "This is a cool reel 🔥",
-    likes: 0,
-  },
-  {
-    id: "rc_21",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4",
-    user: "Ramnayan",
-    username: "ramnayan",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_22",
-    src: "https://www.w3schools.com/html/movie.mp4",
-    user: "Sunil",
-    username: "sunil",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_23",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-    user: "Kuneel",
-    username: "kuneel",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_24",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Sonu",
-    username: "sonu",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_25",
-    src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4",
-    user: "Monu",
-    username: "monu",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_26",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4",
-    user: "Algu",
-    username: "algu",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_27",
-    src: "https://www.w3schools.com/html/movie.mp4",
-    user: "Gyandeep",
-    username: "gyandeep",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_28",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-    user: "Sharmila",
-    username: "sharmila",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_29",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Urmila",
-    username: "urmila",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_30",
-    src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4",
-    user: "Ghanshyam",
-    username: "ghanshyam",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_31",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Kapil",
-    username: "kapil",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_32",
-    src: "https://www.w3schools.com/html/movie.mp4",
-    user: "Chandresh",
-    username: "chandresh",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_33",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-    user: "Kuldeep",
-    username: "kuldeep",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_34",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4",
-    user: "Reela",
-    username: "reela",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_35",
-    src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4",
-    user: "Sunita",
-    username: "sunita",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_36",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Anita",
-    username: "anita",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_37",
-    src: "https://www.w3schools.com/html/movie.mp4",
-    user: "Guddu",
-    username: "guddu",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_38",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-    user: "Kripal",
-    username: "kripal",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_39",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4",
-    user: "Suresh",
-    username: "suresh",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_40",
-    src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4",
-    user: "Dinanath",
-    username: "dinanath",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_41",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    user: "Gorakhnath",
-    username: "gorakhnath",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_42",
-    src: "https://www.w3schools.com/html/movie.mp4",
-    user: "Shambhu",
-    username: "shambhu",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_43",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
-    user: "Diwakar",
-    username: "diwakar",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_44",
-    src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4",
-    user: "Sudhakar",
-    username: "sudhakar",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
-  {
-    id: "rc_45",
-    src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4",
-    user: "Prabhakar",
-    username: "prabhakar",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-    thumbnail: "https://picsum.photos/200/350?random=5",
-    title: "Nature Walk",
-    duration: "0:32",
-    description: "Unique Tea Making Procedure",
-    likes: 0,
-  },
+  { id: "rc_1", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Jyoti", username: "jyoti", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
+  { id: "rc_2", src: "https://www.w3schools.com/html/movie.mp4", user: "Laxminarayan", username: "laxminarayan", profilePic: "https://randomuser.me/api/portraits/women/2.jpg", thumbnail: "https://picsum.photos/200/350?random=2", title: "My Favourite Movie", duration: "0:53", description: "Another awesome reel 🎬", likes: 0 },
+  { id: "rc_3", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Anuradha", username: "anuradha", profilePic: "https://randomuser.me/api/portraits/men/3.jpg", thumbnail: "https://picsum.photos/200/350?random=3", title: "Funny Moments", duration: "0:32", description: "Beautiful Flower 🌸", likes: 0 },
+  { id: "rc_4", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Karthik", username: "karthik", profilePic: "https://randomuser.me/api/portraits/women/4.jpg", thumbnail: "https://picsum.photos/200/350?random=4", title: "Travel Vlog", duration: "0:53", description: "Friday Vibes 🎉", likes: 0 },
+  { id: "rc_5", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Shyamnarayan", username: "shyamnarayan", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_6", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Jaynarayan", username: "jaynarayan", profilePic: "https://randomuser.me/api/portraits/women/6.jpg", thumbnail: "https://picsum.photos/200/350?random=6", title: "Evening Vibes", duration: "0:53", description: "Sample Reel 🎥", likes: 0 },
+  { id: "rc_7", src: "https://www.w3schools.com/html/movie.mp4", user: "Gangeshwary", username: "gangeshwary", profilePic: "https://randomuser.me/api/portraits/men/7.jpg", thumbnail: "https://picsum.photos/200/350?random=7", title: "Morning Routine", duration: "0:32", description: "Cool Reel 🔥", likes: 0 },
+  { id: "rc_8", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Papa", username: "papa", profilePic: "https://randomuser.me/api/portraits/men/8.jpg", thumbnail: "https://picsum.photos/200/350?random=8", title: "Weekend Fun", duration: "0:53", description: "This is a cool reel 🔥", likes: 0 },
+  { id: "rc_9", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Mummy", username: "mummy", profilePic: "https://randomuser.me/api/portraits/women/9.jpg", thumbnail: "https://picsum.photos/200/350?random=9", title: "Kitchen Special", duration: "0:32", description: "Another awesome reel 🎬", likes: 0 },
+  { id: "rc_10", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Sandeep", username: "sandeep", profilePic: "https://randomuser.me/api/portraits/men/10.jpg", thumbnail: "https://picsum.photos/200/350?random=10", title: "City Life", duration: "0:53", description: "Beautiful Bulb", likes: 0 },
+  { id: "rc_11", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Mandeep", username: "mandeep", profilePic: "https://randomuser.me/api/portraits/men/10.jpg", thumbnail: "https://picsum.photos/200/350?random=10", title: "City Life", duration: "0:53", description: "Beautiful Bulb", likes: 0 },
+  { id: "rc_12", src: "https://www.w3schools.com/html/movie.mp4", user: "Tillu", username: "tillu", profilePic: "https://randomuser.me/api/portraits/men/10.jpg", thumbnail: "https://picsum.photos/200/350?random=10", title: "City Life", duration: "0:53", description: "Beautiful Bulb", likes: 0 },
+  { id: "rc_13", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Moti", username: "moti", profilePic: "https://randomuser.me/api/portraits/men/10.jpg", thumbnail: "https://picsum.photos/200/350?random=10", title: "City Life", duration: "0:53", description: "Beautiful Bulb", likes: 0 },
+  { id: "rc_14", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Reena", username: "reena", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
+  { id: "rc_15", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Seema", username: "seema", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
+  { id: "rc_16", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Bipin", username: "bipin", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
+  { id: "rc_17", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Vivek", username: "vivek", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
+  { id: "rc_18", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Sheru", username: "sheru", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
+  { id: "rc_19", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Jiyalal", username: "jiyalal", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
+  { id: "rc_20", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Hiralal", username: "hiralal", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
+  { id: "rc_21", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Ramnayan", username: "ramnayan", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_22", src: "https://www.w3schools.com/html/movie.mp4", user: "Sunil", username: "sunil", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_23", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Kuneel", username: "kuneel", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_24", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Sonu", username: "sonu", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_25", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Monu", username: "monu", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_26", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Algu", username: "algu", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_27", src: "https://www.w3schools.com/html/movie.mp4", user: "Gyandeep", username: "gyandeep", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_28", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Sharmila", username: "sharmila", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_29", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Urmila", username: "urmila", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_30", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Ghanshyam", username: "ghanshyam", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_31", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Kapil", username: "kapil", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_32", src: "https://www.w3schools.com/html/movie.mp4", user: "Chandresh", username: "chandresh", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_33", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Kuldeep", username: "kuldeep", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_34", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Reela", username: "reela", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_35", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Sunita", username: "sunita", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_36", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Anita", username: "anita", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_37", src: "https://www.w3schools.com/html/movie.mp4", user: "Guddu", username: "guddu", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_38", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Kripal", username: "kripal", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_39", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Suresh", username: "suresh", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_40", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Dinanath", username: "dinanath", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_41", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Gorakhnath", username: "gorakhnath", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_42", src: "https://www.w3schools.com/html/movie.mp4", user: "Shambhu", username: "shambhu", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_43", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Diwakar", username: "diwakar", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_44", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Sudhakar", username: "sudhakar", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
+  { id: "rc_45", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Prabhakar", username: "prabhakar", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
 ];
 
 const getVideoType = (src) => {
@@ -567,11 +72,7 @@ const fetchCount = async (contentId, contentType, reactionType) => {
   const { count } = await supabase
     .from("likes")
     .select("id", { count: "exact", head: true })
-    .match({
-      content_id: String(contentId),
-      content_type: contentType,
-      reaction_type: reactionType,
-    });
+    .match({ content_id: String(contentId), content_type: contentType, reaction_type: reactionType });
   return Math.max(0, count ?? 0);
 };
 
@@ -585,7 +86,7 @@ const ReelItem = ({ reel, allReels }) => {
   const isMounted = useRef(true);
   const observerRef = useRef(null);
   const iconTimeoutRef = useRef(null);
-  const commentPanelRef = useRef(null); // ← NEW
+  const commentPanelRef = useRef(null);
 
   const loggedInUser = localStorage.getItem("username") || "Guest";
 
@@ -605,14 +106,11 @@ const ReelItem = ({ reel, allReels }) => {
   const [shareToast, setShareToast] = useState(false);
   const [viewCount, setViewCount] = useState(0);
 
-  // ── Close comments panel on outside click ── NEW
+  // ── Close comments panel on outside click ──
   useEffect(() => {
     if (!showComments) return;
     const handleOutsideClick = (e) => {
-      if (
-        commentPanelRef.current &&
-        !commentPanelRef.current.contains(e.target)
-      ) {
+      if (commentPanelRef.current && !commentPanelRef.current.contains(e.target)) {
         setShowComments(false);
       }
     };
@@ -629,27 +127,9 @@ const ReelItem = ({ reel, allReels }) => {
       setDislikeCount(dCount);
       setLikeCountLoading(false);
       if (!userId) return;
-      const { data: likeData } = await supabase
-        .from("likes")
-        .select("id")
-        .match({
-          user_id: userId,
-          content_id: String(reel.id),
-          content_type: "reel",
-          reaction_type: "like",
-        })
-        .maybeSingle();
+      const { data: likeData } = await supabase.from("likes").select("id").match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "like" }).maybeSingle();
       setLiked(!!likeData);
-      const { data: dislikeData } = await supabase
-        .from("likes")
-        .select("id")
-        .match({
-          user_id: userId,
-          content_id: String(reel.id),
-          content_type: "reel",
-          reaction_type: "dislike",
-        })
-        .maybeSingle();
+      const { data: dislikeData } = await supabase.from("likes").select("id").match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "dislike" }).maybeSingle();
       setDisliked(!!dislikeData);
     };
     loadReactions();
@@ -657,10 +137,7 @@ const ReelItem = ({ reel, allReels }) => {
 
   useEffect(() => {
     const loadViewCount = async () => {
-      const { count } = await supabase
-        .from("views")
-        .select("id", { count: "exact", head: true })
-        .match({ content_id: String(reel.id), content_type: "reel" });
+      const { count } = await supabase.from("views").select("id", { count: "exact", head: true }).match({ content_id: String(reel.id), content_type: "reel" });
       setViewCount(count ?? 0);
     };
     loadViewCount();
@@ -670,11 +147,7 @@ const ReelItem = ({ reel, allReels }) => {
     const loadSubscription = async () => {
       const userId = localStorage.getItem("userId");
       if (!userId) return;
-      const { data } = await supabase
-        .from("subscriptions")
-        .select("id")
-        .match({ subscriber_id: userId, subscribed_to: reel.username })
-        .maybeSingle();
+      const { data } = await supabase.from("subscriptions").select("id").match({ subscriber_id: userId, subscribed_to: reel.username }).maybeSingle();
       setSubscribed(!!data);
     };
     loadSubscription();
@@ -682,20 +155,9 @@ const ReelItem = ({ reel, allReels }) => {
 
   useEffect(() => {
     const loadComments = async () => {
-      const { data } = await supabase
-        .from("comments")
-        .select("*")
-        .match({ content_id: String(reel.id), content_type: "reel" })
-        .order("created_at", { ascending: false });
+      const { data } = await supabase.from("comments").select("*").match({ content_id: String(reel.id), content_type: "reel" }).order("created_at", { ascending: false });
       if (data && data.length > 0) {
-        setComments(
-          data.map((c) => ({
-            id: c.id,
-            user: c.username,
-            text: c.text,
-            date: c.created_at?.slice(0, 10),
-          })),
-        );
+        setComments(data.map((c) => ({ id: c.id, user: c.username, text: c.text, date: c.created_at?.slice(0, 10) })));
       }
     };
     loadComments();
@@ -706,28 +168,13 @@ const ReelItem = ({ reel, allReels }) => {
   const handleSubscribe = async (e) => {
     e.preventDefault();
     const userId = localStorage.getItem("userId");
-    if (!userId) {
-      alert("Please login to subscribe");
-      return;
-    }
-    if (userId === reel.username) {
-      alert("You cannot subscribe to yourself");
-      return;
-    }
+    if (!userId) { alert("Please login to subscribe"); return; }
+    if (userId === reel.username) { alert("You cannot subscribe to yourself"); return; }
     if (subscribed) {
-      await supabase
-        .from("subscriptions")
-        .delete()
-        .match({ subscriber_id: userId, subscribed_to: reel.username });
+      await supabase.from("subscriptions").delete().match({ subscriber_id: userId, subscribed_to: reel.username });
       setSubscribed(false);
     } else {
-      const { error } = await supabase
-  .from("subscriptions")
-  .insert({
-    subscriber_id: userId,
-    subscriber_username: localStorage.getItem("username"), // 👈 add this
-    subscribed_to: reel.username,
-  });
+      const { error } = await supabase.from("subscriptions").insert({ subscriber_id: userId, subscriber_username: localStorage.getItem("username"), subscribed_to: reel.username });
       if (!error) setSubscribed(true);
     }
   };
@@ -735,31 +182,10 @@ const ReelItem = ({ reel, allReels }) => {
   const handleCommentSubmit = async () => {
     if (!commentText.trim()) return;
     const userId = localStorage.getItem("userId");
-    if (!userId) {
-      alert("Please login to comment");
-      return;
-    }
-    const { data, error } = await supabase
-      .from("comments")
-      .insert({
-        user_id: userId,
-        username: loggedInUser,
-        content_id: String(reel.id),
-        content_type: "reel",
-        text: commentText,
-      })
-      .select()
-      .single();
+    if (!userId) { alert("Please login to comment"); return; }
+    const { data, error } = await supabase.from("comments").insert({ user_id: userId, username: loggedInUser, content_id: String(reel.id), content_type: "reel", text: commentText }).select().single();
     if (!error && data) {
-      setComments((prev) => [
-        {
-          id: data.id,
-          user: data.username,
-          text: data.text,
-          date: data.created_at?.slice(0, 10),
-        },
-        ...prev,
-      ]);
+      setComments((prev) => [{ id: data.id, user: data.username, text: data.text, date: data.created_at?.slice(0, 10) }, ...prev]);
     }
     setCommentText("");
   };
@@ -775,21 +201,11 @@ const ReelItem = ({ reel, allReels }) => {
     setTimeout(() => setShareToast(false), 2500);
   };
 
-  const isYouTube = (url) =>
-    url && (url.includes("youtube.com") || url.includes("youtu.be"));
+  const isYouTube = (url) => url && (url.includes("youtube.com") || url.includes("youtu.be"));
   const getEmbedUrl = (url) => {
-    if (url.includes("youtube.com/shorts/")) {
-      const id = url.split("/shorts/")[1].split("?")[0];
-      return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`;
-    }
-    if (url.includes("watch?v=")) {
-      const id = url.split("watch?v=")[1].split("&")[0];
-      return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`;
-    }
-    if (url.includes("youtu.be/")) {
-      const id = url.split("youtu.be/")[1].split("?")[0];
-      return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`;
-    }
+    if (url.includes("youtube.com/shorts/")) { const id = url.split("/shorts/")[1].split("?")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
+    if (url.includes("watch?v=")) { const id = url.split("watch?v=")[1].split("&")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
+    if (url.includes("youtu.be/")) { const id = url.split("youtu.be/")[1].split("?")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
     return url;
   };
 
@@ -804,9 +220,7 @@ const ReelItem = ({ reel, allReels }) => {
         if (!isMounted.current) return;
         if (entry.isIntersecting) {
           window.history.replaceState(null, "", `/reels/${reel.id}`);
-          document.querySelectorAll("video").forEach((v) => {
-            if (v !== video) v.pause();
-          });
+          document.querySelectorAll("video").forEach((v) => { if (v !== video) v.pause(); });
           video.muted = muted;
           video.play().catch(() => {});
           setIsPlaying(true);
@@ -822,10 +236,7 @@ const ReelItem = ({ reel, allReels }) => {
       isMounted.current = false;
       observerRef.current?.disconnect();
       clearTimeout(iconTimeoutRef.current);
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.src = "";
-      }
+      if (videoRef.current) { videoRef.current.pause(); videoRef.current.src = ""; }
     };
   }, []);
 
@@ -838,142 +249,62 @@ const ReelItem = ({ reel, allReels }) => {
   const handleVideoClick = () => {
     const video = videoRef.current;
     if (!video) return;
-    if (video.paused) {
-      video.play().catch(() => {});
-      setIsPlaying(true);
-    } else {
-      video.pause();
-      setIsPlaying(false);
-    }
+    if (video.paused) { video.play().catch(() => {}); setIsPlaying(true); }
+    else { video.pause(); setIsPlaying(false); }
     flashIcon();
   };
 
   const handleLike = async () => {
     const userId = localStorage.getItem("userId");
-    if (!userId) {
-      alert("Please login to like");
-      return;
-    }
+    if (!userId) { alert("Please login to like"); return; }
     if (isActing) return;
     setIsActing(true);
     try {
       if (liked) {
-        await supabase
-          .from("likes")
-          .delete()
-          .match({
-            user_id: userId,
-            content_id: String(reel.id),
-            content_type: "reel",
-            reaction_type: "like",
-          });
+        await supabase.from("likes").delete().match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "like" });
         setLiked(false);
       } else {
         if (disliked) {
-          await supabase
-            .from("likes")
-            .delete()
-            .match({
-              user_id: userId,
-              content_id: String(reel.id),
-              content_type: "reel",
-              reaction_type: "dislike",
-            });
+          await supabase.from("likes").delete().match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "dislike" });
           setDisliked(false);
         }
-        await supabase.from("likes").upsert(
-          {
-            user_id: userId,
-            content_id: String(reel.id),
-            content_type: "reel",
-            reaction_type: "like",
-          },
-          { onConflict: "user_id,content_id,content_type,reaction_type" },
-        );
+        await supabase.from("likes").upsert({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "like" }, { onConflict: "user_id,content_id,content_type,reaction_type" });
         setLiked(true);
       }
       setLikeCount(await fetchCount(reel.id, "reel", "like"));
       setDislikeCount(await fetchCount(reel.id, "reel", "dislike"));
-    } finally {
-      setIsActing(false);
-    }
+    } finally { setIsActing(false); }
   };
 
   const handleDislike = async () => {
     const userId = localStorage.getItem("userId");
-    if (!userId) {
-      alert("Please login to react");
-      return;
-    }
+    if (!userId) { alert("Please login to react"); return; }
     if (isActing) return;
     setIsActing(true);
     try {
       if (disliked) {
-        await supabase
-          .from("likes")
-          .delete()
-          .match({
-            user_id: userId,
-            content_id: String(reel.id),
-            content_type: "reel",
-            reaction_type: "dislike",
-          });
+        await supabase.from("likes").delete().match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "dislike" });
         setDisliked(false);
       } else {
         if (liked) {
-          await supabase
-            .from("likes")
-            .delete()
-            .match({
-              user_id: userId,
-              content_id: String(reel.id),
-              content_type: "reel",
-              reaction_type: "like",
-            });
+          await supabase.from("likes").delete().match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "like" });
           setLiked(false);
         }
-        await supabase.from("likes").upsert(
-          {
-            user_id: userId,
-            content_id: String(reel.id),
-            content_type: "reel",
-            reaction_type: "dislike",
-          },
-          { onConflict: "user_id,content_id,content_type,reaction_type" },
-        );
+        await supabase.from("likes").upsert({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "dislike" }, { onConflict: "user_id,content_id,content_type,reaction_type" });
         setDisliked(true);
       }
       setLikeCount(await fetchCount(reel.id, "reel", "like"));
       setDislikeCount(await fetchCount(reel.id, "reel", "dislike"));
-    } finally {
-      setIsActing(false);
-    }
+    } finally { setIsActing(false); }
   };
 
   return (
     <div className="reel_item" id={`reel-${reel.id}`} ref={containerRef}>
       <div className="reel_video_wrapper">
         {isYouTube(reel.src) ? (
-          <iframe
-            className="reel_video"
-            src={getEmbedUrl(reel.src)}
-            frameBorder="0"
-            allow="autoplay; fullscreen"
-            allowFullScreen
-            title={reel.title}
-          />
+          <iframe className="reel_video" src={getEmbedUrl(reel.src)} frameBorder="0" allow="autoplay; fullscreen" allowFullScreen title={reel.title} />
         ) : (
-          <video
-            ref={videoRef}
-            className="reel_video"
-            loop
-            muted={muted}
-            playsInline
-            poster={reel.thumbnail}
-            controlsList="nodownload"
-            onContextMenu={(e) => e.preventDefault()}
-            onClick={handleVideoClick}
-          >
+          <video ref={videoRef} className="reel_video" loop muted={muted} playsInline poster={reel.thumbnail} controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} onClick={handleVideoClick}>
             <source src={reel.src} type={getVideoType(reel.src)} />
             Your browser does not support this video.
           </video>
@@ -984,45 +315,20 @@ const ReelItem = ({ reel, allReels }) => {
         )}
 
         <div className="reel_actions">
-          <div
-            className={`reel_action_btn reel_like_btn ${liked ? "reel_liked" : ""}`}
-            onClick={handleLike}
-            style={{
-              opacity: isActing ? 0.6 : 1,
-              pointerEvents: isActing ? "none" : "auto",
-            }}
-          >
+          <div className={`reel_action_btn reel_like_btn ${liked ? "reel_liked" : ""}`} onClick={handleLike} style={{ opacity: isActing ? 0.6 : 1, pointerEvents: isActing ? "none" : "auto" }}>
             <span className="reel_like_inner">
-              <ThumbUpOutlinedIcon
-                style={{ color: liked ? "#ff0000" : "white" }}
-              />
-              <span className="reel_like_count">
-                {likeCountLoading ? "..." : likeCount}
-              </span>
+              <ThumbUpOutlinedIcon style={{ color: liked ? "#ff0000" : "white" }} />
+              <span className="reel_like_count">{likeCountLoading ? "..." : likeCount}</span>
             </span>
             <span className="reel_like_emoji">😊</span>
           </div>
 
-          <div
-            className={`reel_action_btn ${disliked ? "reel_disliked" : ""}`}
-            onClick={handleDislike}
-            style={{
-              opacity: isActing ? 0.6 : 1,
-              pointerEvents: isActing ? "none" : "auto",
-            }}
-          >
-            <ThumbDownAltOutlinedIcon
-              style={{ color: disliked ? "#ff0000" : "white" }}
-            />
+          <div className={`reel_action_btn ${disliked ? "reel_disliked" : ""}`} onClick={handleDislike} style={{ opacity: isActing ? 0.6 : 1, pointerEvents: isActing ? "none" : "auto" }}>
+            <ThumbDownAltOutlinedIcon style={{ color: disliked ? "#ff0000" : "white" }} />
           </div>
 
-          <div
-            className="reel_action_btn"
-            onClick={() => setShowComments((v) => !v)}
-          >
-            <ChatBubbleOutlineIcon
-              style={{ color: showComments ? "#ff0000" : "white" }}
-            />
+          <div className="reel_action_btn" onClick={() => setShowComments((v) => !v)}>
+            <ChatBubbleOutlineIcon style={{ color: showComments ? "#ff0000" : "white" }} />
             <span>{comments.length > 0 ? comments.length : "Comment"}</span>
           </div>
 
@@ -1034,32 +340,13 @@ const ReelItem = ({ reel, allReels }) => {
 
         {showComments && (
           <div className="reel_comment_panel" ref={commentPanelRef}>
-            {" "}
-            {/* ← ref added */}
             <div className="reel_comment_input_row">
-              <input
-                type="text"
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleCommentSubmit()}
-                placeholder="Add a comment..."
-                className="reel_comment_input"
-              />
-              <button
-                className="reel_comment_submit"
-                onClick={handleCommentSubmit}
-              >
-                Post
-              </button>
+              <input type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCommentSubmit()} placeholder="Add a comment..." className="reel_comment_input" />
+              <button className="reel_comment_submit" onClick={handleCommentSubmit}>Post</button>
             </div>
             <div className="reel_comment_list">
               {comments.length === 0 ? (
-                <div
-                  className="reel_comment_item"
-                  style={{ color: "#aaa", fontSize: "13px" }}
-                >
-                  No comments yet. Be the first!
-                </div>
+                <div className="reel_comment_item" style={{ color: "#aaa", fontSize: "13px" }}>No comments yet. Be the first!</div>
               ) : (
                 comments.map((c) => (
                   <div key={c.id} className="reel_comment_item">
@@ -1072,34 +359,18 @@ const ReelItem = ({ reel, allReels }) => {
           </div>
         )}
 
-        {shareToast && (
-          <div className="reel_share_toast">Link copied to clipboard ✓</div>
-        )}
+        {shareToast && <div className="reel_share_toast">Link copied to clipboard ✓</div>}
 
         <div className="reel_info">
           <div className="reel_user">
             <Link to={`/user/${reel.username}`}>
-              <img
-                src={reel.profilePic}
-                alt="profile"
-                className="reel_profile_pic"
-              />
+              <img src={reel.profilePic} alt="profile" className="reel_profile_pic" />
             </Link>
-            <Link
-              to={`/user/${reel.username}`}
-              style={{ textDecoration: "none", color: "white" }}
-            >
+            <Link to={`/user/${reel.username}`} style={{ textDecoration: "none", color: "white" }}>
               <span className="reel_username">{reel.user}</span>
             </Link>
             {loggedInUser !== reel.username && (
-              <button
-                className="reel_subscribe_btn"
-                onClick={handleSubscribe}
-                style={{
-                  background: subscribed ? "#555" : "#ff0000",
-                  color: "white",
-                }}
-              >
+              <button className="reel_subscribe_btn" onClick={handleSubscribe} style={{ background: subscribed ? "#555" : "#ff0000", color: "white" }}>
                 {subscribed ? "Subscribed" : "Subscribe"}
               </button>
             )}
@@ -1120,13 +391,20 @@ const Reels = () => {
   const [dbReels, setDbReels] = useState([]);
   const [dbLoading, setDbLoading] = useState(true);
 
+  // ── FIX: Add reels-open class to body when Reels page mounts,
+  //         remove it when it unmounts. This hides the footer and
+  //         bottom nav on mobile so they never overlap the player. ──
+  useEffect(() => {
+    document.body.classList.add("reels-open");
+    return () => {
+      document.body.classList.remove("reels-open");
+    };
+  }, []);
+
   useEffect(() => {
     const fetchDbReels = async () => {
       setDbLoading(true);
-      const { data, error } = await supabase
-        .from("reels")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("reels").select("*").order("created_at", { ascending: false });
       if (!error && data) {
         setDbReels(
           data.map((r) => ({
@@ -1140,7 +418,7 @@ const Reels = () => {
             profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
             description: r.description || "",
             likes: 0,
-          })),
+          }))
         );
       }
       setDbLoading(false);
@@ -1149,29 +427,10 @@ const Reels = () => {
 
     const reelsSub = supabase
       .channel("reels-page-channel")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "reels" },
-        (payload) => {
-          const r = payload.new;
-          setDbReels((prev) => [
-            {
-              id: `db_${r.id}`,
-              src: r.video_url,
-              thumbnail:
-                r.thumbnail || "https://picsum.photos/200/350?random=99",
-              title: r.title || "Untitled",
-              duration: r.duration || "00:00",
-              user: r.user || r.username || "Unknown",
-              username: r.username || "unknown",
-              profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
-              description: r.description || "",
-              likes: 0,
-            },
-            ...prev,
-          ]);
-        },
-      )
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "reels" }, (payload) => {
+        const r = payload.new;
+        setDbReels((prev) => [{ id: `db_${r.id}`, src: r.video_url, thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99", title: r.title || "Untitled", duration: r.duration || "00:00", user: r.user || r.username || "Unknown", username: r.username || "unknown", profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`, description: r.description || "", likes: 0 }, ...prev]);
+      })
       .subscribe();
 
     return () => supabase.removeChannel(reelsSub);
@@ -1191,17 +450,11 @@ const Reels = () => {
   const allReels = React.useMemo(() => {
     if (id) {
       const target = baseReels.find((r) => String(r.id) === String(id));
-      if (target)
-        return [
-          target,
-          ...baseReels.filter((r) => String(r.id) !== String(id)),
-        ];
+      if (target) return [target, ...baseReels.filter((r) => String(r.id) !== String(id))];
     }
     const clickedReel = location.state?.clickedReel;
     if (clickedReel) {
-      const rest = baseReels.filter(
-        (r) => String(r.id) !== String(clickedReel.id),
-      );
+      const rest = baseReels.filter((r) => String(r.id) !== String(clickedReel.id));
       return [clickedReel, ...rest];
     }
     return baseReels;
@@ -1215,37 +468,17 @@ const Reels = () => {
     const handleKeyDown = (e) => {
       const tag = document.activeElement?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea") return;
-      if (["Space", "ArrowUp", "ArrowDown"].includes(e.code)) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
+      if (["Space", "ArrowUp", "ArrowDown"].includes(e.code)) { e.preventDefault(); e.stopPropagation(); }
       if (e.code === "ArrowDown") {
         const items = document.querySelectorAll(".reel_item");
-        for (let i = 0; i < items.length; i++) {
-          const r = items[i].getBoundingClientRect();
-          if (r.top >= 10) {
-            items[i].scrollIntoView({ behavior: "smooth" });
-            break;
-          }
-        }
+        for (let i = 0; i < items.length; i++) { const r = items[i].getBoundingClientRect(); if (r.top >= 10) { items[i].scrollIntoView({ behavior: "smooth" }); break; } }
       }
       if (e.code === "ArrowUp") {
         const items = document.querySelectorAll(".reel_item");
-        for (let i = items.length - 1; i >= 0; i--) {
-          const r = items[i].getBoundingClientRect();
-          if (r.top < -10) {
-            items[i].scrollIntoView({ behavior: "smooth" });
-            break;
-          }
-        }
+        for (let i = items.length - 1; i >= 0; i--) { const r = items[i].getBoundingClientRect(); if (r.top < -10) { items[i].scrollIntoView({ behavior: "smooth" }); break; } }
       }
       if (e.code === "Space") {
-        document.querySelectorAll(".reel_video").forEach((vid) => {
-          const r = vid.getBoundingClientRect();
-          if (r.top >= 0 && r.bottom <= window.innerHeight) {
-            vid.paused ? vid.play() : vid.pause();
-          }
-        });
+        document.querySelectorAll(".reel_video").forEach((vid) => { const r = vid.getBoundingClientRect(); if (r.top >= 0 && r.bottom <= window.innerHeight) { vid.paused ? vid.play() : vid.pause(); } });
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -1254,27 +487,8 @@ const Reels = () => {
 
   if (dbLoading) {
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "60vh",
-          color: "white",
-          flexDirection: "column",
-          gap: "16px",
-        }}
-      >
-        <div
-          style={{
-            width: "48px",
-            height: "48px",
-            border: "4px solid #333",
-            borderTop: "4px solid #ff4444",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-          }}
-        />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", color: "white", flexDirection: "column", gap: "16px" }}>
+        <div style={{ width: "48px", height: "48px", border: "4px solid #333", borderTop: "4px solid #ff4444", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
         <p style={{ color: "#aaa", fontSize: "14px" }}>Loading reels...</p>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>

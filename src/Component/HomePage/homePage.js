@@ -956,7 +956,7 @@ const HomePage = ({ sideNavbar }) => {
         </div>
 
         {/* Tab content — mobile only */}
-        {renderMobileTabContent()}
+        {!searchActive && renderMobileTabContent()}
 
         {/* ── DESKTOP LAYOUT ── */}
         {searchActive ? (

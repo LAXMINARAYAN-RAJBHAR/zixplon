@@ -118,17 +118,21 @@ const useIsMobile = () => {
 
 // ─── MOBILE TAB DEFINITIONS ─────────────────────────────────
 const MOBILE_TABS = [
-  { id: "shorts",  label: "Shorts",  icon: "📱" },
-  { id: "videos",  label: "Videos",  icon: "🎬" },
-  { id: "movies",  label: "Movies",  icon: "🎥" },
-  { id: "live",    label: "Live",    icon: "🔴" },
+  { id: "shorts", label: "Shorts", icon: "📱" },
+  { id: "videos", label: "Videos", icon: "🎬" },
+  { id: "movies", label: "Movies", icon: "🎥" },
+  { id: "live",   label: "Live",   icon: "🔴" },
 ];
 
-// ─── TRENDING STRIP ─────────────────────────────────────────
-const MobileTrendingStrip = ({ allVideos, onVideoClick }) => {
-  const trendingVideos = [...allVideos]
-    .sort(() => Math.random() - 0.5)
-    .slice(0, 16);
+// ─── TRENDING STRIP ──────────────────────────────────────────
+// FIX 1: receives dbVideos (uploaded only), not allVideos
+// FIX 2: onVideoClick uses navigate to /video/:id, not YouTube player
+const MobileTrendingStrip = ({ dbVideos, onVideoClick }) => {
+  // Sort by view count desc so genuinely popular ones show first.
+  // Falls back to creation order if no view data yet.
+  const trendingVideos = [...dbVideos].slice(0, 16);
+
+  if (trendingVideos.length === 0) return null; // hide strip if no uploads yet
 
   return (
     <div className="mobile-trending-strip">
@@ -194,10 +198,7 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
   const vcKey = short.id ? "reel_" + short.id : null;
 
   return (
-    <div
-      ref={cardRef}
-      className="homePage_shortCard"
-      style={{ cursor: "pointer", position: "relative" }}
+    <div ref={cardRef} className="homePage_shortCard" style={{ cursor: "pointer", position: "relative" }}
       onClick={() => {
         if (short.dbId) {
           localStorage.setItem(`viewed_reel_${short.dbId}`, "true");
@@ -213,9 +214,7 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
         <div className="homePage_shortPlay">▶</div>
         <div className="homePage_shortDuration">{short.duration}</div>
         {showNew && (
-          <div style={{ position: "absolute", top: "8px", left: "8px", background: "#ff6600", color: "white", fontSize: "10px", fontWeight: "700", padding: "2px 7px", borderRadius: "4px", zIndex: 2 }}>
-            New
-          </div>
+          <div style={{ position: "absolute", top: "8px", left: "8px", background: "#ff6600", color: "white", fontSize: "10px", fontWeight: "700", padding: "2px 7px", borderRadius: "4px", zIndex: 2 }}>New</div>
         )}
         {short.dbId && (
           <div style={{ position: "absolute", bottom: "4px", left: "4px", background: "rgba(0,0,0,0.75)", color: "white", fontSize: "10px", fontWeight: "600", padding: "2px 6px", borderRadius: "4px" }}>
@@ -497,8 +496,6 @@ const HomePage = ({ sideNavbar }) => {
   const location = useLocation();
   const isMobile = useIsMobile();
   const [selectedOption, setSelectedOption] = useState("All");
-
-  // ── Mobile tab state ──
   const [mobileTab, setMobileTab] = useState("shorts");
 
   const searchQuery = (() => {
@@ -672,9 +669,7 @@ const HomePage = ({ sideNavbar }) => {
   };
   const closeWatchPage = () => setWatchVideo(null);
   const getSuggestions = () => [...ytVideos.slice(0, 20), ...allVideos.slice(0, 12)];
-
   const filteredVideos = selectedOption === "All" ? allVideos : allVideos.filter((v) => v.tags?.includes(selectedOption));
-
   const searchActive = searchQuery.length > 0;
 
   const scoreVideo = (v) => {
@@ -734,8 +729,6 @@ const HomePage = ({ sideNavbar }) => {
     if (!error) setDbReels((prev) => prev.filter((r) => r.dbId !== dbId));
     else alert("Failed to delete reel.");
   };
-
-  // ── Reusable sub-components ──────────────────────────────
 
   const ShortsRow = ({ data, title }) => (
     <div className="homePage_shortsSection">
@@ -830,14 +823,10 @@ const HomePage = ({ sideNavbar }) => {
     </div>
   );
 
-  // ── Movie videos: filter by movie tags ──
   const movieTags = ["Hindi Movies", "Hollywood Movies", "Dubbed Hollywood Movies", "Pakistani Movies", "Bhojpuri Cinema", "Film Criticisms", "Superhero Movies", "Indian Movies"];
   const movieVideos = allVideos.filter((v) => v.tags?.some((t) => movieTags.includes(t)));
-
-  // ── Live videos: filter by "Live" tag ──
   const liveVideos = allVideos.filter((v) => v.tags?.includes("Live"));
 
-  // ── MOBILE TAB CONTENT ──────────────────────────────────
   const renderMobileTabContent = () => {
     switch (mobileTab) {
       case "shorts":
@@ -860,7 +849,6 @@ const HomePage = ({ sideNavbar }) => {
             )}
           </div>
         );
-
       case "videos":
         return (
           <div className="mobile-tab-content">
@@ -879,7 +867,6 @@ const HomePage = ({ sideNavbar }) => {
             </div>
           </div>
         );
-
       case "movies":
         return (
           <div className="mobile-tab-content">
@@ -895,7 +882,6 @@ const HomePage = ({ sideNavbar }) => {
             )}
           </div>
         );
-
       case "live":
         return (
           <div className="mobile-tab-content">
@@ -918,7 +904,6 @@ const HomePage = ({ sideNavbar }) => {
             )}
           </div>
         );
-
       default:
         return null;
     }
@@ -926,7 +911,6 @@ const HomePage = ({ sideNavbar }) => {
 
   return (
     <div className="homePage">
-      {/* ── Desktop category options bar ── */}
       <div className={"homePage_options" + (sideNavbar ? " sidebar-open" : "")}>
         <div className="homePage_options_track" ref={optionsTrackRef}
           onMouseEnter={() => { isPausedRef.current = true; }}
@@ -954,26 +938,17 @@ const HomePage = ({ sideNavbar }) => {
 
       <div className={"home_mainPage" + (sideNavbar ? " sidebar-open" : " sidebar-closed")}>
 
-        {/* ══════════════════════════════════════
-            MOBILE LAYOUT (≤768px)
-        ══════════════════════════════════════ */}
-
-        {/* Trending strip — mobile only */}
+        {/* ── FIX: Pass only dbVideos (Supabase uploads) to trending strip.
+               onVideoClick navigates to /video/:id — no YouTube player. ── */}
         <MobileTrendingStrip
-          allVideos={allVideos}
-          onVideoClick={(v) => {
-            if (v.src) openWatchPage(null, v.title, v.channel, v.id);
-          }}
+          dbVideos={dbVideos}
+          onVideoClick={(v) => navigate(`/video/${v.id}`)}
         />
 
         {/* Tab bar — mobile only */}
         <div className="mobile-tab-bar">
           {MOBILE_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              className={"mobile-tab-btn" + (mobileTab === tab.id ? " active" : "")}
-              onClick={() => setMobileTab(tab.id)}
-            >
+            <button key={tab.id} className={"mobile-tab-btn" + (mobileTab === tab.id ? " active" : "")} onClick={() => setMobileTab(tab.id)}>
               <span className="mobile-tab-icon">{tab.icon}</span>
               <span className="mobile-tab-label">{tab.label}</span>
             </button>
@@ -983,9 +958,7 @@ const HomePage = ({ sideNavbar }) => {
         {/* Tab content — mobile only */}
         {renderMobileTabContent()}
 
-        {/* ══════════════════════════════════════
-            DESKTOP LAYOUT (>768px)
-        ══════════════════════════════════════ */}
+        {/* ── DESKTOP LAYOUT ── */}
         {searchActive ? (
           <div style={{ padding: "16px 20px" }}>
             <div style={{ marginBottom: "20px" }}>

@@ -1,162 +1,156 @@
 .login {
   width: 100%;
   height: 100%;
-  background: rgba(7,7,15,0.92);
+  background: rgba(240,244,255,0.92);
   backdrop-filter: blur(12px);
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  color: #e8e8f5;
+  color: var(--zx-text);
   display: flex;
   justify-content: center;
   align-items: flex-start;
   overflow-y: auto;
   z-index: 999999;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Outfit', sans-serif;
 }
- 
+
 .login_card {
   width: 40%;
   height: auto;
   margin-top: 60px;
   margin-bottom: 60px;
-  background: #0c0c1e;
+  background: var(--zx-surface);
   box-sizing: border-box;
-  padding: 32px 40px;
+  padding: 36px 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  border: 1px solid #1e1e35;
-  border-radius: 0;
+  border: 2px solid var(--zx-border);
+  border-radius: 20px;
   position: relative;
-  box-shadow: 0 0 40px rgba(180,161,255,0.08);
+  box-shadow: 0 12px 48px rgba(124,58,237,0.12);
 }
- 
-/* Corner brackets */
-.login_card::before,
-.login_card::after {
+
+/* Colorful top accent on login card */
+.login_card::before {
   content: '';
   position: absolute;
-  width: 16px; height: 16px;
-  pointer-events: none;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--zx-primary), var(--zx-accent1), var(--zx-primary2));
+  border-radius: 20px 20px 0 0;
 }
-.login_card::before {
-  top: 0; left: 0;
-  border-top: 2px solid #b4a1ff;
-  border-left: 2px solid #b4a1ff;
-}
-.login_card::after {
-  top: 0; right: 0;
-  border-top: 2px solid #b4a1ff;
-  border-right: 2px solid #b4a1ff;
-}
- 
+
 .titleCard_login {
-  font-family: 'Space Mono', monospace;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  text-transform: uppercase;
+  font-family: 'Nunito', sans-serif;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #e8e8f5;
+  color: var(--zx-text);
 }
- 
-.titleCard_login::before {
-  content: '//';
-  color: #b4a1ff;
-  font-size: 16px;
-}
- 
-.login_youtubeImage { color: #b4a1ff; }
- 
+
+.login_youtubeImage { color: var(--zx-primary); }
+
 .loginCredentials {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-top: 24px;
+  gap: 14px;
+  margin-top: 28px;
   width: 100%;
   align-items: center;
 }
- 
+
 .userNameLogin {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
- 
+
 .userNameLoginUserName {
-  width: 60%;
-  height: 44px;
-  color: #e8e8f5;
-  padding: 0 14px;
-  border: 1px solid #2a2a45;
-  border-radius: 0;
-  background: #111128;
-  font-size: 13px;
-  font-family: 'Space Grotesk', sans-serif;
+  width: 70%;
+  height: 46px;
+  color: var(--zx-text);
+  padding: 0 16px;
+  border: 2px solid var(--zx-border);
+  border-radius: 12px;
+  background: var(--zx-bg);
+  font-size: 14px;
+  font-family: 'Outfit', sans-serif;
   box-sizing: border-box;
-  caret-color: #b4a1ff;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
- 
+
 .userNameLoginUserName:focus {
   outline: none;
-  border-color: #b4a1ff;
-  box-shadow: 0 0 0 2px rgba(180,161,255,0.12);
+  border-color: var(--zx-primary);
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
+  background: #ffffff;
 }
- 
-.userNameLoginUserName::placeholder { color: #3a3a5a; }
- 
+
+.userNameLoginUserName::placeholder { color: var(--zx-text3); }
+
 .login_buttons {
-  width: 60%;
+  width: 70%;
   display: flex;
   justify-content: space-between;
   margin-top: 24px;
   gap: 10px;
 }
- 
+
 .login-btn {
   width: auto;
-  padding: 0 18px;
-  border: 1.5px solid #b4a1ff;
-  height: 36px;
+  padding: 0 20px;
+  border: 2px solid var(--zx-primary);
+  height: 40px;
   display: flex;
   justify-content: center;
   align-items: center;
-  border-radius: 0;
-  font-family: 'Space Mono', monospace;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
+  border-radius: 20px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
   cursor: pointer;
-  color: #b4a1ff;
+  color: var(--zx-primary);
   text-decoration: none;
   background: transparent;
-  border-left: 3px solid #b4a1ff;
   transition: all 0.2s;
-  text-transform: uppercase;
 }
- 
+
 .login-btn:hover {
-  background: #b4a1ff;
-  color: #07070F;
-  box-shadow: 0 0 12px rgba(180,161,255,0.4);
+  background: var(--zx-primary);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(124,58,237,0.3);
 }
- 
+
+/* ── Mobile ── */
 @media (max-width: 768px) {
+  .signup_card { width: 92% !important; margin-top: 16px !important; padding: 24px 18px !important; }
+  .signUp_title { font-size: 16px !important; }
+  .signUp_Inputs { gap: 12px !important; margin-top: 16px !important; }
+  .signUp_Inputs_inp { width: 100% !important; height: 48px !important; font-size: 15px !important; }
+  .image_upload_signup { gap: 12px !important; flex-direction: column !important; align-items: center !important; }
+  .signUpBtns { gap: 10px !important; }
+  .signUpBtn { font-size: 13px !important; padding: 10px 20px !important; }
+
   .login { align-items: center !important; padding: 16px !important; }
-  .login_card { width: 92% !important; margin-top: 20px !important; margin-bottom: 20px !important; padding: 24px 20px !important; }
-  .titleCard_login { font-size: 14px !important; letter-spacing: 2px !important; }
-  .loginCredentials { gap: 12px !important; margin-top: 16px !important; }
+  .login_card { width: 92% !important; margin-top: 20px !important; margin-bottom: 20px !important; padding: 28px 20px !important; }
+  .titleCard_login { font-size: 17px !important; }
+  .loginCredentials { gap: 12px !important; margin-top: 18px !important; }
   .userNameLoginUserName { width: 100% !important; height: 48px !important; font-size: 15px !important; }
   .login_buttons { width: 100% !important; }
   .login_card [style*="width: 60%"] { width: 100% !important; }
 }
- 
+
 @media (max-width: 480px) {
-  .login_card { width: 96% !important; padding: 20px 14px !important; }
-  .titleCard_login { font-size: 12px !important; }
+  .signup_card { width: 96% !important; padding: 18px 14px !important; }
+  .signUp_title { font-size: 14px !important; }
+  .signUpBtns { flex-direction: column !important; align-items: center !important; width: 100% !important; }
+  .signUpBtn { width: 100% !important; text-align: center !important; }
+  .login_card { width: 96% !important; padding: 22px 14px !important; }
+  .titleCard_login { font-size: 15px !important; }
   .userNameLoginUserName { height: 44px !important; }
 }

@@ -1,79 +1,33 @@
-.terms_container {
-  max-width: 860px;
-  margin: 40px auto;
-  padding: 28px 36px;
-  color: #e8e8f5;
-  background: #0c0c1e;
-  border: 1px solid #1e1e35;
-  border-radius: 0;
-  font-family: 'Space Grotesk', sans-serif;
-  position: relative;
-  box-shadow: 0 0 30px rgba(180,161,255,0.05);
-}
- 
-.terms_container::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0;
-  width: 14px; height: 14px;
-  border-top: 2px solid #b4a1ff;
-  border-left: 2px solid #b4a1ff;
-}
- 
+.terms_container { max-width: 860px; }
+
 .terms_container h1 {
-  font-family: 'Space Mono', monospace;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  text-transform: uppercase;
+  font-family: 'Nunito', sans-serif;
+  font-size: 20px;
+  font-weight: 900;
   margin-bottom: 4px;
-  color: #e8e8f5;
+  color: var(--zx-text);
 }
- 
+
 .terms_updated {
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
-  color: #3a3a5a;
-  margin-bottom: 24px;
-  letter-spacing: 1px;
-}
- 
-.terms_container h2 {
-  font-family: 'Space Mono', monospace;
+  font-family: 'Nunito', sans-serif;
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
+  color: var(--zx-text3);
+  margin-bottom: 24px;
+  font-weight: 600;
+}
+
+.terms_container h2 {
+  font-family: 'Nunito', sans-serif;
+  font-size: 14px;
+  font-weight: 900;
   margin-top: 28px;
   margin-bottom: 8px;
-  color: #b4a1ff;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  color: var(--zx-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
- 
-.terms_container h2::before {
-  content: '//';
-  font-size: 11px;
-  color: #7766cc;
-}
- 
+
 .terms_container p,
-.terms_container ul {
-  font-size: 13px;
-  line-height: 1.75;
-  color: #888;
-}
- 
+.terms_container ul { font-size: 14px; line-height: 1.75; color: var(--zx-text2); }
 .terms_container ul { padding-left: 20px; }
-.terms_container ul li { margin-bottom: 5px; color: #888; }
- 
-.terms_container a {
-  font-family: 'Space Mono', monospace;
-  color: #b4a1ff;
-  text-decoration: none;
-  font-size: 12px;
-  border-bottom: 1px solid #b4a1ff44;
-  transition: color 0.15s;
-}
-.terms_container a:hover { color: #e8e8f5; text-decoration: none; }
+.terms_container ul li { margin-bottom: 5px; }

@@ -90,7 +90,7 @@ const MOCK_COMMENTS = [
   { id: 7, user: "TechWithVik", avatar: "TV", text: "Explained in the simplest way possible. Respect 🙏", likes: 11, time: "20 mins ago" },
 ];
 
-const avatarColors = ["#FF6B6B","#4ECDC4","#45B7D1","#96CEB4","#FFEAA7","#DDA0DD","#98D8C8","#F7DC6F","#BB8FCE","#85C1E9"];
+const avatarColors = ["#7c3aed","#f43f5e","#f97316","#06b6d4","#10b981","#eab308","#a855f7","#3b82f6","#ec4899","#14b8a6"];
 const getColor = (str) => avatarColors[(str || "A").charCodeAt(0) % avatarColors.length];
 
 const formatViews = (n) => {
@@ -125,14 +125,9 @@ const MOBILE_TABS = [
 ];
 
 // ─── TRENDING STRIP ──────────────────────────────────────────
-// FIX 1: receives dbVideos (uploaded only), not allVideos
-// FIX 2: onVideoClick uses navigate to /video/:id, not YouTube player
 const MobileTrendingStrip = ({ dbVideos, onVideoClick }) => {
-  // Sort by view count desc so genuinely popular ones show first.
-  // Falls back to creation order if no view data yet.
   const trendingVideos = [...dbVideos].slice(0, 16);
-
-  if (trendingVideos.length === 0) return null; // hide strip if no uploads yet
+  if (trendingVideos.length === 0) return null;
 
   return (
     <div className="mobile-trending-strip">
@@ -214,16 +209,16 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
         <div className="homePage_shortPlay">▶</div>
         <div className="homePage_shortDuration">{short.duration}</div>
         {showNew && (
-          <div style={{ position: "absolute", top: "8px", left: "8px", background: "#ff6600", color: "white", fontSize: "10px", fontWeight: "700", padding: "2px 7px", borderRadius: "4px", zIndex: 2 }}>New</div>
+          <div style={{ position: "absolute", top: "8px", left: "8px", background: "linear-gradient(135deg,#f43f5e,#f97316)", color: "white", fontSize: "10px", fontWeight: "800", padding: "2px 7px", borderRadius: "5px", zIndex: 2 }}>New</div>
         )}
         {short.dbId && (
-          <div style={{ position: "absolute", bottom: "4px", left: "4px", background: "rgba(0,0,0,0.75)", color: "white", fontSize: "10px", fontWeight: "600", padding: "2px 6px", borderRadius: "4px" }}>
+          <div style={{ position: "absolute", bottom: "4px", left: "4px", background: "rgba(30,27,75,0.82)", color: "white", fontSize: "10px", fontWeight: "700", padding: "2px 6px", borderRadius: "5px" }}>
             👁 {formatViews(vcKey ? (viewCounts[vcKey] ?? 0) : 0)}
           </div>
         )}
       </div>
       <div className="homePage_shortTitle">{short.title}</div>
-      <Link to={"/user/" + short.username} onClick={(e) => e.stopPropagation()} style={{ textDecoration: "none", color: "#aaa", fontSize: "13px" }}>
+      <Link to={"/user/" + short.username} onClick={(e) => e.stopPropagation()} style={{ textDecoration: "none", color: "#a855f7", fontSize: "13px" }}>
         <div className="homePage_shortUser">{short.user}</div>
       </Link>
     </div>
@@ -314,58 +309,72 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
     });
   };
 
+  // ── Light theme colors for watch page ──
+  const WP = {
+    bg: "#f0f4ff",
+    surface: "#ffffff",
+    surface2: "#f7f0ff",
+    border: "#e0d4ff",
+    primary: "#7c3aed",
+    primary2: "#a855f7",
+    text: "#1e1b4b",
+    text2: "#4c4589",
+    text3: "#8b84c4",
+    accent: "#f43f5e",
+  };
+
   const Player = () => (
-    <div style={{ width: "100%", position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", background: "#000", borderRadius: isMobile ? "0" : "12px", flexShrink: 0 }}>
+    <div style={{ width: "100%", position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", background: "#1e1b4b", borderRadius: isMobile ? "0" : "16px", flexShrink: 0 }}>
       <iframe key={videoId} src={"https://www.youtube.com/embed/" + videoId + "?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1"} title={videoTitle} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none", display: "block" }} />
     </div>
   );
 
   const AutoplayToggle = () => (
     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-      <span style={{ color: "#aaa", fontSize: "13px" }}>Autoplay</span>
-      <div onClick={() => setAutoplay((a) => !a)} style={{ width: "44px", height: "24px", background: autoplay ? "#ff0000" : "#555", borderRadius: "12px", cursor: "pointer", position: "relative", transition: "background 0.3s", flexShrink: 0 }}>
-        <div style={{ width: "18px", height: "18px", background: "white", borderRadius: "50%", position: "absolute", top: "3px", left: autoplay ? "23px" : "3px", transition: "left 0.3s", boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }} />
+      <span style={{ color: WP.text3, fontSize: "13px" }}>Autoplay</span>
+      <div onClick={() => setAutoplay((a) => !a)} style={{ width: "44px", height: "24px", background: autoplay ? WP.primary : "#d1d5db", borderRadius: "12px", cursor: "pointer", position: "relative", transition: "background 0.3s", flexShrink: 0 }}>
+        <div style={{ width: "18px", height: "18px", background: "white", borderRadius: "50%", position: "absolute", top: "3px", left: autoplay ? "23px" : "3px", transition: "left 0.3s", boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }} />
       </div>
-      <span style={{ color: autoplay ? "#ff0000" : "#555", fontSize: "12px", fontWeight: "600" }}>{autoplay ? "ON" : "OFF"}</span>
+      <span style={{ color: autoplay ? WP.primary : "#9ca3af", fontSize: "12px", fontWeight: "700" }}>{autoplay ? "ON" : "OFF"}</span>
     </div>
   );
 
   const NavBar = () => (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#181818", borderRadius: "10px", padding: "10px 16px", marginTop: "10px", gap: "8px" }}>
-      <button onClick={goPrev} disabled={!hasPrev} style={{ background: hasPrev ? "#272727" : "#2a2a2a", border: "none", color: hasPrev ? "white" : "#555", borderRadius: "20px", padding: "8px 18px", cursor: hasPrev ? "pointer" : "not-allowed", fontSize: "14px", fontWeight: "600", whiteSpace: "nowrap" }}>⏮ Previous</button>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: WP.surface2, borderRadius: "12px", padding: "10px 16px", marginTop: "10px", gap: "8px", border: "1px solid " + WP.border }}>
+      <button onClick={goPrev} disabled={!hasPrev} style={{ background: hasPrev ? WP.surface : "#f3f4f6", border: "1.5px solid " + (hasPrev ? WP.border : "#e5e7eb"), color: hasPrev ? WP.text : "#9ca3af", borderRadius: "20px", padding: "8px 18px", cursor: hasPrev ? "pointer" : "not-allowed", fontSize: "14px", fontWeight: "700", whiteSpace: "nowrap" }}>⏮ Previous</button>
       <AutoplayToggle />
-      <button onClick={goNext} disabled={!hasNext} style={{ background: hasNext ? "#ff0000" : "#2a2a2a", border: "none", color: hasNext ? "white" : "#555", borderRadius: "20px", padding: "8px 18px", cursor: hasNext ? "pointer" : "not-allowed", fontSize: "14px", fontWeight: "600", whiteSpace: "nowrap" }}>Next ⏭</button>
+      <button onClick={goNext} disabled={!hasNext} style={{ background: hasNext ? WP.primary : "#f3f4f6", border: "none", color: hasNext ? "white" : "#9ca3af", borderRadius: "20px", padding: "8px 18px", cursor: hasNext ? "pointer" : "not-allowed", fontSize: "14px", fontWeight: "700", whiteSpace: "nowrap" }}>Next ⏭</button>
     </div>
   );
 
   const MetaSection = () => (
     <div style={{ padding: isMobile ? "0 12px" : "0" }}>
-      <div style={{ color: "white", fontWeight: "700", fontSize: isMobile ? "15px" : "18px", lineHeight: "1.4", marginTop: "14px" }}>{videoTitle}</div>
+      <div style={{ color: WP.text, fontWeight: "700", fontSize: isMobile ? "15px" : "18px", lineHeight: "1.4", marginTop: "14px" }}>{videoTitle}</div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginTop: "12px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <img src={"https://ui-avatars.com/api/?name=" + encodeURIComponent(channelName) + "&background=random&size=40"} alt={channelName} style={{ width: "40px", height: "40px", borderRadius: "50%", flexShrink: 0 }} />
           <div>
-            <div style={{ color: "white", fontWeight: "600", fontSize: "15px" }}>{channelName}</div>
-            <div style={{ color: "#aaa", fontSize: "12px" }}>1.2M subscribers</div>
+            <div style={{ color: WP.text, fontWeight: "700", fontSize: "15px" }}>{channelName}</div>
+            <div style={{ color: WP.text3, fontSize: "12px" }}>1.2M subscribers</div>
           </div>
-          <button onClick={() => handleSubscribe(channelName)} style={{ background: subscribedChannels.has(channelName) ? "#272727" : "white", color: subscribedChannels.has(channelName) ? "white" : "black", border: "none", borderRadius: "20px", padding: "8px 18px", fontWeight: "700", cursor: "pointer", fontSize: "14px", marginLeft: "4px", whiteSpace: "nowrap" }}>
+          <button onClick={() => handleSubscribe(channelName)} style={{ background: subscribedChannels.has(channelName) ? WP.surface2 : WP.primary, color: subscribedChannels.has(channelName) ? WP.primary : "white", border: "1.5px solid " + WP.primary, borderRadius: "20px", padding: "8px 18px", fontWeight: "700", cursor: "pointer", fontSize: "14px", marginLeft: "4px", whiteSpace: "nowrap" }}>
             {subscribedChannels.has(channelName) ? "✓ Subscribed" : "Subscribe"}
           </button>
         </div>
       </div>
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
-        <div style={{ display: "flex", background: "#272727", borderRadius: "20px", overflow: "hidden" }}>
-          <button onClick={() => { setIsLiked((l) => !l); if (isDisliked) setIsDisliked(false); }} style={{ background: isLiked ? "#3ea6ff22" : "transparent", border: "none", color: isLiked ? "#3ea6ff" : "white", padding: "8px 16px", cursor: "pointer", fontSize: "14px", borderRight: "1px solid #3a3a3a" }}>👍 {(likeCount + (isLiked ? 1 : 0)).toLocaleString()}</button>
-          <button onClick={() => { setIsDisliked((d) => !d); if (isLiked) setIsLiked(false); }} style={{ background: isDisliked ? "#ff444422" : "transparent", border: "none", color: isDisliked ? "#ff4444" : "white", padding: "8px 16px", cursor: "pointer", fontSize: "14px" }}>👎</button>
+        <div style={{ display: "flex", background: WP.surface2, borderRadius: "20px", overflow: "hidden", border: "1.5px solid " + WP.border }}>
+          <button onClick={() => { setIsLiked((l) => !l); if (isDisliked) setIsDisliked(false); }} style={{ background: isLiked ? "#ede9fe" : "transparent", border: "none", color: isLiked ? WP.primary : WP.text2, padding: "8px 16px", cursor: "pointer", fontSize: "14px", borderRight: "1px solid " + WP.border, fontWeight: "600" }}>👍 {(likeCount + (isLiked ? 1 : 0)).toLocaleString()}</button>
+          <button onClick={() => { setIsDisliked((d) => !d); if (isLiked) setIsLiked(false); }} style={{ background: isDisliked ? "#fff1f2" : "transparent", border: "none", color: isDisliked ? WP.accent : WP.text2, padding: "8px 16px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>👎</button>
         </div>
-        <button onClick={() => { navigator.clipboard.writeText("https://www.youtube.com/watch?v=" + videoId); alert("Link copied!"); }} style={{ background: "#272727", border: "none", color: "white", borderRadius: "20px", padding: "8px 16px", cursor: "pointer", fontSize: "14px" }}>🔗 Share</button>
-        <button onClick={onClose} style={{ background: "#272727", border: "none", color: "#aaa", borderRadius: "20px", padding: "8px 16px", cursor: "pointer", fontSize: "13px" }}>✕ Close</button>
+        <button onClick={() => { navigator.clipboard.writeText("https://www.youtube.com/watch?v=" + videoId); alert("Link copied!"); }} style={{ background: WP.surface2, border: "1.5px solid " + WP.border, color: WP.text2, borderRadius: "20px", padding: "8px 16px", cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>🔗 Share</button>
+        <button onClick={onClose} style={{ background: WP.surface2, border: "1.5px solid " + WP.border, color: WP.text3, borderRadius: "20px", padding: "8px 16px", cursor: "pointer", fontSize: "13px", fontWeight: "600" }}>✕ Close</button>
       </div>
       {description !== null && (
-        <div onClick={() => setShowFullDesc((s) => !s)} style={{ background: "#272727", borderRadius: "12px", padding: "14px 16px", marginTop: "14px", color: "#ccc", fontSize: "14px", lineHeight: "1.6", cursor: "pointer" }}>
-          {publishedAt && <div style={{ color: "#aaa", fontSize: "13px", marginBottom: "6px" }}>{new Date(publishedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div>}
+        <div onClick={() => setShowFullDesc((s) => !s)} style={{ background: WP.surface2, borderRadius: "12px", padding: "14px 16px", marginTop: "14px", color: WP.text2, fontSize: "14px", lineHeight: "1.6", cursor: "pointer", border: "1px solid " + WP.border }}>
+          {publishedAt && <div style={{ color: WP.text3, fontSize: "13px", marginBottom: "6px" }}>{new Date(publishedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div>}
           <p style={{ margin: 0, display: showFullDesc ? "block" : "-webkit-box", WebkitLineClamp: showFullDesc ? "unset" : 2, WebkitBoxOrient: "vertical", overflow: showFullDesc ? "visible" : "hidden" }}>{description || "No description available."}</p>
-          <span style={{ color: "white", fontWeight: "600", fontSize: "13px", marginTop: "6px", display: "block" }}>{showFullDesc ? "Show less" : "...more"}</span>
+          <span style={{ color: WP.primary, fontWeight: "700", fontSize: "13px", marginTop: "6px", display: "block" }}>{showFullDesc ? "Show less" : "...more"}</span>
         </div>
       )}
     </div>
@@ -373,32 +382,32 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
 
   const CommentSection = () => (
     <div style={{ padding: isMobile ? "0 12px 40px" : "0 0 40px" }}>
-      <div style={{ color: "white", fontWeight: "600", fontSize: "16px", margin: "28px 0 20px" }}>{comments.length} Comments</div>
+      <div style={{ color: WP.text, fontWeight: "700", fontSize: "16px", margin: "28px 0 20px" }}>{comments.length} Comments</div>
       <div style={{ display: "flex", gap: "12px", marginBottom: "24px" }}>
-        <div style={{ width: "36px", height: "36px", borderRadius: "50%", flexShrink: 0, background: "#3a86ff", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: "700", fontSize: "12px" }}>YO</div>
+        <div style={{ width: "36px", height: "36px", borderRadius: "50%", flexShrink: 0, background: WP.primary, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: "800", fontSize: "12px" }}>YO</div>
         <div style={{ flex: 1 }}>
-          <input value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addComment()} placeholder="Add a comment..." style={{ width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #555", color: "white", fontSize: "14px", padding: "8px 0", outline: "none", boxSizing: "border-box" }} onFocus={(e) => (e.target.style.borderBottomColor = "#fff")} onBlur={(e) => (e.target.style.borderBottomColor = "#555")} />
+          <input value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addComment()} placeholder="Add a comment..." style={{ width: "100%", background: "transparent", border: "none", borderBottom: "2px solid " + WP.border, color: WP.text, fontSize: "14px", padding: "8px 0", outline: "none", boxSizing: "border-box", fontFamily: "Outfit, sans-serif" }} onFocus={(e) => (e.target.style.borderBottomColor = WP.primary)} onBlur={(e) => (e.target.style.borderBottomColor = WP.border)} />
           {newComment.trim() && (
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "8px" }}>
-              <button onClick={() => setNewComment("")} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "14px" }}>Cancel</button>
-              <button onClick={addComment} style={{ background: "#3ea6ff", border: "none", color: "black", borderRadius: "20px", padding: "6px 16px", cursor: "pointer", fontWeight: "700", fontSize: "14px" }}>Comment</button>
+              <button onClick={() => setNewComment("")} style={{ background: "none", border: "none", color: WP.text3, cursor: "pointer", fontSize: "14px", fontWeight: "600" }}>Cancel</button>
+              <button onClick={addComment} style={{ background: WP.primary, border: "none", color: "white", borderRadius: "20px", padding: "6px 16px", cursor: "pointer", fontWeight: "700", fontSize: "14px" }}>Comment</button>
             </div>
           )}
         </div>
       </div>
       {comments.map((c) => (
         <div key={c.id} style={{ display: "flex", gap: "12px", marginBottom: "20px" }}>
-          <div style={{ width: "36px", height: "36px", borderRadius: "50%", flexShrink: 0, background: getColor(c.avatar), display: "flex", alignItems: "center", justifyContent: "center", color: "#000", fontWeight: "700", fontSize: "11px" }}>{c.avatar}</div>
+          <div style={{ width: "36px", height: "36px", borderRadius: "50%", flexShrink: 0, background: getColor(c.avatar), display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: "800", fontSize: "11px" }}>{c.avatar}</div>
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "4px" }}>
-              <span style={{ color: "white", fontWeight: "600", fontSize: "13px" }}>{c.user}</span>
-              <span style={{ color: "#aaa", fontSize: "12px" }}>{c.time}</span>
+              <span style={{ color: WP.text, fontWeight: "700", fontSize: "13px" }}>{c.user}</span>
+              <span style={{ color: WP.text3, fontSize: "12px" }}>{c.time}</span>
             </div>
-            <p style={{ color: "#ccc", fontSize: "14px", margin: "0 0 6px", lineHeight: "1.5" }}>{c.text}</p>
+            <p style={{ color: WP.text2, fontSize: "14px", margin: "0 0 6px", lineHeight: "1.5" }}>{c.text}</p>
             <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={() => toggleCommentLike(c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: likedComments.has(c.id) ? "#3ea6ff" : "#aaa", fontSize: "13px" }}>👍 {c.likes}</button>
-              <span style={{ color: "#aaa", fontSize: "13px", cursor: "pointer" }}>👎</span>
-              <span style={{ color: "#aaa", fontSize: "13px", cursor: "pointer" }}>Reply</span>
+              <button onClick={() => toggleCommentLike(c.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: likedComments.has(c.id) ? WP.primary : WP.text3, fontSize: "13px", fontWeight: "600" }}>👍 {c.likes}</button>
+              <span style={{ color: WP.text3, fontSize: "13px", cursor: "pointer" }}>👎</span>
+              <span style={{ color: WP.text3, fontSize: "13px", cursor: "pointer", fontWeight: "600" }}>Reply</span>
             </div>
           </div>
         </div>
@@ -409,9 +418,9 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
   const RelatedSidebar = () => {
     const relatedList = suggestions.filter((_, i) => i !== currentIndex);
     return (
-      <div style={{ width: isMobile ? "100%" : "402px", flexShrink: 0, overflowY: isMobile ? "visible" : "auto", scrollbarWidth: "thin", scrollbarColor: "#555 transparent", background: "#0f0f0f", borderLeft: isMobile ? "none" : "1px solid #1e1e1e", padding: "12px 10px 20px" }}>
+      <div style={{ width: isMobile ? "100%" : "402px", flexShrink: 0, overflowY: isMobile ? "visible" : "auto", scrollbarWidth: "thin", scrollbarColor: WP.border + " transparent", background: WP.surface, borderLeft: isMobile ? "none" : "2px solid " + WP.border, padding: "12px 10px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
-          <span style={{ color: "white", fontWeight: "700", fontSize: "14px" }}>Up Next</span>
+          <span style={{ color: WP.text, fontWeight: "800", fontSize: "14px" }}>Up Next</span>
           <AutoplayToggle />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -424,17 +433,17 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
             const hasVid = (isYTItem && !!s.id?.videoId) || (!isYTItem && !!s.src);
             return (
               <div key={s.id?.videoId || s.id || realIdx} onClick={() => hasVid && goTo(realIdx)}
-                style={{ display: "flex", gap: "8px", cursor: hasVid ? "pointer" : "default", borderRadius: "8px", padding: "4px", transition: "background 0.2s", opacity: hasVid ? 1 : 0.5 }}
-                onMouseEnter={(e) => { if (hasVid) e.currentTarget.style.background = "#1e1e1e"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-                <div style={{ position: "relative", flexShrink: 0, width: "168px", height: "94px", borderRadius: "8px", overflow: "hidden", background: "#222" }}>
+                style={{ display: "flex", gap: "8px", cursor: hasVid ? "pointer" : "default", borderRadius: "10px", padding: "6px", transition: "background 0.2s", opacity: hasVid ? 1 : 0.5, border: "1px solid transparent" }}
+                onMouseEnter={(e) => { if (hasVid) { e.currentTarget.style.background = WP.surface2; e.currentTarget.style.borderColor = WP.border; } }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; }}>
+                <div style={{ position: "relative", flexShrink: 0, width: "168px", height: "94px", borderRadius: "10px", overflow: "hidden", background: "#e8e0ff" }}>
                   <img src={thumb} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                  {isYTItem && <div style={{ position: "absolute", top: "4px", left: "4px", background: "#ff0000", color: "#fff", fontSize: "8px", fontWeight: "700", padding: "1px 5px", borderRadius: "3px" }}>▶ YT</div>}
+                  {isYTItem && <div style={{ position: "absolute", top: "4px", left: "4px", background: "#ef4444", color: "#fff", fontSize: "9px", fontWeight: "800", padding: "2px 6px", borderRadius: "4px" }}>▶ YT</div>}
                 </div>
                 <div style={{ flex: 1, minWidth: 0, paddingTop: "2px" }}>
-                  <div style={{ color: "white", fontSize: "13px", fontWeight: "600", lineHeight: "1.4", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", marginBottom: "4px" }}>{title}</div>
-                  <div style={{ color: "#aaa", fontSize: "12px", marginBottom: "2px" }}>{channel}</div>
-                  {isYTItem && s.snippet?.publishedAt && <div style={{ color: "#aaa", fontSize: "12px" }}>{new Date(s.snippet.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>}
+                  <div style={{ color: WP.text, fontSize: "13px", fontWeight: "600", lineHeight: "1.4", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", marginBottom: "4px" }}>{title}</div>
+                  <div style={{ color: WP.text3, fontSize: "12px", marginBottom: "2px", fontWeight: "600" }}>{channel}</div>
+                  {isYTItem && s.snippet?.publishedAt && <div style={{ color: WP.text3, fontSize: "12px" }}>{new Date(s.snippet.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>}
                 </div>
               </div>
             );
@@ -447,18 +456,18 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
   if (isMobile) {
     return (
       <>
-        <style>{".hp-watch-root{position:fixed;top:55px;left:0;right:0;bottom:0;z-index:999;background:#0f0f0f;display:flex;flex-direction:column;font-family:'Segoe UI',sans-serif;overflow-y:auto;-webkit-overflow-scrolling:touch;}.hp-watch-root *{-webkit-transform:none !important;}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}"}</style>
+        <style>{".hp-watch-root{position:fixed;top:55px;left:0;right:0;bottom:0;z-index:999;background:#f0f4ff;display:flex;flex-direction:column;font-family:'Outfit',sans-serif;overflow-y:auto;-webkit-overflow-scrolling:touch;}.hp-watch-root *{-webkit-transform:none !important;}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}"}</style>
         <div className="hp-watch-root">
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", background: "#111", borderBottom: "1px solid #1e1e1e", flexShrink: 0 }}>
-            <button onClick={onClose} style={{ background: "#272727", border: "none", color: "#fff", fontSize: "13px", cursor: "pointer", padding: "6px 12px", borderRadius: "20px", fontWeight: "600" }}>← Back</button>
-            <span style={{ color: "#fff", fontWeight: "600", fontSize: "13px", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{videoTitle}</span>
-            <span style={{ background: "#ff0000", color: "#fff", fontSize: "10px", fontWeight: "700", padding: "2px 8px", borderRadius: "4px" }}>▶ YT</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", background: "#ffffff", borderBottom: "2px solid #e0d4ff", flexShrink: 0 }}>
+            <button onClick={onClose} style={{ background: "#f7f0ff", border: "1.5px solid #e0d4ff", color: "#7c3aed", fontSize: "13px", cursor: "pointer", padding: "6px 12px", borderRadius: "20px", fontWeight: "700" }}>← Back</button>
+            <span style={{ color: "#1e1b4b", fontWeight: "700", fontSize: "13px", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{videoTitle}</span>
+            <span style={{ background: "#ef4444", color: "#fff", fontSize: "10px", fontWeight: "800", padding: "2px 8px", borderRadius: "5px" }}>▶ YT</span>
           </div>
           <Player />
           <div style={{ padding: "0 12px" }}><NavBar /></div>
           <MetaSection />
           <CommentSection />
-          <div style={{ borderTop: "8px solid #181818", marginTop: "8px" }}><RelatedSidebar /></div>
+          <div style={{ borderTop: "8px solid #f0f4ff", marginTop: "8px" }}><RelatedSidebar /></div>
         </div>
       </>
     );
@@ -466,22 +475,22 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
 
   return (
     <>
-      <style>{"@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:#555;border-radius:4px;}"}</style>
-      <div style={{ position: "fixed", top: "55px", left: "0", right: "0", bottom: "0", zIndex: 999, background: "#0f0f0f", display: "flex", flexDirection: "column", fontFamily: "'Segoe UI', sans-serif", overflow: "hidden" }}>
-        <div style={{ height: "52px", flexShrink: 0, background: "#111", borderBottom: "1px solid #1e1e1e", display: "flex", alignItems: "center", padding: "0 16px", gap: "10px" }}>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "22px", lineHeight: 1, padding: "4px 10px", borderRadius: "6px", transition: "all 0.2s" }} onMouseEnter={(e) => { e.currentTarget.style.background = "#222"; e.currentTarget.style.color = "#fff"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#aaa"; }}>←</button>
-          <div style={{ width: "1px", height: "20px", background: "#2a2a2a" }} />
-          <span style={{ color: "white", fontWeight: "600", fontSize: "14px", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{videoTitle}</span>
-          <span style={{ background: "#ff0000", color: "#fff", fontSize: "11px", fontWeight: "700", padding: "3px 10px", borderRadius: "4px", flexShrink: 0 }}>▶ YouTube</span>
+      <style>{"@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-thumb{background:#e0d4ff;border-radius:4px;}"}</style>
+      <div style={{ position: "fixed", top: "55px", left: "0", right: "0", bottom: "0", zIndex: 999, background: "#f0f4ff", display: "flex", flexDirection: "column", fontFamily: "'Outfit', sans-serif", overflow: "hidden" }}>
+        <div style={{ height: "52px", flexShrink: 0, background: "#ffffff", borderBottom: "2px solid #e0d4ff", display: "flex", alignItems: "center", padding: "0 16px", gap: "10px", boxShadow: "0 2px 12px rgba(124,58,237,0.06)" }}>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#8b84c4", cursor: "pointer", fontSize: "22px", lineHeight: 1, padding: "4px 10px", borderRadius: "8px", transition: "all 0.2s" }} onMouseEnter={(e) => { e.currentTarget.style.background = "#f7f0ff"; e.currentTarget.style.color = "#7c3aed"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#8b84c4"; }}>←</button>
+          <div style={{ width: "1px", height: "20px", background: "#e0d4ff" }} />
+          <span style={{ color: "#1e1b4b", fontWeight: "700", fontSize: "14px", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{videoTitle}</span>
+          <span style={{ background: "#ef4444", color: "#fff", fontSize: "11px", fontWeight: "800", padding: "3px 10px", borderRadius: "5px", flexShrink: 0 }}>▶ YouTube</span>
         </div>
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-          <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", minWidth: 0, scrollbarWidth: "thin", scrollbarColor: "#555 transparent" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", minWidth: 0, scrollbarWidth: "thin", scrollbarColor: "#e0d4ff transparent" }}>
             <Player />
             <NavBar />
             <MetaSection />
             <CommentSection />
           </div>
-          <div style={{ width: "402px", flexShrink: 0, overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "#555 transparent" }}>
+          <div style={{ width: "402px", flexShrink: 0, overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: "#e0d4ff transparent" }}>
             <RelatedSidebar />
           </div>
         </div>
@@ -734,7 +743,7 @@ const HomePage = ({ sideNavbar }) => {
     <div className="homePage_shortsSection">
       <div className="homePage_shortsHeader">
         <span className="homePage_shortsTitle">
-          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "22px", height: "22px", background: "#e53935", color: "white", fontWeight: "900", fontSize: "16px", fontFamily: "Arial Black, sans-serif", marginRight: "0px", flexShrink: 0, verticalAlign: "middle" }}>Z</span>
+          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "24px", height: "24px", background: "linear-gradient(135deg,#e53935,#f97316)", color: "white", fontWeight: "900", fontSize: "15px", fontFamily: "Arial Black, sans-serif", borderRadius: "6px", marginRight: "0px", flexShrink: 0, verticalAlign: "middle" }}>Z</span>
           {title}
         </span>
       </div>
@@ -752,12 +761,12 @@ const HomePage = ({ sideNavbar }) => {
     return (
       <div className="youtube_thumbnailBox" style={{ position: "relative" }}>
         {isOwner && (
-          <button onClick={(e) => handleDeleteVideo(e, video.id)} title="Delete video" style={{ position: "absolute", top: "8px", right: "8px", zIndex: 10, background: "rgba(220,38,38,0.9)", border: "none", color: "white", borderRadius: "6px", padding: "4px 8px", cursor: "pointer", fontSize: "11px", fontWeight: "700", boxShadow: "0 2px 8px rgba(0,0,0,0.5)" }}>🗑 Delete</button>
+          <button onClick={(e) => handleDeleteVideo(e, video.id)} title="Delete video" style={{ position: "absolute", top: "8px", right: "8px", zIndex: 10, background: "rgba(239,68,68,0.92)", border: "none", color: "white", borderRadius: "8px", padding: "4px 8px", cursor: "pointer", fontSize: "11px", fontWeight: "800", boxShadow: "0 2px 8px rgba(239,68,68,0.4)" }}>🗑 Delete</button>
         )}
         <Link to={"/video/" + video.id} className="youtube_thumbnailWrapper" onClick={() => { if (isUploaded) incrementView(video.id, "video"); }}>
           <img src={video.thumbnail} alt={video.title} className="youtube_thumbnailPic" />
           <div className="youtube_timingThumbnail">{video.duration}</div>
-          {showNew && <div style={{ position: "absolute", top: "8px", left: "8px", background: "#ff6600", color: "white", fontSize: "10px", fontWeight: "700", padding: "2px 7px", borderRadius: "4px", zIndex: 2 }}>New</div>}
+          {showNew && <div style={{ position: "absolute", top: "8px", left: "8px", background: "linear-gradient(135deg,#f43f5e,#f97316)", color: "white", fontSize: "10px", fontWeight: "800", padding: "2px 7px", borderRadius: "5px", zIndex: 2 }}>New</div>}
           <div className="youtube_playOverlay"><div className="youtube_playButton">▶</div></div>
         </Link>
         <div className="youtubeTitleBox">
@@ -773,8 +782,8 @@ const HomePage = ({ sideNavbar }) => {
               {isUploaded ? (
                 <>
                   <span>👁 {formatViews(viewCounts["video_" + video.id] ?? 0)}</span>
-                  <span style={{ color: "#aaa", fontSize: "11px" }}>•</span>
-                  <button onClick={(e) => handleLikeVideo(e, video.id)} style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "inherit", padding: 0, display: "flex", alignItems: "center", gap: "3px" }}>👍 {video.likes ?? 0} Likes</button>
+                  <span style={{ color: "#d1d5db", fontSize: "11px" }}>•</span>
+                  <button onClick={(e) => handleLikeVideo(e, video.id)} style={{ background: "none", border: "none", color: "#8b84c4", cursor: "pointer", fontSize: "inherit", padding: 0, display: "flex", alignItems: "center", gap: "3px", fontWeight: "600" }}>👍 {video.likes ?? 0} Likes</button>
                 </>
               ) : <span>👍 3 Likes</span>}
             </p>
@@ -788,7 +797,7 @@ const HomePage = ({ sideNavbar }) => {
     <div className="youtube_thumbnailBox" style={{ cursor: "pointer" }} onClick={() => openWatchPage(item.id.videoId, item.snippet.title, item.snippet.channelTitle)}>
       <div className="youtube_thumbnailWrapper" style={{ position: "relative", display: "block" }}>
         <img src={item.snippet.thumbnails.medium.url} alt={item.snippet.title} className="youtube_thumbnailPic" />
-        <div style={{ position: "absolute", top: "8px", left: "8px", background: "#ff0000", color: "white", fontSize: "10px", fontWeight: "700", padding: "2px 7px", borderRadius: "4px" }}>▶ YouTube</div>
+        <div style={{ position: "absolute", top: "8px", left: "8px", background: "#ef4444", color: "white", fontSize: "10px", fontWeight: "800", padding: "2px 7px", borderRadius: "5px" }}>▶ YouTube</div>
       </div>
       <div className="youtubeTitleBox">
         <div className="youtubeBoxProfile">
@@ -803,14 +812,15 @@ const HomePage = ({ sideNavbar }) => {
     </div>
   );
 
+  // Light theme skeleton
   const SkeletonCard = () => (
-    <div className="youtube_thumbnailBox">
-      <div style={{ width: "100%", paddingTop: "56.25%", background: "#272727", borderRadius: "12px", animation: "pulse 1.5s infinite" }} />
-      <div style={{ padding: "10px 4px", display: "flex", gap: "10px" }}>
-        <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#272727", flexShrink: 0, animation: "pulse 1.5s infinite" }} />
+    <div className="youtube_thumbnailBox" style={{ border: "2px solid #e0d4ff" }}>
+      <div style={{ width: "100%", paddingTop: "56.25%", background: "linear-gradient(90deg,#e8e0ff 25%,#f3eeff 50%,#e8e0ff 75%)", backgroundSize: "400px 100%", borderRadius: "0", animation: "shimmer 1.4s infinite" }} />
+      <div style={{ padding: "10px 12px", display: "flex", gap: "10px", background: "#fff" }}>
+        <div style={{ width: "34px", height: "34px", borderRadius: "50%", background: "linear-gradient(90deg,#e8e0ff 25%,#f3eeff 50%,#e8e0ff 75%)", backgroundSize: "400px 100%", flexShrink: 0, animation: "shimmer 1.4s infinite" }} />
         <div style={{ flex: 1 }}>
-          <div style={{ height: "14px", background: "#272727", borderRadius: "4px", marginBottom: "8px", animation: "pulse 1.5s infinite" }} />
-          <div style={{ height: "12px", background: "#272727", borderRadius: "4px", width: "60%", animation: "pulse 1.5s infinite" }} />
+          <div style={{ height: "13px", background: "linear-gradient(90deg,#e8e0ff 25%,#f3eeff 50%,#e8e0ff 75%)", backgroundSize: "400px 100%", borderRadius: "6px", marginBottom: "8px", animation: "shimmer 1.4s infinite" }} />
+          <div style={{ height: "12px", background: "linear-gradient(90deg,#e8e0ff 25%,#f3eeff 50%,#e8e0ff 75%)", backgroundSize: "400px 100%", borderRadius: "6px", width: "60%", animation: "shimmer 1.4s infinite" }} />
         </div>
       </div>
     </div>
@@ -818,8 +828,8 @@ const HomePage = ({ sideNavbar }) => {
 
   const SectionLabel = ({ color, bg, text, count }) => (
     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
-      <span style={{ background: bg, color: color, fontSize: "12px", fontWeight: "700", padding: "3px 10px", borderRadius: "20px" }}>{text}</span>
-      {count !== undefined && <span style={{ color: "#555", fontSize: "12px" }}>{count} video{count !== 1 ? "s" : ""}</span>}
+      <span style={{ background: bg, color: color, fontSize: "11px", fontWeight: "800", padding: "4px 12px", borderRadius: "20px", fontFamily: "Nunito, sans-serif", letterSpacing: "0.3px" }}>{text}</span>
+      {count !== undefined && <span style={{ color: "#8b84c4", fontSize: "12px", fontWeight: "600" }}>{count} video{count !== 1 ? "s" : ""}</span>}
     </div>
   );
 
@@ -827,15 +837,71 @@ const HomePage = ({ sideNavbar }) => {
   const movieVideos = allVideos.filter((v) => v.tags?.some((t) => movieTags.includes(t)));
   const liveVideos = allVideos.filter((v) => v.tags?.includes("Live"));
 
+  // ─── SEARCH RESULTS PANEL ─────────────────────────────────
+  const SearchResultsPanel = () => (
+    <div className="search-results-panel">
+      <div style={{ marginBottom: "20px" }}>
+        <h2 style={{ color: "#1e1b4b", fontSize: "18px", fontWeight: "800", margin: "0 0 6px", fontFamily: "Nunito, sans-serif" }}>🔍 Results for "{searchQuery}"</h2>
+        <span style={{ color: "#8b84c4", fontSize: "13px", fontWeight: "600" }}>{searchedLocalVideos.length} local videos · {searchedReels.length} reels · {ytVideos.length} YouTube</span>
+      </div>
+
+      {searchedReels.length > 0 && (
+        <div style={{ marginBottom: "40px" }}>
+          <SectionLabel color="#f97316" bg="#fff7ed" text="🎬 REELS" count={searchedReels.length} />
+          <div className="homePage_shortsRow">
+            {searchedReels.map((short) => (
+              <ShortCard key={short.id} short={short} incrementView={incrementView} viewCounts={viewCounts} handleDeleteReel={handleDeleteReel} navigate={navigate} watchedContentIds={watchedContentIds} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {searchedLocalVideos.length > 0 && (
+        <div style={{ marginBottom: "40px" }}>
+          <SectionLabel color="#4c4589" bg="#f0f4ff" text="🎬 LOCAL VIDEOS" count={searchedLocalVideos.length} />
+          <div className="youtube_VideoGrid">
+            {searchedLocalVideos.map((v) => (
+              <VideoCard key={v.id} video={v} isUploaded={v.isUploaded || false} showDelete={v.isUploaded} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {ytLoading && (
+        <div style={{ marginBottom: "40px" }}>
+          <SectionLabel color="#ef4444" bg="#fff1f2" text="▶ YOUTUBE — searching..." />
+          <div className="youtube_VideoGrid">{[...Array(8)].map((_, i) => <SkeletonCard key={i} />)}</div>
+        </div>
+      )}
+
+      {!ytLoading && ytVideos.length > 0 && (
+        <div style={{ marginBottom: "40px" }}>
+          <SectionLabel color="#ef4444" bg="#fff1f2" text="▶ YOUTUBE" count={ytVideos.length} />
+          <div className="youtube_VideoGrid">
+            {ytVideos.map((item) => <YouTubeVideoCard key={item.id.videoId} item={item} />)}
+          </div>
+        </div>
+      )}
+
+      {!ytLoading && searchedLocalVideos.length === 0 && searchedReels.length === 0 && ytVideos.length === 0 && (
+        <div style={{ textAlign: "center", marginTop: "80px" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔍</div>
+          <p style={{ color: "#8b84c4", fontSize: "16px", fontWeight: "600" }}>No results for "<span style={{ color: "#7c3aed" }}>{searchQuery}</span>"</p>
+          <p style={{ color: "#c4bfdf", fontSize: "13px", marginTop: "8px" }}>Try different keywords</p>
+        </div>
+      )}
+    </div>
+  );
+
   const renderMobileTabContent = () => {
     switch (mobileTab) {
       case "shorts":
         return (
           <div className="mobile-tab-content">
             {allReels.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "40px 0", color: "#555" }}>
+              <div style={{ textAlign: "center", padding: "40px 0", color: "#8b84c4" }}>
                 <div style={{ fontSize: "36px", marginBottom: "10px" }}>📱</div>
-                <p style={{ margin: 0 }}>No shorts yet</p>
+                <p style={{ margin: 0, fontWeight: "600" }}>No shorts yet</p>
               </div>
             ) : (
               <>
@@ -897,9 +963,9 @@ const HomePage = ({ sideNavbar }) => {
                 </div>
               </>
             ) : (
-              <div style={{ textAlign: "center", padding: "40px 0", color: "#555" }}>
+              <div style={{ textAlign: "center", padding: "40px 0", color: "#8b84c4" }}>
                 <div style={{ fontSize: "36px", marginBottom: "10px" }}>🔴</div>
-                <p style={{ margin: 0 }}>No live videos right now</p>
+                <p style={{ margin: 0, fontWeight: "600" }}>No live videos right now</p>
               </div>
             )}
           </div>
@@ -929,7 +995,7 @@ const HomePage = ({ sideNavbar }) => {
           style={{ cursor: "grab", userSelect: "none" }}>
           {options.map((item) => (
             <div key={item} className="homePage_option" onClick={() => setSelectedOption(item)}
-              style={{ cursor: "pointer", background: selectedOption === item ? "white" : "transparent", color: selectedOption === item ? "black" : "white", borderRadius: "8px", padding: "6px 12px", fontWeight: selectedOption === item ? "600" : "400", transition: "all 0.2s", whiteSpace: "nowrap", userSelect: "none" }}>
+              style={{ cursor: "pointer", background: selectedOption === item ? "rgba(124,58,237,0.08)" : "transparent", color: selectedOption === item ? "#7c3aed" : "#4c4589", borderRadius: selectedOption === item ? "8px" : "0", padding: "6px 14px", fontWeight: selectedOption === item ? "800" : "600", transition: "all 0.2s", whiteSpace: "nowrap", userSelect: "none" }}>
               {item}
             </div>
           ))}
@@ -938,129 +1004,91 @@ const HomePage = ({ sideNavbar }) => {
 
       <div className={"home_mainPage" + (sideNavbar ? " sidebar-open" : " sidebar-closed")}>
 
-        {/* ── FIX: Pass only dbVideos (Supabase uploads) to trending strip.
-               onVideoClick navigates to /video/:id — no YouTube player. ── */}
-        <MobileTrendingStrip
-          dbVideos={dbVideos}
-          onVideoClick={(v) => navigate(`/video/${v.id}`)}
-        />
+        {searchActive && <SearchResultsPanel />}
 
-        {/* Tab bar — mobile only */}
-        <div className="mobile-tab-bar">
-          {MOBILE_TABS.map((tab) => (
-            <button key={tab.id} className={"mobile-tab-btn" + (mobileTab === tab.id ? " active" : "")} onClick={() => setMobileTab(tab.id)}>
-              <span className="mobile-tab-icon">{tab.icon}</span>
-              <span className="mobile-tab-label">{tab.label}</span>
-            </button>
-          ))}
-        </div>
+        {!searchActive && (
+          <MobileTrendingStrip
+            dbVideos={dbVideos}
+            onVideoClick={(v) => navigate(`/video/${v.id}`)}
+          />
+        )}
 
-        {/* Tab content — mobile only */}
-        {renderMobileTabContent()}
-
-        {/* ── DESKTOP LAYOUT ── */}
-        {searchActive ? (
-          <div style={{ padding: "16px 20px" }}>
-            <div style={{ marginBottom: "20px" }}>
-              <h2 style={{ color: "white", fontSize: "18px", fontWeight: "700", margin: "0 0 6px" }}>🔍 Results for "{searchQuery}"</h2>
-              <span style={{ color: "#555", fontSize: "13px" }}>{searchedLocalVideos.length} local videos · {searchedReels.length} reels · {ytVideos.length} YouTube</span>
-            </div>
-            {searchedReels.length > 0 && (
-              <div style={{ marginBottom: "40px" }}>
-                <SectionLabel color="#ff6600" bg="#ff660022" text="🎬 REELS" count={searchedReels.length} />
-                <div className="homePage_shortsRow">
-                  {searchedReels.map((short) => <ShortCard key={short.id} short={short} incrementView={incrementView} viewCounts={viewCounts} handleDeleteReel={handleDeleteReel} navigate={navigate} watchedContentIds={watchedContentIds} />)}
-                </div>
-              </div>
-            )}
-            {searchedLocalVideos.length > 0 && (
-              <div style={{ marginBottom: "40px" }}>
-                <SectionLabel color="#aaa" bg="#272727" text="🎬 LOCAL VIDEOS" count={searchedLocalVideos.length} />
-                <div className="youtube_VideoGrid">
-                  {searchedLocalVideos.map((v) => <VideoCard key={v.id} video={v} isUploaded={v.isUploaded || false} showDelete={v.isUploaded} />)}
-                </div>
-              </div>
-            )}
-            {ytLoading && (
-              <div style={{ marginBottom: "40px" }}>
-                <SectionLabel color="#ff4444" bg="#ff000022" text="▶ YOUTUBE — searching..." />
-                <div className="youtube_VideoGrid">{[...Array(8)].map((_, i) => <SkeletonCard key={i} />)}</div>
-              </div>
-            )}
-            {!ytLoading && ytVideos.length > 0 && (
-              <div style={{ marginBottom: "40px" }}>
-                <SectionLabel color="#ff4444" bg="#ff000022" text="▶ YOUTUBE" count={ytVideos.length} />
-                <div className="youtube_VideoGrid">{ytVideos.map((item) => <YouTubeVideoCard key={item.id.videoId} item={item} />)}</div>
-              </div>
-            )}
-            {!ytLoading && searchedLocalVideos.length === 0 && searchedReels.length === 0 && ytVideos.length === 0 && (
-              <div style={{ textAlign: "center", marginTop: "80px" }}>
-                <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔍</div>
-                <p style={{ color: "#555", fontSize: "16px" }}>No results for "<span style={{ color: "#aaa" }}>{searchQuery}</span>"</p>
-                <p style={{ color: "#444", fontSize: "13px", marginTop: "8px" }}>Try different keywords</p>
-              </div>
-            )}
+        {!searchActive && (
+          <div className="mobile-tab-bar">
+            {MOBILE_TABS.map((tab) => (
+              <button key={tab.id} className={"mobile-tab-btn" + (mobileTab === tab.id ? " active" : "")} onClick={() => setMobileTab(tab.id)}>
+                <span className="mobile-tab-icon">{tab.icon}</span>
+                <span className="mobile-tab-label">{tab.label}</span>
+              </button>
+            ))}
           </div>
-        ) : selectedOption === "All" ? (
-          <>
-            {(() => {
-              const allVids = [...dbVideos.map((v) => ({ ...v, isUploaded: true })), ...videos];
-              const rows = [];
-              const totalRows = Math.ceil(allVids.length / 12);
-              for (let rowIndex = 0; rowIndex < totalRows; rowIndex++) {
-                const rowReels = allReels.slice(rowIndex * 12, rowIndex * 12 + 12);
-                rows.push(
-                  <React.Fragment key={rowIndex}>
-                    {rowReels.length > 0 && <ShortsRow data={rowReels} title={rowIndex === 0 ? "Shorts" : "More Shorts"} />}
-                    <div className="youtube_VideoGrid">
-                      {rowIndex === 0 && dbLoading && [...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
-                      {allVids.slice(rowIndex * 12, rowIndex * 12 + 12).map((v) => <VideoCard key={v.id} video={v} isUploaded={v.isUploaded || false} />)}
-                    </div>
-                  </React.Fragment>
-                );
-              }
-              return rows;
-            })()}
-          </>
-        ) : (
-          <div style={{ padding: "16px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
-              <span style={{ fontSize: "20px" }}>{ytLoading ? "⏳" : "🔎"}</span>
-              <h2 style={{ color: "white", fontSize: "18px", fontWeight: "700", margin: 0 }}>{selectedOption}</h2>
-              {ytLoading && <span style={{ color: "#aaa", fontSize: "13px" }}>— loading YouTube results...</span>}
+        )}
+
+        {!searchActive && renderMobileTabContent()}
+
+        {/* ── DESKTOP LAYOUT (non-search) ── */}
+        {!searchActive && (
+          selectedOption === "All" ? (
+            <>
+              {(() => {
+                const allVids = [...dbVideos.map((v) => ({ ...v, isUploaded: true })), ...videos];
+                const rows = [];
+                const totalRows = Math.ceil(allVids.length / 12);
+                for (let rowIndex = 0; rowIndex < totalRows; rowIndex++) {
+                  const rowReels = allReels.slice(rowIndex * 12, rowIndex * 12 + 12);
+                  rows.push(
+                    <React.Fragment key={rowIndex}>
+                      {rowReels.length > 0 && <ShortsRow data={rowReels} title={rowIndex === 0 ? "Shorts" : "More Shorts"} />}
+                      <div className="youtube_VideoGrid">
+                        {rowIndex === 0 && dbLoading && [...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
+                        {allVids.slice(rowIndex * 12, rowIndex * 12 + 12).map((v) => <VideoCard key={v.id} video={v} isUploaded={v.isUploaded || false} />)}
+                      </div>
+                    </React.Fragment>
+                  );
+                }
+                return rows;
+              })()}
+            </>
+          ) : (
+            <div style={{ padding: "16px 0" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+                <span style={{ fontSize: "22px" }}>{ytLoading ? "⏳" : "🔎"}</span>
+                <h2 style={{ color: "#1e1b4b", fontSize: "18px", fontWeight: "800", margin: 0, fontFamily: "Nunito, sans-serif" }}>{selectedOption}</h2>
+                {ytLoading && <span style={{ color: "#8b84c4", fontSize: "13px", fontWeight: "600" }}>— loading YouTube results...</span>}
+              </div>
+              {dbVideos.filter((v) => v.tags?.includes(selectedOption)).length > 0 && (
+                <div style={{ marginBottom: "40px" }}>
+                  <SectionLabel color="#f97316" bg="#fff7ed" text="⬆ UPLOADED VIDEOS" count={dbVideos.filter((v) => v.tags?.includes(selectedOption)).length} />
+                  <div className="youtube_VideoGrid">{dbVideos.filter((v) => v.tags?.includes(selectedOption)).map((v) => <VideoCard key={v.id} video={v} isUploaded={true} />)}</div>
+                </div>
+              )}
+              {videos.filter((v) => v.tags?.includes(selectedOption)).length > 0 && (
+                <div style={{ marginBottom: "40px" }}>
+                  <SectionLabel color="#4c4589" bg="#f0f4ff" text="🎬 LOCAL VIDEOS" count={videos.filter((v) => v.tags?.includes(selectedOption)).length} />
+                  <div className="youtube_VideoGrid">{videos.filter((v) => v.tags?.includes(selectedOption)).map((v) => <VideoCard key={v.id} video={v} />)}</div>
+                </div>
+              )}
+              {ytLoading && (
+                <div style={{ marginBottom: "40px" }}>
+                  <SectionLabel color="#ef4444" bg="#fff1f2" text="▶ YOUTUBE" />
+                  <div className="youtube_VideoGrid">{[...Array(8)].map((_, i) => <SkeletonCard key={i} />)}</div>
+                </div>
+              )}
+              {!ytLoading && ytVideos.length > 0 && (
+                <div>
+                  <SectionLabel color="#ef4444" bg="#fff1f2" text="▶ YOUTUBE" count={ytVideos.length} />
+                  <div className="youtube_VideoGrid">{ytVideos.map((item) => <YouTubeVideoCard key={item.id.videoId} item={item} />)}</div>
+                </div>
+              )}
+              {!ytLoading && filteredVideos.length === 0 && ytVideos.length === 0 && (
+                <div style={{ textAlign: "center", marginTop: "80px" }}>
+                  <div style={{ fontSize: "48px", marginBottom: "16px" }}>📭</div>
+                  <p style={{ color: "#8b84c4", fontSize: "16px", fontWeight: "600" }}>No videos found for "<span style={{ color: "#7c3aed" }}>{selectedOption}</span>"</p>
+                  <p style={{ color: "#c4bfdf", fontSize: "13px", marginTop: "8px" }}>Try selecting a different category</p>
+                </div>
+              )}
             </div>
-            {dbVideos.filter((v) => v.tags?.includes(selectedOption)).length > 0 && (
-              <div style={{ marginBottom: "40px" }}>
-                <SectionLabel color="#ff6600" bg="#ff660022" text="⬆ UPLOADED VIDEOS" count={dbVideos.filter((v) => v.tags?.includes(selectedOption)).length} />
-                <div className="youtube_VideoGrid">{dbVideos.filter((v) => v.tags?.includes(selectedOption)).map((v) => <VideoCard key={v.id} video={v} isUploaded={true} />)}</div>
-              </div>
-            )}
-            {videos.filter((v) => v.tags?.includes(selectedOption)).length > 0 && (
-              <div style={{ marginBottom: "40px" }}>
-                <SectionLabel color="#aaa" bg="#272727" text="🎬 LOCAL VIDEOS" count={videos.filter((v) => v.tags?.includes(selectedOption)).length} />
-                <div className="youtube_VideoGrid">{videos.filter((v) => v.tags?.includes(selectedOption)).map((v) => <VideoCard key={v.id} video={v} />)}</div>
-              </div>
-            )}
-            {ytLoading && (
-              <div style={{ marginBottom: "40px" }}>
-                <SectionLabel color="#ff4444" bg="#ff000022" text="▶ YOUTUBE" />
-                <div className="youtube_VideoGrid">{[...Array(8)].map((_, i) => <SkeletonCard key={i} />)}</div>
-              </div>
-            )}
-            {!ytLoading && ytVideos.length > 0 && (
-              <div>
-                <SectionLabel color="#ff4444" bg="#ff000022" text="▶ YOUTUBE" count={ytVideos.length} />
-                <div className="youtube_VideoGrid">{ytVideos.map((item) => <YouTubeVideoCard key={item.id.videoId} item={item} />)}</div>
-              </div>
-            )}
-            {!ytLoading && filteredVideos.length === 0 && ytVideos.length === 0 && (
-              <div style={{ textAlign: "center", marginTop: "80px" }}>
-                <div style={{ fontSize: "48px", marginBottom: "16px" }}>📭</div>
-                <p style={{ color: "#555", fontSize: "16px" }}>No videos found for "<span style={{ color: "#aaa" }}>{selectedOption}</span>"</p>
-                <p style={{ color: "#444", fontSize: "13px", marginTop: "8px" }}>Try selecting a different category</p>
-              </div>
-            )}
-          </div>
+          )
         )}
       </div>
 
@@ -1074,7 +1102,7 @@ const HomePage = ({ sideNavbar }) => {
           onIncrementView={incrementView}
         />
       )}
-      <style>{"@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}"}</style>
+      <style>{"@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}"}</style>
     </div>
   );
 };

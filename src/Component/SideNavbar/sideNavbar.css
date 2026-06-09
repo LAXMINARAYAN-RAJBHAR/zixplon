@@ -1,65 +1,144 @@
-.homeSideNavbarHide{
-    display: none;
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --zx-bg:      #f0f4ff;
+  --zx-surface: #ffffff;
+  --zx-border:  #e0d4ff;
+  --zx-primary: #7c3aed;
+  --zx-primary2:#a855f7;
+  --zx-text:    #1e1b4b;
+  --zx-text2:   #4c4589;
+  --zx-text3:   #8b84c4;
 }
 
-.home-sideNavbar{
-    display: flex;
-    flex-direction: column;
-    flex: 0.16 1;
-    box-sizing: border-box;
-    height: 92vh;
-    overflow-y: auto;
-    position: fixed;
-    top: 55px;
-    left: 0px;
-    width: 275px;
-    padding: 14px;
-    background-color: #07070F;
-    border-right: 1px solid #1e1e35;
-    color: white;
-}
-.home-sideNavbar::-webkit-scrollbar{
-    width: 12px;
+.homeSideNavbarHide {
+  display: none;
 }
 
-.home-sideNavbarTop{
-    display: flex;
-    flex-direction: column;
-    border-bottom: 1px solid #1e1e35;
-    padding-bottom: 10px;
-}
-.home_sideNavbarTopOption{
-    display: flex;
-    gap: 20px;
-    align-items: center;
-    padding: 9px 10px;
-    border-radius: 15px;
-    cursor: pointer;
-    &:hover{
-        background-color: #111128;
-    }
-}
-.home_sideNavbarTopOptionTitle{
-    font-size: 14px;
-    font-weight: 450;
-}
-.home_sideNavbarMiddle{
-    display: flex;
-    flex-direction: column;
-    border-bottom: 1px solid rgb(86, 86, 86);
-    padding: 10px 0;
-}
-.home_sideNavbarTopOptionTitleHeader{
-    font-weight: 600;
+.home-sideNavbar {
+  display: flex;
+  flex-direction: column;
+  flex: 0.16 1;
+  box-sizing: border-box;
+  height: 92vh;
+  overflow-y: auto;
+  position: fixed;
+  top: 55px;
+  left: 0px;
+  width: 275px;
+  padding: 14px;
+  background-color: #ffffff;
+  border-right: 2px solid var(--zx-border);
+  color: var(--zx-text);
+  box-shadow: 2px 0 16px rgba(124, 58, 237, 0.06);
 }
 
-.home_sideNavbar_ImgLogo{
-    width: 25px;
-    height: 25px;
-    border-radius: 50px;
+.home-sideNavbar::-webkit-scrollbar {
+  width: 5px;
 }
+
+.home-sideNavbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.home-sideNavbar::-webkit-scrollbar-thumb {
+  background: var(--zx-border);
+  border-radius: 4px;
+}
+
+.home-sideNavbarTop {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 2px solid var(--zx-border);
+  padding-bottom: 10px;
+}
+
+.home_sideNavbarTopOption {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 9px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  color: var(--zx-text2);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s;
+  text-decoration: none;
+}
+
+.home_sideNavbarTopOption:hover {
+  background-color: rgba(124, 58, 237, 0.08);
+  color: var(--zx-primary);
+}
+
+.home_sideNavbarTopOption.active,
+.home_sideNavbarTopOption[aria-current="page"] {
+  background-color: rgba(124, 58, 237, 0.1);
+  color: var(--zx-primary);
+  font-weight: 700;
+}
+
+.home_sideNavbarTopOption svg,
+.home_sideNavbarTopOption .nav-icon {
+  color: inherit;
+  font-size: 20px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.home_sideNavbarTopOptionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Outfit', sans-serif;
+  color: inherit;
+}
+
+.home_sideNavbarMiddle {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 2px solid var(--zx-border);
+  padding: 10px 0;
+}
+
+.home_sideNavbarTopOptionTitleHeader {
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--zx-text3);
+  padding: 10px 12px 4px;
+  font-family: 'Nunito', sans-serif;
+}
+
+.home_sideNavbar_ImgLogo {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--zx-border);
+  object-fit: cover;
+}
+
 .home_sideNavbar_link {
   text-decoration: none;
   color: inherit;
 }
 
+/* Section dividers */
+.home-sideNavbar hr,
+.home-sideNavbar [class*="divider"] {
+  border: none;
+  border-top: 2px solid var(--zx-border);
+  margin: 8px 0;
+}
+
+/* ══════════════════════════════════════
+   MOBILE — sidebar hidden on mobile
+══════════════════════════════════════ */
+@media (max-width: 768px) {
+  .home-sideNavbar,
+  .homeSideNavbarHide {
+    display: none !important;
+  }
+}

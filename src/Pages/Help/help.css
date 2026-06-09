@@ -1,92 +1,32 @@
-.help_container {
-  max-width: 700px;
-  margin: 60px auto;
-  padding: 36px;
-  background: #0c0c1e;
-  border: 1px solid #1e1e35;
-  border-radius: 0;
-  color: #e8e8f5;
-  font-family: 'Space Grotesk', sans-serif;
-  position: relative;
-}
- 
-.help_container::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0;
-  width: 14px; height: 14px;
-  border-top: 2px solid #b4a1ff;
-  border-left: 2px solid #b4a1ff;
-}
- 
-.help_container h1 {
-  font-family: 'Space Mono', monospace;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  margin-bottom: 6px;
-  color: #e8e8f5;
-}
- 
-.help_container p  { color: #555580; margin-bottom: 24px; font-size: 13px; }
- 
-.help_container a {
-  font-family: 'Space Mono', monospace;
-  color: #b4a1ff;
-  text-decoration: none;
-  font-size: 11px;
-  letter-spacing: 1px;
-  margin-top: 24px;
-  display: inline-block;
-  border-bottom: 1px solid #b4a1ff44;
-  transition: color 0.15s;
-}
-.help_container a:hover { color: #e8e8f5; }
- 
+.help_container { max-width: 700px; }
+
 .faq_item {
-  border: 1px solid #1e1e35;
-  border-radius: 0;
+  border: 2px solid var(--zx-border);
+  border-radius: 12px;
   margin-bottom: 8px;
   padding: 14px 16px;
   cursor: pointer;
   transition: all 0.2s;
-  position: relative;
-  background: #0c0c1e;
+  background: var(--zx-surface);
 }
- 
-.faq_item::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0;
-  width: 6px; height: 6px;
-  border-top: 1px solid #b4a1ff44;
-  border-left: 1px solid #b4a1ff44;
-  transition: border-color 0.2s;
-}
- 
-.faq_item:hover {
-  background: #111128;
-  border-color: #2a2a45;
-}
- 
-.faq_item:hover::before { border-color: #b4a1ff; }
- 
+
+.faq_item:hover { background: var(--zx-surface2); border-color: var(--zx-primary); }
+
 .faq_question {
   display: flex;
   justify-content: space-between;
-  font-family: 'Space Grotesk', sans-serif;
-  font-weight: 700;
-  font-size: 13px;
-  color: #dde0f5;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--zx-text);
 }
- 
+
 .faq_answer {
   margin-top: 10px;
-  font-family: 'Space Grotesk', sans-serif;
-  color: #555580;
-  font-size: 13px;
+  font-family: 'Outfit', sans-serif;
+  color: var(--zx-text2);
+  font-size: 14px;
   line-height: 1.6;
-  border-left: 2px solid #1e1e35;
-  padding-left: 10px;
+  border-left: 3px solid var(--zx-primary);
+  padding-left: 12px;
 }

@@ -31,6 +31,7 @@
   border-right: 2px solid var(--zx-border);
   color: var(--zx-text);
   box-shadow: 2px 0 16px rgba(124, 58, 237, 0.06);
+  z-index: 100;   /* ← ADD THIS */
 }
 
 .home-sideNavbar::-webkit-scrollbar {

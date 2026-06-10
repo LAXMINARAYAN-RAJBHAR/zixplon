@@ -330,10 +330,10 @@ const Navbar = ({
   }, []);
 
   useEffect(() => {
-  const handler = () => setLogin(true);
-  window.addEventListener("openLogin", handler);
-  return () => window.removeEventListener("openLogin", handler);
-}, []);
+    const handler = () => setLogin(true);
+    window.addEventListener("openLogin", handler);
+    return () => window.removeEventListener("openLogin", handler);
+  }, []);
 
   const handleInstall = async () => {
     if (!installPrompt) return;
@@ -490,18 +490,18 @@ const Navbar = ({
   };
 
   const handleLogout = async () => {
-  // ✅ Do NOT remove bannerPic_<username> — it's scoped and safe to keep
-  // It will load instantly when the user logs back in
-  await supabase.auth.signOut();
-  localStorage.removeItem("username");
-  localStorage.removeItem("email");
-  localStorage.removeItem("userId");
-  localStorage.removeItem("profilePic");
-  localStorage.removeItem("about");
-  setCurrentUser(null);
-  setNavbarModal(false);
-  navigate("/");
-};
+    // ✅ Do NOT remove bannerPic_<username> — it's scoped and safe to keep
+    // It will load instantly when the user logs back in
+    await supabase.auth.signOut();
+    localStorage.removeItem("username");
+    localStorage.removeItem("email");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("profilePic");
+    localStorage.removeItem("about");
+    setCurrentUser(null);
+    setNavbarModal(false);
+    navigate("/");
+  };
 
   const setLoginModal = () => setLogin(false);
 
@@ -1158,9 +1158,17 @@ const Navbar = ({
         <span
           onClick={() => navigate("/local-player")}
           title="Local Player"
+          className="navbar-local-player"
           style={{ cursor: "pointer" }}
         >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="var(--zx-text2)"
+          >
+            {" "}
+            {/* ← change white to var(--zx-text2) */}
             <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
           </svg>
         </span>

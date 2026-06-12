@@ -633,7 +633,6 @@ const MOBILE_TABS = [
 // ─── TRENDING STRIP ──────────────────────────────────────────
 const MobileTrendingStrip = ({ dbVideos, dbReels = [], onVideoClick, onReelClick }) => {
 
-  // Mix all content types together
   const trendingVideos = [
     ...dbVideos.slice(0, 6).map(v => ({ ...v, _type: 'video' })),
     ...dbReels.slice(0, 5).map(r => ({ ...r, _type: 'reel',
@@ -641,12 +640,10 @@ const MobileTrendingStrip = ({ dbVideos, dbReels = [], onVideoClick, onReelClick
       title: r.title,
       channel: r.user
     })),
-    // Movie tagged videos
     ...dbVideos.filter(v => v.tags?.some(t =>
       ['Hindi Movies','Hollywood Movies','Bhojpuri Cinema',
        'Superhero Movies','Pakistani Movies'].includes(t)
     )).slice(0, 3).map(v => ({ ...v, _type: 'movie' })),
-    // Live tagged videos
     ...dbVideos.filter(v => v.tags?.includes('Live'))
       .slice(0, 2).map(v => ({ ...v, _type: 'live' })),
   ].slice(0, 16);
@@ -672,7 +669,7 @@ const MobileTrendingStrip = ({ dbVideos, dbReels = [], onVideoClick, onReelClick
             const badge = TYPE_BADGE[v._type] || TYPE_BADGE.video;
             return (
               <div
-                key={v.id}
+                key={`trending_${v._type}_${v.id}_${i}`}
                 className="mobile-trending-card"
                 onClick={() => {
                   if (v._type === 'reel') onReelClick && onReelClick(v);
@@ -680,7 +677,6 @@ const MobileTrendingStrip = ({ dbVideos, dbReels = [], onVideoClick, onReelClick
                 }}
               >
                 <span className="mobile-trending-rank">#{i + 1}</span>
-                {/* Content type badge */}
                 <span style={{
                   position: 'absolute', top: 5, right: 5,
                   background: badge.bg, color: '#fff',
@@ -959,7 +955,6 @@ const WatchPage = ({
     });
   };
 
-  // ── Light theme colors for watch page ──
   const WP = {
     bg: "#f0f4ff",
     surface: "#ffffff",
@@ -2131,8 +2126,22 @@ const HomePage = ({ sideNavbar }) => {
     return () => supabase.removeChannel(reelsSub);
   }, []);
 
-  const allVideos = [...dbVideos, ...videos];
-  const allReels = [...dbReels, ...reelsData];
+  // ── FIX: Namespace static IDs to prevent collision with Supabase integer IDs ──
+  const allVideos = [
+    ...dbVideos,
+    ...videos.map((v) => ({
+      ...v,
+      id: typeof v.id === "number" ? `static_${v.id}` : v.id,
+    })),
+  ];
+
+  const allReels = [
+    ...dbReels,
+    ...reelsData.map((r) => ({
+      ...r,
+      id: typeof r.id === "number" ? `static_${r.id}` : r.id,
+    })),
+  ];
 
   useEffect(() => {
     if (searchQuery) fetchYouTubeByTopic(searchQuery);
@@ -2227,7 +2236,10 @@ const HomePage = ({ sideNavbar }) => {
   };
 
   const searchedLocalVideos = searchActive
-    ? [...dbVideos.map((v) => ({ ...v, isUploaded: true })), ...videos]
+    ? [...dbVideos.map((v) => ({ ...v, isUploaded: true })), ...videos.map((v) => ({
+        ...v,
+        id: typeof v.id === "number" ? `static_${v.id}` : v.id,
+      }))]
         .map((v) => ({ ...v, _score: scoreVideo(v) }))
         .filter((v) => v._score > 0)
         .sort((a, b) => b._score - a._score)
@@ -2553,7 +2565,6 @@ const HomePage = ({ sideNavbar }) => {
     </div>
   );
 
-  // Light theme skeleton
   const SkeletonCard = () => (
     <div
       className="youtube_thumbnailBox"
@@ -2849,7 +2860,10 @@ const HomePage = ({ sideNavbar }) => {
               {dbLoading &&
                 [...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
               {videos.map((v) => (
-                <VideoCard key={v.id} video={v} />
+                <VideoCard
+                  key={typeof v.id === "number" ? `static_${v.id}` : v.id}
+                  video={{ ...v, id: typeof v.id === "number" ? `static_${v.id}` : v.id }}
+                />
               ))}
             </div>
           </div>
@@ -2873,7 +2887,10 @@ const HomePage = ({ sideNavbar }) => {
             ) : (
               <div className="youtube_VideoGrid">
                 {videos.map((v) => (
-                  <VideoCard key={v.id} video={v} />
+                  <VideoCard
+                    key={typeof v.id === "number" ? `static_${v.id}` : v.id}
+                    video={{ ...v, id: typeof v.id === "number" ? `static_${v.id}` : v.id }}
+                  />
                 ))}
               </div>
             )}
@@ -3032,7 +3049,10 @@ const HomePage = ({ sideNavbar }) => {
               {(() => {
                 const allVids = [
                   ...dbVideos.map((v) => ({ ...v, isUploaded: true })),
-                  ...videos,
+                  ...videos.map((v) => ({
+                    ...v,
+                    id: typeof v.id === "number" ? `static_${v.id}` : v.id,
+                  })),
                 ];
                 const rows = [];
                 const totalRows = Math.ceil(allVids.length / 12);
@@ -3142,7 +3162,10 @@ const HomePage = ({ sideNavbar }) => {
                     {videos
                       .filter((v) => v.tags?.includes(selectedOption))
                       .map((v) => (
-                        <VideoCard key={v.id} video={v} />
+                        <VideoCard
+                          key={typeof v.id === "number" ? `static_${v.id}` : v.id}
+                          video={{ ...v, id: typeof v.id === "number" ? `static_${v.id}` : v.id }}
+                        />
                       ))}
                   </div>
                 </div>

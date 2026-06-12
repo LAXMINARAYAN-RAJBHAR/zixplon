@@ -23,16 +23,22 @@
 
 /* ── Feed wrapper ── */
 .pf-feed {
-  margin: 0 auto;
-  padding: 70px 12px 80px;
+  padding: 70px 24px 80px;
   margin-left: 275px;
-  max-width: 680px;
-  width: 100%;
-  margin-right: auto;
+  width: calc(100% - 275px);
+  max-width: 100%;
   background: var(--zx-bg);
   font-family: 'Outfit', sans-serif;
   color: var(--zx-text);
   box-sizing: border-box;
+  min-height: 100vh;
+}
+
+/* ── Inner content constrained for readability ── */
+.pf-feed > * {
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* ── Shared avatar ── */
@@ -658,9 +664,20 @@
 .pf-load-more:hover { border-color: var(--zx-primary); color: var(--zx-primary); background: var(--zx-surface2); }
 .pf-load-more:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── Mobile ── */
+/* ══════════════════════════════════════
+   MOBILE — max 768px
+══════════════════════════════════════ */
 @media (max-width: 768px) {
-  .pf-feed { margin-left: 0; margin-right: 0; padding: 70px 10px 80px; max-width: 100%; }
+  .pf-feed {
+    margin-left: 0;
+    width: 100%;
+    padding: 70px 10px 80px;
+  }
+
+  .pf-feed > * {
+    max-width: 100%;
+  }
+
   .pf-composer-top { flex-wrap: wrap; }
   .pf-action-btn span { font-size: 10px; }
   .pf-action-btn { font-size: 10px; padding: 8px 4px; }

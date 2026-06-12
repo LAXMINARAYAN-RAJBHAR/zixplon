@@ -189,6 +189,8 @@ function App() {
             path="/user/:username"
             element={<Profile sideNavbar={sideNavbar} />}
           />
+          {/* Fixed: BottomNav links to /videoUpload, route now matches */}
+          <Route path="/videoUpload" element={<VideoUpload />} />
           <Route path="/:id/upload" element={<VideoUpload />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/reels" element={<Reels />} />

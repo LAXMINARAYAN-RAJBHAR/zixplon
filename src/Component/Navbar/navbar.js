@@ -1196,6 +1196,7 @@ const Navbar = ({
 
         {/* ── Upload Button — direct navigate, no dropdown ── */}
         <span
+        className="navbar-upload-btn"
           onClick={() => {
             if (!currentUser) {
               setLogin(true);

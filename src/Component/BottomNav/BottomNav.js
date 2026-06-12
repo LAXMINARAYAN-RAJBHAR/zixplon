@@ -1,7 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import HomeIcon from "@mui/icons-material/Home";
-import SlideshowIcon from "@mui/icons-material/Slideshow";
 import SearchIcon from "@mui/icons-material/Search";
 import VideoCallIcon from "@mui/icons-material/VideoCall";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
@@ -56,7 +55,6 @@ const BottomNav = ({ currentUser }) => {
             transform: scale(0.92);
           }
 
-          /* Active indicator pill above icon */
           .bottom-nav-item.active-item::before {
             content: '';
             position: absolute;
@@ -77,7 +75,6 @@ const BottomNav = ({ currentUser }) => {
             transition: color 0.15s;
           }
 
-          /* Active icon gets a soft purple glow background */
           .bottom-nav-icon-wrap {
             display: flex;
             align-items: center;
@@ -104,6 +101,7 @@ const BottomNav = ({ currentUser }) => {
       `}</style>
 
       <nav className="bottom-nav">
+        {/* Home */}
         <Link
           to="/"
           className={`bottom-nav-item${isActive("/") ? " active-item" : ""}`}
@@ -116,18 +114,20 @@ const BottomNav = ({ currentUser }) => {
           </span>
         </Link>
 
+        {/* Upload — fixed path to match router */}
         <Link
-          to="/reels"
-          className={`bottom-nav-item${isActive("/reels") ? " active-item" : ""}`}
+          to="/videoUpload"
+          className={`bottom-nav-item${isActive("/videoUpload") ? " active-item" : ""}`}
         >
           <div className="bottom-nav-icon-wrap">
-            <SlideshowIcon sx={{ fontSize: "22px", color: isActive("/reels") ? activeColor : inactiveColor }} />
+            <VideoCallIcon sx={{ fontSize: "22px", color: isActive("/videoUpload") ? activeColor : inactiveColor }} />
           </div>
-          <span className="bottom-nav-label" style={{ color: isActive("/reels") ? activeColor : inactiveColor }}>
-            Shorts
+          <span className="bottom-nav-label" style={{ color: isActive("/videoUpload") ? activeColor : inactiveColor }}>
+            Upload
           </span>
         </Link>
 
+        {/* Local Player */}
         <Link
           to="/local-player"
           className={`bottom-nav-item${isActive("/local-player") ? " active-item" : ""}`}
@@ -140,6 +140,7 @@ const BottomNav = ({ currentUser }) => {
           </span>
         </Link>
 
+        {/* Posts */}
         <Link
           to="/feed"
           className={`bottom-nav-item${isActive("/feed") ? " active-item" : ""}`}
@@ -152,6 +153,7 @@ const BottomNav = ({ currentUser }) => {
           </span>
         </Link>
 
+        {/* Profile / Sign In */}
         <Link
           to={currentUser ? `/user/${currentUser}` : "/signup"}
           className={`bottom-nav-item${isActive(`/user/${currentUser}`) ? " active-item" : ""}`}

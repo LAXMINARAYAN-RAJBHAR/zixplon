@@ -294,6 +294,13 @@
   color: var(--zx-primary);
 }
 
+/* ── Upload button — hidden on mobile ── */
+.navbar-upload-btn {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
 /* ══════════════════════════════════════
    MOBILE RESPONSIVE — max 768px
 ══════════════════════════════════════ */
@@ -301,6 +308,9 @@
 
   .navbar {
     background-color: #ffffff;
+    padding: 0 8px;
+    gap: 6px;
+    height: 56px;
   }
 
   .navbarHamberger {
@@ -313,12 +323,6 @@
 
   .navbar-country-badge {
     display: none !important;
-  }
-
-  .navbar {
-    padding: 0 8px;
-    gap: 6px;
-    height: 56px;
   }
 
   .navbar-left {
@@ -352,7 +356,9 @@
   }
 
   .navbar_mike {
-    display: none !important;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
   }
 
   .navbar-right {
@@ -364,7 +370,13 @@
     height: 28px;
   }
 
-  .navbar-right > span:first-child {
+  /* Hide upload button on mobile — bottom nav handles it */
+  .navbar-upload-btn {
+    display: none !important;
+  }
+
+  /* Hide local player on mobile */
+  .navbar-local-player {
     display: none !important;
   }
 }

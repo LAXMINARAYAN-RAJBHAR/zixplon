@@ -32,6 +32,13 @@
   color: var(--zx-text);
   box-sizing: border-box;
   min-height: 100vh;
+  transition: margin-left 0.3s ease, width 0.3s ease;
+}
+
+/* ── Sidebar closed state ── */
+.pf-feed.sidebar-closed {
+  margin-left: 0;
+  width: 100%;
 }
 
 /* ── Inner content constrained for readability ── */

@@ -67,7 +67,6 @@ const PostFeed = ({ sideNavbar }) => {
   useEffect(() => {
     fetchPosts(true);
 
-    // ── FIX: listen to both INSERT and DELETE events ──
     const channel = supabase
       .channel("posts-realtime")
       .on(
@@ -77,7 +76,6 @@ const PostFeed = ({ sideNavbar }) => {
       )
       .on(
         "postgres_changes",
-        // ── FIX: on DELETE, remove the post from local state immediately ──
         { event: "DELETE", schema: "public", table: "posts" },
         (payload) => {
           const deletedId = payload.old?.id;
@@ -95,7 +93,6 @@ const PostFeed = ({ sideNavbar }) => {
   const handleNewPost = async (post) => {
     setPosts((prev) => [post, ...prev]);
 
-    // Notify subscribers about new post
     const uploaderUsername = localStorage.getItem("username");
     const { data: subUsers } = await supabase
       .from("subscriptions")
@@ -215,7 +212,6 @@ const PostFeed = ({ sideNavbar }) => {
     }
   };
 
-  // ── FIX: delete now removes from DB and immediately from all users' state ──
   const handleDeletePost = async (postId) => {
     // Remove from local state immediately (optimistic)
     setPosts((all) => all.filter((p) => p.id !== postId));
@@ -242,7 +238,8 @@ const PostFeed = ({ sideNavbar }) => {
 
   if (loading) {
     return (
-      <div className="pf-feed">
+      // ── FIX: apply sidebar-closed class during loading skeleton too ──
+      <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
         {[1, 2, 3].map((i) => (
           <div className="pf-skeleton" key={i}>
             <div className="pf-skeleton-avatar" />
@@ -260,7 +257,9 @@ const PostFeed = ({ sideNavbar }) => {
   return (
     <>
       <SideNavbar sideNavbar={sideNavbar} />
-      <div className="pf-feed">
+
+      {/* ── FIX: toggle sidebar-closed class based on sideNavbar prop ── */}
+      <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
         {currentUser && currentUser !== "anonymous" ? (
           <PostComposer currentUser={currentUser} onPost={handleNewPost} />
         ) : (

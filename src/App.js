@@ -40,7 +40,6 @@ function App() {
   );
 
   // ── Warm up Supabase connection on app load ──
-  // Prevents the cold-start delay on the first real query
   useEffect(() => {
     supabase.from("videos").select("id").limit(1).then(() => {});
   }, []);
@@ -263,7 +262,8 @@ function App() {
       {/* ✅ BottomNav OUTSIDE Routes — only visible on mobile */}
       <BottomNav currentUser={currentUser} />
 
-      {!hideFooter && <Footer />}
+      {/* ✅ Footer receives sideNavbar to adjust left margin */}
+      {!hideFooter && <Footer sideNavbar={sideNavbar} />}
     </div>
   );
 }

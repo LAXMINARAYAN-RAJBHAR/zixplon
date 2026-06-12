@@ -2,9 +2,9 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import './footer.css'
 
-const Footer = () => {
+const Footer = ({ sideNavbar }) => {
   return (
-    <div className="footer">
+    <div className={`footer ${sideNavbar ? 'footer-sidebar-open' : ''}`}>
       <p>© 2021 - {new Date().getFullYear()} ZIXPLON&reg; All rights reserved.</p>
       <p>Origin: <span className="footer_dev">Made in India</span></p>
       <div className="footer_links">

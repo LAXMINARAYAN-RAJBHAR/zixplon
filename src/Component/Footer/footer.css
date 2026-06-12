@@ -9,6 +9,7 @@
   --zx-text:    #1e1b4b;
   --zx-text2:   #4c4589;
   --zx-text3:   #8b84c4;
+  --sidebar-width: 275px;
 }
 
 .footer {
@@ -23,8 +24,15 @@
   letter-spacing: 0.3px;
   margin-top: auto;
   position: relative;
-  z-index: 1;          /* ← keep this LOW so sidebar stays on top */
+  z-index: 1;
   box-shadow: 0 -2px 16px rgba(124, 58, 237, 0.05);
+  margin-left: 0;
+  transition: margin-left 0.3s ease;
+}
+
+/* ── Sidebar open: push footer right to match sidebar width ── */
+.footer.footer-sidebar-open {
+  margin-left: var(--sidebar-width);
 }
 
 .footer_dev {
@@ -72,7 +80,10 @@
 ══════════════════════════════════════ */
 @media (max-width: 768px) {
 
-  .footer {
+  /* Sidebar is hidden on mobile — never shift footer */
+  .footer,
+  .footer.footer-sidebar-open {
+    margin-left: 0 !important;
     padding-bottom: calc(16px + 72px);
   }
 

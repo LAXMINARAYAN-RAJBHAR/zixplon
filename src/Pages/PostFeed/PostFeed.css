@@ -25,20 +25,20 @@
 .pf-feed {
   padding: 70px 24px 80px;
   margin-left: 275px;
-  width: calc(100% - 275px);
-  max-width: 100%;
+  /* FIX: removed width: calc(100% - 275px) which was causing overflow.
+     Let the block naturally fill the remaining horizontal space. */
+  overflow-x: hidden;
   background: var(--zx-bg);
   font-family: 'Outfit', sans-serif;
   color: var(--zx-text);
   box-sizing: border-box;
   min-height: 100vh;
-  transition: margin-left 0.3s ease, width 0.3s ease;
+  transition: margin-left 0.3s ease;
 }
 
 /* ── Sidebar closed state ── */
 .pf-feed.sidebar-closed {
   margin-left: 0;
-  width: 100%;
 }
 
 /* ── Inner content constrained for readability ── */
@@ -94,6 +94,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0; /* FIX: prevents flex children from overflowing */
 }
 
 .pf-composer-input {
@@ -109,6 +110,7 @@
   outline: none;
   line-height: 1.5;
   transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box; /* FIX: ensures padding doesn't push width beyond 100% */
 }
 
 .pf-composer-input:focus {
@@ -171,6 +173,7 @@
   color: var(--zx-text);
   outline: none;
   transition: border-color 0.15s;
+  box-sizing: border-box; /* FIX */
 }
 .pf-link-input:focus { border-color: var(--zx-primary); }
 .pf-link-input::placeholder { color: var(--zx-text3); }
@@ -367,13 +370,16 @@
   padding: 14px 16px 10px;
 }
 
-.pf-card-meta { flex: 1; }
+.pf-card-meta { flex: 1; min-width: 0; /* FIX: prevents text overflow in flex */ }
 
 .pf-card-author {
   font-size: 14px;
   font-weight: 800;
   font-family: 'Nunito', sans-serif;
   color: var(--zx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pf-card-feeling {
@@ -454,6 +460,7 @@
   line-height: 1.6;
   margin-bottom: 10px;
   white-space: pre-wrap;
+  word-break: break-word; /* FIX: prevents long words/URLs from overflowing */
 }
 
 .pf-card-image {
@@ -575,6 +582,7 @@
   border-radius: 12px;
   padding: 8px 12px;
   flex: 1;
+  min-width: 0; /* FIX: prevents bubble from overflowing */
 }
 
 .pf-comment-author {
@@ -590,6 +598,7 @@
   font-family: 'Outfit', sans-serif;
   color: var(--zx-text2);
   line-height: 1.5;
+  word-break: break-word; /* FIX */
 }
 
 .pf-comment-input-row {
@@ -601,6 +610,7 @@
 
 .pf-comment-input {
   flex: 1;
+  min-width: 0; /* FIX */
   background: var(--zx-surface);
   border: 2px solid var(--zx-border);
   border-radius: 20px;
@@ -610,6 +620,7 @@
   color: var(--zx-text);
   outline: none;
   transition: border-color 0.15s;
+  box-sizing: border-box;
 }
 
 .pf-comment-input:focus { border-color: var(--zx-primary); }
@@ -666,6 +677,7 @@
   margin-top: 4px;
   transition: all 0.15s;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .pf-load-more:hover { border-color: var(--zx-primary); color: var(--zx-primary); background: var(--zx-surface2); }
@@ -677,7 +689,6 @@
 @media (max-width: 768px) {
   .pf-feed {
     margin-left: 0;
-    width: 100%;
     padding: 70px 10px 80px;
   }
 

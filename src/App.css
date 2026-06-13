@@ -4,3 +4,9 @@
   box-sizing: border-box;
   padding-top: 5px;
 }
+
+/* In your global CSS or App.css */
+body, #root {
+  background: var(--zx-bg);
+  min-height: 100vh;
+}

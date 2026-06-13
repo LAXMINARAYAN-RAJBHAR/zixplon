@@ -228,6 +228,15 @@
   font-weight: 600;
 }
 
+/* Hide footer on upload page - desktop only */
+@media (min-width: 769px) {
+  .videoUpload ~ footer,
+  .videoUpload + footer,
+  body:has(.videoUpload) footer {
+    display: none;
+  }
+}
+
 /* ══════════════════════════════════════
    MOBILE — max 768px
 ══════════════════════════════════════ */

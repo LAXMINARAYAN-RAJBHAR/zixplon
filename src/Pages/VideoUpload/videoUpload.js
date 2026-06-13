@@ -25,6 +25,11 @@ const VideoUpload = () => {
     if (!user) navigate("/signup");
   }, []);
 
+  useEffect(() => {
+  document.body.classList.add("hide-footer-desktop");
+  return () => document.body.classList.remove("hide-footer-desktop");
+}, []);
+
   const [uploadMode, setUploadMode] = useState("video");
   const [showRecordModal, setShowRecordModal] = useState(false);
   const currentUser = localStorage.getItem("username") || "";

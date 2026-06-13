@@ -640,18 +640,22 @@ const HomePage = ({ sideNavbar }) => {
 
   // ── Swipe to change tabs ──────────────────────────────────
   const TAB_IDS = MOBILE_TABS.map((t) => t.id);
+
   const goNextTab = () => {
     setMobileTab((cur) => {
       const idx = TAB_IDS.indexOf(cur);
       return idx < TAB_IDS.length - 1 ? TAB_IDS[idx + 1] : cur;
     });
   };
+
   const goPrevTab = () => {
     setMobileTab((cur) => {
       const idx = TAB_IDS.indexOf(cur);
       return idx > 0 ? TAB_IDS[idx - 1] : cur;
     });
   };
+
+  // ── Single swipe handler instance for the whole mobile area ──
   const swipeHandlers = useSwipeTabs(goNextTab, goPrevTab);
 
   const searchQuery = (() => {
@@ -983,11 +987,12 @@ const HomePage = ({ sideNavbar }) => {
     </div>
   );
 
+  // ── renderMobileTabContent — NO swipeHandlers here (parent handles it) ──
   const renderMobileTabContent = () => {
     switch (mobileTab) {
       case "shorts":
         return (
-          <div className="mobile-tab-content" {...swipeHandlers}>
+          <div className="mobile-tab-content">
             {allReels.length === 0 ? (
               <div style={{ textAlign:"center", padding:"40px 0", color:"#8b84c4" }}><div style={{ fontSize:"36px", marginBottom:"10px" }}>📱</div><p style={{ margin:0, fontWeight:"600" }}>No shorts yet</p></div>
             ) : (
@@ -1000,7 +1005,7 @@ const HomePage = ({ sideNavbar }) => {
         );
       case "videos":
         return (
-          <div className="mobile-tab-content" {...swipeHandlers}>
+          <div className="mobile-tab-content">
             {dbVideos.length > 0 && (<><div className="mobile-tab-section-head">Uploaded ({dbVideos.length})</div><div className="youtube_VideoGrid" style={{ marginBottom:"16px" }}>{dbVideos.map((v)=>(<VideoCard key={v.id} video={v} isUploaded={true} showDelete={true} />))}</div></>)}
             <div className="mobile-tab-section-head">All Videos ({videos.length})</div>
             <div className="youtube_VideoGrid">
@@ -1011,7 +1016,7 @@ const HomePage = ({ sideNavbar }) => {
         );
       case "movies":
         return (
-          <div className="mobile-tab-content" {...swipeHandlers}>
+          <div className="mobile-tab-content">
             <div className="mobile-tab-section-head">Movies ({movieVideos.length||videos.length})</div>
             {movieVideos.length > 0 ? (
               <div className="youtube_VideoGrid">{movieVideos.map((v)=>(<VideoCard key={v.id} video={v} isUploaded={dbVideos.some((d)=>d.id===v.id)} />))}</div>
@@ -1022,7 +1027,7 @@ const HomePage = ({ sideNavbar }) => {
         );
       case "live":
         return (
-          <div className="mobile-tab-content" {...swipeHandlers}>
+          <div className="mobile-tab-content">
             <div className="mobile-live-badge"><span className="mobile-live-dot" />LIVE NOW</div>
             {liveVideos.length > 0 ? (
               <><div className="mobile-tab-section-head">Live Videos ({liveVideos.length})</div><div className="youtube_VideoGrid">{liveVideos.map((v)=>(<VideoCard key={v.id} video={v} isUploaded={dbVideos.some((d)=>d.id===v.id)} />))}</div></>
@@ -1064,24 +1069,45 @@ const HomePage = ({ sideNavbar }) => {
       </div>
 
       <div className={"home_mainPage"+(sideNavbar?" sidebar-open":" sidebar-closed")}>
+
+        {/* ── SEARCH RESULTS (mobile + desktop) ── */}
         {searchActive && <SearchResultsPanel />}
 
+        {/* ── MOBILE LAYOUT ── */}
         {!searchActive && (
-          <MobileTrendingStrip dbVideos={allVideos} dbReels={allReels} onVideoClick={(v)=>navigate(`/video/${v.id}`)} onReelClick={(r)=>navigate("/reels/"+r.id,{state:{clickedReel:r}})} />
-        )}
+          <>
+            {/* Trending strip — no swipe here so horizontal scroll still works */}
+            <MobileTrendingStrip
+              dbVideos={allVideos}
+              dbReels={allReels}
+              onVideoClick={(v) => navigate(`/video/${v.id}`)}
+              onReelClick={(r) => navigate("/reels/" + r.id, { state: { clickedReel: r } })}
+            />
 
-        {!searchActive && (
-          <div className="mobile-tab-bar">
-            {MOBILE_TABS.map((tab)=>(
-              <button key={tab.id} className={"mobile-tab-btn"+(mobileTab===tab.id?" active":"")} onClick={()=>setMobileTab(tab.id)}>
-                <span className="mobile-tab-icon">{tab.icon}</span>
-                <span className="mobile-tab-label">{tab.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
+            {/* Tab bar */}
+            <div className="mobile-tab-bar">
+              {MOBILE_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  className={"mobile-tab-btn" + (mobileTab === tab.id ? " active" : "")}
+                  onClick={() => setMobileTab(tab.id)}
+                >
+                  <span className="mobile-tab-icon">{tab.icon}</span>
+                  <span className="mobile-tab-label">{tab.label}</span>
+                </button>
+              ))}
+            </div>
 
-        {!searchActive && renderMobileTabContent()}
+            {/* ── SWIPE WRAPPER — covers entire tab content area ── */}
+            <div
+              onTouchStart={swipeHandlers.onTouchStart}
+              onTouchEnd={swipeHandlers.onTouchEnd}
+              style={{ touchAction: "pan-y" }}
+            >
+              {renderMobileTabContent()}
+            </div>
+          </>
+        )}
 
         {/* ── DESKTOP LAYOUT ── */}
         {!searchActive && (selectedOption === "All" ? (

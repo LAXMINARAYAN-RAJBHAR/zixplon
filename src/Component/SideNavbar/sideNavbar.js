@@ -17,6 +17,10 @@ import NewspaperIcon from "@mui/icons-material/Newspaper";
 const SideNavbar = ({ sideNavbar }) => {
   const location = useLocation();
 
+    // ✅ Hide sidebar on upload page
+  const hiddenRoutes = ["/videoUpload", "/signup", "/reels"];
+  if (hiddenRoutes.some(route => location.pathname.startsWith(route))) return null;
+
   // ✅ Helper: highlight active link
   const isActive = (path) => location.pathname === path;
 

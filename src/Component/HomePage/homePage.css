@@ -44,12 +44,10 @@
   from { opacity: 0; transform: translateY(18px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-/* FIX: slide-in from right (swipe left → next tab) */
 @keyframes slideInFromRight {
   from { opacity: 0; transform: translateX(40px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-/* FIX: slide-in from left (swipe right → prev tab) */
 @keyframes slideInFromLeft {
   from { opacity: 0; transform: translateX(-40px); }
   to   { opacity: 1; transform: translateX(0); }
@@ -152,7 +150,8 @@
 .home_mainPage {
   display: block;
   box-sizing: border-box;
-  padding: 56px 20px 32px 20px;
+  /* FIX: reduced side padding from 20px → 12px for a tighter desktop layout */
+  padding: 56px 12px 32px 12px;
   margin-left: 0;
   width: 100%;
   transition: margin-left 0.3s ease, width 0.3s ease;
@@ -330,7 +329,7 @@
 }
 .homePage_shortCard { width: 100%; min-width: 0; }
 
-/* ── Search results reels row — auto-fill, not fixed 12 cols ── */
+/* ── Search results reels row ── */
 .search-results-panel .homePage_shortsRow {
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
   gap: 12px !important;
@@ -439,6 +438,7 @@
 
   .homePage_options { display: none !important; }
 
+  /* FIX: zero side padding on mobile — content controls its own inner spacing */
   .home_mainPage,
   .home_mainPage.sidebar-open,
   .home_mainPage.sidebar-closed {
@@ -446,6 +446,7 @@
     width: 100% !important;
     padding: 0 0 80px 0 !important;
     background: var(--zx-bg) !important;
+    box-sizing: border-box !important;
   }
 
   /* Hide desktop content on mobile */
@@ -555,18 +556,36 @@
   /* ── Mobile Tab Content ── */
   .mobile-tab-content {
     display: block !important;
-    padding: 12px 8px 20px;
-    /* FIX: slide animation when tab changes */
+    /* FIX: NO side padding here — grids/rows handle their own inner padding */
+    padding: 12px 0 20px !important;
     animation: slideInFromRight 0.22s ease;
     background: var(--zx-bg);
-    /* FIX: touch-action allows vertical scroll but we detect horizontal swipes in JS */
     touch-action: pan-y;
-    /* FIX: prevent content from going outside the viewport during animation */
     overflow-x: hidden;
+    box-sizing: border-box;
+    width: 100%;
   }
-  .mobile-tab-content .youtube_VideoGrid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+
+  /* FIX: VideoGrid gets 8px side padding inside, full width container */
+  .mobile-tab-content .youtube_VideoGrid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+    padding: 0 8px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+  }
+
+  /* FIX: ShortsRow gets 8px side padding inside, full width container */
+  .mobile-tab-content .homePage_shortsRow {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 6px !important;
+    padding: 0 8px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+  }
+
   .mobile-tab-content .youtube_thumbnailBox { border-radius: var(--zx-radius-sm) !important; border: 1.5px solid var(--zx-border) !important; }
-  .mobile-tab-content .homePage_shortsRow { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 6px !important; }
   .mobile-tab-content .homePage_shortThumbnail { height: 125px !important; border-radius: 8px !important; }
   .mobile-tab-content .youtubeTitleBox { padding: 6px 7px 8px !important; gap: 5px !important; flex-direction: column !important; background: #fff !important; }
   .mobile-tab-content .youtubeBoxProfile { gap: 4px !important; }
@@ -577,6 +596,12 @@
   .mobile-tab-content .youtube_ChannelName { font-size: 10px !important; margin-top: 0 !important; max-width: 75px !important; }
   .mobile-tab-content .youtube_timingThumbnail { font-size: 9px !important; padding: 2px 5px !important; }
 
+  /* FIX: section heads also need side padding */
+  .mobile-tab-section-head {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
   /* Live tab badge */
   .mobile-live-badge {
     display: inline-flex; align-items: center; gap: 5px;
@@ -584,7 +609,8 @@
     color: white; font-family: 'Nunito', sans-serif;
     font-size: 10px; font-weight: 800;
     padding: 4px 12px; border-radius: 20px; letter-spacing: 0.5px;
-    margin-bottom: 12px; box-shadow: 0 3px 12px rgba(239,68,68,0.35);
+    margin: 0 8px 12px !important;
+    box-shadow: 0 3px 12px rgba(239,68,68,0.35);
   }
   .mobile-live-dot {
     width: 7px; height: 7px; background: #fff; border-radius: 50%;
@@ -605,12 +631,18 @@
   .home-sideNavbar, .homeSideNavbarHide { display: none !important; }
   .youtube_thumbnailWrapper { border-radius: var(--zx-radius) var(--zx-radius) 0 0 !important; }
 
-  /* Search results on mobile */
+  /* Search results on mobile — also full bleed with inner padding */
   .home_mainPage > .search-results-panel {
-    display: block !important; padding: 12px 10px 30px !important; background: var(--zx-bg) !important;
+    display: block !important;
+    padding: 12px 8px 30px !important;
+    background: var(--zx-bg) !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
   }
   .search-results-panel .homePage_shortsRow {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important; gap: 8px !important;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+    gap: 8px !important;
+    padding: 0 !important;
   }
   .search-results-panel .homePage_shortThumbnail { height: 180px !important; }
 }
@@ -623,8 +655,17 @@
   .home_mainPage.sidebar-open,
   .home_mainPage.sidebar-closed { padding: 0 0 80px 0 !important; }
 
-  .mobile-tab-content .youtube_VideoGrid { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
-  .mobile-tab-content .homePage_shortsRow { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 5px !important; }
+  .mobile-tab-content .youtube_VideoGrid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    padding: 0 6px !important;
+  }
+  .mobile-tab-content .homePage_shortsRow {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 5px !important;
+    padding: 0 6px !important;
+  }
   .mobile-tab-content .homePage_shortThumbnail { height: 112px !important; }
 
   .mobile-trending-card { width: 145px; }
@@ -641,8 +682,17 @@
   .home_mainPage.sidebar-open,
   .home_mainPage.sidebar-closed { padding: 0 0 80px 0 !important; }
 
-  .mobile-tab-content .youtube_VideoGrid { grid-template-columns: repeat(2, 1fr) !important; gap: 4px !important; }
-  .mobile-tab-content .homePage_shortsRow { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 4px !important; }
+  .mobile-tab-content .youtube_VideoGrid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 4px !important;
+    padding: 0 4px !important;
+  }
+  .mobile-tab-content .homePage_shortsRow {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 4px !important;
+    padding: 0 4px !important;
+  }
   .mobile-tab-content .homePage_shortThumbnail { height: 100px !important; }
 
   .mobile-trending-card { width: 130px; }

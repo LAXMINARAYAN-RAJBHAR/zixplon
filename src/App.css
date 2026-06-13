@@ -4,7 +4,3 @@
   box-sizing: border-box;
   padding-top: 5px;
 }
-body, #root {
-  background: var(--zx-bg);
-  min-height: 100vh;
-}

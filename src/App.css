@@ -4,9 +4,3 @@
   box-sizing: border-box;
   padding-top: 5px;
 }
-
-@media (min-width: 769px) {
-  body.hide-footer-desktop footer {
-    display: none;
-  }
-}

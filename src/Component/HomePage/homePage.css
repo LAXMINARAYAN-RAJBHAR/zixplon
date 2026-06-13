@@ -321,10 +321,10 @@
 }
 .homePage_shortsViewAll:hover { color: var(--zx-accent1); }
 
-/* ── Shorts row — 12 per row desktop ── */
+/* ── Shorts row — 9 per row desktop ── */
 .homePage_shortsRow {
   display: grid !important;
-  grid-template-columns: repeat(12, 1fr);
+  grid-template-columns: repeat(9, 1fr);
   gap: 10px; width: 100%;
 }
 .homePage_shortCard { width: 100%; min-width: 0; }

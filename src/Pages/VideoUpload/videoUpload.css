@@ -45,7 +45,14 @@
   gap: 8px;
 }
 
-.uploadForm { display: flex; flex-direction: column; gap: 14px; margin-top: 28px; align-items: center; }
+.uploadForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 28px;
+  align-items: center;
+  width: 100%; /* FIX: ensure form fills the box */
+}
 
 .uploadFormInputs {
   color: var(--zx-text) !important;
@@ -69,7 +76,13 @@
 
 .uploadFormInputs::placeholder { color: var(--zx-text3) !important; opacity: 1 !important; }
 
-.uploadBtns { display: flex; gap: 14px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+.uploadBtns {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
 
 .uploadBtns-form {
   padding: 10px 24px;
@@ -91,9 +104,23 @@
   box-shadow: 0 4px 18px rgba(124,58,237,0.3);
 }
 
-.upload_file_row { display: flex; align-items: center; gap: 14px; width: 80%; flex-wrap: wrap; }
+.upload_file_row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%; /* FIX: was 80%, caused misalignment on mobile */
+  flex-wrap: wrap;
+}
 
-.upload_file_label { display: flex; align-items: center; gap: 10px; font-family: 'Nunito', sans-serif; color: var(--zx-text3); font-size: 12px; font-weight: 600; }
+.upload_file_label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Nunito', sans-serif;
+  color: var(--zx-text3);
+  font-size: 12px;
+  font-weight: 600;
+}
 
 .upload_file_btn {
   background: var(--zx-bg);
@@ -118,7 +145,13 @@
 
 .upload_thumb_row { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 
-.upload_thumb_preview { width: 80px; height: 50px; object-fit: cover; border-radius: 8px; border: 2px solid var(--zx-border); }
+.upload_thumb_preview {
+  width: 80px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid var(--zx-border);
+}
 
 .upload_video_ready { font-family: 'Nunito', sans-serif; color: var(--zx-accent4); font-size: 12px; font-weight: 800; }
 .upload_error_msg { font-family: 'Nunito', sans-serif; color: var(--zx-accent1); font-size: 12px; font-weight: 800; margin: 4px 0; }
@@ -132,15 +165,36 @@
   box-shadow: none !important;
 }
 
-.upload_success_screen { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 20px 0; gap: 10px; }
+.upload_success_screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px 0;
+  gap: 10px;
+}
 
 .upload_success_screen h2 { font-family: 'Nunito', sans-serif; font-size: 18px; font-weight: 900; color: var(--zx-primary); }
 .upload_success_screen p { font-family: 'Outfit', sans-serif; color: var(--zx-text3); font-size: 14px; }
 
-.upload_success_preview { width: 100%; max-width: 480px; border-radius: 12px; margin: 10px 0; border: 2px solid var(--zx-border); }
+.upload_success_preview {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 12px;
+  margin: 10px 0;
+  border: 2px solid var(--zx-border);
+}
+
 .upload_success_meta { font-family: 'Nunito', sans-serif; color: var(--zx-text3); font-size: 12px; font-weight: 600; }
 
-.upload_mode_toggle { display: flex; gap: 8px; justify-content: center; margin: 10px 0 6px; flex-wrap: wrap; width: 100%; }
+.upload_mode_toggle {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 10px 0 6px;
+  flex-wrap: wrap;
+  width: 100%;
+}
 
 .upload_mode_btn {
   padding: 8px 18px;
@@ -164,4 +218,61 @@
   box-shadow: 0 4px 14px rgba(124,58,237,0.3);
 }
 
-.upload_mode_hint { text-align: center; font-family: 'Nunito', sans-serif; color: var(--zx-text3); font-size: 12px; margin: 0 0 10px; padding: 0 16px; font-weight: 600; }
+.upload_mode_hint {
+  text-align: center;
+  font-family: 'Nunito', sans-serif;
+  color: var(--zx-text3);
+  font-size: 12px;
+  margin: 0 0 10px;
+  padding: 0 16px;
+  font-weight: 600;
+}
+
+/* ══════════════════════════════════════
+   MOBILE — max 768px
+══════════════════════════════════════ */
+@media (max-width: 768px) {
+  .uploadBox {
+    width: calc(100% - 24px); /* FIX: full width with small side margin instead of 48% */
+    padding: 20px 16px;       /* FIX: reduced padding so inputs have room to breathe */
+    margin-top: 16px;
+  }
+
+  .uploadVideoTitle {
+    font-size: 16px;
+  }
+
+  .uploadForm {
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .uploadFormInputs {
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+
+  .upload_file_row {
+    width: 100%;
+    gap: 10px;
+  }
+
+  .uploadBtns {
+    gap: 10px;
+    margin-top: 18px;
+  }
+
+  .uploadBtns-form {
+    font-size: 12px;
+    padding: 9px 18px;
+  }
+
+  .upload_mode_toggle {
+    gap: 6px;
+  }
+
+  .upload_mode_btn {
+    font-size: 11px;
+    padding: 7px 14px;
+  }
+}

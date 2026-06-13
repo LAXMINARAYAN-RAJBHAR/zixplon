@@ -26,13 +26,18 @@
   position: relative;
   z-index: 1;
   box-shadow: 0 -2px 16px rgba(124, 58, 237, 0.05);
+  
+  /* FIX: use padding instead of margin so background covers full width */
   margin-left: 0;
-  transition: margin-left 0.3s ease;
+  padding-left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  transition: padding-left 0.3s ease;
 }
 
-/* ── Sidebar open: push footer right to match sidebar width ── */
+/* FIX: push content right with padding, not margin */
 .footer.footer-sidebar-open {
-  margin-left: var(--sidebar-width);
+  padding-left: var(--sidebar-width);
 }
 
 .footer_dev {

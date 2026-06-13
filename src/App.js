@@ -32,22 +32,6 @@ import {
   AdvertisePage,
 } from "./Pages/ZixplonPages";
 
-// ✅ Pages where sidebar should NOT appear / footer should NOT shift
-const NO_SIDEBAR_PAGES = [
-  "/videoUpload",
-  "/signup",
-  "/feedback",
-  "/help",
-  "/contact",
-  "/report",
-  "/about",
-  "/privacy-policy",
-  "/dmca",
-  "/community-guidelines",
-  "/advertise",
-  "/terms-and-conditions",
-];
-
 function App() {
   const location = useLocation();
   const [sideNavbar, setSideNavbar] = useState(true);
@@ -181,11 +165,7 @@ function App() {
     },
   ]);
 
-  // ✅ Pages where footer is completely hidden
   const hideFooter = ["/youtube", "/reels"].includes(location.pathname);
-
-  // ✅ Pages where sidebar should not shift the footer
-  const isNoSidebarPage = NO_SIDEBAR_PAGES.includes(location.pathname);
 
   return (
     <div
@@ -209,8 +189,9 @@ function App() {
             path="/user/:username"
             element={<Profile sideNavbar={sideNavbar} />}
           />
-          {/* ✅ Only one clean upload route */}
+          {/* Fixed: BottomNav links to /videoUpload, route now matches */}
           <Route path="/videoUpload" element={<VideoUpload />} />
+          <Route path="/:id/upload" element={<VideoUpload />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/reels" element={<Reels />} />
           <Route path="/reels/:id" element={<Reels />} />
@@ -283,10 +264,8 @@ function App() {
       {/* ✅ BottomNav OUTSIDE Routes — only visible on mobile */}
       <BottomNav currentUser={currentUser} />
 
-      {/* ✅ Footer: hidden on reels/youtube, no sidebar shift on clean pages */}
-      {!hideFooter && (
-        <Footer sideNavbar={isNoSidebarPage ? false : sideNavbar} />
-      )}
+      {/* ✅ Footer receives sideNavbar to adjust left margin */}
+      {!hideFooter && <Footer sideNavbar={sideNavbar} />}
     </div>
   );
 }

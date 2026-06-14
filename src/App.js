@@ -165,7 +165,14 @@ function App() {
     },
   ]);
 
-  const hideFooter = ["/youtube", "/reels"].includes(location.pathname);
+  // ✅ Updated: hides Footer on YouTube search, Reels (incl. /reels/:id),
+  // Local Media Player, and both Upload routes (/videoUpload and /:id/upload)
+  const hideFooter =
+    ["/youtube", "/local-player", "/videoUpload"].includes(
+      location.pathname,
+    ) ||
+    location.pathname.startsWith("/reels") ||
+    location.pathname.endsWith("/upload");
 
   return (
     <div

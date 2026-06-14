@@ -144,6 +144,10 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
 };
 
 // ─── Subscribers Modal ────────────────────────────────────────────────────────
+// NOTE: The "subscriptions" table uses columns "subscriber_id" and "subscribed_to"
+// (NOT "subscriber_username" / "channel_username"). "subscribed_to" stores the
+// channel's username, while "subscriber_id" may contain either a UUID or a
+// plain username depending on which page wrote the row.
 const SubscribersModal = ({ channelUsername, onClose }) => {
   const [subscribers, setSubscribers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -160,8 +164,8 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
       setLoading(true);
       const { data } = await supabase
         .from("subscriptions")
-        .select("subscriber_username, created_at")
-        .eq("channel_username", channelUsername)
+        .select("subscriber_id, created_at")
+        .eq("subscribed_to", channelUsername)
         .order("created_at", { ascending: false });
       setSubscribers(data || []);
       setLoading(false);
@@ -221,39 +225,46 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
               <p style={{ margin: 0, fontSize: "14px" }}>No subscribers yet.</p>
             </div>
           ) : (
-            subscribers.map((sub, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: "flex", alignItems: "center", gap: "12px",
-                  padding: "10px 8px", borderRadius: "10px",
-                  transition: "background 0.15s",
-                  cursor: "default",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "#262626"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-              >
-                {/* Avatar */}
-                <div style={{
-                  width: "40px", height: "40px", borderRadius: "50%",
-                  background: "linear-gradient(135deg, #ff4444, #cc0000)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "white", fontWeight: "700", fontSize: "14px", flexShrink: 0,
-                  textTransform: "uppercase",
-                }}>
-                  {(sub.subscriber_username || "?").slice(0, 2).toUpperCase()}
-                </div>
-                {/* Info */}
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: "white", fontWeight: "600", fontSize: "14px" }}>
-                    {sub.subscriber_username}
+            subscribers.map((sub, idx) => {
+              // subscriber_id may be a UUID or a plain username depending on
+              // which flow created the row. Show it as-is; if it looks like a
+              // UUID, label it generically rather than rendering raw UUID text.
+              const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sub.subscriber_id || "");
+              const displayName = isUuid ? "User" : sub.subscriber_id;
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "12px",
+                    padding: "10px 8px", borderRadius: "10px",
+                    transition: "background 0.15s",
+                    cursor: "default",
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "#262626"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                >
+                  {/* Avatar */}
+                  <div style={{
+                    width: "40px", height: "40px", borderRadius: "50%",
+                    background: "linear-gradient(135deg, #ff4444, #cc0000)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "white", fontWeight: "700", fontSize: "14px", flexShrink: 0,
+                    textTransform: "uppercase",
+                  }}>
+                    {(displayName || "?").slice(0, 2).toUpperCase()}
                   </div>
-                  <div style={{ color: "#666", fontSize: "12px" }}>
-                    Subscribed {timeAgo(sub.created_at)}
+                  {/* Info */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: "white", fontWeight: "600", fontSize: "14px" }}>
+                      {displayName}
+                    </div>
+                    <div style={{ color: "#666", fontSize: "12px" }}>
+                      Subscribed {timeAgo(sub.created_at)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
@@ -392,10 +403,11 @@ const Profile = ({ sideNavbar }) => {
       }
 
       // ── Fetch subscriber count & subscription status ──────────────────────
+      // "subscriptions" table columns: subscriber_id, subscribed_to
       const { count: subCount } = await supabase
         .from("subscriptions")
         .select("*", { count: "exact", head: true })
-        .eq("channel_username", key);
+        .eq("subscribed_to", key);
 
       const currentUser = localStorage.getItem("username") || "";
       let alreadySubscribed = false;
@@ -403,8 +415,8 @@ const Profile = ({ sideNavbar }) => {
         const { data: subCheck } = await supabase
           .from("subscriptions")
           .select("id")
-          .eq("subscriber_username", currentUser)
-          .eq("channel_username", key)
+          .eq("subscriber_id", currentUser)
+          .eq("subscribed_to", key)
           .maybeSingle();
         alreadySubscribed = !!subCheck;
       }
@@ -423,6 +435,7 @@ const Profile = ({ sideNavbar }) => {
   const allUserReels = [...dbReels, ...hardcodedReels];
 
   // ── Subscribe / Unsubscribe handler ───────────────────────────────────────
+  // "subscriptions" table columns: subscriber_id, subscribed_to
   const handleSubscribe = async () => {
     const currentUser = localStorage.getItem("username") || "";
     if (!currentUser) { alert("Please log in to subscribe."); return; }
@@ -433,14 +446,14 @@ const Profile = ({ sideNavbar }) => {
       await supabase
         .from("subscriptions")
         .delete()
-        .eq("subscriber_username", currentUser)
-        .eq("channel_username", key);
+        .eq("subscriber_id", currentUser)
+        .eq("subscribed_to", key);
       setIsSubscribed(false);
       setSubscriberCount((n) => Math.max(0, n - 1));
     } else {
       await supabase
         .from("subscriptions")
-        .insert({ subscriber_username: currentUser, channel_username: key });
+        .insert({ subscriber_id: currentUser, subscribed_to: key });
       setIsSubscribed(true);
       setSubscriberCount((n) => n + 1);
     }

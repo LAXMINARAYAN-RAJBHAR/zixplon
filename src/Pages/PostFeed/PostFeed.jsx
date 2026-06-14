@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import "./PostFeed.css";
 import PostComposer from "./PostComposer";
@@ -6,11 +7,13 @@ import PostCard from "./PostCard";
 import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 
 const PostFeed = ({ sideNavbar }) => {
+  const location = useLocation();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState("");
+  const [highlightedPostId, setHighlightedPostId] = useState(null);
   const PAGE_SIZE = 10;
   const offsetRef = useRef(0);
   const currentUser = localStorage.getItem("username") || "anonymous";
@@ -90,6 +93,65 @@ const PostFeed = ({ sideNavbar }) => {
     return () => supabase.removeChannel(channel);
   }, [fetchPosts]);
 
+  // ── Handle shared post links: /feed?post=<id> ──────────────────────────
+  // Ensures the specific shared post is loaded (even if not on page 1),
+  // prepended to the feed, and scrolled into view + highlighted.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const sharedPostId = params.get("post");
+    if (!sharedPostId) return;
+
+    setHighlightedPostId(sharedPostId);
+
+    const ensurePostLoaded = async () => {
+      const { data, error: fetchErr } = await supabase
+        .from("posts")
+        .select(`
+          *,
+          post_reactions ( type, username ),
+          post_comments ( id, text, username, created_at )
+        `)
+        .eq("id", sharedPostId)
+        .maybeSingle();
+
+      if (fetchErr || !data) return;
+
+      const enrichedPost = {
+        ...data,
+        myReaction:
+          data.post_reactions?.find((r) => r.username === currentUser)?.type ||
+          null,
+        reactionCounts: data.post_reactions?.reduce((acc, r) => {
+          acc[r.type] = (acc[r.type] || 0) + 1;
+          return acc;
+        }, {}),
+        comments: (data.post_comments || []).sort(
+          (a, b) => new Date(a.created_at) - new Date(b.created_at)
+        ),
+        showComments: false,
+      };
+
+      setPosts((current) => {
+        if (current.some((p) => p.id === sharedPostId)) return current;
+        return [enrichedPost, ...current];
+      });
+    };
+
+    ensurePostLoaded();
+  }, [location.search, currentUser]);
+
+  // ── Scroll to + highlight the shared post once it's rendered ──────────
+  useEffect(() => {
+    if (!highlightedPostId) return;
+    const el = document.getElementById(`post-${highlightedPostId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("pf-highlighted");
+      const timer = setTimeout(() => el.classList.remove("pf-highlighted"), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [posts, highlightedPostId]);
+
   const handleNewPost = async (post) => {
     setPosts((prev) => [post, ...prev]);
 
@@ -123,7 +185,6 @@ const PostFeed = ({ sideNavbar }) => {
 
     const prev = post.myReaction;
 
-    // Optimistic update
     setPosts((all) =>
       all.map((p) => {
         if (p.id !== postId) return p;
@@ -149,7 +210,6 @@ const PostFeed = ({ sideNavbar }) => {
           .insert({ post_id: postId, username: currentUser, type: reactionType });
       }
     } catch {
-      // Rollback on failure
       fetchPosts(true);
     }
   };
@@ -213,11 +273,9 @@ const PostFeed = ({ sideNavbar }) => {
   };
 
   const handleDeletePost = async (postId) => {
-    // Remove from local state immediately (optimistic)
     setPosts((all) => all.filter((p) => p.id !== postId));
     offsetRef.current = Math.max(0, offsetRef.current - 1);
 
-    // Delete from Supabase — realtime DELETE event will sync other users
     const { error: delErr } = await supabase
       .from("posts")
       .delete()
@@ -225,7 +283,6 @@ const PostFeed = ({ sideNavbar }) => {
       .eq("username", currentUser);
 
     if (delErr) {
-      // Rollback if delete failed
       fetchPosts(true);
     }
   };
@@ -238,7 +295,6 @@ const PostFeed = ({ sideNavbar }) => {
 
   if (loading) {
     return (
-      // ── FIX: apply sidebar-closed class during loading skeleton too ──
       <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
         {[1, 2, 3].map((i) => (
           <div className="pf-skeleton" key={i}>
@@ -258,7 +314,6 @@ const PostFeed = ({ sideNavbar }) => {
     <>
       <SideNavbar sideNavbar={sideNavbar} />
 
-      {/* ── FIX: toggle sidebar-closed class based on sideNavbar prop ── */}
       <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
         {currentUser && currentUser !== "anonymous" ? (
           <PostComposer currentUser={currentUser} onPost={handleNewPost} />
@@ -304,16 +359,17 @@ const PostFeed = ({ sideNavbar }) => {
         )}
 
         {posts.map((post) => (
-          <PostCard
-            key={post.id}
-            post={post}
-            currentUser={currentUser}
-            onReaction={handleReaction}
-            onComment={handleComment}
-            onToggleComments={handleToggleComments}
-            onShare={handleShare}
-            onDelete={handleDeletePost}
-          />
+          <div id={`post-${post.id}`} key={post.id}>
+            <PostCard
+              post={post}
+              currentUser={currentUser}
+              onReaction={handleReaction}
+              onComment={handleComment}
+              onToggleComments={handleToggleComments}
+              onShare={handleShare}
+              onDelete={handleDeletePost}
+            />
+          </div>
         ))}
 
         {hasMore && (

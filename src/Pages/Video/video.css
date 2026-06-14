@@ -22,10 +22,11 @@
 /* ── Page wrapper ── */
 .video {
   background: var(--zx-bg);
-  margin-top: 56px;
+  padding-top: 56px;   /* was margin-top: 56px */
+  margin-top: 0;
   display: flex;
   color: var(--zx-text);
-  padding: 24px 0;
+  padding-bottom: 24px;
   justify-content: center;
   font-family: 'Outfit', sans-serif;
   min-height: calc(100vh - 56px);
@@ -629,8 +630,9 @@
 @media (max-width: 768px) {
   .video {
     flex-direction: column;
-    padding: 8px 0;
-    margin-top: 56px;
+    padding: 8px 8px 8px 8px;
+    padding-top: 56px;
+    margin-top: 0;
     background: var(--zx-bg);
   }
 

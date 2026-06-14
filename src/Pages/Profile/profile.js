@@ -167,7 +167,33 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
         .select("subscriber_id, created_at")
         .eq("subscribed_to", channelUsername)
         .order("created_at", { ascending: false });
-      setSubscribers(data || []);
+
+      if (!data) {
+        setSubscribers([]);
+        setLoading(false);
+        return;
+      }
+
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const uuids = [...new Set(data.filter((s) => uuidRegex.test(s.subscriber_id)).map((s) => s.subscriber_id))];
+
+      let idToUsername = {};
+      if (uuids.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, username")
+          .in("id", uuids);
+        profilesData?.forEach((p) => { idToUsername[p.id] = p.username; });
+      }
+
+      setSubscribers(
+        data.map((s) => ({
+          ...s,
+          displayName: uuidRegex.test(s.subscriber_id)
+            ? (idToUsername[s.subscriber_id] || "User")
+            : s.subscriber_id,
+        }))
+      );
       setLoading(false);
     };
     fetchSubscribers();
@@ -225,46 +251,39 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
               <p style={{ margin: 0, fontSize: "14px" }}>No subscribers yet.</p>
             </div>
           ) : (
-            subscribers.map((sub, idx) => {
-              // subscriber_id may be a UUID or a plain username depending on
-              // which flow created the row. Show it as-is; if it looks like a
-              // UUID, label it generically rather than rendering raw UUID text.
-              const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sub.subscriber_id || "");
-              const displayName = isUuid ? "User" : sub.subscriber_id;
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "12px",
-                    padding: "10px 8px", borderRadius: "10px",
-                    transition: "background 0.15s",
-                    cursor: "default",
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "#262626"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                >
-                  {/* Avatar */}
-                  <div style={{
-                    width: "40px", height: "40px", borderRadius: "50%",
-                    background: "linear-gradient(135deg, #ff4444, #cc0000)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "white", fontWeight: "700", fontSize: "14px", flexShrink: 0,
-                    textTransform: "uppercase",
-                  }}>
-                    {(displayName || "?").slice(0, 2).toUpperCase()}
+            subscribers.map((sub, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "flex", alignItems: "center", gap: "12px",
+                  padding: "10px 8px", borderRadius: "10px",
+                  transition: "background 0.15s",
+                  cursor: "default",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#262626"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              >
+                {/* Avatar */}
+                <div style={{
+                  width: "40px", height: "40px", borderRadius: "50%",
+                  background: "linear-gradient(135deg, #ff4444, #cc0000)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "white", fontWeight: "700", fontSize: "14px", flexShrink: 0,
+                  textTransform: "uppercase",
+                }}>
+                  {(sub.displayName || "?").slice(0, 2).toUpperCase()}
+                </div>
+                {/* Info */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: "white", fontWeight: "600", fontSize: "14px" }}>
+                    {sub.displayName}
                   </div>
-                  {/* Info */}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: "white", fontWeight: "600", fontSize: "14px" }}>
-                      {displayName}
-                    </div>
-                    <div style={{ color: "#666", fontSize: "12px" }}>
-                      Subscribed {timeAgo(sub.created_at)}
-                    </div>
+                  <div style={{ color: "#666", fontSize: "12px" }}>
+                    Subscribed {timeAgo(sub.created_at)}
                   </div>
                 </div>
-              );
-            })
+              </div>
+            ))
           )}
         </div>
       </div>

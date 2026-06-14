@@ -16,12 +16,11 @@ import NewspaperIcon from "@mui/icons-material/Newspaper";
 
 const SideNavbar = ({ sideNavbar }) => {
   const location = useLocation();
+  const loggedInUsername = localStorage.getItem("username") || "";
 
-    // ✅ Hide sidebar on upload page
   const hiddenRoutes = ["/videoUpload", "/signup", "/reels"];
   if (hiddenRoutes.some(route => location.pathname.startsWith(route))) return null;
 
-  // ✅ Helper: highlight active link
   const isActive = (path) => location.pathname === path;
 
   const activeStyle = {
@@ -35,7 +34,6 @@ const SideNavbar = ({ sideNavbar }) => {
       {/* ── TOP SECTION ── */}
       <div className="home_sideNavbarTop">
 
-        {/* Home */}
         <Link to="/" className="home_sideNavbar_link">
           <div className="home_sideNavbarTopOption" style={isActive("/") ? activeStyle : {}}>
             <OtherHousesIcon />
@@ -43,15 +41,13 @@ const SideNavbar = ({ sideNavbar }) => {
           </div>
         </Link>
 
-           {/* Feed */}
-<Link to="/feed" className="home_sideNavbar_link">
-  <div className="home_sideNavbarTopOption" style={isActive("/feed") ? activeStyle : {}}>
-    <NewspaperIcon />
-    <div className="home_sideNavbarTopOptionTitle">Posts</div>
-  </div>
-</Link>
+        <Link to="/feed" className="home_sideNavbar_link">
+          <div className="home_sideNavbarTopOption" style={isActive("/feed") ? activeStyle : {}}>
+            <NewspaperIcon />
+            <div className="home_sideNavbarTopOptionTitle">Posts</div>
+          </div>
+        </Link>
 
-        {/* Shorts */}
         <Link to="/reels" className="home_sideNavbar_link">
           <div className="home_sideNavbarTopOption" style={isActive("/reels") ? activeStyle : {}}>
             <SlideshowIcon />
@@ -59,7 +55,6 @@ const SideNavbar = ({ sideNavbar }) => {
           </div>
         </Link>
 
-        {/* Subscription */}
         <Link to="/subscription" className="home_sideNavbar_link">
           <div className="home_sideNavbarTopOption" style={isActive("/subscription") ? activeStyle : {}}>
             <SubscriptionsIcon />
@@ -72,21 +67,32 @@ const SideNavbar = ({ sideNavbar }) => {
       {/* ── MIDDLE SECTION ── */}
       <div className="home_sideNavbarMiddle">
 
-        {/* You — not a link, just a label */}
         <div className="home_sideNavbarTopOption">
           <div className="home_sideNavbarTopOptionTitle">You</div>
           <ChevronRightIcon />
         </div>
 
-        {/* Your Channel → goes to logged-in user's profile */}
-        <Link to="/user/jyoti" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/user/jyoti") ? activeStyle : {}}>
-            <RecentActorsIcon />
-            <div className="home_sideNavbarTopOptionTitle">Your Channel</div>
+        {/* Your Channel → goes to logged-in user's profile, or opens login if not logged in */}
+        {loggedInUsername ? (
+          <Link to={`/user/${loggedInUsername}`} className="home_sideNavbar_link">
+            <div className="home_sideNavbarTopOption" style={isActive(`/user/${loggedInUsername}`) ? activeStyle : {}}>
+              <RecentActorsIcon />
+              <div className="home_sideNavbarTopOptionTitle">Your Channel</div>
+            </div>
+          </Link>
+        ) : (
+          <div
+            className="home_sideNavbar_link"
+            style={{ cursor: "pointer" }}
+            onClick={() => window.dispatchEvent(new Event("openLogin"))}
+          >
+            <div className="home_sideNavbarTopOption">
+              <RecentActorsIcon />
+              <div className="home_sideNavbarTopOptionTitle">Your Channel</div>
+            </div>
           </div>
-        </Link>
+        )}
 
-        {/* History */}
         <Link to="/history" className="home_sideNavbar_link">
           <div className="home_sideNavbarTopOption" style={isActive("/history") ? activeStyle : {}}>
             <HistoryIcon />
@@ -94,7 +100,6 @@ const SideNavbar = ({ sideNavbar }) => {
           </div>
         </Link>
 
-        {/* Playlist */}
         <Link to="/playlist" className="home_sideNavbar_link">
           <div className="home_sideNavbarTopOption" style={isActive("/playlist") ? activeStyle : {}}>
             <PlaylistAddIcon />
@@ -102,7 +107,6 @@ const SideNavbar = ({ sideNavbar }) => {
           </div>
         </Link>
 
-        {/* Your Videos */}
         <Link to="/your-videos" className="home_sideNavbar_link">
           <div className="home_sideNavbarTopOption" style={isActive("/your-videos") ? activeStyle : {}}>
             <SmartDisplayIcon />
@@ -110,7 +114,6 @@ const SideNavbar = ({ sideNavbar }) => {
           </div>
         </Link>
 
-        {/* Watch Later */}
         <Link to="/watch-later" className="home_sideNavbar_link">
           <div className="home_sideNavbarTopOption" style={isActive("/watch-later") ? activeStyle : {}}>
             <WatchLaterIcon />
@@ -118,7 +121,6 @@ const SideNavbar = ({ sideNavbar }) => {
           </div>
         </Link>
 
-        {/* Liked Videos */}
         <Link to="/liked-videos" className="home_sideNavbar_link">
           <div className="home_sideNavbarTopOption" style={isActive("/liked-videos") ? activeStyle : {}}>
             <ThumbUpIcon />
@@ -126,7 +128,6 @@ const SideNavbar = ({ sideNavbar }) => {
           </div>
         </Link>
 
-        {/* Your Clips */}
         <Link to="/your-clips" className="home_sideNavbar_link">
           <div className="home_sideNavbarTopOption" style={isActive("/your-clips") ? activeStyle : {}}>
             <ContentCutIcon />
@@ -143,7 +144,6 @@ const SideNavbar = ({ sideNavbar }) => {
           <div className="home_sideNavbarTopOptionTitleHeader">Subscription</div>
         </div>
 
-        {/* Aaj Tak → goes to its channel profile */}
         <Link to="/user/aajtak" className="home_sideNavbar_link">
           <div className="home_sideNavbarTopOption" style={isActive("/user/aajtak") ? activeStyle : {}}>
             <img
@@ -155,7 +155,6 @@ const SideNavbar = ({ sideNavbar }) => {
           </div>
         </Link>
 
-        {/* The LallanTop */}
         <Link to="/user/lallantop" className="home_sideNavbar_link">
           <div className="home_sideNavbarTopOption" style={isActive("/user/lallantop") ? activeStyle : {}}>
             <img
@@ -167,7 +166,6 @@ const SideNavbar = ({ sideNavbar }) => {
           </div>
         </Link>
 
-        {/* NDTV India */}
         <Link to="/user/ndtvindia" className="home_sideNavbar_link">
           <div className="home_sideNavbarTopOption" style={isActive("/user/ndtvindia") ? activeStyle : {}}>
             <img

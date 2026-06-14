@@ -147,7 +147,8 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
 // NOTE: The "subscriptions" table uses columns "subscriber_id" and "subscribed_to"
 // (NOT "subscriber_username" / "channel_username"). "subscribed_to" stores the
 // channel's username, while "subscriber_id" may contain either a UUID or a
-// plain username depending on which page wrote the row.
+// plain username depending on which page wrote the row. UUIDs are resolved to
+// usernames via the "profiles" table.
 const SubscribersModal = ({ channelUsername, onClose }) => {
   const [subscribers, setSubscribers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -326,11 +327,12 @@ const Profile = ({ sideNavbar }) => {
       const lsProfilePic = localStorage.getItem("profilePic");
       const lsAbout = localStorage.getItem("about");
       const lsEmail = localStorage.getItem("email");
-      const lsBannerPic = localStorage.getItem("bannerPic");
 
       if (lsUsername && matchesKey(lsUsername, key)) {
         const { data: ownerProfile } = await supabase.from("profiles").select("banner_pic, profile_pic, about").eq("username", lsUsername).maybeSingle();
-        const bannerPic = ownerProfile?.banner_pic || lsBannerPic || null;
+        // Banner comes ONLY from the profiles table — never from localStorage,
+        // since localStorage is shared across accounts on the same device.
+        const bannerPic = ownerProfile?.banner_pic || null;
         const profilePic = ownerProfile?.profile_pic || lsProfilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=ff0000&color=fff&size=120&length=2`;
         const about = ownerProfile?.about || lsAbout || `${lsUsername}'s channel`;
         if (profilePic) localStorage.setItem("profilePic", profilePic);
@@ -342,7 +344,7 @@ const Profile = ({ sideNavbar }) => {
         const authUsername = authUser?.user_metadata?.channelName || authUser?.user_metadata?.username;
         if (authUsername && matchesKey(authUsername, key)) {
           const { data: ownerProfile } = await supabase.from("profiles").select("banner_pic, profile_pic, about").eq("username", authUsername).maybeSingle();
-          const bannerPic = ownerProfile?.banner_pic || lsBannerPic || authUser.user_metadata?.bannerPic || null;
+          const bannerPic = ownerProfile?.banner_pic || authUser.user_metadata?.bannerPic || null;
           const profilePic = ownerProfile?.profile_pic || authUser.user_metadata?.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`;
           const about = ownerProfile?.about || authUser.user_metadata?.about || `${authUsername}'s channel`;
           setUser({ name: authUsername, handle: `@${authUsername}`, profilePic, about, email: authUser.email, isOwner: true, bannerPic });
@@ -564,7 +566,8 @@ const Profile = ({ sideNavbar }) => {
               try {
                 const res = await fetch("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", { method: "POST", body: formData });
                 const data = await res.json(); const url = data.secure_url;
-                localStorage.setItem("bannerPic", url);
+                // NOTE: do NOT write banner to localStorage — it leaks across
+                // accounts on shared/multi-user devices. Persist only to Supabase.
                 await supabase.auth.updateUser({ data: { bannerPic: url } });
                 await supabase.from("profiles").upsert({ username: localStorage.getItem("username"), banner_pic: url, profile_pic: localStorage.getItem("profilePic") || user.profilePic, about: localStorage.getItem("about") || user.about }, { onConflict: "username" });
                 setUser((prev) => ({ ...prev, bannerPic: url }));

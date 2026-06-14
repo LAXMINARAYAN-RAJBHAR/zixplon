@@ -84,19 +84,19 @@
    MOBILE — max 768px
 ══════════════════════════════════════ */
 @media (max-width: 768px) {
-
-  /* Sidebar is hidden on mobile — never shift footer */
   .footer,
   .footer.footer-sidebar-open {
     margin-left: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    text-align: center !important;
+    display: block !important;
+    width: 100% !important;
     padding-bottom: calc(16px + 72px);
   }
 
-  body.reels-open .footer {
-    display: none !important;
-  }
-
-  body.player-open .footer {
-    display: none !important;
+  .footer_links {
+    width: 100%;
+    justify-content: center !important;
   }
 }

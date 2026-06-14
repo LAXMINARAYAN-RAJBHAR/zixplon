@@ -19,16 +19,47 @@ const timeAgo = (dateStr) => {
   return `${Math.floor(diff / 86400)}d ago`;
 };
 
-const Lightbox = ({ src, onClose }) => {
+const Lightbox = ({ images, startIndex = 0, onClose }) => {
+  const [index, setIndex] = useState(startIndex);
+  const [autoPlay, setAutoPlay] = useState(false);
+
+  const next = (e) => {
+    e?.stopPropagation();
+    setIndex((i) => (i + 1) % images.length);
+  };
+
+  const prev = (e) => {
+    e?.stopPropagation();
+    setIndex((i) => (i - 1 + images.length) % images.length);
+  };
+
+  // Auto-advance through all images in sequence
   useEffect(() => {
-    const handleKey = (e) => { if (e.key === "Escape") onClose(); };
+    if (!autoPlay) return;
+    const timer = setInterval(() => {
+      setIndex((i) => (i + 1) % images.length);
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [autoPlay, images.length]);
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") next();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === " ") {
+        e.preventDefault();
+        setAutoPlay((a) => !a);
+      }
+    };
     document.addEventListener("keydown", handleKey);
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", handleKey);
       document.body.style.overflow = "";
     };
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose, images.length]);
 
   return (
     <div
@@ -44,8 +75,10 @@ const Lightbox = ({ src, onClose }) => {
         cursor: "zoom-out",
       }}
     >
+      {/* Close button */}
       <button
         onClick={onClose}
+        aria-label="Close"
         style={{
           position: "absolute",
           top: "16px",
@@ -62,14 +95,104 @@ const Lightbox = ({ src, onClose }) => {
           alignItems: "center",
           justifyContent: "center",
           lineHeight: 1,
+          zIndex: 2,
         }}
       >
         ✕
       </button>
 
+      {/* Play / Pause slideshow */}
+      {images.length > 1 && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setAutoPlay((a) => !a);
+          }}
+          aria-label={autoPlay ? "Pause slideshow" : "Play slideshow"}
+          style={{
+            position: "absolute",
+            top: "16px",
+            right: "70px",
+            background: "rgba(255,255,255,0.1)",
+            border: "none",
+            color: "white",
+            fontSize: "18px",
+            width: "40px",
+            height: "40px",
+            borderRadius: "50%",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            lineHeight: 1,
+            zIndex: 2,
+          }}
+        >
+          {autoPlay ? "⏸" : "▶"}
+        </button>
+      )}
+
+      {/* Prev / Next */}
+      {images.length > 1 && (
+        <>
+          <button
+            onClick={prev}
+            aria-label="Previous image"
+            style={{
+              position: "absolute",
+              left: "16px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              background: "rgba(255,255,255,0.1)",
+              border: "none",
+              color: "white",
+              fontSize: "28px",
+              width: "44px",
+              height: "44px",
+              borderRadius: "50%",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              lineHeight: 1,
+              zIndex: 1,
+            }}
+          >
+            ‹
+          </button>
+
+          <button
+            onClick={next}
+            aria-label="Next image"
+            style={{
+              position: "absolute",
+              right: "16px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              background: "rgba(255,255,255,0.1)",
+              border: "none",
+              color: "white",
+              fontSize: "28px",
+              width: "44px",
+              height: "44px",
+              borderRadius: "50%",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              lineHeight: 1,
+              zIndex: 1,
+            }}
+          >
+            ›
+          </button>
+        </>
+      )}
+
+      {/* Image */}
       <img
-        src={src}
-        alt="Full size"
+        src={images[index]}
+        alt={`Image ${index + 1}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           maxWidth: "92vw",
@@ -80,6 +203,60 @@ const Lightbox = ({ src, onClose }) => {
           cursor: "default",
         }}
       />
+
+      {/* Dot indicators */}
+      {images.length > 1 && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            bottom: "60px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "flex",
+            gap: "8px",
+          }}
+        >
+          {images.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setIndex(i)}
+              aria-label={`Go to image ${i + 1}`}
+              style={{
+                width: "10px",
+                height: "10px",
+                borderRadius: "50%",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                background: i === index ? "#ffffff" : "rgba(255,255,255,0.35)",
+                transition: "background 0.2s",
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Counter */}
+      {images.length > 1 && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "20px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            color: "white",
+            fontSize: "14px",
+            fontFamily: "'Nunito', sans-serif",
+            fontWeight: 700,
+            background: "rgba(255,255,255,0.1)",
+            padding: "4px 12px",
+            borderRadius: "12px",
+          }}
+        >
+          {index + 1} / {images.length}
+        </div>
+      )}
     </div>
   );
 };
@@ -98,7 +275,7 @@ const PostCard = ({
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [lightboxSrc, setLightboxSrc] = useState(null);
+  const [lightboxData, setLightboxData] = useState(null); // { images: [], startIndex: 0 }
   const pickerRef = useRef();
   const shareRef = useRef();
   const menuRef = useRef();
@@ -144,8 +321,12 @@ const PostCard = ({
 
   return (
     <>
-      {lightboxSrc && (
-        <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+      {lightboxData && (
+        <Lightbox
+          images={lightboxData.images}
+          startIndex={lightboxData.startIndex}
+          onClose={() => setLightboxData(null)}
+        />
       )}
 
       <div className="pf-card">
@@ -199,7 +380,9 @@ const PostCard = ({
                 <div
                   className="pf-img-grid-item"
                   key={idx}
-                  onClick={() => setLightboxSrc(url)}
+                  onClick={() =>
+                    setLightboxData({ images: post.image_urls, startIndex: idx })
+                  }
                 >
                   <img src={url} alt={`Post image ${idx + 1}`} loading="lazy" />
                   {idx === 3 && post.image_urls.length > 4 && (
@@ -217,7 +400,9 @@ const PostCard = ({
                 alt="Post"
                 className="pf-card-image"
                 loading="lazy"
-                onClick={() => setLightboxSrc(post.image_url)}
+                onClick={() =>
+                  setLightboxData({ images: [post.image_url], startIndex: 0 })
+                }
                 style={{ cursor: "zoom-in" }}
               />
             )

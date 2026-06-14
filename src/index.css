@@ -34,9 +34,24 @@ html, body, #root {
     -webkit-tap-highlight-color: transparent;
     touch-action: pan-x pan-y;
   }
-  
+
   html {
     touch-action: pan-x pan-y;
     -ms-touch-action: pan-x pan-y;
   }
+}
+
+/* ── Hide scrollbars globally (html, body, root, and inner scroll containers) ── */
+html, body, #root,
+.homePage, .home_mainPage {
+  scrollbar-width: none;       /* Firefox */
+  -ms-overflow-style: none;     /* IE/Edge legacy */
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+#root::-webkit-scrollbar,
+.homePage::-webkit-scrollbar,
+.home_mainPage::-webkit-scrollbar {
+  display: none;                /* Chrome, Safari, Edge (Chromium) */
 }

@@ -33,7 +33,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
     setIndex((i) => (i - 1 + images.length) % images.length);
   };
 
-  // Auto-advance through all images in sequence
   useEffect(() => {
     if (!autoPlay) return;
     const timer = setInterval(() => {
@@ -75,7 +74,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         cursor: "zoom-out",
       }}
     >
-      {/* Close button */}
       <button
         onClick={onClose}
         aria-label="Close"
@@ -101,7 +99,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         ✕
       </button>
 
-      {/* Play / Pause slideshow */}
       {images.length > 1 && (
         <button
           onClick={(e) => {
@@ -132,7 +129,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         </button>
       )}
 
-      {/* Prev / Next */}
       {images.length > 1 && (
         <>
           <button
@@ -189,7 +185,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         </>
       )}
 
-      {/* Image */}
       <img
         src={images[index]}
         alt={`Image ${index + 1}`}
@@ -204,7 +199,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         }}
       />
 
-      {/* Dot indicators */}
       {images.length > 1 && (
         <div
           onClick={(e) => e.stopPropagation()}
@@ -237,7 +231,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         </div>
       )}
 
-      {/* Counter */}
       {images.length > 1 && (
         <div
           style={{
@@ -275,7 +268,7 @@ const PostCard = ({
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [lightboxData, setLightboxData] = useState(null); // { images: [], startIndex: 0 }
+  const [lightboxData, setLightboxData] = useState(null);
   const pickerRef = useRef();
   const shareRef = useRef();
   const menuRef = useRef();
@@ -310,9 +303,12 @@ const PostCard = ({
     }
   };
 
+  // ✅ FIX: use correct domain + /api/og endpoint so shared links show
+  // the post's image as a thumbnail (OG meta tags) on WhatsApp/Telegram/etc.
   const handleCopyLink = () => {
+    const shareUrl = `https://zixplon-tawny.vercel.app/api/og?type=post&id=${post.id}`;
     navigator.clipboard
-      ?.writeText(`https://zixplon.app/post/${post.id}`)
+      ?.writeText(shareUrl)
       .catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

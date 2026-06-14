@@ -9,32 +9,56 @@ export default async function handler(req) {
   const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
   try {
-    const table = type === "reel" ? "reels" : "videos";
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}&select=*`,
-      {
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    let title, description, image, url;
 
-    const data = await res.json();
-    const item = data?.[0];
+    if (type === "post") {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/posts?id=eq.${id}&select=*`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const data = await res.json();
+      const item = data?.[0];
 
-    const title = item?.title || "Watch on ZIXPLON";
-    const description = item?.description || item?.channel || "Watch videos and reels on ZIXPLON";
-    const image = item?.thumbnail_url || item?.thumbnail || "https://zixplon-tawny.vercel.app/logo192.png";
-    const url = `https://zixplon-tawny.vercel.app/${type === "reel" ? `reels/db_${id}` : `video/${id}`}`;
+      title = item?.username ? `${item.username} on ZIXPLON` : "Post on ZIXPLON";
+      description = item?.text?.slice(0, 200) || "Check out this post on ZIXPLON";
+      image =
+        item?.image_url ||
+        item?.image_urls?.[0] ||
+        "https://zixplon-tawny.vercel.app/logo192.png";
+      url = `https://zixplon-tawny.vercel.app/feed?post=${id}`;
+    } else {
+      const table = type === "reel" ? "reels" : "videos";
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}&select=*`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const data = await res.json();
+      const item = data?.[0];
+
+      title = item?.title || "Watch on ZIXPLON";
+      description = item?.description || item?.channel || "Watch videos and reels on ZIXPLON";
+      image = item?.thumbnail_url || item?.thumbnail || "https://zixplon-tawny.vercel.app/logo192.png";
+      url = `https://zixplon-tawny.vercel.app/${type === "reel" ? `reels/db_${id}` : `video/${id}`}`;
+    }
 
     const html = `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
     <title>${title} — ZIXPLON</title>
-    <meta property="og:type" content="video.other" />
+    <meta property="og:type" content="${type === "post" ? "article" : "video.other"}" />
     <meta property="og:title" content="${title}" />
     <meta property="og:description" content="${description}" />
     <meta property="og:image" content="${image}" />

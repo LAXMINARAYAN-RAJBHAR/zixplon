@@ -40,9 +40,6 @@ const VideoUpload = () => {
   const [saving, setSaving] = useState(false);
   const [thumbSource, setThumbSource] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [archiveItemId, setArchiveItemId] = useState("");
-  const [activeProvider, setActiveProvider] = useState("");
-  const [archiveStatus, setArchiveStatus] = useState("");
 
   // ── Speed & ETA tracking ──
   const [uploadSpeed, setUploadSpeed] = useState(0);
@@ -88,10 +85,7 @@ const VideoUpload = () => {
     setImageUploaded(false);
     setThumbSource("");
     setError("");
-    setArchiveItemId("");
-    setActiveProvider("");
     setUploadProgress(0);
-    setArchiveStatus("");
     setUploadSpeed(0);
     setTimeRemaining("");
     uploadStartTime.current = null;
@@ -121,13 +115,6 @@ const VideoUpload = () => {
     } else {
       setTimeRemaining(`~${Math.ceil(remainSecs)} sec remaining`);
     }
-  };
-
-  // ── Auto-select provider based on file size ──
-  const autoSelectProvider = (file) => {
-    const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB < 500) return "cloudinary";
-    return "archive";
   };
 
   const getVideoDuration = (file) => {
@@ -257,142 +244,10 @@ const VideoUpload = () => {
     return urlData.publicUrl;
   };
 
-  const sanitizeForHeader = (str) =>
-    str.replace(/[^\w\s\-.,!?()]/g, "").trim() || "Untitled";
-
-  const uploadToArchive = async (file, titleOverride = "") => {
-    const ACCESS_KEY = process.env.REACT_APP_ARCHIVE_ACCESS;
-    const SECRET_KEY = process.env.REACT_APP_ARCHIVE_SECRET;
-
-    if (!ACCESS_KEY || !SECRET_KEY) {
-      throw new Error("Internet Archive API keys are missing.");
-    }
-
-    const username = (localStorage.getItem("username") || "user")
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, "");
-
-    const randomPart = Array.from(crypto.getRandomValues(new Uint8Array(8)))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-
-    let identifier = `zixplon-${username}-${Date.now()}-${randomPart}`;
-
-    try {
-      const checkRes = await fetch(`https://archive.org/metadata/${identifier}`);
-      const checkData = await checkRes.json();
-      if (checkData && checkData.metadata) {
-        const retryRandom = Array.from(crypto.getRandomValues(new Uint8Array(8)))
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
-        identifier = `zixplon-${username}-${Date.now()}-${retryRandom}`;
-      }
-    } catch (_) {}
-
-    const baseName = file.name
-      .replace(/\.[^/.]+$/, "")
-      .replace(/\s+/g, "_")
-      .replace(/[^\w\-]/g, "")
-      .slice(0, 80);
-
-    const fileName = `${baseName || "video"}.mp4`;
-
-    setArchiveItemId(identifier);
-    setArchiveStatus("Connecting to Archive.org...");
-
-    const CHUNK_SIZE = 200 * 1024 * 1024;
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    const PARALLEL = 2;
-
-    const safeTitle = sanitizeForHeader(titleOverride || file.name);
-    const safeDesc = sanitizeForHeader(inputField.description || "Uploaded via ZIXPLON");
-
-    let totalUploadedBytes = 0;
-
-    const uploadChunk = (chunkIndex) => {
-      return new Promise((resolve, reject) => {
-        const start = chunkIndex * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-
-        const chunkFileName =
-          totalChunks === 1
-            ? fileName
-            : `${fileName}.part${String(chunkIndex).padStart(4, "0")}`;
-
-        const xhr = new XMLHttpRequest();
-        xhr.open("PUT", `https://s3.us.archive.org/${identifier}/${chunkFileName}`);
-        xhr.setRequestHeader("Authorization", `LOW ${ACCESS_KEY}:${SECRET_KEY}`);
-        xhr.setRequestHeader("Content-Type", "video/mp4");
-        xhr.setRequestHeader("x-archive-meta-mediatype", "movies");
-        xhr.setRequestHeader("x-archive-meta-title", safeTitle);
-        xhr.setRequestHeader("x-archive-meta-description", safeDesc);
-        xhr.setRequestHeader("x-archive-meta-subject", "zixplon;video");
-        xhr.setRequestHeader("x-archive-auto-make-bucket", "1");
-        xhr.setRequestHeader("x-archive-meta-licenseurl", "http://creativecommons.org/licenses/by/4.0/");
-
-        let chunkUploaded = 0;
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            chunkUploaded = e.loaded;
-            const overall = Math.round(
-              ((chunkIndex + e.loaded / e.total) / totalChunks) * 100,
-            );
-            setUploadProgress(overall);
-            setArchiveStatus("Uploading your video...");
-            updateSpeedAndETA(totalUploadedBytes + chunkUploaded, file.size);
-          }
-        };
-
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            totalUploadedBytes += end - start;
-            resolve(chunkFileName);
-          } else {
-            console.error(`Archive chunk ${chunkIndex} failed`, xhr.status, xhr.responseText);
-            let reason = `Status ${xhr.status}`;
-            try {
-              const parser = new DOMParser();
-              const doc = parser.parseFromString(xhr.responseText, "text/xml");
-              const msg = doc.querySelector("Message, Error")?.textContent;
-              if (msg) reason = msg;
-            } catch (_) {}
-            reject(new Error(`Archive upload failed: ${reason}`));
-          }
-        };
-
-        xhr.onerror = () => {
-          reject(new Error("Network error uploading to Archive.org."));
-        };
-
-        xhr.send(chunk);
-      });
-    };
-
-    const chunkIndices = Array.from({ length: totalChunks }, (_, i) => i);
-
-    for (let i = 0; i < chunkIndices.length; i += PARALLEL) {
-      const batch = chunkIndices.slice(i, i + PARALLEL);
-      await Promise.all(batch.map((idx) => uploadChunk(idx)));
-      if (i + PARALLEL < chunkIndices.length) {
-        await new Promise((r) => setTimeout(r, 500));
-      }
-    }
-
-    setUploadProgress(100);
-    setArchiveStatus("Upload complete! Processing on Archive.org...");
-    setTimeRemaining("");
-
-    return totalChunks === 1
-      ? `https://archive.org/download/${identifier}/${fileName}`
-      : `https://archive.org/download/${identifier}/${fileName}.part0000`;
-  };
-
   const uploadVideo = async (e) => {
     setLoader(true);
     setError("");
     setUploadProgress(0);
-    setArchiveStatus("");
     setUploadSpeed(0);
     setTimeRemaining("");
     uploadStartTime.current = Date.now();
@@ -410,29 +265,13 @@ const VideoUpload = () => {
       return;
     }
 
-    const selectedProvider = autoSelectProvider(file);
-    const forcedProvider =
-      selectedProvider === "cloudinary" && file.size > 500 * 1024 * 1024
-        ? "archive"
-        : selectedProvider;
-
-    setActiveProvider(forcedProvider);
-
     try {
       const [, thumbnailBlob] = await Promise.all([
         getVideoDuration(file),
         captureThumbnail(file),
       ]);
 
-      let videoUrl = "";
-      if (forcedProvider === "supabase") {
-        videoUrl = await uploadToSupabase(file);
-        setUploadProgress(100);
-      } else if (forcedProvider === "cloudinary") {
-        videoUrl = await uploadToCloudinary(file);
-      } else if (forcedProvider === "archive") {
-        videoUrl = await uploadToArchive(file, inputField.title);
-      }
+      const videoUrl = await uploadToCloudinary(file);
 
       let thumbnailUrl = inputField.thumbnail;
       if (!imageUploaded) {
@@ -448,7 +287,6 @@ const VideoUpload = () => {
     } catch (err) {
       setLoader(false);
       setUploadProgress(0);
-      setArchiveStatus("");
       setTimeRemaining("");
       setError(err.message || "Upload failed. Please try again.");
       console.error("Upload error:", err);
@@ -503,7 +341,6 @@ const VideoUpload = () => {
     }
   };
 
-  // ── FIX: handleSubmit is correctly a self-contained async function ──
   const handleSubmit = async () => {
     if (!inputField.title)       return setError("Please enter a title.");
     if (!inputField.description) return setError("Please enter a description.");
@@ -542,7 +379,6 @@ const VideoUpload = () => {
         if (reelError) throw new Error(reelError.message);
       }
 
-      // ── Notify subscribers INSIDE handleSubmit, after successful save ──
       await notifySubscribers(
         inputField.title,
         uploadMode === "reel" ? "reel" : "video"
@@ -565,16 +401,6 @@ const VideoUpload = () => {
             <CheckCircleOutlineIcon sx={{ fontSize: "64px", color: "#4caf50" }} />
             <h2>{uploadMode === "reel" ? "Reel" : "Video"} Uploaded Successfully!</h2>
             <p>Your {uploadMode === "reel" ? "reel" : "video"} is now live on ZIXPLON&reg;</p>
-            {activeProvider === "archive" && archiveItemId && (
-              <a
-                href={`https://archive.org/details/${archiveItemId}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: "#3ea6ff", fontSize: "13px", marginBottom: "12px", display: "block", textDecoration: "none" }}
-              >
-                🏛️ View on Internet Archive →
-              </a>
-            )}
             <video src={inputField.videoLink} poster={inputField.thumbnail} controls className="upload_success_preview" />
             <h3>{inputField.title}</h3>
             <p className="upload_success_meta">
@@ -727,16 +553,14 @@ const VideoUpload = () => {
               <Box sx={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <CircularProgress size={28} sx={{ color: "orange" }} />
                 <span style={{ color: "#aaa", fontSize: "0.9rem" }}>
-                  {activeProvider === "archive"
-                    ? `🏛️ ${archiveStatus || "Uploading to Zixplon..."}`
-                    : `☁️ Uploading to Zixplon...`}
+                  ☁️ Uploading to Zixplon...
                 </span>
               </Box>
 
               <div style={{ width: "100%", background: "#333", borderRadius: "8px", height: "8px" }}>
                 <div style={{
                   width: `${uploadProgress}%`,
-                  background: activeProvider === "archive" ? "#3ea6ff" : "orange",
+                  background: "orange",
                   height: "100%", borderRadius: "8px", transition: "width 0.3s",
                 }} />
               </div>
@@ -748,19 +572,13 @@ const VideoUpload = () => {
                 </span>
                 {timeRemaining && (
                   <span style={{
-                    color: activeProvider === "archive" ? "#3ea6ff" : "orange",
+                    color: "orange",
                     fontSize: "0.8rem", fontWeight: 500,
                   }}>
                     ⏱ {timeRemaining}
                   </span>
                 )}
               </Box>
-
-              {activeProvider === "archive" && (
-                <p style={{ color: "#555", fontSize: "11px", margin: 0 }}>
-                  ⚠️ Large files may take several minutes from India to US servers. Screen will stay on automatically — do not close this tab.
-                </p>
-              )}
             </Box>
           )}
 

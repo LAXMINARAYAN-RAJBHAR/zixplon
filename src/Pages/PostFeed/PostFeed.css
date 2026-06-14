@@ -683,6 +683,117 @@
 .pf-load-more:hover { border-color: var(--zx-primary); color: var(--zx-primary); background: var(--zx-surface2); }
 .pf-load-more:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* ── Multi-image preview grid (composer) ── */
+.pf-img-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.pf-img-preview-grid .pf-img-preview-wrap {
+  aspect-ratio: 1 / 1;
+}
+
+.pf-img-preview-grid .pf-img-preview {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
+}
+
+.pf-image-count {
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--zx-text3);
+  align-self: center;
+  margin-left: 4px;
+}
+
+/* ── Multi-image grid (post card) ── */
+.pf-img-grid {
+  display: grid;
+  gap: 4px;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  border: 2px solid var(--zx-border);
+}
+
+.pf-img-grid-item {
+  position: relative;
+  cursor: zoom-in;
+  overflow: hidden;
+  background: var(--zx-surface2);
+}
+
+.pf-img-grid-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pf-img-grid-1 {
+  grid-template-columns: 1fr;
+}
+.pf-img-grid-1 .pf-img-grid-item {
+  aspect-ratio: 16 / 10;
+}
+
+.pf-img-grid-2 {
+  grid-template-columns: 1fr 1fr;
+}
+.pf-img-grid-2 .pf-img-grid-item {
+  aspect-ratio: 1 / 1;
+}
+
+.pf-img-grid-3 {
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.pf-img-grid-3 .pf-img-grid-item:nth-child(1) {
+  grid-row: 1 / 3;
+}
+.pf-img-grid-3 .pf-img-grid-item {
+  aspect-ratio: unset;
+}
+.pf-img-grid-3 {
+  height: 320px;
+}
+
+.pf-img-grid-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  height: 320px;
+}
+.pf-img-grid-4 .pf-img-grid-item {
+  aspect-ratio: unset;
+}
+
+.pf-img-grid-more {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Nunito', sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+@media (max-width: 768px) {
+  .pf-img-preview-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .pf-img-grid-3,
+  .pf-img-grid-4 {
+    height: 240px;
+  }
+}
+
 /* ══════════════════════════════════════
    MOBILE — max 768px
 ══════════════════════════════════════ */

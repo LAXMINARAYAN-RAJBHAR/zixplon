@@ -5,6 +5,8 @@ import axios from "axios";
 const CLOUDINARY_CLOUD = "dwoqk0yue";
 const CLOUDINARY_PRESET = "youtube-clone";
 
+const MAX_IMAGES = 6;
+
 const PRIVACY_OPTIONS = [
   { value: "public", label: "Public", icon: "🌐" },
   { value: "friends", label: "Friends", icon: "👥" },
@@ -18,8 +20,7 @@ const FEELINGS = [
 
 const PostComposer = ({ currentUser, onPost }) => {
   const [text, setText] = useState("");
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState("");
+  const [imageFiles, setImageFiles] = useState([]); // [{ file, preview }]
   const [linkUrl, setLinkUrl] = useState("");
   const [linkPreview, setLinkPreview] = useState(null);
   const [showLinkInput, setShowLinkInput] = useState(false);
@@ -32,20 +33,43 @@ const PostComposer = ({ currentUser, onPost }) => {
   const fileRef = useRef();
 
   const initials = currentUser.slice(0, 2).toUpperCase();
-  const canPost = text.trim() || imageFile || linkUrl;
+  const canPost = text.trim() || imageFiles.length > 0 || linkUrl;
 
   const handleImageSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setImagePreview(ev.target.result);
-    reader.readAsDataURL(file);
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    setError("");
+
+    const remainingSlots = MAX_IMAGES - imageFiles.length;
+    if (remainingSlots <= 0) {
+      setError(`You can attach up to ${MAX_IMAGES} images.`);
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+
+    const filesToAdd = files.slice(0, remainingSlots);
+    if (files.length > remainingSlots) {
+      setError(`Only ${remainingSlots} more image(s) can be added (max ${MAX_IMAGES}).`);
+    }
+
+    filesToAdd.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setImageFiles((prev) => [...prev, { file, preview: ev.target.result }]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (fileRef.current) fileRef.current.value = "";
   };
 
-  const clearImage = () => {
-    setImageFile(null);
-    setImagePreview("");
+  const removeImage = (index) => {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const clearAllImages = () => {
+    setImageFiles([]);
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -60,7 +84,7 @@ const PostComposer = ({ currentUser, onPost }) => {
     }
   };
 
-  const uploadImageToCloudinary = async (file) => {
+  const uploadImageToCloudinary = async (file, onProgress) => {
     const data = new FormData();
     data.append("file", file);
     data.append("upload_preset", CLOUDINARY_PRESET);
@@ -68,8 +92,7 @@ const PostComposer = ({ currentUser, onPost }) => {
       `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
       data,
       {
-        onUploadProgress: (e) =>
-          setUploadProgress(Math.round((e.loaded * 100) / e.total)),
+        onUploadProgress: (e) => onProgress(Math.round((e.loaded * 100) / e.total)),
       }
     );
     return res.data.secure_url;
@@ -82,15 +105,23 @@ const PostComposer = ({ currentUser, onPost }) => {
     setUploadProgress(0);
 
     try {
-      let imageUrl = null;
-      if (imageFile) {
-        imageUrl = await uploadImageToCloudinary(imageFile);
+      let imageUrls = [];
+      if (imageFiles.length > 0) {
+        const total = imageFiles.length;
+        for (let i = 0; i < total; i++) {
+          const url = await uploadImageToCloudinary(imageFiles[i].file, (pct) => {
+            const overall = Math.round(((i + pct / 100) / total) * 100);
+            setUploadProgress(overall);
+          });
+          imageUrls.push(url);
+        }
       }
 
       const payload = {
         username: currentUser,
         text: text.trim() || null,
-        image_url: imageUrl,
+        image_url: imageUrls[0] || null, // backward compatibility
+        image_urls: imageUrls.length > 0 ? imageUrls : null,
         link: linkPreview || null,
         feeling: feeling || null,
         privacy,
@@ -114,7 +145,7 @@ const PostComposer = ({ currentUser, onPost }) => {
 
       // Reset
       setText("");
-      clearImage();
+      clearAllImages();
       setLinkUrl("");
       setLinkPreview(null);
       setShowLinkInput(false);
@@ -145,10 +176,20 @@ const PostComposer = ({ currentUser, onPost }) => {
             <p className="pf-feeling-badge">— feeling {feeling}</p>
           )}
 
-          {imagePreview && (
-            <div className="pf-img-preview-wrap">
-              <img src={imagePreview} alt="Preview" className="pf-img-preview" />
-              <button className="pf-img-clear" onClick={clearImage} aria-label="Remove image">✕</button>
+          {imageFiles.length > 0 && (
+            <div className="pf-img-preview-grid">
+              {imageFiles.map((img, idx) => (
+                <div className="pf-img-preview-wrap" key={idx}>
+                  <img src={img.preview} alt={`Preview ${idx + 1}`} className="pf-img-preview" />
+                  <button
+                    className="pf-img-clear"
+                    onClick={() => removeImage(idx)}
+                    aria-label="Remove image"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
@@ -175,7 +216,9 @@ const PostComposer = ({ currentUser, onPost }) => {
 
           {posting && uploadProgress > 0 && (
             <div className="pf-progress-wrap">
-              <div className="pf-progress-bar" style={{ width: `${uploadProgress}%` }} />
+              <div className="pf-progress-bar-track">
+                <div className="pf-progress-bar" style={{ width: `${uploadProgress}%` }} />
+              </div>
               <span className="pf-progress-label">{uploadProgress}%</span>
             </div>
           )}
@@ -206,8 +249,10 @@ const PostComposer = ({ currentUser, onPost }) => {
               ref={fileRef}
               type="file"
               accept="image/*"
+              multiple
               style={{ display: "none" }}
               onChange={handleImageSelect}
+              disabled={imageFiles.length >= MAX_IMAGES}
             />
           </label>
           <button
@@ -220,6 +265,9 @@ const PostComposer = ({ currentUser, onPost }) => {
             title="Feeling"
             onClick={() => setShowFeelings((v) => !v)}
           >😊</button>
+          {imageFiles.length > 0 && (
+            <span className="pf-image-count">{imageFiles.length}/{MAX_IMAGES}</span>
+          )}
         </div>
 
         <div className="pf-composer-actions">

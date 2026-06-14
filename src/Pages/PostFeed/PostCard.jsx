@@ -19,7 +19,6 @@ const timeAgo = (dateStr) => {
   return `${Math.floor(diff / 86400)}d ago`;
 };
 
-// ── Lightbox Component ──────────────────────────────────────────────────────
 const Lightbox = ({ src, onClose }) => {
   useEffect(() => {
     const handleKey = (e) => { if (e.key === "Escape") onClose(); };
@@ -45,7 +44,6 @@ const Lightbox = ({ src, onClose }) => {
         cursor: "zoom-out",
       }}
     >
-      {/* Close button */}
       <button
         onClick={onClose}
         style={{
@@ -86,7 +84,6 @@ const Lightbox = ({ src, onClose }) => {
   );
 };
 
-// ── PostCard Component ──────────────────────────────────────────────────────
 const PostCard = ({
   post,
   currentUser,
@@ -101,7 +98,7 @@ const PostCard = ({
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [lightboxSrc, setLightboxSrc] = useState(null); // ── NEW
+  const [lightboxSrc, setLightboxSrc] = useState(null);
   const pickerRef = useRef();
   const shareRef = useRef();
   const menuRef = useRef();
@@ -113,7 +110,6 @@ const PostCard = ({
   );
   const myReact = REACTIONS.find((r) => r.key === post.myReaction);
 
-  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e) => {
       if (pickerRef.current && !pickerRef.current.contains(e.target))
@@ -148,13 +144,11 @@ const PostCard = ({
 
   return (
     <>
-      {/* ── Lightbox ── */}
       {lightboxSrc && (
         <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
       )}
 
       <div className="pf-card">
-        {/* Header */}
         <div className="pf-card-header">
           <div className="pf-avatar pf-avatar-green">{initials}</div>
           <div className="pf-card-meta">
@@ -196,20 +190,37 @@ const PostCard = ({
           )}
         </div>
 
-        {/* Body */}
         <div className="pf-card-body">
           {post.text && <p className="pf-card-text">{post.text}</p>}
 
-          {/* ── FIX: image is now clickable to open lightbox ── */}
-          {post.image_url && (
-            <img
-              src={post.image_url}
-              alt="Post"
-              className="pf-card-image"
-              loading="lazy"
-              onClick={() => setLightboxSrc(post.image_url)}
-              style={{ cursor: "zoom-in" }}
-            />
+          {post.image_urls && post.image_urls.length > 0 ? (
+            <div className={`pf-img-grid pf-img-grid-${Math.min(post.image_urls.length, 4)}`}>
+              {post.image_urls.slice(0, 4).map((url, idx) => (
+                <div
+                  className="pf-img-grid-item"
+                  key={idx}
+                  onClick={() => setLightboxSrc(url)}
+                >
+                  <img src={url} alt={`Post image ${idx + 1}`} loading="lazy" />
+                  {idx === 3 && post.image_urls.length > 4 && (
+                    <div className="pf-img-grid-more">
+                      +{post.image_urls.length - 4}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            post.image_url && (
+              <img
+                src={post.image_url}
+                alt="Post"
+                className="pf-card-image"
+                loading="lazy"
+                onClick={() => setLightboxSrc(post.image_url)}
+                style={{ cursor: "zoom-in" }}
+              />
+            )
           )}
 
           {post.link && (
@@ -229,7 +240,6 @@ const PostCard = ({
           )}
         </div>
 
-        {/* Reaction summary */}
         {totalReactions > 0 && (
           <div className="pf-reaction-summary">
             <div className="pf-reaction-emojis">
@@ -253,9 +263,7 @@ const PostCard = ({
           </div>
         )}
 
-        {/* Action bar */}
         <div className="pf-action-bar">
-          {/* Like with reaction picker */}
           <div className="pf-action-wrap" ref={pickerRef}>
             <button
               className={`pf-action-btn ${post.myReaction ? "pf-action-active" : ""}`}
@@ -311,7 +319,6 @@ const PostCard = ({
             💬 <span>Comment</span>
           </button>
 
-          {/* Share */}
           <div className="pf-action-wrap" ref={shareRef}>
             <button
               className="pf-action-btn"
@@ -338,7 +345,6 @@ const PostCard = ({
           </div>
         </div>
 
-        {/* Comments section */}
         {post.showComments && (
           <div className="pf-comments-section">
             {(post.comments || []).map((c) => (

@@ -3,6 +3,8 @@ import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbDownAltOutlinedIcon from "@mui/icons-material/ThumbDownAltOutlined";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import ReplyIcon from "@mui/icons-material/Reply";
+import VolumeUpIcon from "@mui/icons-material/VolumeUp";
+import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import "./reels.css";
 import { Link, useLocation, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
@@ -77,6 +79,18 @@ const fetchCount = async (contentId, contentType, reactionType) => {
 };
 
 // ─────────────────────────────────────────────
+// Global mute state — persists across reels so the
+// user's mute/unmute preference carries over when
+// scrolling from one reel to the next.
+// ─────────────────────────────────────────────
+let globalMuted = true;
+const muteListeners = new Set();
+const setGlobalMuted = (val) => {
+  globalMuted = val;
+  muteListeners.forEach((fn) => fn(val));
+};
+
+// ─────────────────────────────────────────────
 // ReelItem Component
 // ─────────────────────────────────────────────
 const ReelItem = ({ reel, allReels }) => {
@@ -87,6 +101,8 @@ const ReelItem = ({ reel, allReels }) => {
   const observerRef = useRef(null);
   const iconTimeoutRef = useRef(null);
   const commentPanelRef = useRef(null);
+  const lastTapRef = useRef(0);
+  const tapTimeoutRef = useRef(null);
 
   const loggedInUser = localStorage.getItem("username") || "Guest";
 
@@ -97,7 +113,7 @@ const ReelItem = ({ reel, allReels }) => {
   const [dislikeCount, setDislikeCount] = useState(0);
   const [likeCountLoading, setLikeCountLoading] = useState(true);
   const [isActing, setIsActing] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(globalMuted);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showIcon, setShowIcon] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -105,6 +121,17 @@ const ReelItem = ({ reel, allReels }) => {
   const [comments, setComments] = useState([]);
   const [shareToast, setShareToast] = useState(false);
   const [viewCount, setViewCount] = useState(0);
+  const [showHeartBurst, setShowHeartBurst] = useState(false);
+
+  // ── Sync this reel's mute state with the global mute preference ──
+  useEffect(() => {
+    const listener = (val) => {
+      setMuted(val);
+      if (videoRef.current) videoRef.current.muted = val;
+    };
+    muteListeners.add(listener);
+    return () => muteListeners.delete(listener);
+  }, []);
 
   // ── Close comments panel on outside click ──
   useEffect(() => {
@@ -221,7 +248,7 @@ const ReelItem = ({ reel, allReels }) => {
         if (entry.isIntersecting) {
           window.history.replaceState(null, "", `/reels/${reel.id}`);
           document.querySelectorAll("video").forEach((v) => { if (v !== video) v.pause(); });
-          video.muted = muted;
+          video.muted = globalMuted;
           video.play().catch(() => {});
           setIsPlaying(true);
         } else {
@@ -236,6 +263,7 @@ const ReelItem = ({ reel, allReels }) => {
       isMounted.current = false;
       observerRef.current?.disconnect();
       clearTimeout(iconTimeoutRef.current);
+      clearTimeout(tapTimeoutRef.current);
       if (videoRef.current) { videoRef.current.pause(); videoRef.current.src = ""; }
     };
   }, []);
@@ -246,12 +274,58 @@ const ReelItem = ({ reel, allReels }) => {
     iconTimeoutRef.current = setTimeout(() => setShowIcon(false), 800);
   };
 
+  const triggerHeartBurst = () => {
+    setShowHeartBurst(true);
+    setTimeout(() => setShowHeartBurst(false), 1000);
+  };
+
+  // ── Like a reel programmatically (used by double-tap) ──
+  const likeReel = async () => {
+    const userId = localStorage.getItem("userId");
+    if (!userId) { alert("Please login to like"); return; }
+    if (liked || isActing) return;
+    setIsActing(true);
+    try {
+      if (disliked) {
+        await supabase.from("likes").delete().match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "dislike" });
+        setDisliked(false);
+      }
+      await supabase.from("likes").upsert({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "like" }, { onConflict: "user_id,content_id,content_type,reaction_type" });
+      setLiked(true);
+      setLikeCount(await fetchCount(reel.id, "reel", "like"));
+      setDislikeCount(await fetchCount(reel.id, "reel", "dislike"));
+    } finally {
+      setIsActing(false);
+    }
+  };
+
+  // ── Single click: toggle play/pause. Double click/tap: like + heart burst ──
   const handleVideoClick = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.paused) { video.play().catch(() => {}); setIsPlaying(true); }
-    else { video.pause(); setIsPlaying(false); }
-    flashIcon();
+    const now = Date.now();
+    const isDoubleTap = now - lastTapRef.current < 300;
+    lastTapRef.current = now;
+
+    if (isDoubleTap) {
+      clearTimeout(tapTimeoutRef.current);
+      triggerHeartBurst();
+      likeReel();
+      return;
+    }
+
+    tapTimeoutRef.current = setTimeout(() => {
+      const video = videoRef.current;
+      if (!video) return;
+      if (video.paused) { video.play().catch(() => {}); setIsPlaying(true); }
+      else { video.pause(); setIsPlaying(false); }
+      flashIcon();
+    }, 250);
+  };
+
+  const handleToggleMute = (e) => {
+    e.stopPropagation();
+    const newMuted = !globalMuted;
+    setGlobalMuted(newMuted);
+    if (videoRef.current) videoRef.current.muted = newMuted;
   };
 
   const handleLike = async () => {
@@ -312,6 +386,16 @@ const ReelItem = ({ reel, allReels }) => {
 
         {!isYouTube(reel.src) && showIcon && (
           <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>
+        )}
+
+        {!isYouTube(reel.src) && showHeartBurst && (
+          <div className="reel_heart_burst">❤️</div>
+        )}
+
+        {!isYouTube(reel.src) && (
+          <button className="reel_mute_btn" onClick={handleToggleMute} aria-label={muted ? "Unmute" : "Mute"}>
+            {muted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+          </button>
         )}
 
         <div className="reel_actions">

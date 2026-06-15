@@ -376,3 +376,56 @@
 
   .reel_item { height: 100dvh; }
 }
+
+/* ── Mute toggle button (top-right of reel) ── */
+.reel_mute_btn {
+  position: absolute;
+  top: 16px;
+  right: 12px;
+  z-index: 15;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.18);
+  border: 1.5px solid rgba(255,255,255,0.35);
+  border-radius: 50%;
+  color: #ffffff;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: transform 0.15s, background 0.2s, border-color 0.2s;
+}
+
+.reel_mute_btn:hover {
+  background: rgba(255,255,255,0.28);
+  border-color: rgba(255,255,255,0.6);
+  transform: scale(1.08);
+}
+
+.reel_mute_btn:active { transform: scale(1.15); }
+
+.reel_mute_btn svg {
+  font-size: 20px;
+}
+
+/* ── Double-tap heart burst ── */
+.reel_heart_burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.3);
+  font-size: 90px;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  animation: reelHeartBurst 1s ease forwards;
+  filter: drop-shadow(0 4px 16px rgba(0,0,0,0.4));
+}
+
+@keyframes reelHeartBurst {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  25%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  45%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
+}

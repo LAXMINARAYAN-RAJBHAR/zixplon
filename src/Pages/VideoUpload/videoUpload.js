@@ -137,24 +137,84 @@ const VideoUpload = () => {
     });
   };
 
+  // ── FIXED: Reliable thumbnail capture ──
+  // Waits for an actual decoded frame before drawing to canvas, so the
+  // captured image is never a black/blank frame. Uses
+  // requestVideoFrameCallback where available (Chrome/Edge/Android),
+  // falls back to a short delay on browsers without it (Safari/Firefox).
   const captureThumbnail = (file) => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const video = document.createElement("video");
       const canvas = document.createElement("canvas");
-      video.preload = "metadata";
+      video.preload = "auto";
       video.muted = true;
       video.playsInline = true;
-      video.onloadeddata = () => { video.currentTime = 1; };
-      video.onseeked = () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => {
-          URL.revokeObjectURL(video.src);
-          resolve(blob);
-        }, "image/jpeg", 0.85);
+      video.crossOrigin = "anonymous";
+
+      let settled = false;
+
+      const cleanup = () => {
+        URL.revokeObjectURL(video.src);
       };
+
+      const finish = (result, err) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (err) reject(err);
+        else resolve(result);
+      };
+
+      const grabFrame = () => {
+        try {
+          canvas.width = video.videoWidth || 320;
+          canvas.height = video.videoHeight || 180;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              finish(null, new Error("Thumbnail capture failed."));
+              return;
+            }
+            finish(blob, null);
+          }, "image/jpeg", 0.85);
+        } catch (err) {
+          finish(null, err);
+        }
+      };
+
+      video.onloadedmetadata = () => {
+        // Pick a safe seek point: 1s in, or the midpoint for very short clips
+        const dur = video.duration || 0;
+        const seekTo = dur > 2 ? 1 : dur / 2;
+        try {
+          video.currentTime = seekTo || 0.1;
+        } catch (_) {
+          // If setting currentTime throws, just try grabbing directly
+          grabFrame();
+        }
+      };
+
+      video.onseeked = () => {
+        if ("requestVideoFrameCallback" in video) {
+          video.requestVideoFrameCallback(() => grabFrame());
+        } else {
+          // Give the browser a moment to actually paint the seeked frame
+          setTimeout(grabFrame, 200);
+        }
+      };
+
+      video.onerror = () => {
+        finish(null, new Error("Failed to load video for thumbnail."));
+      };
+
+      // Absolute safety timeout — never hang forever
+      setTimeout(() => {
+        if (!settled) finish(null, new Error("Thumbnail capture timed out."));
+      }, 8000);
+
       video.src = URL.createObjectURL(file);
+      video.load();
     });
   };
 
@@ -244,6 +304,18 @@ const VideoUpload = () => {
     return urlData.publicUrl;
   };
 
+  // ── Fallback: derive a thumbnail URL from Cloudinary's video transformation ──
+  // Used only if client-side captureThumbnail fails completely.
+  const buildCloudinaryFallbackThumbnail = (videoUrl) => {
+    try {
+      return videoUrl
+        .replace(/\.(mp4|webm|mov|mkv|m4v)$/i, ".jpg")
+        .replace("/video/upload/", "/video/upload/so_1,w_640,h_360,c_fill/");
+    } catch (_) {
+      return "";
+    }
+  };
+
   const uploadVideo = async (e) => {
     setLoader(true);
     setError("");
@@ -268,15 +340,26 @@ const VideoUpload = () => {
     try {
       const [, thumbnailBlob] = await Promise.all([
         getVideoDuration(file),
-        captureThumbnail(file),
+        captureThumbnail(file).catch((err) => {
+          console.warn("Client-side thumbnail capture failed:", err.message);
+          return null;
+        }),
       ]);
 
       const videoUrl = await uploadToCloudinary(file);
 
       let thumbnailUrl = inputField.thumbnail;
       if (!imageUploaded) {
-        thumbnailUrl = await uploadThumbnailToCloudinary(thumbnailBlob);
-        setThumbSource("auto");
+        if (thumbnailBlob) {
+          thumbnailUrl = await uploadThumbnailToCloudinary(thumbnailBlob);
+          setThumbSource("auto");
+        } else {
+          // Client-side capture failed (e.g. black frame / unsupported browser)
+          // — fall back to a Cloudinary-generated thumbnail from the uploaded video.
+          const fallback = buildCloudinaryFallbackThumbnail(videoUrl);
+          thumbnailUrl = fallback || thumbnailUrl;
+          setThumbSource("auto");
+        }
       }
 
       setInputField((prev) => ({ ...prev, videoLink: videoUrl, thumbnail: thumbnailUrl }));

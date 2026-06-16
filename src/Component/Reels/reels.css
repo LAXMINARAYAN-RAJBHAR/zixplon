@@ -429,3 +429,59 @@
   45%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
 }
+
+/* ══════════════════════════════════════════════════
+   REELS FULLSCREEN OVERRIDES
+   These hide the navbar, bottom nav, and footer
+   when the reels page is active (body.reels-open).
+   Add these to the BOTTOM of your reels.css file.
+══════════════════════════════════════════════════ */
+
+/* Hide top navbar completely on ALL screen sizes during reels */
+body.reels-open .navbar {
+  display: none !important;
+}
+
+/* Hide bottom nav on mobile during reels */
+body.reels-open .bottom-nav {
+  display: none !important;
+}
+
+/* Hide footer during reels */
+body.reels-open .footer {
+  display: none !important;
+}
+
+/* Remove any padding-bottom that bottom nav normally adds */
+body.reels-open .reels_container {
+  padding-bottom: 0 !important;
+}
+
+/* Ensure reels container covers the full viewport
+   now that navbar (56px) is gone */
+body.reels-open {
+  overflow: hidden;
+}
+
+body.reels-open .reel_item {
+  height: 100dvh;
+}
+
+/* On desktop: keep the reel card centered but use full height */
+@media (min-width: 769px) {
+  body.reels-open .reels_container {
+    height: 100dvh;
+  }
+}
+
+/* On mobile: true full-bleed fullscreen */
+@media (max-width: 768px) {
+  body.reels-open .reels_container {
+    height: 100dvh;
+    width: 100vw;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 10000;
+  }
+}

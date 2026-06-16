@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import "./videoUpload.css";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import CircularProgress from "@mui/material/CircularProgress";
 import Box from "@mui/material/Box";
@@ -19,17 +19,27 @@ const INITIAL_FIELDS = {
 
 const VideoUpload = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // ── Pick up remix data passed from Reels page ──
+  const remixData = location.state?.remixData || null;
 
   useEffect(() => {
     const user = localStorage.getItem("username");
     if (!user) navigate("/signup");
   }, []);
 
-  const [uploadMode, setUploadMode] = useState("video");
+  // If remix data is present, default to reel mode
+  const [uploadMode, setUploadMode] = useState(remixData ? "reel" : "video");
   const [showRecordModal, setShowRecordModal] = useState(false);
   const currentUser = localStorage.getItem("username") || "";
 
-  const [inputField, setInputField] = useState({ ...INITIAL_FIELDS });
+  const [inputField, setInputField] = useState({
+    ...INITIAL_FIELDS,
+    // Pre-fill title and description when remixing
+    title: remixData ? `Remix of "${remixData.remixed_from_title}"` : "",
+    description: remixData ? `🎬 Remixed from @${remixData.remixed_from_username}` : "",
+  });
 
   const [loader, setLoader] = useState(false);
   const [thumbLoader, setThumbLoader] = useState(false);
@@ -41,7 +51,6 @@ const VideoUpload = () => {
   const [thumbSource, setThumbSource] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // ── Speed & ETA tracking ──
   const [uploadSpeed, setUploadSpeed] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState("");
   const uploadStartTime = useRef(null);
@@ -49,7 +58,6 @@ const VideoUpload = () => {
 
   const durationRef = useRef("00:00");
 
-  // ── Wake Lock — keeps screen on during upload ──
   const wakeLockRef = useRef(null);
 
   const requestWakeLock = async () => {
@@ -98,7 +106,6 @@ const VideoUpload = () => {
     resetState();
   };
 
-  // ── Speed & ETA calculator ──
   const updateSpeedAndETA = (loadedBytes, totalBytes) => {
     if (!uploadStartTime.current) return;
     const elapsed = (Date.now() - uploadStartTime.current) / 1000;
@@ -137,11 +144,6 @@ const VideoUpload = () => {
     });
   };
 
-  // ── FIXED: Reliable thumbnail capture ──
-  // Waits for an actual decoded frame before drawing to canvas, so the
-  // captured image is never a black/blank frame. Uses
-  // requestVideoFrameCallback where available (Chrome/Edge/Android),
-  // falls back to a short delay on browsers without it (Safari/Firefox).
   const captureThumbnail = (file) => {
     return new Promise((resolve, reject) => {
       const video = document.createElement("video");
@@ -153,9 +155,7 @@ const VideoUpload = () => {
 
       let settled = false;
 
-      const cleanup = () => {
-        URL.revokeObjectURL(video.src);
-      };
+      const cleanup = () => { URL.revokeObjectURL(video.src); };
 
       const finish = (result, err) => {
         if (settled) return;
@@ -172,10 +172,7 @@ const VideoUpload = () => {
           const ctx = canvas.getContext("2d");
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           canvas.toBlob((blob) => {
-            if (!blob) {
-              finish(null, new Error("Thumbnail capture failed."));
-              return;
-            }
+            if (!blob) { finish(null, new Error("Thumbnail capture failed.")); return; }
             finish(blob, null);
           }, "image/jpeg", 0.85);
         } catch (err) {
@@ -184,34 +181,21 @@ const VideoUpload = () => {
       };
 
       video.onloadedmetadata = () => {
-        // Pick a safe seek point: 1s in, or the midpoint for very short clips
         const dur = video.duration || 0;
         const seekTo = dur > 2 ? 1 : dur / 2;
-        try {
-          video.currentTime = seekTo || 0.1;
-        } catch (_) {
-          // If setting currentTime throws, just try grabbing directly
-          grabFrame();
-        }
+        try { video.currentTime = seekTo || 0.1; } catch (_) { grabFrame(); }
       };
 
       video.onseeked = () => {
         if ("requestVideoFrameCallback" in video) {
           video.requestVideoFrameCallback(() => grabFrame());
         } else {
-          // Give the browser a moment to actually paint the seeked frame
           setTimeout(grabFrame, 200);
         }
       };
 
-      video.onerror = () => {
-        finish(null, new Error("Failed to load video for thumbnail."));
-      };
-
-      // Absolute safety timeout — never hang forever
-      setTimeout(() => {
-        if (!settled) finish(null, new Error("Thumbnail capture timed out."));
-      }, 8000);
+      video.onerror = () => { finish(null, new Error("Failed to load video for thumbnail.")); };
+      setTimeout(() => { if (!settled) finish(null, new Error("Thumbnail capture timed out.")); }, 8000);
 
       video.src = URL.createObjectURL(file);
       video.load();
@@ -222,9 +206,7 @@ const VideoUpload = () => {
     const data = new FormData();
     data.append("file", blob, "thumbnail.jpg");
     data.append("upload_preset", "youtube-clone");
-    const res = await axios.post(
-      "https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", data,
-    );
+    const res = await axios.post("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", data);
     return res.data.secure_url;
   };
 
@@ -277,9 +259,7 @@ const VideoUpload = () => {
           },
           timeout: 0,
           onUploadProgress: (e) => {
-            const overall = Math.round(
-              ((chunkIndex + e.loaded / e.total) / totalChunks) * 100,
-            );
+            const overall = Math.round(((chunkIndex + e.loaded / e.total) / totalChunks) * 100);
             setUploadProgress(overall);
             updateSpeedAndETA(totalUploaded + e.loaded, file.size);
           },
@@ -291,21 +271,6 @@ const VideoUpload = () => {
     return videoUrl;
   };
 
-  const uploadToSupabase = async (file) => {
-    const fileName = `${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
-    const folder = uploadMode === "reel" ? "reels" : "videos";
-    const { error } = await supabase.storage
-      .from("media")
-      .upload(`${folder}/${fileName}`, file, { cacheControl: "3600", upsert: false });
-    if (error) throw new Error(`Storage error: ${error.message}`);
-    const { data: urlData } = supabase.storage
-      .from("media")
-      .getPublicUrl(`${folder}/${fileName}`);
-    return urlData.publicUrl;
-  };
-
-  // ── Fallback: derive a thumbnail URL from Cloudinary's video transformation ──
-  // Used only if client-side captureThumbnail fails completely.
   const buildCloudinaryFallbackThumbnail = (videoUrl) => {
     try {
       return videoUrl
@@ -354,8 +319,6 @@ const VideoUpload = () => {
           thumbnailUrl = await uploadThumbnailToCloudinary(thumbnailBlob);
           setThumbSource("auto");
         } else {
-          // Client-side capture failed (e.g. black frame / unsupported browser)
-          // — fall back to a Cloudinary-generated thumbnail from the uploaded video.
           const fallback = buildCloudinaryFallbackThumbnail(videoUrl);
           thumbnailUrl = fallback || thumbnailUrl;
           setThumbSource("auto");
@@ -397,18 +360,14 @@ const VideoUpload = () => {
     }
   };
 
-  // ── Notify all subscribers when content is uploaded ──
   const notifySubscribers = async (title, type) => {
     const uploaderUsername = localStorage.getItem("username");
     if (!uploaderUsername) return;
-
     const { data: subUsers } = await supabase
       .from("subscriptions")
       .select("subscriber_username")
       .eq("subscribed_to", uploaderUsername);
-
     if (!subUsers || subUsers.length === 0) return;
-
     const notifications = subUsers
       .filter((s) => s.subscriber_username)
       .map((s) => ({
@@ -418,10 +377,22 @@ const VideoUpload = () => {
         message: `${uploaderUsername} uploaded a new ${type}: "${title}"`,
         is_read: false,
       }));
-
     if (notifications.length > 0) {
       await supabase.from("notifications").insert(notifications);
     }
+  };
+
+  // ── Notify original creator when their reel is remixed ──
+  const notifyRemixedCreator = async (title) => {
+    if (!remixData) return;
+    const remixerUsername = localStorage.getItem("username");
+    await supabase.from("notifications").insert({
+      recipient_username: remixData.remixed_from_username,
+      sender_username: remixerUsername,
+      type: "upload",
+      message: `@${remixerUsername} remixed your reel "${remixData.remixed_from_title}" with "${title}" 🎬`,
+      is_read: false,
+    });
   };
 
   const handleSubmit = async () => {
@@ -448,7 +419,8 @@ const VideoUpload = () => {
         }]);
         if (videoError) throw new Error(videoError.message);
       } else {
-        const { error: reelError } = await supabase.from("reels").insert([{
+        // ── Reel insert — include remix columns if remixing ──
+        const reelPayload = {
           title:       inputField.title,
           description: inputField.description,
           video_url:   inputField.videoLink,
@@ -458,14 +430,21 @@ const VideoUpload = () => {
           duration:    durationRef.current,
           likes:       0,
           comments:    0,
-        }]);
+        };
+
+        if (remixData) {
+          reelPayload.remixed_from_id = remixData.remixed_from_id;
+          reelPayload.remixed_from_username = remixData.remixed_from_username;
+        }
+
+        const { error: reelError } = await supabase.from("reels").insert([reelPayload]);
         if (reelError) throw new Error(reelError.message);
+
+        // Notify the original creator if this is a remix
+        if (remixData) await notifyRemixedCreator(inputField.title);
       }
 
-      await notifySubscribers(
-        inputField.title,
-        uploadMode === "reel" ? "reel" : "video"
-      );
+      await notifySubscribers(inputField.title, uploadMode === "reel" ? "reel" : "video");
 
       setSaving(false);
       setSubmitted(true);
@@ -482,8 +461,13 @@ const VideoUpload = () => {
         <div className="uploadBox">
           <div className="upload_success_screen">
             <CheckCircleOutlineIcon sx={{ fontSize: "64px", color: "#4caf50" }} />
-            <h2>{uploadMode === "reel" ? "Reel" : "Video"} Uploaded Successfully!</h2>
-            <p>Your {uploadMode === "reel" ? "reel" : "video"} is now live on ZIXPLON&reg;</p>
+            <h2>{remixData ? "Remix" : uploadMode === "reel" ? "Reel" : "Video"} Uploaded Successfully!</h2>
+            <p>Your {remixData ? "remix" : uploadMode === "reel" ? "reel" : "video"} is now live on ZIXPLON&reg;</p>
+            {remixData && (
+              <p style={{ fontSize: "13px", color: "#7c3aed", fontWeight: 700 }}>
+                🎬 Remixed from @{remixData.remixed_from_username}
+              </p>
+            )}
             <video src={inputField.videoLink} poster={inputField.thumbnail} controls className="upload_success_preview" />
             <h3>{inputField.title}</h3>
             <p className="upload_success_meta">
@@ -508,35 +492,49 @@ const VideoUpload = () => {
       <div className="uploadBox">
         <div className="uploadVideoTitle">
           <CloudUploadIcon sx={{ fontSize: "54px", color: "orange" }} />
-          Upload
+          {remixData ? "Remix Reel" : "Upload"}
         </div>
 
-        <div className="upload_mode_toggle">
-          <div
-            className={`upload_mode_btn ${uploadMode === "video" ? "active" : ""}`}
-            onClick={() => switchMode("video")}
-          >
-            🎬 Video
+        {/* ── Remix banner — shown when coming from a reel's Remix button ── */}
+        {remixData && (
+          <div className="upload_remix_banner">
+            <img src={remixData.remixed_from_thumbnail} alt="original" className="upload_remix_thumb" />
+            <div className="upload_remix_banner_text">
+              <span className="upload_remix_label">🎬 Remixing</span>
+              <span className="upload_remix_title">"{remixData.remixed_from_title}"</span>
+              <span className="upload_remix_by">by @{remixData.remixed_from_username}</span>
+            </div>
           </div>
-          <div
-            className={`upload_mode_btn ${uploadMode === "reel" ? "active" : ""}`}
-            onClick={() => switchMode("reel")}
-          >
-            📱 Shorts
+        )}
+
+        {!remixData && (
+          <div className="upload_mode_toggle">
+            <div
+              className={`upload_mode_btn ${uploadMode === "video" ? "active" : ""}`}
+              onClick={() => switchMode("video")}
+            >
+              🎬 Video
+            </div>
+            <div
+              className={`upload_mode_btn ${uploadMode === "reel" ? "active" : ""}`}
+              onClick={() => switchMode("reel")}
+            >
+              📱 Shorts
+            </div>
+            <div
+              className="upload_mode_btn"
+              onClick={() => setShowRecordModal(true)}
+              style={{ position: "relative", cursor: "pointer" }}
+            >
+              <span style={{
+                position: "absolute", top: "-4px", right: "-4px",
+                width: "8px", height: "8px", borderRadius: "50%",
+                background: "#ff0000", animation: "recordPulse 1.2s infinite",
+              }} />
+              🔴 Record / Live
+            </div>
           </div>
-          <div
-            className="upload_mode_btn"
-            onClick={() => setShowRecordModal(true)}
-            style={{ position: "relative", cursor: "pointer" }}
-          >
-            <span style={{
-              position: "absolute", top: "-4px", right: "-4px",
-              width: "8px", height: "8px", borderRadius: "50%",
-              background: "#ff0000", animation: "recordPulse 1.2s infinite",
-            }} />
-            🔴 Record / Live
-          </div>
-        </div>
+        )}
 
         {showRecordModal && (
           <RecordModal onClose={() => setShowRecordModal(false)} currentUser={currentUser} />
@@ -549,9 +547,15 @@ const VideoUpload = () => {
           }
         `}</style>
 
-        {uploadMode === "reel" && (
+        {uploadMode === "reel" && !remixData && (
           <p className="upload_mode_hint">
             Reels are short vertical videos — they appear in the Reels / Shorts section.
+          </p>
+        )}
+
+        {remixData && (
+          <p className="upload_mode_hint">
+            Upload your own video response to this reel. Your remix will credit the original creator.
           </p>
         )}
 
@@ -560,7 +564,7 @@ const VideoUpload = () => {
             type="text"
             value={inputField.title}
             onChange={(e) => handleOnChangeInput(e, "title")}
-            placeholder={uploadMode === "reel" ? "Reel Title" : "Title of Video"}
+            placeholder={remixData ? "Remix Title" : uploadMode === "reel" ? "Reel Title" : "Title of Video"}
             className="uploadFormInputs"
           />
           <input
@@ -570,7 +574,7 @@ const VideoUpload = () => {
             placeholder="Description"
             className="uploadFormInputs"
           />
-          {uploadMode === "video" && (
+          {uploadMode === "video" && !remixData && (
             <input
               type="text"
               value={inputField.videoType}
@@ -582,7 +586,7 @@ const VideoUpload = () => {
 
           <div className="upload_file_row">
             <span className="upload_file_label">
-              {uploadMode === "reel" ? "Reel Video" : "Video"}
+              {remixData ? "Your Remix Video" : uploadMode === "reel" ? "Reel Video" : "Video"}
             </span>
             <input
               type="file"
@@ -596,8 +600,8 @@ const VideoUpload = () => {
               onClick={() => document.getElementById("videoInput").click()}
             >
               {videoUploaded
-                ? `✅ Change ${uploadMode === "reel" ? "Reel" : "Video"}`
-                : `🎬 Choose ${uploadMode === "reel" ? "Reel" : "Video"}`}
+                ? `✅ Change ${remixData ? "Remix" : uploadMode === "reel" ? "Reel" : "Video"}`
+                : `🎬 Choose ${remixData ? "Remix" : uploadMode === "reel" ? "Reel" : "Video"}`}
             </span>
           </div>
 
@@ -639,7 +643,6 @@ const VideoUpload = () => {
                   ☁️ Uploading to Zixplon...
                 </span>
               </Box>
-
               <div style={{ width: "100%", background: "#333", borderRadius: "8px", height: "8px" }}>
                 <div style={{
                   width: `${uploadProgress}%`,
@@ -647,17 +650,13 @@ const VideoUpload = () => {
                   height: "100%", borderRadius: "8px", transition: "width 0.3s",
                 }} />
               </div>
-
               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ color: "#666", fontSize: "0.8rem" }}>
                   {uploadProgress}% complete
                   {uploadSpeed > 0 ? ` • ${uploadSpeed} MB/s` : ""}
                 </span>
                 {timeRemaining && (
-                  <span style={{
-                    color: "orange",
-                    fontSize: "0.8rem", fontWeight: 500,
-                  }}>
+                  <span style={{ color: "orange", fontSize: "0.8rem", fontWeight: 500 }}>
                     ⏱ {timeRemaining}
                   </span>
                 )}
@@ -677,9 +676,15 @@ const VideoUpload = () => {
               ? "Saving..."
               : loader
                 ? `Uploading... ${uploadProgress}%`
-                : `Upload ${uploadMode === "reel" ? "Reel" : "Video"}`}
+                : remixData
+                  ? "Post Remix"
+                  : `Upload ${uploadMode === "reel" ? "Reel" : "Video"}`}
           </div>
-          <Link to={"/"} className="uploadBtns-form">Home</Link>
+          {remixData ? (
+            <div className="uploadBtns-form" onClick={() => navigate(-1)}>Cancel</div>
+          ) : (
+            <Link to={"/"} className="uploadBtns-form">Home</Link>
+          )}
         </div>
       </div>
     </div>

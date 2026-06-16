@@ -5,6 +5,7 @@ import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import ReplyIcon from "@mui/icons-material/Reply";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import VolumeOffIcon from "@mui/icons-material/VolumeOff";
+import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import "./reels.css";
 import { Link, useLocation, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
@@ -78,11 +79,6 @@ const fetchCount = async (contentId, contentType, reactionType) => {
   return Math.max(0, count ?? 0);
 };
 
-// ─────────────────────────────────────────────
-// Global mute state — persists across reels so the
-// user's mute/unmute preference carries over when
-// scrolling from one reel to the next.
-// ─────────────────────────────────────────────
 let globalMuted = true;
 const muteListeners = new Set();
 const setGlobalMuted = (val) => {
@@ -90,9 +86,6 @@ const setGlobalMuted = (val) => {
   muteListeners.forEach((fn) => fn(val));
 };
 
-// ─────────────────────────────────────────────
-// ReelItem Component
-// ─────────────────────────────────────────────
 const ReelItem = ({ reel, allReels }) => {
   const navigate = useNavigate();
   const videoRef = useRef(null);
@@ -120,10 +113,10 @@ const ReelItem = ({ reel, allReels }) => {
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState([]);
   const [shareToast, setShareToast] = useState(false);
+  const [remixToast, setRemixToast] = useState(false);
   const [viewCount, setViewCount] = useState(0);
   const [showHeartBurst, setShowHeartBurst] = useState(false);
 
-  // ── Sync this reel's mute state with the global mute preference ──
   useEffect(() => {
     const listener = (val) => {
       setMuted(val);
@@ -133,7 +126,6 @@ const ReelItem = ({ reel, allReels }) => {
     return () => muteListeners.delete(listener);
   }, []);
 
-  // ── Close comments panel on outside click ──
   useEffect(() => {
     if (!showComments) return;
     const handleOutsideClick = (e) => {
@@ -228,6 +220,29 @@ const ReelItem = ({ reel, allReels }) => {
     setTimeout(() => setShareToast(false), 2500);
   };
 
+  // ── Remix: navigate to upload pre-filled with this reel's info ──
+  const handleRemix = () => {
+    const currentUser = localStorage.getItem("username");
+    if (!currentUser) { alert("Please login to remix"); return; }
+    if (currentUser === reel.username) { alert("You cannot remix your own reel"); return; }
+    if (videoRef.current) videoRef.current.pause();
+    setRemixToast(true);
+    setTimeout(() => {
+      setRemixToast(false);
+      navigate("/763/upload", {
+        state: {
+          remixData: {
+            remixed_from_id: String(reel.id),
+            remixed_from_username: reel.username,
+            remixed_from_user: reel.user,
+            remixed_from_title: reel.title,
+            remixed_from_thumbnail: reel.thumbnail,
+          },
+        },
+      });
+    }, 800);
+  };
+
   const isYouTube = (url) => url && (url.includes("youtube.com") || url.includes("youtu.be"));
   const getEmbedUrl = (url) => {
     if (url.includes("youtube.com/shorts/")) { const id = url.split("/shorts/")[1].split("?")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
@@ -279,11 +294,9 @@ const ReelItem = ({ reel, allReels }) => {
     setTimeout(() => setShowHeartBurst(false), 1000);
   };
 
-  // ── Like a reel programmatically (used by double-tap) ──
   const likeReel = async () => {
     const userId = localStorage.getItem("userId");
-    if (!userId) { alert("Please login to like"); return; }
-    if (liked || isActing) return;
+    if (!userId || liked || isActing) return;
     setIsActing(true);
     try {
       if (disliked) {
@@ -294,24 +307,19 @@ const ReelItem = ({ reel, allReels }) => {
       setLiked(true);
       setLikeCount(await fetchCount(reel.id, "reel", "like"));
       setDislikeCount(await fetchCount(reel.id, "reel", "dislike"));
-    } finally {
-      setIsActing(false);
-    }
+    } finally { setIsActing(false); }
   };
 
-  // ── Single click: toggle play/pause. Double click/tap: like + heart burst ──
   const handleVideoClick = () => {
     const now = Date.now();
     const isDoubleTap = now - lastTapRef.current < 300;
     lastTapRef.current = now;
-
     if (isDoubleTap) {
       clearTimeout(tapTimeoutRef.current);
       triggerHeartBurst();
       likeReel();
       return;
     }
-
     tapTimeoutRef.current = setTimeout(() => {
       const video = videoRef.current;
       if (!video) return;
@@ -398,6 +406,14 @@ const ReelItem = ({ reel, allReels }) => {
           </button>
         )}
 
+        {/* ── Remix origin badge shown on remixed reels ── */}
+        {reel.remixed_from_username && (
+          <div className="reel_remix_origin_badge" onClick={() => navigate(`/reels/${reel.remixed_from_id}`)}>
+            <MusicNoteIcon style={{ fontSize: "12px" }} />
+            🎬 Remixed from @{reel.remixed_from_username}
+          </div>
+        )}
+
         <div className="reel_actions">
           <div className={`reel_action_btn reel_like_btn ${liked ? "reel_liked" : ""}`} onClick={handleLike} style={{ opacity: isActing ? 0.6 : 1, pointerEvents: isActing ? "none" : "auto" }}>
             <span className="reel_like_inner">
@@ -419,6 +435,12 @@ const ReelItem = ({ reel, allReels }) => {
           <div className="reel_action_btn" onClick={handleShare}>
             <ReplyIcon style={{ color: "white", transform: "scaleX(-1)" }} />
             <span>Share</span>
+          </div>
+
+          {/* ── Remix button ── */}
+          <div className="reel_action_btn reel_remix_btn" onClick={handleRemix}>
+            <MusicNoteIcon style={{ color: "white" }} />
+            <span>Remix</span>
           </div>
         </div>
 
@@ -444,6 +466,9 @@ const ReelItem = ({ reel, allReels }) => {
         )}
 
         {shareToast && <div className="reel_share_toast">Link copied to clipboard ✓</div>}
+        {remixToast && (
+          <div className="reel_share_toast reel_remix_toast">🎬 Opening remix editor...</div>
+        )}
 
         <div className="reel_info">
           <div className="reel_user">
@@ -466,23 +491,15 @@ const ReelItem = ({ reel, allReels }) => {
   );
 };
 
-// ─────────────────────────────────────────────
-// Reels Page Component
-// ─────────────────────────────────────────────
 const Reels = () => {
   const { id } = useParams();
   const location = useLocation();
   const [dbReels, setDbReels] = useState([]);
   const [dbLoading, setDbLoading] = useState(true);
 
-  // ── FIX: Add reels-open class to body when Reels page mounts,
-  //         remove it when it unmounts. This hides the footer and
-  //         bottom nav on mobile so they never overlap the player. ──
   useEffect(() => {
     document.body.classList.add("reels-open");
-    return () => {
-      document.body.classList.remove("reels-open");
-    };
+    return () => { document.body.classList.remove("reels-open"); };
   }, []);
 
   useEffect(() => {
@@ -502,6 +519,8 @@ const Reels = () => {
             profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
             description: r.description || "",
             likes: 0,
+            remixed_from_id: r.remixed_from_id || null,
+            remixed_from_username: r.remixed_from_username || null,
           }))
         );
       }
@@ -513,7 +532,20 @@ const Reels = () => {
       .channel("reels-page-channel")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "reels" }, (payload) => {
         const r = payload.new;
-        setDbReels((prev) => [{ id: `db_${r.id}`, src: r.video_url, thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99", title: r.title || "Untitled", duration: r.duration || "00:00", user: r.user || r.username || "Unknown", username: r.username || "unknown", profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`, description: r.description || "", likes: 0 }, ...prev]);
+        setDbReels((prev) => [{
+          id: `db_${r.id}`,
+          src: r.video_url,
+          thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99",
+          title: r.title || "Untitled",
+          duration: r.duration || "00:00",
+          user: r.user || r.username || "Unknown",
+          username: r.username || "unknown",
+          profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
+          description: r.description || "",
+          likes: 0,
+          remixed_from_id: r.remixed_from_id || null,
+          remixed_from_username: r.remixed_from_username || null,
+        }, ...prev]);
       })
       .subscribe();
 
@@ -544,9 +576,7 @@ const Reels = () => {
     return baseReels;
   }, [baseReels, id, location.state]);
 
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }, [id]);
+  useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, [id]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {

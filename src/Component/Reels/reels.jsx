@@ -514,7 +514,8 @@ const ReelItem = ({ reel, allReels }) => {
 
         {!isYouTube(reel.src) && (
           <button className="reel_mute_btn" onClick={handleToggleMute} aria-label={muted ? "Unmute" : "Mute"}>
-            {muted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+            {muted ? <VolumeOffIcon sx={{ fontSize: 26 }} /> : <VolumeUpIcon sx={{ fontSize: 26 }} />}
+            <span className="reel_mute_btn_label">{muted ? "Tap to unmute" : "Tap to mute"}</span>
           </button>
         )}
 

@@ -10,6 +10,10 @@
   --zx-border: #e0d4ff;
 }
 
+/* ══════════════════════════════════════
+   CONTAINER & LAYOUT
+══════════════════════════════════════ */
+
 .reels_container {
   scroll-snap-type: y mandatory;
   overflow-y: scroll;
@@ -34,6 +38,10 @@
   background: transparent;
 }
 
+/* ══════════════════════════════════════
+   VIDEO WRAPPER
+══════════════════════════════════════ */
+
 .reel_video_wrapper {
   position: relative;
   width: 380px;
@@ -47,7 +55,7 @@
   box-shadow: 0 20px 60px rgba(124,58,237,0.18), 0 4px 20px rgba(124,58,237,0.10);
 }
 
-/* Colorful top-left corner accent */
+/* Gradient top accent bar */
 .reel_video_wrapper::before {
   content: '';
   position: absolute;
@@ -58,15 +66,7 @@
   pointer-events: none;
 }
 
-.reel_video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border: none;
-  display: block;
-}
-
-/* Gradient overlay on reel */
+/* Bottom gradient overlay */
 .reel_video_wrapper::after {
   content: "";
   position: absolute;
@@ -77,10 +77,21 @@
   border-radius: inherit;
 }
 
+.reel_video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: none;
+  display: block;
+}
+
 .reel_video::-webkit-media-controls-fullscreen-button { display: none !important; }
 .reel_video::-moz-media-controls-fullscreen-button    { display: none !important; }
 
-/* ── Action buttons ── */
+/* ══════════════════════════════════════
+   ACTION BAR (right rail)
+══════════════════════════════════════ */
+
 .reel_actions {
   position: absolute;
   right: 12px;
@@ -119,7 +130,10 @@
 
 .reel_action_btn:active { transform: scale(1.15); }
 
-/* ── User info bottom left ── */
+/* ══════════════════════════════════════
+   USER INFO (bottom-left)
+══════════════════════════════════════ */
+
 .reel_info {
   position: absolute;
   bottom: 55px;
@@ -180,7 +194,10 @@
   text-shadow: 0 1px 5px rgba(0,0,0,0.6);
 }
 
-/* ── Play/Pause icon ── */
+/* ══════════════════════════════════════
+   PLAY / PAUSE ICON (center flash)
+══════════════════════════════════════ */
+
 .reel_play_icon {
   position: absolute;
   top: 50%;
@@ -203,12 +220,140 @@
 }
 
 @keyframes fadeOut {
-  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1);   }
   60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
 }
 
-/* ── Comment panel ── */
+/* ══════════════════════════════════════
+   MUTE BUTTON — centered floating pill
+══════════════════════════════════════ */
+
+.reel_mute_btn {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 40px;
+  background: rgba(0, 0, 0, 0.52);
+  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: #ffffff;
+  cursor: pointer;
+  z-index: 15;
+  animation: mutePillFadeOut 2.8s ease forwards;
+  pointer-events: auto;
+}
+
+@keyframes mutePillFadeOut {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
+  65%  { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.92); pointer-events: none; }
+}
+
+.reel_mute_btn svg { font-size: 26px; flex-shrink: 0; }
+
+.reel_mute_btn_label {
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.reel_mute_btn:hover {
+  background: rgba(0, 0, 0, 0.72);
+  border-color: rgba(255, 255, 255, 0.55);
+  animation-play-state: paused;
+  transform: translate(-50%, -50%) scale(1.04);
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.reel_mute_btn:active { transform: translate(-50%, -50%) scale(0.97); }
+
+/* ══════════════════════════════════════
+   DOUBLE-TAP HEART BURST
+══════════════════════════════════════ */
+
+.reel_heart_burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.3);
+  font-size: 90px;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  animation: reelHeartBurst 1s ease forwards;
+  filter: drop-shadow(0 4px 16px rgba(0,0,0,0.4));
+}
+
+@keyframes reelHeartBurst {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3);  }
+  25%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  45%  { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
+}
+
+/* ══════════════════════════════════════
+   LIKE BUTTON MORPH
+══════════════════════════════════════ */
+
+.reel_like_btn {
+  position: relative;
+  overflow: visible;
+  cursor: pointer;
+  transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+}
+
+.reel_like_inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.reel_liked .reel_like_inner {
+  opacity: 0;
+  transform: scale(0.3);
+  pointer-events: none;
+  animation: reelInnerReturn 1.5s ease forwards;
+}
+
+@keyframes reelInnerReturn {
+  0%   { opacity: 0; transform: scale(0.3); }
+  60%  { opacity: 0; transform: scale(0.3); }
+  100% { opacity: 1; transform: scale(1);   }
+}
+
+.reel_like_emoji {
+  position: absolute;
+  font-size: 26px;
+  opacity: 0;
+  transform: scale(0.3) rotate(-20deg);
+  pointer-events: none;
+}
+
+.reel_liked .reel_like_emoji { animation: reelEmojiPop 1.5s ease forwards; }
+
+@keyframes reelEmojiPop {
+  0%   { opacity: 0; transform: scale(0.3) rotate(-20deg); }
+  30%  { opacity: 1; transform: scale(1.2) rotate(0deg);   }
+  60%  { opacity: 1; transform: scale(1)   rotate(0deg);   }
+  100% { opacity: 0; transform: scale(0.8) rotate(0deg);   }
+}
+
+/* ══════════════════════════════════════
+   COMMENT PANEL
+══════════════════════════════════════ */
+
 .reel_comment_panel {
   position: absolute;
   bottom: 80px;
@@ -291,7 +436,10 @@
   font-family: 'Outfit', sans-serif;
 }
 
-/* ── Share toast ── */
+/* ══════════════════════════════════════
+   TOASTS
+══════════════════════════════════════ */
+
 .reel_share_toast {
   position: absolute;
   bottom: 20px;
@@ -310,59 +458,134 @@
   box-shadow: 0 4px 20px rgba(124,58,237,0.25);
 }
 
-/* ── Like button morph ── */
-.reel_like_btn {
-  position: relative;
-  overflow: visible;
-  cursor: pointer;
-  transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+.reel_action_toast { font-weight: 800 !important; }
+.reel_action_toast--remix       { background: linear-gradient(135deg, #7c3aed, #a855f7) !important; color: #fff !important; border: none !important; }
+.reel_action_toast--sound       { background: linear-gradient(135deg, #f97316, #fb923c) !important; color: #fff !important; border: none !important; }
+.reel_action_toast--collab      { background: linear-gradient(135deg, #0891b2, #06b6d4) !important; color: #fff !important; border: none !important; }
+.reel_action_toast--greenscreen { background: linear-gradient(135deg, #16a34a, #22c55e) !important; color: #fff !important; border: none !important; }
+.reel_action_toast--cut         { background: linear-gradient(135deg, #e11d48, #f43f5e) !important; color: #fff !important; border: none !important; }
+
+/* ══════════════════════════════════════
+   MORE DROPDOWN
+══════════════════════════════════════ */
+
+.reel_more_btn { position: relative; }
+
+.reel_more_btn--open {
+  background: rgba(124, 58, 237, 0.35) !important;
+  border-color: rgba(168, 85, 247, 0.7) !important;
+  box-shadow: 0 0 14px rgba(124, 58, 237, 0.4);
 }
 
-.reel_like_inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.reel_liked .reel_like_inner {
-  opacity: 0;
-  transform: scale(0.3);
-  pointer-events: none;
-  animation: reelInnerReturn 1.5s ease forwards;
-}
-
-@keyframes reelInnerReturn {
-  0%   { opacity: 0; transform: scale(0.3); }
-  60%  { opacity: 0; transform: scale(0.3); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-.reel_like_emoji {
+.reel_more_dropdown {
   position: absolute;
-  font-size: 26px;
-  opacity: 0;
-  transform: scale(0.3) rotate(-20deg);
-  pointer-events: none;
+  right: calc(100% + 10px);
+  bottom: 0;
+  width: 168px;
+  background: rgba(20, 16, 46, 0.92);
+  border: 1.5px solid rgba(124, 58, 237, 0.45);
+  border-radius: 16px;
+  padding: 6px 0;
+  z-index: 100;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(124,58,237,0.15);
+  animation: dropdownSlideIn 0.18s ease;
+  overflow: hidden;
 }
 
-.reel_liked .reel_like_emoji {
-  animation: reelEmojiPop 1.5s ease forwards;
+@keyframes dropdownSlideIn {
+  from { opacity: 0; transform: translateX(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateX(0)   scale(1);    }
 }
 
-@keyframes reelEmojiPop {
-  0%   { opacity: 0; transform: scale(0.3) rotate(-20deg); }
-  30%  { opacity: 1; transform: scale(1.2) rotate(0deg); }
-  60%  { opacity: 1; transform: scale(1)   rotate(0deg); }
-  100% { opacity: 0; transform: scale(0.8) rotate(0deg); }
+.reel_more_dropdown_item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
 }
 
-/* ── Mobile full screen ── */
+.reel_more_dropdown_item:hover { background: rgba(255,255,255,0.08); }
+
+.reel_more_dropdown_item:not(:last-child) {
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.reel_more_dropdown_icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.07);
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.reel_more_dropdown_label {
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+/* ══════════════════════════════════════
+   REMIX ORIGIN BADGE
+══════════════════════════════════════ */
+
+.reel_remix_origin_badge {
+  position: absolute;
+  bottom: 130px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(124,58,237,0.75);
+  border: 1.5px solid rgba(168,85,247,0.6);
+  color: #ffffff;
+  font-size: 11px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  padding: 5px 12px;
+  border-radius: 20px;
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  z-index: 10;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.2s, transform 0.15s;
+  letter-spacing: 0.2px;
+}
+
+.reel_remix_origin_badge:hover {
+  background: rgba(124,58,237,0.95);
+  transform: scale(1.04);
+}
+
+/* ══════════════════════════════════════
+   FULLSCREEN OVERRIDES (body.reels-open)
+══════════════════════════════════════ */
+
+body.reels-open .navbar      { display: none !important; }
+body.reels-open .bottom-nav  { display: none !important; }
+body.reels-open .footer      { display: none !important; }
+body.reels-open              { overflow: hidden; }
+body.reels-open .reels_container { padding-bottom: 0 !important; }
+body.reels-open .reel_item   { height: 100dvh; }
+
+/* ══════════════════════════════════════
+   MOBILE  (max-width: 768px)
+══════════════════════════════════════ */
+
 @media (max-width: 768px) {
-  .reels_container {
-    background: #1e1b4b;
-  }
+  .reels_container { background: #1e1b4b; }
 
   .reel_video_wrapper {
     width: 100vw;
@@ -375,209 +598,17 @@
   .reel_video_wrapper::before { display: none; }
 
   .reel_item { height: 100dvh; }
-}
 
-/* ── Mute toggle button (top-right of reel) ── */
-.reel_mute_btn {
-  position: absolute;
-  top: 16px;
-  right: 12px;
-  z-index: 15;
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.18);
-  border: 1.5px solid rgba(255,255,255,0.35);
-  border-radius: 50%;
-  color: #ffffff;
-  cursor: pointer;
-  backdrop-filter: blur(8px);
-  transition: transform 0.15s, background 0.2s, border-color 0.2s;
-}
+  .reel_mute_btn { padding: 9px 16px; gap: 6px; }
+  .reel_mute_btn_label { font-size: 12px; }
 
-.reel_mute_btn:hover {
-  background: rgba(255,255,255,0.28);
-  border-color: rgba(255,255,255,0.6);
-  transform: scale(1.08);
-}
-
-.reel_mute_btn:active { transform: scale(1.15); }
-
-.reel_mute_btn svg {
-  font-size: 20px;
-}
-
-/* ── Double-tap heart burst ── */
-.reel_heart_burst {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0.3);
-  font-size: 90px;
-  z-index: 20;
-  pointer-events: none;
-  opacity: 0;
-  animation: reelHeartBurst 1s ease forwards;
-  filter: drop-shadow(0 4px 16px rgba(0,0,0,0.4));
-}
-
-@keyframes reelHeartBurst {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
-  25%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
-  45%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
-}
-
-/* ══════════════════════════════════════════════════
-   REELS FULLSCREEN OVERRIDES
-   These hide the navbar, bottom nav, and footer
-   when the reels page is active (body.reels-open).
-   Add these to the BOTTOM of your reels.css file.
-══════════════════════════════════════════════════ */
-
-/* Hide top navbar completely on ALL screen sizes during reels */
-body.reels-open .navbar {
-  display: none !important;
-}
-
-/* Hide bottom nav on mobile during reels */
-body.reels-open .bottom-nav {
-  display: none !important;
-}
-
-/* Hide footer during reels */
-body.reels-open .footer {
-  display: none !important;
-}
-
-/* Remove any padding-bottom that bottom nav normally adds */
-body.reels-open .reels_container {
-  padding-bottom: 0 !important;
-}
-
-/* Ensure reels container covers the full viewport
-   now that navbar (56px) is gone */
-body.reels-open {
-  overflow: hidden;
-}
-
-body.reels-open .reel_item {
-  height: 100dvh;
-}
-
-/* On desktop: keep the reel card centered but use full height */
-@media (min-width: 769px) {
-  body.reels-open .reels_container {
-    height: 100dvh;
+  .reel_remix_origin_badge {
+    font-size: 10px;
+    padding: 4px 10px;
+    max-width: 170px;
+    bottom: 120px;
   }
-}
 
-/* On mobile: true full-bleed fullscreen */
-@media (max-width: 768px) {
-  body.reels-open .reels_container {
-    height: 100dvh;
-    width: 100vw;
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 10000;
-  }
-}
-
-/* ══════════════════════════════════════════════════
-   MORE DROPDOWN — paste at the BOTTOM of reels.css
-══════════════════════════════════════════════════ */
-
-/* ── "More" trigger button — subtle purple glow when open ── */
-.reel_more_btn {
-  position: relative; /* anchor for the dropdown */
-}
-
-.reel_more_btn--open {
-  background: rgba(124, 58, 237, 0.35) !important;
-  border-color: rgba(168, 85, 247, 0.7) !important;
-  box-shadow: 0 0 14px rgba(124, 58, 237, 0.4);
-}
-
-/* ── Floating dropdown card ── */
-.reel_more_dropdown {
-  position: absolute;
-  right: calc(100% + 10px); /* opens to the LEFT of the More button */
-  bottom: 0;                /* aligns bottom edge with the button */
-  width: 168px;
-  background: rgba(20, 16, 46, 0.92);
-  border: 1.5px solid rgba(124, 58, 237, 0.45);
-  border-radius: 16px;
-  padding: 6px 0;
-  z-index: 100;
-  backdrop-filter: blur(18px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(124,58,237,0.15);
-  animation: dropdownSlideIn 0.18s ease;
-  overflow: hidden;
-}
-
-@keyframes dropdownSlideIn {
-  from { opacity: 0; transform: translateX(8px) scale(0.96); }
-  to   { opacity: 1; transform: translateX(0)   scale(1);    }
-}
-
-/* ── Each row ── */
-.reel_more_dropdown_item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 11px 16px;
-  cursor: pointer;
-  transition: background 0.15s;
-  border-radius: 0;
-}
-
-.reel_more_dropdown_item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-/* Left colour dot / icon */
-.reel_more_dropdown_icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.07);
-  flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.reel_more_dropdown_label {
-  font-family: 'Nunito', sans-serif;
-  font-size: 13px;
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: 0.2px;
-  white-space: nowrap;
-}
-
-/* Thin divider between items (skip last) */
-.reel_more_dropdown_item:not(:last-child) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-/* ── Action toasts ── */
-.reel_action_toast {
-  font-weight: 800 !important;
-}
-.reel_action_toast--remix       { background: linear-gradient(135deg, #7c3aed, #a855f7) !important; color: #fff !important; border: none !important; }
-.reel_action_toast--sound       { background: linear-gradient(135deg, #f97316, #fb923c) !important; color: #fff !important; border: none !important; }
-.reel_action_toast--collab      { background: linear-gradient(135deg, #0891b2, #06b6d4) !important; color: #fff !important; border: none !important; }
-.reel_action_toast--greenscreen { background: linear-gradient(135deg, #16a34a, #22c55e) !important; color: #fff !important; border: none !important; }
-.reel_action_toast--cut         { background: linear-gradient(135deg, #e11d48, #f43f5e) !important; color: #fff !important; border: none !important; }
-
-/* ── Mobile: dropdown opens ABOVE the button instead of to the left ──
-   (right rail is very narrow on mobile, left would clip) */
-@media (max-width: 768px) {
   .reel_more_dropdown {
     right: 0;
     bottom: calc(100% + 8px);
@@ -589,5 +620,25 @@ body.reels-open .reel_item {
   @keyframes dropdownSlideUp {
     from { opacity: 0; transform: translateY(8px) scale(0.96); }
     to   { opacity: 1; transform: translateY(0)   scale(1);    }
+  }
+}
+
+/* ══════════════════════════════════════
+   DESKTOP  (min-width: 769px)
+══════════════════════════════════════ */
+
+@media (min-width: 769px) {
+  body.reels-open .reels_container { height: 100dvh; }
+}
+
+/* Mobile fullscreen fix */
+@media (max-width: 768px) {
+  body.reels-open .reels_container {
+    height: 100dvh;
+    width: 100vw;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 10000;
   }
 }

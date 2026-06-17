@@ -6,6 +6,9 @@ import ReplyIcon from "@mui/icons-material/Reply";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
+import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
+import GrassOutlinedIcon from "@mui/icons-material/GrassOutlined";
+import ContentCutOutlinedIcon from "@mui/icons-material/ContentCutOutlined";
 import "./reels.css";
 import { Link, useLocation, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
@@ -86,6 +89,13 @@ const setGlobalMuted = (val) => {
   muteListeners.forEach((fn) => fn(val));
 };
 
+// ── helper: require login before any creator action ──
+const requireLogin = (navigate, action) => {
+  const user = localStorage.getItem("username");
+  if (!user) { alert("Please login to use this feature"); return false; }
+  return true;
+};
+
 const ReelItem = ({ reel, allReels }) => {
   const navigate = useNavigate();
   const videoRef = useRef(null);
@@ -113,9 +123,21 @@ const ReelItem = ({ reel, allReels }) => {
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState([]);
   const [shareToast, setShareToast] = useState(false);
-  const [remixToast, setRemixToast] = useState(false);
+  const [actionToast, setActionToast] = useState({ show: false, msg: "", type: "" });
   const [viewCount, setViewCount] = useState(0);
   const [showHeartBurst, setShowHeartBurst] = useState(false);
+
+  // ── show a timed toast with optional type (remix | sound | collab | greenscreen | cut) ──
+  const showToast = (msg, type = "") => {
+    setActionToast({ show: true, msg, type });
+    setTimeout(() => setActionToast({ show: false, msg: "", type: "" }), 900);
+  };
+
+  // ── pause video & navigate to upload with state ──
+  const goToUpload = (state) => {
+    if (videoRef.current) videoRef.current.pause();
+    setTimeout(() => navigate("/763/upload", { state }), 900);
+  };
 
   useEffect(() => {
     const listener = (val) => {
@@ -220,27 +242,84 @@ const ReelItem = ({ reel, allReels }) => {
     setTimeout(() => setShareToast(false), 2500);
   };
 
-  // ── Remix: navigate to upload pre-filled with this reel's info ──
+  // ── 1. REMIX ──────────────────────────────────────────────────────────────
   const handleRemix = () => {
+    if (!requireLogin(navigate)) return;
     const currentUser = localStorage.getItem("username");
-    if (!currentUser) { alert("Please login to remix"); return; }
     if (currentUser === reel.username) { alert("You cannot remix your own reel"); return; }
-    if (videoRef.current) videoRef.current.pause();
-    setRemixToast(true);
-    setTimeout(() => {
-      setRemixToast(false);
-      navigate("/763/upload", {
-        state: {
-          remixData: {
-            remixed_from_id: String(reel.id),
-            remixed_from_username: reel.username,
-            remixed_from_user: reel.user,
-            remixed_from_title: reel.title,
-            remixed_from_thumbnail: reel.thumbnail,
-          },
-        },
-      });
-    }, 800);
+    showToast("🎬 Opening remix editor...", "remix");
+    goToUpload({
+      remixData: {
+        remixed_from_id:        String(reel.id).replace("db_", ""), // ← strip db_ prefix so we store the real UUID
+        remixed_from_username:  reel.username,
+        remixed_from_user:      reel.user,
+        remixed_from_title:     reel.title,
+        remixed_from_thumbnail: reel.thumbnail,
+      },
+    });
+  };
+
+  // ── 2. USE THIS SOUND ─────────────────────────────────────────────────────
+  const handleUseSound = () => {
+    if (!requireLogin(navigate)) return;
+    showToast("🎵 Loading sound...", "sound");
+    goToUpload({
+      soundData: {
+        sound_from_id:        String(reel.id).replace("db_", ""),
+        sound_from_username:  reel.username,
+        sound_from_title:     reel.title,
+        sound_from_thumbnail: reel.thumbnail,
+        sound_video_url:      reel.src,
+      },
+    });
+  };
+
+  // ── 3. COLLAB ─────────────────────────────────────────────────────────────
+  const handleCollab = () => {
+    if (!requireLogin(navigate)) return;
+    const currentUser = localStorage.getItem("username");
+    if (currentUser === reel.username) { alert("You cannot collab with yourself"); return; }
+    showToast("🤝 Setting up collab...", "collab");
+    goToUpload({
+      collabData: {
+        collab_with_id:        String(reel.id).replace("db_", ""),
+        collab_with_username:  reel.username,
+        collab_with_user:      reel.user,
+        collab_with_title:     reel.title,
+        collab_with_thumbnail: reel.thumbnail,
+        collab_video_url:      reel.src,
+      },
+    });
+  };
+
+  // ── 4. GREEN SCREEN ───────────────────────────────────────────────────────
+  const handleGreenScreen = () => {
+    if (!requireLogin(navigate)) return;
+    showToast("💚 Opening green screen...", "greenscreen");
+    goToUpload({
+      greenScreenData: {
+        bg_reel_id:        String(reel.id).replace("db_", ""),
+        bg_reel_username:  reel.username,
+        bg_reel_title:     reel.title,
+        bg_reel_thumbnail: reel.thumbnail,
+        bg_video_url:      reel.src,
+      },
+    });
+  };
+
+  // ── 5. CUT THIS VIDEO ─────────────────────────────────────────────────────
+  const handleCut = () => {
+    if (!requireLogin(navigate)) return;
+    showToast("✂️ Opening cut editor...", "cut");
+    goToUpload({
+      cutData: {
+        cut_from_id:        String(reel.id).replace("db_", ""),
+        cut_from_username:  reel.username,
+        cut_from_title:     reel.title,
+        cut_from_thumbnail: reel.thumbnail,
+        cut_video_url:      reel.src,
+      },
+    });
   };
 
   const isYouTube = (url) => url && (url.includes("youtube.com") || url.includes("youtu.be"));
@@ -408,14 +487,26 @@ const ReelItem = ({ reel, allReels }) => {
 
         {/* ── Remix origin badge shown on remixed reels ── */}
         {reel.remixed_from_username && (
-          <div className="reel_remix_origin_badge" onClick={() => navigate(`/reels/${reel.remixed_from_id}`)}>
+          <div
+            className="reel_remix_origin_badge"
+            onClick={() => navigate(`/reels/db_${reel.remixed_from_id}`)}
+          >
             <MusicNoteIcon style={{ fontSize: "12px" }} />
             🎬 Remixed from @{reel.remixed_from_username}
           </div>
         )}
 
+        {/* ══════════════════════════════════════
+            RIGHT ACTION BAR
+        ══════════════════════════════════════ */}
         <div className="reel_actions">
-          <div className={`reel_action_btn reel_like_btn ${liked ? "reel_liked" : ""}`} onClick={handleLike} style={{ opacity: isActing ? 0.6 : 1, pointerEvents: isActing ? "none" : "auto" }}>
+
+          {/* Like */}
+          <div
+            className={`reel_action_btn reel_like_btn ${liked ? "reel_liked" : ""}`}
+            onClick={handleLike}
+            style={{ opacity: isActing ? 0.6 : 1, pointerEvents: isActing ? "none" : "auto" }}
+          >
             <span className="reel_like_inner">
               <ThumbUpOutlinedIcon style={{ color: liked ? "#ff0000" : "white" }} />
               <span className="reel_like_count">{likeCountLoading ? "..." : likeCount}</span>
@@ -423,31 +514,71 @@ const ReelItem = ({ reel, allReels }) => {
             <span className="reel_like_emoji">😊</span>
           </div>
 
-          <div className={`reel_action_btn ${disliked ? "reel_disliked" : ""}`} onClick={handleDislike} style={{ opacity: isActing ? 0.6 : 1, pointerEvents: isActing ? "none" : "auto" }}>
+          {/* Dislike */}
+          <div
+            className={`reel_action_btn ${disliked ? "reel_disliked" : ""}`}
+            onClick={handleDislike}
+            style={{ opacity: isActing ? 0.6 : 1, pointerEvents: isActing ? "none" : "auto" }}
+          >
             <ThumbDownAltOutlinedIcon style={{ color: disliked ? "#ff0000" : "white" }} />
           </div>
 
+          {/* Comment */}
           <div className="reel_action_btn" onClick={() => setShowComments((v) => !v)}>
             <ChatBubbleOutlineIcon style={{ color: showComments ? "#ff0000" : "white" }} />
             <span>{comments.length > 0 ? comments.length : "Comment"}</span>
           </div>
 
+          {/* Share */}
           <div className="reel_action_btn" onClick={handleShare}>
             <ReplyIcon style={{ color: "white", transform: "scaleX(-1)" }} />
             <span>Share</span>
           </div>
 
-          {/* ── Remix button ── */}
+          {/* ── Remix ── */}
           <div className="reel_action_btn reel_remix_btn" onClick={handleRemix}>
             <MusicNoteIcon style={{ color: "white" }} />
             <span>Remix</span>
           </div>
+
+          {/* ── Use this Sound ── */}
+          <div className="reel_action_btn reel_sound_btn" onClick={handleUseSound}>
+            <span style={{ fontSize: "18px", lineHeight: 1 }}>🎵</span>
+            <span>Sound</span>
+          </div>
+
+          {/* ── Collab ── */}
+          <div className="reel_action_btn reel_collab_btn" onClick={handleCollab}>
+            <PeopleAltOutlinedIcon style={{ color: "white" }} />
+            <span>Collab</span>
+          </div>
+
+          {/* ── Green Screen ── */}
+          <div className="reel_action_btn reel_greenscreen_btn" onClick={handleGreenScreen}>
+            <GrassOutlinedIcon style={{ color: "white" }} />
+            <span>Green</span>
+          </div>
+
+          {/* ── Cut this Video ── */}
+          <div className="reel_action_btn reel_cut_btn" onClick={handleCut}>
+            <ContentCutOutlinedIcon style={{ color: "white" }} />
+            <span>Cut</span>
+          </div>
+
         </div>
 
+        {/* Comments panel */}
         {showComments && (
           <div className="reel_comment_panel" ref={commentPanelRef}>
             <div className="reel_comment_input_row">
-              <input type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleCommentSubmit()} placeholder="Add a comment..." className="reel_comment_input" />
+              <input
+                type="text"
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCommentSubmit()}
+                placeholder="Add a comment..."
+                className="reel_comment_input"
+              />
               <button className="reel_comment_submit" onClick={handleCommentSubmit}>Post</button>
             </div>
             <div className="reel_comment_list">
@@ -465,9 +596,14 @@ const ReelItem = ({ reel, allReels }) => {
           </div>
         )}
 
+        {/* Share toast */}
         {shareToast && <div className="reel_share_toast">Link copied to clipboard ✓</div>}
-        {remixToast && (
-          <div className="reel_share_toast reel_remix_toast">🎬 Opening remix editor...</div>
+
+        {/* Unified action toast (remix / sound / collab / greenscreen / cut) */}
+        {actionToast.show && (
+          <div className={`reel_share_toast reel_action_toast reel_action_toast--${actionToast.type}`}>
+            {actionToast.msg}
+          </div>
         )}
 
         <div className="reel_info">
@@ -479,7 +615,11 @@ const ReelItem = ({ reel, allReels }) => {
               <span className="reel_username">{reel.user}</span>
             </Link>
             {loggedInUser !== reel.username && (
-              <button className="reel_subscribe_btn" onClick={handleSubscribe} style={{ background: subscribed ? "#555" : "#ff0000", color: "white" }}>
+              <button
+                className="reel_subscribe_btn"
+                onClick={handleSubscribe}
+                style={{ background: subscribed ? "#555" : "#ff0000", color: "white" }}
+              >
                 {subscribed ? "Subscribed" : "Subscribe"}
               </button>
             )}
@@ -519,7 +659,7 @@ const Reels = () => {
             profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
             description: r.description || "",
             likes: 0,
-            remixed_from_id: r.remixed_from_id || null,
+            remixed_from_id:       r.remixed_from_id       || null,
             remixed_from_username: r.remixed_from_username || null,
           }))
         );
@@ -543,7 +683,7 @@ const Reels = () => {
           profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
           description: r.description || "",
           likes: 0,
-          remixed_from_id: r.remixed_from_id || null,
+          remixed_from_id:       r.remixed_from_id       || null,
           remixed_from_username: r.remixed_from_username || null,
         }, ...prev]);
       })

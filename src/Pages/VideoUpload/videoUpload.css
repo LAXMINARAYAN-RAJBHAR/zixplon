@@ -439,3 +439,89 @@
     max-width: 160px;
   }
 }
+
+/* ══════════════════════════════════════════════════
+   FEATURE BANNER (Remix / Sound / Collab / Green / Cut)
+   Paste at the BOTTOM of videoUpload.css
+══════════════════════════════════════════════════ */
+
+.upload_feature_banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(135deg, rgba(124,58,237,0.06), rgba(168,85,247,0.06));
+  border: 2px solid color-mix(in srgb, var(--feature-color, #7c3aed) 30%, transparent);
+  border-radius: 14px;
+  padding: 12px 16px;
+  margin: 14px 0 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Left accent bar in feature colour */
+.upload_feature_banner::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--feature-color, #7c3aed);
+  border-radius: 14px 0 0 14px;
+}
+
+.upload_feature_thumb {
+  width: 52px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid color-mix(in srgb, var(--feature-color, #7c3aed) 35%, transparent);
+  flex-shrink: 0;
+}
+
+.upload_feature_banner_text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.upload_feature_label {
+  font-family: 'Nunito', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  /* color is set inline from banner.color */
+}
+
+.upload_feature_title {
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--zx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.upload_feature_by {
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  color: var(--zx-text3);
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .upload_feature_banner {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .upload_feature_thumb {
+    width: 42px;
+    height: 58px;
+  }
+  .upload_feature_title {
+    font-size: 12px;
+    max-width: 160px;
+  }
+}

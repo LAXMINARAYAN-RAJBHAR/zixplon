@@ -9,6 +9,7 @@ import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
 import GrassOutlinedIcon from "@mui/icons-material/GrassOutlined";
 import ContentCutOutlinedIcon from "@mui/icons-material/ContentCutOutlined";
+import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import "./reels.css";
 import { Link, useLocation, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
@@ -89,11 +90,45 @@ const setGlobalMuted = (val) => {
   muteListeners.forEach((fn) => fn(val));
 };
 
-// ── helper: require login before any creator action ──
-const requireLogin = (navigate, action) => {
-  const user = localStorage.getItem("username");
-  if (!user) { alert("Please login to use this feature"); return false; }
-  return true;
+// ─────────────────────────────────────────────────────────
+// More dropdown — 5 creator actions in a floating menu
+// Opens upward from the "More" button in the action bar
+// ─────────────────────────────────────────────────────────
+const MoreDropdown = ({ onRemix, onSound, onCollab, onGreenScreen, onCut, onClose }) => {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onClose();
+    };
+    // slight delay so the tap that opened the dropdown doesn't immediately close it
+    const t = setTimeout(() => document.addEventListener("mousedown", handler), 50);
+    return () => { clearTimeout(t); document.removeEventListener("mousedown", handler); };
+  }, [onClose]);
+
+  const items = [
+    { icon: <MusicNoteIcon style={{ fontSize: 18 }} />,        label: "Remix",        color: "#a855f7", onClick: onRemix },
+    { icon: <span style={{ fontSize: 17 }}>🎵</span>,          label: "Use Sound",    color: "#f97316", onClick: onSound },
+    { icon: <PeopleAltOutlinedIcon style={{ fontSize: 18 }} />, label: "Collab",       color: "#06b6d4", onClick: onCollab },
+    { icon: <GrassOutlinedIcon style={{ fontSize: 18 }} />,     label: "Green Screen", color: "#22c55e", onClick: onGreenScreen },
+    { icon: <ContentCutOutlinedIcon style={{ fontSize: 18 }} />,label: "Cut Video",    color: "#f43f5e", onClick: onCut },
+  ];
+
+  return (
+    <div className="reel_more_dropdown" ref={ref}>
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className="reel_more_dropdown_item"
+          onClick={() => { onClose(); item.onClick(); }}
+          style={{ "--item-color": item.color }}
+        >
+          <span className="reel_more_dropdown_icon" style={{ color: item.color }}>{item.icon}</span>
+          <span className="reel_more_dropdown_label">{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 const ReelItem = ({ reel, allReels }) => {
@@ -109,41 +144,45 @@ const ReelItem = ({ reel, allReels }) => {
 
   const loggedInUser = localStorage.getItem("username") || "Guest";
 
-  const [subscribed, setSubscribed] = useState(false);
-  const [liked, setLiked] = useState(false);
-  const [disliked, setDisliked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
-  const [dislikeCount, setDislikeCount] = useState(0);
+  const [subscribed, setSubscribed]           = useState(false);
+  const [liked, setLiked]                     = useState(false);
+  const [disliked, setDisliked]               = useState(false);
+  const [likeCount, setLikeCount]             = useState(0);
+  const [dislikeCount, setDislikeCount]       = useState(0);
   const [likeCountLoading, setLikeCountLoading] = useState(true);
-  const [isActing, setIsActing] = useState(false);
-  const [muted, setMuted] = useState(globalMuted);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [showIcon, setShowIcon] = useState(false);
-  const [showComments, setShowComments] = useState(false);
-  const [commentText, setCommentText] = useState("");
-  const [comments, setComments] = useState([]);
-  const [shareToast, setShareToast] = useState(false);
-  const [actionToast, setActionToast] = useState({ show: false, msg: "", type: "" });
-  const [viewCount, setViewCount] = useState(0);
-  const [showHeartBurst, setShowHeartBurst] = useState(false);
+  const [isActing, setIsActing]               = useState(false);
+  const [muted, setMuted]                     = useState(globalMuted);
+  const [isPlaying, setIsPlaying]             = useState(false);
+  const [showIcon, setShowIcon]               = useState(false);
+  const [showComments, setShowComments]       = useState(false);
+  const [commentText, setCommentText]         = useState("");
+  const [comments, setComments]               = useState([]);
+  const [shareToast, setShareToast]           = useState(false);
+  const [actionToast, setActionToast]         = useState({ show: false, msg: "", type: "" });
+  const [showMoreMenu, setShowMoreMenu]       = useState(false);
+  const [viewCount, setViewCount]             = useState(0);
+  const [showHeartBurst, setShowHeartBurst]   = useState(false);
 
-  // ── show a timed toast with optional type (remix | sound | collab | greenscreen | cut) ──
+  // ── show timed action toast ──
   const showToast = (msg, type = "") => {
     setActionToast({ show: true, msg, type });
-    setTimeout(() => setActionToast({ show: false, msg: "", type: "" }), 900);
+    setTimeout(() => setActionToast({ show: false, msg: "", type: "" }), 950);
   };
 
-  // ── pause video & navigate to upload with state ──
+  // ── require login helper ──
+  const requireLogin = () => {
+    if (!localStorage.getItem("username")) { alert("Please login to use this feature"); return false; }
+    return true;
+  };
+
+  // ── pause + navigate to upload ──
   const goToUpload = (state) => {
     if (videoRef.current) videoRef.current.pause();
     setTimeout(() => navigate("/763/upload", { state }), 900);
   };
 
   useEffect(() => {
-    const listener = (val) => {
-      setMuted(val);
-      if (videoRef.current) videoRef.current.muted = val;
-    };
+    const listener = (val) => { setMuted(val); if (videoRef.current) videoRef.current.muted = val; };
     muteListeners.add(listener);
     return () => muteListeners.delete(listener);
   }, []);
@@ -151,9 +190,7 @@ const ReelItem = ({ reel, allReels }) => {
   useEffect(() => {
     if (!showComments) return;
     const handleOutsideClick = (e) => {
-      if (commentPanelRef.current && !commentPanelRef.current.contains(e.target)) {
-        setShowComments(false);
-      }
+      if (commentPanelRef.current && !commentPanelRef.current.contains(e.target)) setShowComments(false);
     };
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
@@ -168,7 +205,7 @@ const ReelItem = ({ reel, allReels }) => {
       setDislikeCount(dCount);
       setLikeCountLoading(false);
       if (!userId) return;
-      const { data: likeData } = await supabase.from("likes").select("id").match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "like" }).maybeSingle();
+      const { data: likeData }    = await supabase.from("likes").select("id").match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "like" }).maybeSingle();
       setLiked(!!likeData);
       const { data: dislikeData } = await supabase.from("likes").select("id").match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "dislike" }).maybeSingle();
       setDisliked(!!dislikeData);
@@ -242,15 +279,16 @@ const ReelItem = ({ reel, allReels }) => {
     setTimeout(() => setShareToast(false), 2500);
   };
 
-  // ── 1. REMIX ──────────────────────────────────────────────────────────────
+  // ── Creator action handlers ──────────────────────────────
+
   const handleRemix = () => {
-    if (!requireLogin(navigate)) return;
+    if (!requireLogin()) return;
     const currentUser = localStorage.getItem("username");
     if (currentUser === reel.username) { alert("You cannot remix your own reel"); return; }
     showToast("🎬 Opening remix editor...", "remix");
     goToUpload({
       remixData: {
-        remixed_from_id:        String(reel.id).replace("db_", ""), // ← strip db_ prefix so we store the real UUID
+        remixed_from_id:        String(reel.id).replace("db_", ""),
         remixed_from_username:  reel.username,
         remixed_from_user:      reel.user,
         remixed_from_title:     reel.title,
@@ -259,9 +297,8 @@ const ReelItem = ({ reel, allReels }) => {
     });
   };
 
-  // ── 2. USE THIS SOUND ─────────────────────────────────────────────────────
   const handleUseSound = () => {
-    if (!requireLogin(navigate)) return;
+    if (!requireLogin()) return;
     showToast("🎵 Loading sound...", "sound");
     goToUpload({
       soundData: {
@@ -274,9 +311,8 @@ const ReelItem = ({ reel, allReels }) => {
     });
   };
 
-  // ── 3. COLLAB ─────────────────────────────────────────────────────────────
   const handleCollab = () => {
-    if (!requireLogin(navigate)) return;
+    if (!requireLogin()) return;
     const currentUser = localStorage.getItem("username");
     if (currentUser === reel.username) { alert("You cannot collab with yourself"); return; }
     showToast("🤝 Setting up collab...", "collab");
@@ -292,9 +328,8 @@ const ReelItem = ({ reel, allReels }) => {
     });
   };
 
-  // ── 4. GREEN SCREEN ───────────────────────────────────────────────────────
   const handleGreenScreen = () => {
-    if (!requireLogin(navigate)) return;
+    if (!requireLogin()) return;
     showToast("💚 Opening green screen...", "greenscreen");
     goToUpload({
       greenScreenData: {
@@ -307,9 +342,8 @@ const ReelItem = ({ reel, allReels }) => {
     });
   };
 
-  // ── 5. CUT THIS VIDEO ─────────────────────────────────────────────────────
   const handleCut = () => {
-    if (!requireLogin(navigate)) return;
+    if (!requireLogin()) return;
     showToast("✂️ Opening cut editor...", "cut");
     goToUpload({
       cutData: {
@@ -322,11 +356,13 @@ const ReelItem = ({ reel, allReels }) => {
     });
   };
 
+  // ── Video / playback helpers ─────────────────────────────
+
   const isYouTube = (url) => url && (url.includes("youtube.com") || url.includes("youtu.be"));
   const getEmbedUrl = (url) => {
     if (url.includes("youtube.com/shorts/")) { const id = url.split("/shorts/")[1].split("?")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
-    if (url.includes("watch?v=")) { const id = url.split("watch?v=")[1].split("&")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
-    if (url.includes("youtu.be/")) { const id = url.split("youtu.be/")[1].split("?")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
+    if (url.includes("watch?v="))            { const id = url.split("watch?v=")[1].split("&")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
+    if (url.includes("youtu.be/"))           { const id = url.split("youtu.be/")[1].split("?")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
     return url;
   };
 
@@ -462,6 +498,8 @@ const ReelItem = ({ reel, allReels }) => {
   return (
     <div className="reel_item" id={`reel-${reel.id}`} ref={containerRef}>
       <div className="reel_video_wrapper">
+
+        {/* ── Video ── */}
         {isYouTube(reel.src) ? (
           <iframe className="reel_video" src={getEmbedUrl(reel.src)} frameBorder="0" allow="autoplay; fullscreen" allowFullScreen title={reel.title} />
         ) : (
@@ -471,13 +509,8 @@ const ReelItem = ({ reel, allReels }) => {
           </video>
         )}
 
-        {!isYouTube(reel.src) && showIcon && (
-          <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>
-        )}
-
-        {!isYouTube(reel.src) && showHeartBurst && (
-          <div className="reel_heart_burst">❤️</div>
-        )}
+        {!isYouTube(reel.src) && showIcon        && <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>}
+        {!isYouTube(reel.src) && showHeartBurst  && <div className="reel_heart_burst">❤️</div>}
 
         {!isYouTube(reel.src) && (
           <button className="reel_mute_btn" onClick={handleToggleMute} aria-label={muted ? "Unmute" : "Mute"}>
@@ -485,12 +518,9 @@ const ReelItem = ({ reel, allReels }) => {
           </button>
         )}
 
-        {/* ── Remix origin badge shown on remixed reels ── */}
+        {/* ── Remix origin badge ── */}
         {reel.remixed_from_username && (
-          <div
-            className="reel_remix_origin_badge"
-            onClick={() => navigate(`/reels/db_${reel.remixed_from_id}`)}
-          >
+          <div className="reel_remix_origin_badge" onClick={() => navigate(`/reels/db_${reel.remixed_from_id}`)}>
             <MusicNoteIcon style={{ fontSize: "12px" }} />
             🎬 Remixed from @{reel.remixed_from_username}
           </div>
@@ -498,6 +528,7 @@ const ReelItem = ({ reel, allReels }) => {
 
         {/* ══════════════════════════════════════
             RIGHT ACTION BAR
+            Like · Dislike · Comment · Share · More ▸
         ══════════════════════════════════════ */}
         <div className="reel_actions">
 
@@ -535,34 +566,25 @@ const ReelItem = ({ reel, allReels }) => {
             <span>Share</span>
           </div>
 
-          {/* ── Remix ── */}
-          <div className="reel_action_btn reel_remix_btn" onClick={handleRemix}>
-            <MusicNoteIcon style={{ color: "white" }} />
-            <span>Remix</span>
-          </div>
+          {/* ── More (opens dropdown with 5 creator actions) ── */}
+          <div
+            className={`reel_action_btn reel_more_btn ${showMoreMenu ? "reel_more_btn--open" : ""}`}
+            onClick={(e) => { e.stopPropagation(); setShowMoreMenu((v) => !v); }}
+          >
+            <MoreHorizIcon style={{ color: "white" }} />
+            <span>More</span>
 
-          {/* ── Use this Sound ── */}
-          <div className="reel_action_btn reel_sound_btn" onClick={handleUseSound}>
-            <span style={{ fontSize: "18px", lineHeight: 1 }}>🎵</span>
-            <span>Sound</span>
-          </div>
-
-          {/* ── Collab ── */}
-          <div className="reel_action_btn reel_collab_btn" onClick={handleCollab}>
-            <PeopleAltOutlinedIcon style={{ color: "white" }} />
-            <span>Collab</span>
-          </div>
-
-          {/* ── Green Screen ── */}
-          <div className="reel_action_btn reel_greenscreen_btn" onClick={handleGreenScreen}>
-            <GrassOutlinedIcon style={{ color: "white" }} />
-            <span>Green</span>
-          </div>
-
-          {/* ── Cut this Video ── */}
-          <div className="reel_action_btn reel_cut_btn" onClick={handleCut}>
-            <ContentCutOutlinedIcon style={{ color: "white" }} />
-            <span>Cut</span>
+            {/* Dropdown renders inside the button so it stays in z-stack */}
+            {showMoreMenu && (
+              <MoreDropdown
+                onRemix={handleRemix}
+                onSound={handleUseSound}
+                onCollab={handleCollab}
+                onGreenScreen={handleGreenScreen}
+                onCut={handleCut}
+                onClose={() => setShowMoreMenu(false)}
+              />
+            )}
           </div>
 
         </div>
@@ -599,13 +621,14 @@ const ReelItem = ({ reel, allReels }) => {
         {/* Share toast */}
         {shareToast && <div className="reel_share_toast">Link copied to clipboard ✓</div>}
 
-        {/* Unified action toast (remix / sound / collab / greenscreen / cut) */}
+        {/* Action toast (remix / sound / collab / greenscreen / cut) */}
         {actionToast.show && (
           <div className={`reel_share_toast reel_action_toast reel_action_toast--${actionToast.type}`}>
             {actionToast.msg}
           </div>
         )}
 
+        {/* Bottom user info */}
         <div className="reel_info">
           <div className="reel_user">
             <Link to={`/user/${reel.username}`}>
@@ -626,6 +649,7 @@ const ReelItem = ({ reel, allReels }) => {
           </div>
           <div className="reel_description">{reel.description}</div>
         </div>
+
       </div>
     </div>
   );
@@ -634,7 +658,7 @@ const ReelItem = ({ reel, allReels }) => {
 const Reels = () => {
   const { id } = useParams();
   const location = useLocation();
-  const [dbReels, setDbReels] = useState([]);
+  const [dbReels, setDbReels]     = useState([]);
   const [dbLoading, setDbLoading] = useState(true);
 
   useEffect(() => {
@@ -649,16 +673,16 @@ const Reels = () => {
       if (!error && data) {
         setDbReels(
           data.map((r) => ({
-            id: `db_${r.id}`,
-            src: r.video_url,
-            thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99",
-            title: r.title || "Untitled",
-            duration: r.duration || "00:00",
-            user: r.user || r.username || "Unknown",
-            username: r.username || "unknown",
-            profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
-            description: r.description || "",
-            likes: 0,
+            id:                    `db_${r.id}`,
+            src:                   r.video_url,
+            thumbnail:             r.thumbnail || "https://picsum.photos/200/350?random=99",
+            title:                 r.title    || "Untitled",
+            duration:              r.duration || "00:00",
+            user:                  r.user     || r.username || "Unknown",
+            username:              r.username || "unknown",
+            profilePic:            `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
+            description:           r.description || "",
+            likes:                 0,
             remixed_from_id:       r.remixed_from_id       || null,
             remixed_from_username: r.remixed_from_username || null,
           }))
@@ -673,16 +697,16 @@ const Reels = () => {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "reels" }, (payload) => {
         const r = payload.new;
         setDbReels((prev) => [{
-          id: `db_${r.id}`,
-          src: r.video_url,
-          thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99",
-          title: r.title || "Untitled",
-          duration: r.duration || "00:00",
-          user: r.user || r.username || "Unknown",
-          username: r.username || "unknown",
-          profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
-          description: r.description || "",
-          likes: 0,
+          id:                    `db_${r.id}`,
+          src:                   r.video_url,
+          thumbnail:             r.thumbnail || "https://picsum.photos/200/350?random=99",
+          title:                 r.title    || "Untitled",
+          duration:              r.duration || "00:00",
+          user:                  r.user     || r.username || "Unknown",
+          username:              r.username || "unknown",
+          profilePic:            `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
+          description:           r.description || "",
+          likes:                 0,
           remixed_from_id:       r.remixed_from_id       || null,
           remixed_from_username: r.remixed_from_username || null,
         }, ...prev]);
@@ -694,7 +718,7 @@ const Reels = () => {
 
   const baseReels = React.useMemo(() => {
     const merged = [...dbReels, ...reelsData];
-    const seen = new Set();
+    const seen   = new Set();
     return merged.filter((r) => {
       const key = String(r.id);
       if (seen.has(key)) return false;

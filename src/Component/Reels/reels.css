@@ -485,3 +485,109 @@ body.reels-open .reel_item {
     z-index: 10000;
   }
 }
+
+/* ══════════════════════════════════════════════════
+   MORE DROPDOWN — paste at the BOTTOM of reels.css
+══════════════════════════════════════════════════ */
+
+/* ── "More" trigger button — subtle purple glow when open ── */
+.reel_more_btn {
+  position: relative; /* anchor for the dropdown */
+}
+
+.reel_more_btn--open {
+  background: rgba(124, 58, 237, 0.35) !important;
+  border-color: rgba(168, 85, 247, 0.7) !important;
+  box-shadow: 0 0 14px rgba(124, 58, 237, 0.4);
+}
+
+/* ── Floating dropdown card ── */
+.reel_more_dropdown {
+  position: absolute;
+  right: calc(100% + 10px); /* opens to the LEFT of the More button */
+  bottom: 0;                /* aligns bottom edge with the button */
+  width: 168px;
+  background: rgba(20, 16, 46, 0.92);
+  border: 1.5px solid rgba(124, 58, 237, 0.45);
+  border-radius: 16px;
+  padding: 6px 0;
+  z-index: 100;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(124,58,237,0.15);
+  animation: dropdownSlideIn 0.18s ease;
+  overflow: hidden;
+}
+
+@keyframes dropdownSlideIn {
+  from { opacity: 0; transform: translateX(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateX(0)   scale(1);    }
+}
+
+/* ── Each row ── */
+.reel_more_dropdown_item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-radius: 0;
+}
+
+.reel_more_dropdown_item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Left colour dot / icon */
+.reel_more_dropdown_icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.reel_more_dropdown_label {
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+/* Thin divider between items (skip last) */
+.reel_more_dropdown_item:not(:last-child) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Action toasts ── */
+.reel_action_toast {
+  font-weight: 800 !important;
+}
+.reel_action_toast--remix       { background: linear-gradient(135deg, #7c3aed, #a855f7) !important; color: #fff !important; border: none !important; }
+.reel_action_toast--sound       { background: linear-gradient(135deg, #f97316, #fb923c) !important; color: #fff !important; border: none !important; }
+.reel_action_toast--collab      { background: linear-gradient(135deg, #0891b2, #06b6d4) !important; color: #fff !important; border: none !important; }
+.reel_action_toast--greenscreen { background: linear-gradient(135deg, #16a34a, #22c55e) !important; color: #fff !important; border: none !important; }
+.reel_action_toast--cut         { background: linear-gradient(135deg, #e11d48, #f43f5e) !important; color: #fff !important; border: none !important; }
+
+/* ── Mobile: dropdown opens ABOVE the button instead of to the left ──
+   (right rail is very narrow on mobile, left would clip) */
+@media (max-width: 768px) {
+  .reel_more_dropdown {
+    right: 0;
+    bottom: calc(100% + 8px);
+    left: auto;
+    width: 160px;
+    animation: dropdownSlideUp 0.18s ease;
+  }
+
+  @keyframes dropdownSlideUp {
+    from { opacity: 0; transform: translateY(8px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0)   scale(1);    }
+  }
+}

@@ -163,6 +163,9 @@ const ReelItem = ({ reel, allReels }) => {
   const [viewCount, setViewCount]             = useState(0);
   const [showHeartBurst, setShowHeartBurst]   = useState(false);
 
+  const [showMuteBtn, setShowMuteBtn] = useState(true);
+  const muteBtnTimerRef = useRef(null);
+
   // ── show timed action toast ──
   const showToast = (msg, type = "") => {
     setActionToast({ show: true, msg, type });
@@ -445,11 +448,16 @@ const ReelItem = ({ reel, allReels }) => {
   };
 
   const handleToggleMute = (e) => {
-    e.stopPropagation();
-    const newMuted = !globalMuted;
-    setGlobalMuted(newMuted);
-    if (videoRef.current) videoRef.current.muted = newMuted;
-  };
+  e.stopPropagation();
+  const newMuted = !globalMuted;
+  setGlobalMuted(newMuted);
+  if (videoRef.current) videoRef.current.muted = newMuted;
+
+  // Show pill, then hide after 3s
+  setShowMuteBtn(true);
+  clearTimeout(muteBtnTimerRef.current);
+  muteBtnTimerRef.current = setTimeout(() => setShowMuteBtn(false), 3000);
+};
 
   const handleLike = async () => {
     const userId = localStorage.getItem("userId");
@@ -511,9 +519,20 @@ const ReelItem = ({ reel, allReels }) => {
 
         {!isYouTube(reel.src) && showIcon        && <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>}
         {!isYouTube(reel.src) && showHeartBurst  && <div className="reel_heart_burst">❤️</div>}
+        {!isYouTube(reel.src) && showMuteBtn && (
+  <button
+    key={muted ? "muted" : "unmuted"}
+    className="reel_mute_btn"
+    onClick={handleToggleMute}
+    aria-label={muted ? "Unmute" : "Mute"}
+  >
+    {muted ? <VolumeOffIcon sx={{ fontSize: 26 }} /> : <VolumeUpIcon sx={{ fontSize: 26 }} />}
+    <span className="reel_mute_btn_label">{muted ? "Tap to unmute" : "Tap to mute"}</span>
+  </button>
+)}
 
         {!isYouTube(reel.src) && (
-          <button className="reel_mute_btn" onClick={handleToggleMute} aria-label={muted ? "Unmute" : "Mute"}>
+  <button key={muted ? "muted" : "unmuted"} className="reel_mute_btn" onClick={handleToggleMute} aria-label={muted ? "Unmute" : "Mute"}>
             {muted ? <VolumeOffIcon sx={{ fontSize: 26 }} /> : <VolumeUpIcon sx={{ fontSize: 26 }} />}
             <span className="reel_mute_btn_label">{muted ? "Tap to unmute" : "Tap to mute"}</span>
           </button>

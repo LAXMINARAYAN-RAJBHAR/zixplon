@@ -92,7 +92,6 @@ const setGlobalMuted = (val) => {
 
 // ─────────────────────────────────────────────────────────
 // More dropdown — 5 creator actions in a floating menu
-// Opens upward from the "More" button in the action bar
 // ─────────────────────────────────────────────────────────
 const MoreDropdown = ({ onRemix, onSound, onCollab, onGreenScreen, onCut, onClose }) => {
   const ref = useRef(null);
@@ -101,17 +100,16 @@ const MoreDropdown = ({ onRemix, onSound, onCollab, onGreenScreen, onCut, onClos
     const handler = (e) => {
       if (ref.current && !ref.current.contains(e.target)) onClose();
     };
-    // slight delay so the tap that opened the dropdown doesn't immediately close it
     const t = setTimeout(() => document.addEventListener("mousedown", handler), 50);
     return () => { clearTimeout(t); document.removeEventListener("mousedown", handler); };
   }, [onClose]);
 
   const items = [
-    { icon: <MusicNoteIcon style={{ fontSize: 18 }} />,        label: "Remix",        color: "#a855f7", onClick: onRemix },
-    { icon: <span style={{ fontSize: 17 }}>🎵</span>,          label: "Use Sound",    color: "#f97316", onClick: onSound },
-    { icon: <PeopleAltOutlinedIcon style={{ fontSize: 18 }} />, label: "Collab",       color: "#06b6d4", onClick: onCollab },
-    { icon: <GrassOutlinedIcon style={{ fontSize: 18 }} />,     label: "Green Screen", color: "#22c55e", onClick: onGreenScreen },
-    { icon: <ContentCutOutlinedIcon style={{ fontSize: 18 }} />,label: "Cut Video",    color: "#f43f5e", onClick: onCut },
+    { icon: <MusicNoteIcon style={{ fontSize: 18 }} />,         label: "Remix",        color: "#a855f7", onClick: onRemix },
+    { icon: <span style={{ fontSize: 17 }}>🎵</span>,           label: "Use Sound",    color: "#f97316", onClick: onSound },
+    { icon: <PeopleAltOutlinedIcon style={{ fontSize: 18 }} />,  label: "Collab",       color: "#06b6d4", onClick: onCollab },
+    { icon: <GrassOutlinedIcon style={{ fontSize: 18 }} />,      label: "Green Screen", color: "#22c55e", onClick: onGreenScreen },
+    { icon: <ContentCutOutlinedIcon style={{ fontSize: 18 }} />, label: "Cut Video",    color: "#f43f5e", onClick: onCut },
   ];
 
   return (
@@ -133,38 +131,38 @@ const MoreDropdown = ({ onRemix, onSound, onCollab, onGreenScreen, onCut, onClos
 
 const ReelItem = ({ reel, allReels }) => {
   const navigate = useNavigate();
-  const videoRef = useRef(null);
-  const containerRef = useRef(null);
-  const isMounted = useRef(true);
-  const observerRef = useRef(null);
-  const iconTimeoutRef = useRef(null);
+  const videoRef        = useRef(null);
+  const containerRef    = useRef(null);
+  const isMounted       = useRef(true);
+  const observerRef     = useRef(null);
+  const iconTimeoutRef  = useRef(null);
   const commentPanelRef = useRef(null);
-  const lastTapRef = useRef(0);
-  const tapTimeoutRef = useRef(null);
+  const commentBtnRef   = useRef(null); // ✅ FIX: ref for comment button
+  const lastTapRef      = useRef(0);
+  const tapTimeoutRef   = useRef(null);
+  const muteBtnTimerRef = useRef(null);
 
   const loggedInUser = localStorage.getItem("username") || "Guest";
 
-  const [subscribed, setSubscribed]           = useState(false);
-  const [liked, setLiked]                     = useState(false);
-  const [disliked, setDisliked]               = useState(false);
-  const [likeCount, setLikeCount]             = useState(0);
-  const [dislikeCount, setDislikeCount]       = useState(0);
+  const [subscribed, setSubscribed]             = useState(false);
+  const [liked, setLiked]                       = useState(false);
+  const [disliked, setDisliked]                 = useState(false);
+  const [likeCount, setLikeCount]               = useState(0);
+  const [dislikeCount, setDislikeCount]         = useState(0);
   const [likeCountLoading, setLikeCountLoading] = useState(true);
-  const [isActing, setIsActing]               = useState(false);
-  const [muted, setMuted]                     = useState(globalMuted);
-  const [isPlaying, setIsPlaying]             = useState(false);
-  const [showIcon, setShowIcon]               = useState(false);
-  const [showComments, setShowComments]       = useState(false);
-  const [commentText, setCommentText]         = useState("");
-  const [comments, setComments]               = useState([]);
-  const [shareToast, setShareToast]           = useState(false);
-  const [actionToast, setActionToast]         = useState({ show: false, msg: "", type: "" });
-  const [showMoreMenu, setShowMoreMenu]       = useState(false);
-  const [viewCount, setViewCount]             = useState(0);
-  const [showHeartBurst, setShowHeartBurst]   = useState(false);
-
-  const [showMuteBtn, setShowMuteBtn] = useState(true);
-  const muteBtnTimerRef = useRef(null);
+  const [isActing, setIsActing]                 = useState(false);
+  const [muted, setMuted]                       = useState(globalMuted);
+  const [isPlaying, setIsPlaying]               = useState(false);
+  const [showIcon, setShowIcon]                 = useState(false);
+  const [showComments, setShowComments]         = useState(false);
+  const [commentText, setCommentText]           = useState("");
+  const [comments, setComments]                 = useState([]);
+  const [shareToast, setShareToast]             = useState(false);
+  const [actionToast, setActionToast]           = useState({ show: false, msg: "", type: "" });
+  const [showMoreMenu, setShowMoreMenu]         = useState(false);
+  const [viewCount, setViewCount]               = useState(0);
+  const [showHeartBurst, setShowHeartBurst]     = useState(false);
+  const [showMuteBtn, setShowMuteBtn]           = useState(true); // ✅ mute pill visibility
 
   // ── show timed action toast ──
   const showToast = (msg, type = "") => {
@@ -184,16 +182,25 @@ const ReelItem = ({ reel, allReels }) => {
     setTimeout(() => navigate("/763/upload", { state }), 900);
   };
 
+  // ── global mute listener ──
   useEffect(() => {
     const listener = (val) => { setMuted(val); if (videoRef.current) videoRef.current.muted = val; };
     muteListeners.add(listener);
     return () => muteListeners.delete(listener);
   }, []);
 
+  // ✅ FIX: outside click excludes BOTH the panel AND the comment button
   useEffect(() => {
     if (!showComments) return;
     const handleOutsideClick = (e) => {
-      if (commentPanelRef.current && !commentPanelRef.current.contains(e.target)) setShowComments(false);
+      if (
+        commentPanelRef.current &&
+        !commentPanelRef.current.contains(e.target) &&
+        commentBtnRef.current &&
+        !commentBtnRef.current.contains(e.target)
+      ) {
+        setShowComments(false);
+      }
     };
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
@@ -372,7 +379,7 @@ const ReelItem = ({ reel, allReels }) => {
   useEffect(() => {
     if (isYouTube(reel.src)) return;
     isMounted.current = true;
-    const video = videoRef.current;
+    const video     = videoRef.current;
     const container = containerRef.current;
     if (!video || !container) return;
     observerRef.current = new IntersectionObserver(
@@ -384,6 +391,10 @@ const ReelItem = ({ reel, allReels }) => {
           video.muted = globalMuted;
           video.play().catch(() => {});
           setIsPlaying(true);
+          // ✅ Show mute pill when reel comes into view
+          setShowMuteBtn(true);
+          clearTimeout(muteBtnTimerRef.current);
+          muteBtnTimerRef.current = setTimeout(() => setShowMuteBtn(false), 3000);
         } else {
           video.pause();
           setIsPlaying(false);
@@ -397,6 +408,7 @@ const ReelItem = ({ reel, allReels }) => {
       observerRef.current?.disconnect();
       clearTimeout(iconTimeoutRef.current);
       clearTimeout(tapTimeoutRef.current);
+      clearTimeout(muteBtnTimerRef.current);
       if (videoRef.current) { videoRef.current.pause(); videoRef.current.src = ""; }
     };
   }, []);
@@ -447,17 +459,16 @@ const ReelItem = ({ reel, allReels }) => {
     }, 250);
   };
 
+  // ✅ FIX: show mute pill on every toggle, hide after 3s
   const handleToggleMute = (e) => {
-  e.stopPropagation();
-  const newMuted = !globalMuted;
-  setGlobalMuted(newMuted);
-  if (videoRef.current) videoRef.current.muted = newMuted;
-
-  // Show pill, then hide after 3s
-  setShowMuteBtn(true);
-  clearTimeout(muteBtnTimerRef.current);
-  muteBtnTimerRef.current = setTimeout(() => setShowMuteBtn(false), 3000);
-};
+    e.stopPropagation();
+    const newMuted = !globalMuted;
+    setGlobalMuted(newMuted);
+    if (videoRef.current) videoRef.current.muted = newMuted;
+    setShowMuteBtn(true);
+    clearTimeout(muteBtnTimerRef.current);
+    muteBtnTimerRef.current = setTimeout(() => setShowMuteBtn(false), 3000);
+  };
 
   const handleLike = async () => {
     const userId = localStorage.getItem("userId");
@@ -517,22 +528,17 @@ const ReelItem = ({ reel, allReels }) => {
           </video>
         )}
 
-        {!isYouTube(reel.src) && showIcon        && <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>}
-        {!isYouTube(reel.src) && showHeartBurst  && <div className="reel_heart_burst">❤️</div>}
-        {!isYouTube(reel.src) && showMuteBtn && (
-  <button
-    key={muted ? "muted" : "unmuted"}
-    className="reel_mute_btn"
-    onClick={handleToggleMute}
-    aria-label={muted ? "Unmute" : "Mute"}
-  >
-    {muted ? <VolumeOffIcon sx={{ fontSize: 26 }} /> : <VolumeUpIcon sx={{ fontSize: 26 }} />}
-    <span className="reel_mute_btn_label">{muted ? "Tap to unmute" : "Tap to mute"}</span>
-  </button>
-)}
+        {!isYouTube(reel.src) && showIcon       && <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>}
+        {!isYouTube(reel.src) && showHeartBurst && <div className="reel_heart_burst">❤️</div>}
 
-        {!isYouTube(reel.src) && (
-  <button key={muted ? "muted" : "unmuted"} className="reel_mute_btn" onClick={handleToggleMute} aria-label={muted ? "Unmute" : "Mute"}>
+        {/* ✅ SINGLE mute button — controlled by showMuteBtn state */}
+        {!isYouTube(reel.src) && showMuteBtn && (
+          <button
+            key={muted ? "muted" : "unmuted"}
+            className="reel_mute_btn"
+            onClick={handleToggleMute}
+            aria-label={muted ? "Unmute" : "Mute"}
+          >
             {muted ? <VolumeOffIcon sx={{ fontSize: 26 }} /> : <VolumeUpIcon sx={{ fontSize: 26 }} />}
             <span className="reel_mute_btn_label">{muted ? "Tap to unmute" : "Tap to mute"}</span>
           </button>
@@ -548,7 +554,6 @@ const ReelItem = ({ reel, allReels }) => {
 
         {/* ══════════════════════════════════════
             RIGHT ACTION BAR
-            Like · Dislike · Comment · Share · More ▸
         ══════════════════════════════════════ */}
         <div className="reel_actions">
 
@@ -574,8 +579,12 @@ const ReelItem = ({ reel, allReels }) => {
             <ThumbDownAltOutlinedIcon style={{ color: disliked ? "#ff0000" : "white" }} />
           </div>
 
-          {/* Comment */}
-          <div className="reel_action_btn" onClick={() => setShowComments((v) => !v)}>
+          {/* ✅ FIX: Comment button now has commentBtnRef */}
+          <div
+            ref={commentBtnRef}
+            className="reel_action_btn"
+            onClick={() => setShowComments((v) => !v)}
+          >
             <ChatBubbleOutlineIcon style={{ color: showComments ? "#ff0000" : "white" }} />
             <span>{comments.length > 0 ? comments.length : "Comment"}</span>
           </div>
@@ -586,15 +595,13 @@ const ReelItem = ({ reel, allReels }) => {
             <span>Share</span>
           </div>
 
-          {/* ── More (opens dropdown with 5 creator actions) ── */}
+          {/* More */}
           <div
             className={`reel_action_btn reel_more_btn ${showMoreMenu ? "reel_more_btn--open" : ""}`}
             onClick={(e) => { e.stopPropagation(); setShowMoreMenu((v) => !v); }}
           >
             <MoreHorizIcon style={{ color: "white" }} />
             <span>More</span>
-
-            {/* Dropdown renders inside the button so it stays in z-stack */}
             {showMoreMenu && (
               <MoreDropdown
                 onRemix={handleRemix}
@@ -641,7 +648,7 @@ const ReelItem = ({ reel, allReels }) => {
         {/* Share toast */}
         {shareToast && <div className="reel_share_toast">Link copied to clipboard ✓</div>}
 
-        {/* Action toast (remix / sound / collab / greenscreen / cut) */}
+        {/* Action toast */}
         {actionToast.show && (
           <div className={`reel_share_toast reel_action_toast reel_action_toast--${actionToast.type}`}>
             {actionToast.msg}

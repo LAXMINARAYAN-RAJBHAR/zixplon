@@ -247,30 +247,19 @@
   color: #ffffff;
   cursor: pointer;
   z-index: 15;
-  animation: mutePillFadeOut 2.8s ease forwards;
-  pointer-events: auto;
+  pointer-events: auto;        /* always clickable while visible */
+  animation: mutePillFadeIn 0.25s ease;
 }
 
-@keyframes mutePillFadeOut {
-  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
-  65%  { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.92); pointer-events: none; }
+@keyframes mutePillFadeIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
 }
 
-.reel_mute_btn svg { font-size: 26px; flex-shrink: 0; }
-
-.reel_mute_btn_label {
-  font-family: 'Nunito', sans-serif;
-  font-size: 13px;
-  font-weight: 800;
-  white-space: nowrap;
-  letter-spacing: 0.3px;
-}
-
+/* keep hover/active as-is */
 .reel_mute_btn:hover {
   background: rgba(0, 0, 0, 0.72);
   border-color: rgba(255, 255, 255, 0.55);
-  animation-play-state: paused;
   transform: translate(-50%, -50%) scale(1.04);
   transition: background 0.15s, border-color 0.15s, transform 0.15s;
 }

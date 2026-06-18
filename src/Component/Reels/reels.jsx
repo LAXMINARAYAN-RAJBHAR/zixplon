@@ -91,6 +91,39 @@ const setGlobalMuted = (val) => {
 };
 
 // ─────────────────────────────────────────────────────────
+// "New" badge helpers
+// A reel is NEW if uploaded within 7 days AND not yet seen
+// Seen IDs are persisted in localStorage as a JSON array
+// ─────────────────────────────────────────────────────────
+const VIEWED_KEY = "zixplon_viewed_reels";
+
+const getViewedReels = () => {
+  try { return JSON.parse(localStorage.getItem(VIEWED_KEY) || "[]"); }
+  catch { return []; }
+};
+
+const markReelViewed = (id) => {
+  const viewed = getViewedReels();
+  if (!viewed.includes(String(id))) {
+    viewed.push(String(id));
+    localStorage.setItem(VIEWED_KEY, JSON.stringify(viewed));
+  }
+};
+
+const isNewReel = (reel) => {
+  // Static/hardcoded reels (rc_*) are never "new"
+  if (!String(reel.id).startsWith("db_")) return false;
+  // Already viewed → not new
+  if (getViewedReels().includes(String(reel.id))) return false;
+  // Uploaded within last 7 days
+  if (reel.created_at) {
+    const age = Date.now() - new Date(reel.created_at).getTime();
+    if (age > 7 * 24 * 60 * 60 * 1000) return false;
+  }
+  return true;
+};
+
+// ─────────────────────────────────────────────────────────
 // More dropdown — 5 creator actions in a floating menu
 // ─────────────────────────────────────────────────────────
 const MoreDropdown = ({ onRemix, onSound, onCollab, onGreenScreen, onCut, onClose }) => {
@@ -163,6 +196,7 @@ const ReelItem = ({ reel, allReels }) => {
   const [viewCount, setViewCount]               = useState(0);
   const [showHeartBurst, setShowHeartBurst]     = useState(false);
   const [showMuteBtn, setShowMuteBtn]           = useState(true); // ✅ mute pill visibility
+  const [showNewBadge, setShowNewBadge]         = useState(() => isNewReel(reel)); // "New" badge
 
   // ── show timed action toast ──
   const showToast = (msg, type = "") => {
@@ -395,6 +429,9 @@ const ReelItem = ({ reel, allReels }) => {
           setShowMuteBtn(true);
           clearTimeout(muteBtnTimerRef.current);
           muteBtnTimerRef.current = setTimeout(() => setShowMuteBtn(false), 3000);
+          // ✅ Mark as viewed → hide "New" badge
+          markReelViewed(reel.id);
+          setShowNewBadge(false);
         } else {
           video.pause();
           setIsPlaying(false);
@@ -550,6 +587,11 @@ const ReelItem = ({ reel, allReels }) => {
             <MusicNoteIcon style={{ fontSize: "12px" }} />
             🎬 Remixed from @{reel.remixed_from_username}
           </div>
+        )}
+
+        {/* ── "New" badge — shows on fresh uploads, disappears on first view ── */}
+        {showNewBadge && (
+          <div className="reel_new_badge">✨ New</div>
         )}
 
         {/* ══════════════════════════════════════
@@ -710,6 +752,7 @@ const Reels = () => {
             profilePic:            `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
             description:           r.description || "",
             likes:                 0,
+            created_at:            r.created_at  || null,
             remixed_from_id:       r.remixed_from_id       || null,
             remixed_from_username: r.remixed_from_username || null,
           }))
@@ -734,6 +777,7 @@ const Reels = () => {
           profilePic:            `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
           description:           r.description || "",
           likes:                 0,
+          created_at:            r.created_at  || null,
           remixed_from_id:       r.remixed_from_id       || null,
           remixed_from_username: r.remixed_from_username || null,
         }, ...prev]);

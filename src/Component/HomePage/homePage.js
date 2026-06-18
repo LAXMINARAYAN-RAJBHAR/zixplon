@@ -16,113 +16,18 @@ const API_KEYS = [
 let currentKeyIndex = 0;
 
 const videos = [
-  {
-    id: 7679,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTu-l3JR0guZspKsBZkVoakjkQ-qxUCCpkQnw&s",
-    title: "Big Buck Bunny open-source film",
-    duration: "09:56",
-    channel: "Gangeshwary",
-    tags: ["Film Criticisms", "Live"],
-  },
-  {
-    id: 2,
-    thumbnail: "https://i.ytimg.com/vi/ScMzIvxBSi4/hqdefault.jpg",
-    title: "Sample Video 2",
-    duration: "30:00",
-    channel: "Mummy",
-    tags: ["Music"],
-  },
-  {
-    id: 3,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwyNTbTLzlbDj6RSQdV6imNyxNywT3pchKKg&s",
-    title: "3d Lion Stock Photo",
-    duration: "60:00",
-    channel: "Papa",
-    tags: ["AI"],
-  },
-  {
-    id: 4,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpWv_QvC-7P4_8Ubbg2rwn0Om4APOgf6B3yA&s",
-    title: "Sample Video 4",
-    duration: "10:00",
-    channel: "Karthik",
-    tags: ["News"],
-  },
-  {
-    id: 5,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRZleDiTkppd2k7GVmREMQRs8D8JBbNXuuxUA&s",
-    title: "8k Wallpaper 3d Photos",
-    duration: "18:00",
-    channel: "Annu",
-    tags: ["Astronomy"],
-  },
-  {
-    id: 6,
-    thumbnail:
-      "https://damassets.autodesk.net/content/dam/autodesk/www/industry/3d-animation/create-beautiful-3d-animations-thumb-1204x677.jpg",
-    title: "3D Animation Solutions",
-    duration: "08:00",
-    channel: "Jyoti",
-    tags: ["AI", "Web Development"],
-  },
-  {
-    id: 7,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMxQZtpZz8NgMYzzNMiBm-n4h2oGYovjK2lQ&s",
-    title: "3D Shapes | Types & Examples",
-    duration: "28:00",
-    channel: "Sarita",
-    tags: ["Web Development"],
-  },
-  {
-    id: 8,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSK5izd-jLAR_UjqnUULPW42Pv_LIpL0W60cQ&s",
-    title: "3d Graphics Pictures",
-    duration: "20:00",
-    channel: "Jaynarayan",
-    tags: ["AI"],
-  },
-  {
-    id: 9,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQN6EQg2_-8zTqUk1YRvLpJinJk67VF0wEZfg&s",
-    title: "Scenery 3d wallpaper",
-    duration: "10:00",
-    channel: "Shyamnarayan",
-    tags: ["Astronomy"],
-  },
-  {
-    id: 10,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRS5r-8k6FyUEN9OYQu5WgyyNqT8lrqgw7dCQ&s",
-    title: "3D Nature Images",
-    duration: "12:00",
-    channel: "Rajbhar",
-    tags: ["History"],
-  },
-  {
-    id: 11,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeUzhAtZL9ElXiENfplVjR5dCJsUQUG2NuXg&s",
-    title: "5,364,800+ 3d Images",
-    duration: "13:30",
-    channel: "Narayan",
-    tags: ["AI"],
-  },
-  {
-    id: 12,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQdcK3NWfTM_cOjFOH6ArcBdUbu29e0AVjFZw&s",
-    title: "Understanding 3D Computer Graphics",
-    duration: "20:50",
-    channel: "Laxminarayan",
-    tags: ["Web Development", "AI"],
-  },
+  { id: 7679, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTu-l3JR0guZspKsBZkVoakjkQ-qxUCCpkQnw&s", title: "Big Buck Bunny open-source film", duration: "09:56", channel: "Gangeshwary", tags: ["Film Criticisms", "Live"] },
+  { id: 2, thumbnail: "https://i.ytimg.com/vi/ScMzIvxBSi4/hqdefault.jpg", title: "Sample Video 2", duration: "30:00", channel: "Mummy", tags: ["Music"] },
+  { id: 3, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwyNTbTLzlbDj6RSQdV6imNyxNywT3pchKKg&s", title: "3d Lion Stock Photo", duration: "60:00", channel: "Papa", tags: ["AI"] },
+  { id: 4, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpWv_QvC-7P4_8Ubbg2rwn0Om4APOgf6B3yA&s", title: "Sample Video 4", duration: "10:00", channel: "Karthik", tags: ["News"] },
+  { id: 5, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRZleDiTkppd2k7GVmREMQRs8D8JBbNXuuxUA&s", title: "8k Wallpaper 3d Photos", duration: "18:00", channel: "Annu", tags: ["Astronomy"] },
+  { id: 6, thumbnail: "https://damassets.autodesk.net/content/dam/autodesk/www/industry/3d-animation/create-beautiful-3d-animations-thumb-1204x677.jpg", title: "3D Animation Solutions", duration: "08:00", channel: "Jyoti", tags: ["AI", "Web Development"] },
+  { id: 7, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMxQZtpZz8NgMYzzNMiBm-n4h2oGYovjK2lQ&s", title: "3D Shapes | Types & Examples", duration: "28:00", channel: "Sarita", tags: ["Web Development"] },
+  { id: 8, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSK5izd-jLAR_UjqnUULPW42Pv_LIpL0W60cQ&s", title: "3d Graphics Pictures", duration: "20:00", channel: "Jaynarayan", tags: ["AI"] },
+  { id: 9, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQN6EQg2_-8zTqUk1YRvLpJinJk67VF0wEZfg&s", title: "Scenery 3d wallpaper", duration: "10:00", channel: "Shyamnarayan", tags: ["Astronomy"] },
+  { id: 10, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRS5r-8k6FyUEN9OYQu5WgyyNqT8lrqgw7dCQ&s", title: "3D Nature Images", duration: "12:00", channel: "Rajbhar", tags: ["History"] },
+  { id: 11, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeUzhAtZL9ElXiENfplVjR5dCJsUQUG2NuXg&s", title: "5,364,800+ 3d Images", duration: "13:30", channel: "Narayan", tags: ["AI"] },
+  { id: 12, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQdcK3NWfTM_cOjFOH6ArcBdUbu29e0AVjFZw&s", title: "Understanding 3D Computer Graphics", duration: "20:50", channel: "Laxminarayan", tags: ["Web Development", "AI"] },
   { id: 13, thumbnail: "https://picsum.photos/seed/lion1/320/180", title: "3D Lion Stock Photo", duration: "60:00", channel: "Papa", tags: ["Film Criticisms"] },
   { id: 14, thumbnail: "https://picsum.photos/seed/tiger2/320/180", title: "Tiger in Wild", duration: "45:00", channel: "NatureTV", tags: ["History"] },
   { id: 15, thumbnail: "https://picsum.photos/seed/forest3/320/180", title: "Forest Walk", duration: "30:00", channel: "EcoWorld", tags: ["Live"] },
@@ -195,6 +100,83 @@ const formatViews = (n) => {
   return n + " views";
 };
 
+// ─────────────────────────────────────────────────────────
+// ✅ NEW BADGE HELPERS
+// Uses two storage keys:
+//   FRESH_KEY (sessionStorage) → reels that just arrived via realtime this session
+//   VIEWED_KEY (localStorage)  → reels/videos the user has actually watched
+// ─────────────────────────────────────────────────────────
+const VIEWED_REELS_KEY  = "zixplon_viewed_reels";
+const FRESH_REELS_KEY   = "zixplon_fresh_reels";
+const VIEWED_VIDEOS_KEY = "zixplon_viewed_videos";
+const FRESH_VIDEOS_KEY  = "zixplon_fresh_videos";
+
+const getStoredList = (key, storage = localStorage) => {
+  try { return JSON.parse(storage.getItem(key) || "[]"); }
+  catch { return []; }
+};
+
+const addToStoredList = (key, id, storage = localStorage) => {
+  const list = getStoredList(key, storage);
+  if (!list.includes(String(id))) {
+    list.push(String(id));
+    storage.setItem(key, JSON.stringify(list));
+  }
+};
+
+const removeFromStoredList = (key, id, storage = localStorage) => {
+  const list = getStoredList(key, storage).filter((x) => x !== String(id));
+  storage.setItem(key, JSON.stringify(list));
+};
+
+// Call when reel arrives via realtime INSERT
+export const markReelFreshHome = (id) => addToStoredList(FRESH_REELS_KEY, id, sessionStorage);
+
+// Call when video arrives via realtime INSERT
+export const markVideoFreshHome = (id) => addToStoredList(FRESH_VIDEOS_KEY, id, sessionStorage);
+
+// Check if a DB reel should show "New" badge
+const isReelNew = (reelId, created_at) => {
+  if (!reelId) return false;
+  const id = String(reelId);
+  // Already viewed → not new
+  if (getStoredList(VIEWED_REELS_KEY).includes(id)) return false;
+  // Just arrived this session via realtime → always show badge
+  if (getStoredList(FRESH_REELS_KEY, sessionStorage).includes(id)) return true;
+  // Uploaded within last 7 days
+  if (created_at) {
+    const age = Date.now() - new Date(created_at).getTime();
+    return age <= 7 * 24 * 60 * 60 * 1000;
+  }
+  return false;
+};
+
+// Check if a DB video should show "New" badge
+const isVideoNew = (videoId, created_at) => {
+  if (!videoId) return false;
+  const id = String(videoId);
+  if (getStoredList(VIEWED_VIDEOS_KEY).includes(id)) return false;
+  if (getStoredList(FRESH_VIDEOS_KEY, sessionStorage).includes(id)) return true;
+  if (created_at) {
+    const age = Date.now() - new Date(created_at).getTime();
+    return age <= 7 * 24 * 60 * 60 * 1000;
+  }
+  return false;
+};
+
+// Mark reel as viewed (called when card enters viewport or is clicked)
+const markReelViewed = (id) => {
+  removeFromStoredList(FRESH_REELS_KEY, id, sessionStorage);
+  addToStoredList(VIEWED_REELS_KEY, id);
+};
+
+// Mark video as viewed
+const markVideoViewed = (id) => {
+  removeFromStoredList(FRESH_VIDEOS_KEY, id, sessionStorage);
+  addToStoredList(VIEWED_VIDEOS_KEY, id);
+};
+
+// Legacy helper kept for backward compat
 const isWatched = (contentType, contentId, watchedContentIds) => {
   const localKey = `viewed_${contentType}_${contentId}`;
   if (localStorage.getItem(localKey) === "true") return true;
@@ -211,7 +193,6 @@ const useIsMobile = () => {
   return mobile;
 };
 
-// ─── MOBILE TAB DEFINITIONS ─────────────────────────────────
 const MOBILE_TABS = [
   { id: "shorts", label: "Shorts", icon: "📱" },
   { id: "videos", label: "Videos", icon: "🎬" },
@@ -219,36 +200,40 @@ const MOBILE_TABS = [
   { id: "live",   label: "Live",   icon: "🔴" },
 ];
 
-// ─── SWIPE HOOK ──────────────────────────────────────────────
-// Returns touch handlers that call onSwipeLeft / onSwipeRight
-// when the finger moves more than `threshold` px horizontally
-// and less than `verticalLimit` px vertically (so scrolling still works).
 const useSwipeTabs = (onSwipeLeft, onSwipeRight, threshold = 50, verticalLimit = 80) => {
   const touchStart = useRef(null);
-
   const onTouchStart = (e) => {
     const t = e.touches[0];
     touchStart.current = { x: t.clientX, y: t.clientY };
   };
-
   const onTouchEnd = (e) => {
     if (!touchStart.current) return;
     const t = e.changedTouches[0];
     const dx = t.clientX - touchStart.current.x;
     const dy = Math.abs(t.clientY - touchStart.current.y);
     touchStart.current = null;
-
-    // Ignore if it looks more like a vertical scroll
     if (dy > verticalLimit) return;
-
-    if (dx < -threshold) onSwipeLeft();   // swipe left  → next tab
-    if (dx >  threshold) onSwipeRight();  // swipe right → prev tab
+    if (dx < -threshold) onSwipeLeft();
+    if (dx >  threshold) onSwipeRight();
   };
-
   return { onTouchStart, onTouchEnd };
 };
 
-// ─── TRENDING STRIP ──────────────────────────────────────────
+// ─── NEW BADGE COMPONENT ─────────────────────────────────
+const NewBadge = () => (
+  <div style={{
+    position: "absolute", top: "8px", left: "8px",
+    background: "linear-gradient(135deg, #f43f5e, #f97316)",
+    color: "white", fontSize: "10px", fontWeight: "800",
+    padding: "2px 8px", borderRadius: "6px", zIndex: 5,
+    boxShadow: "0 2px 8px rgba(244,63,94,0.5)",
+    fontFamily: "'Nunito', sans-serif", letterSpacing: "0.5px",
+    animation: "newBadgePop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards",
+    pointerEvents: "none",
+  }}>✨ New</div>
+);
+
+// ─── TRENDING STRIP ──────────────────────────────────────
 const MobileTrendingStrip = ({ dbVideos, dbReels = [], onVideoClick, onReelClick }) => {
   const trendingVideos = [
     ...dbVideos.slice(0, 6).map(v => ({ ...v, _type: 'video' })),
@@ -301,22 +286,36 @@ const MobileTrendingStrip = ({ dbVideos, dbReels = [], onVideoClick, onReelClick
   );
 };
 
-// ─── SHORT CARD ──────────────────────────────────────────────
+// ─── SHORT CARD ──────────────────────────────────────────
+// ✅ FIXED: showNew now re-evaluates when short.dbId changes (realtime insert)
 const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigate, watchedContentIds }) => {
-  const cardRef = useRef(null);
+  const cardRef  = useRef(null);
   const firedRef = useRef(false);
-  const [showNew, setShowNew] = useState(() => !!short.dbId && !isWatched("reel", short.dbId, watchedContentIds));
 
+  // ✅ KEY FIX: start with false, then set correctly in useEffect
+  const [showNew, setShowNew] = useState(false);
+
+  // ✅ Re-evaluate badge whenever short.dbId changes (covers realtime inserts)
+  useEffect(() => {
+    if (!short.dbId) { setShowNew(false); return; }
+    setShowNew(isReelNew(short.dbId, short.created_at));
+  }, [short.dbId, short.created_at]);
+
+  // ✅ Intersection observer: hide badge after 2s of viewing
   useEffect(() => {
     if (!short.dbId) return;
     firedRef.current = false;
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting && entry.intersectionRatio >= 0.6 && !firedRef.current) {
         firedRef.current = true;
-        localStorage.setItem(`viewed_reel_${short.dbId}`, "true");
-        localStorage.setItem(`lastViewed_reel_${short.dbId}`, String(Date.now()));
-        setShowNew(false);
         incrementView(String(short.dbId), "reel");
+        // Mark as viewed after 2s so badge is visible first
+        setTimeout(() => {
+          markReelViewed(String(short.dbId));
+          localStorage.setItem(`viewed_reel_${short.dbId}`, "true");
+          localStorage.setItem(`lastViewed_reel_${short.dbId}`, String(Date.now()));
+          setShowNew(false);
+        }, 2000);
       }
     }, { threshold: 0.6 });
     const el = cardRef.current;
@@ -324,11 +323,7 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
     return () => observer.disconnect();
   }, [short.dbId, incrementView]);
 
-  useEffect(() => {
-    if (short.dbId && isWatched("reel", short.dbId, watchedContentIds)) setShowNew(false);
-  }, [watchedContentIds, short.dbId]);
-
-  const vcKey = short.id ? "reel_" + short.id : null;
+  const vcKey = short.dbId ? "reel_" + short.dbId : null;
 
   return (
     <div
@@ -337,6 +332,7 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
       style={{ cursor: "pointer", position: "relative" }}
       onClick={() => {
         if (short.dbId) {
+          markReelViewed(String(short.dbId));
           localStorage.setItem(`viewed_reel_${short.dbId}`, "true");
           localStorage.setItem(`lastViewed_reel_${short.dbId}`, String(Date.now()));
           setShowNew(false);
@@ -349,11 +345,12 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
         <img src={short.thumbnail} alt={short.title || short.user} className="homePage_shortImg" />
         <div className="homePage_shortPlay">▶</div>
         <div className="homePage_shortDuration">{short.duration}</div>
-        {showNew && (
-          <div style={{ position:"absolute", top:"8px", left:"8px", background:"linear-gradient(135deg,#f43f5e,#f97316)", color:"white", fontSize:"10px", fontWeight:"800", padding:"2px 7px", borderRadius:"5px", zIndex:2 }}>New</div>
-        )}
+
+        {/* ✅ New badge — shows for fresh/recent reels */}
+        {showNew && <NewBadge />}
+
         {short.dbId && (
-          <div style={{ position:"absolute", bottom:"4px", left:"4px", background:"rgba(30,27,75,0.82)", color:"white", fontSize:"10px", fontWeight:"700", padding:"2px 6px", borderRadius:"5px" }}>
+          <div style={{ position:"absolute", bottom:"4px", left:"4px", background:"rgba(30,27,75,0.82)", color:"white", fontSize:"10px", fontWeight:"700", padding:"2px 6px", borderRadius:"5px", zIndex: 3 }}>
             👁 {formatViews(vcKey ? (viewCounts[vcKey] ?? 0) : 0)}
           </div>
         )}
@@ -366,7 +363,7 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
   );
 };
 
-// ─── WATCH PAGE ──────────────────────────────────────────────
+// ─── WATCH PAGE ──────────────────────────────────────────
 const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, suggestions, onIncrementView }) => {
   const isMobile = useIsMobile();
   const [currentIndex, setCurrentIndex] = useState(() => {
@@ -638,20 +635,9 @@ const HomePage = ({ sideNavbar }) => {
   const [selectedOption, setSelectedOption] = useState("All");
   const [mobileTab, setMobileTab] = useState("shorts");
 
-  // ── Swipe to change tabs ──────────────────────────────────
   const TAB_IDS = MOBILE_TABS.map((t) => t.id);
-  const goNextTab = () => {
-    setMobileTab((cur) => {
-      const idx = TAB_IDS.indexOf(cur);
-      return idx < TAB_IDS.length - 1 ? TAB_IDS[idx + 1] : cur;
-    });
-  };
-  const goPrevTab = () => {
-    setMobileTab((cur) => {
-      const idx = TAB_IDS.indexOf(cur);
-      return idx > 0 ? TAB_IDS[idx - 1] : cur;
-    });
-  };
+  const goNextTab = () => setMobileTab((cur) => { const idx = TAB_IDS.indexOf(cur); return idx < TAB_IDS.length - 1 ? TAB_IDS[idx + 1] : cur; });
+  const goPrevTab = () => setMobileTab((cur) => { const idx = TAB_IDS.indexOf(cur); return idx > 0 ? TAB_IDS[idx - 1] : cur; });
   const swipeHandlers = useSwipeTabs(goNextTab, goPrevTab);
 
   const searchQuery = (() => {
@@ -660,15 +646,15 @@ const HomePage = ({ sideNavbar }) => {
   })();
 
   const optionsTrackRef = useRef(null);
-  const autoScrollRef = useRef(null);
-  const isPausedRef = useRef(false);
-  const [ytVideos, setYtVideos] = useState([]);
-  const [ytLoading, setYtLoading] = useState(false);
-  const [watchVideo, setWatchVideo] = useState(null);
-  const [dbVideos, setDbVideos] = useState([]);
-  const [dbLoading, setDbLoading] = useState(true);
-  const [dbReels, setDbReels] = useState([]);
-  const [viewCounts, setViewCounts] = useState({});
+  const autoScrollRef   = useRef(null);
+  const isPausedRef     = useRef(false);
+  const [ytVideos, setYtVideos]           = useState([]);
+  const [ytLoading, setYtLoading]         = useState(false);
+  const [watchVideo, setWatchVideo]       = useState(null);
+  const [dbVideos, setDbVideos]           = useState([]);
+  const [dbLoading, setDbLoading]         = useState(true);
+  const [dbReels, setDbReels]             = useState([]);
+  const [viewCounts, setViewCounts]       = useState({});
   const [watchedContentIds, setWatchedContentIds] = useState(new Set());
   const loggedInUsername = localStorage.getItem("username") || "";
 
@@ -729,7 +715,13 @@ const HomePage = ({ sideNavbar }) => {
       setDbLoading(true);
       const { data, error } = await supabase.from("videos").select("*").order("created_at", { ascending: false });
       if (!error && data) {
-        const formatted = data.map((v) => ({ id:v.id, src:v.video_url, thumbnail:v.thumbnail_url, title:v.title, duration:v.duration||"00:00", channel:v.channel, username:v.username||v.channel?.toLowerCase()||"unknown", tags:[v.category||"All"], likes:v.likes??0 }));
+        const formatted = data.map((v) => ({
+          id: v.id, src: v.video_url, thumbnail: v.thumbnail_url,
+          title: v.title, duration: v.duration || "00:00",
+          channel: v.channel, username: v.username || v.channel?.toLowerCase() || "unknown",
+          tags: [v.category || "All"], likes: v.likes ?? 0,
+          created_at: v.created_at || null, // ✅ include for New badge
+        }));
         const videoIds = formatted.map((v) => String(v.id));
         const { data: likesData } = await supabase.from("likes").select("content_id").eq("content_type","video").in("content_id", videoIds);
         if (likesData) {
@@ -742,13 +734,25 @@ const HomePage = ({ sideNavbar }) => {
       setDbLoading(false);
     };
     fetchDbVideos();
+
     const subscription = supabase.channel("videos-channel")
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"videos" }, (payload) => {
         const v = payload.new;
-        setDbVideos((prev) => [{ id:v.id, src:v.video_url, thumbnail:v.thumbnail_url, title:v.title, duration:v.duration||"00:00", channel:v.channel, username:v.username||v.channel?.toLowerCase()||"unknown", tags:[v.category||"All"], likes:v.likes??0 }, ...prev]);
+        // ✅ Mark as fresh immediately for New badge
+        markVideoFreshHome(String(v.id));
+        setDbVideos((prev) => [{
+          id: v.id, src: v.video_url, thumbnail: v.thumbnail_url,
+          title: v.title, duration: v.duration || "00:00",
+          channel: v.channel, username: v.username || v.channel?.toLowerCase() || "unknown",
+          tags: [v.category || "All"], likes: v.likes ?? 0,
+          created_at: v.created_at || new Date().toISOString(), // ✅ fallback to now
+        }, ...prev]);
       })
-      .on("postgres_changes", { event:"DELETE", schema:"public", table:"videos" }, (payload) => { setDbVideos((prev) => prev.filter((v) => v.id !== payload.old.id)); })
+      .on("postgres_changes", { event:"DELETE", schema:"public", table:"videos" }, (payload) => {
+        setDbVideos((prev) => prev.filter((v) => v.id !== payload.old.id));
+      })
       .subscribe();
+
     return () => supabase.removeChannel(subscription);
   }, []);
 
@@ -756,24 +760,54 @@ const HomePage = ({ sideNavbar }) => {
     const fetchDbReels = async () => {
       const { data, error } = await supabase.from("reels").select("*").order("created_at", { ascending: false });
       if (!error && data) {
-        const formatted = data.map((r) => ({ id:"db_"+r.id, dbId:r.id, src:r.video_url, thumbnail:r.thumbnail||"https://picsum.photos/200/350?random=99", title:r.title||"Untitled", duration:r.duration||"00:00", user:r.user||r.username||"Unknown", username:r.username||"unknown", profilePic:"https://api.dicebear.com/7.x/initials/svg?seed="+(r.username||"user"), description:r.description||"", likes:r.likes??0 }));
+        const formatted = data.map((r) => ({
+          id: "db_" + r.id, dbId: r.id,
+          src: r.video_url,
+          thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99",
+          title: r.title || "Untitled",
+          duration: r.duration || "00:00",
+          user: r.user || r.username || "Unknown",
+          username: r.username || "unknown",
+          profilePic: "https://api.dicebear.com/7.x/initials/svg?seed=" + (r.username || "user"),
+          description: r.description || "",
+          likes: r.likes ?? 0,
+          created_at: r.created_at || null, // ✅ include for New badge
+        }));
         setDbReels(formatted);
-        fetchViewCounts(formatted.map((r) => r.id), "reel");
+        fetchViewCounts(formatted.map((r) => r.dbId), "reel");
       }
     };
     fetchDbReels();
+
     const reelsSub = supabase.channel("reels-channel")
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"reels" }, (payload) => {
         const r = payload.new;
-        setDbReels((prev) => [{ id:"db_"+r.id, dbId:r.id, src:r.video_url, thumbnail:r.thumbnail||"https://picsum.photos/200/350?random=99", title:r.title||"Untitled", duration:r.duration||"00:00", user:r.user||r.username||"Unknown", username:r.username||"unknown", profilePic:"https://api.dicebear.com/7.x/initials/svg?seed="+(r.username||"user"), description:r.description||"", likes:r.likes||0 }, ...prev]);
+        // ✅ Mark as fresh immediately for New badge
+        markReelFreshHome(String(r.id));
+        setDbReels((prev) => [{
+          id: "db_" + r.id, dbId: r.id,
+          src: r.video_url,
+          thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99",
+          title: r.title || "Untitled",
+          duration: r.duration || "00:00",
+          user: r.user || r.username || "Unknown",
+          username: r.username || "unknown",
+          profilePic: "https://api.dicebear.com/7.x/initials/svg?seed=" + (r.username || "user"),
+          description: r.description || "",
+          likes: r.likes || 0,
+          created_at: r.created_at || new Date().toISOString(), // ✅ fallback to now
+        }, ...prev]);
       })
-      .on("postgres_changes", { event:"DELETE", schema:"public", table:"reels" }, (payload) => { setDbReels((prev) => prev.filter((r) => r.dbId !== payload.old.id)); })
+      .on("postgres_changes", { event:"DELETE", schema:"public", table:"reels" }, (payload) => {
+        setDbReels((prev) => prev.filter((r) => r.dbId !== payload.old.id));
+      })
       .subscribe();
+
     return () => supabase.removeChannel(reelsSub);
   }, []);
 
   const allVideos = [...dbVideos, ...videos.map((v) => ({ ...v, id: typeof v.id === "number" ? `static_${v.id}` : v.id }))];
-  const allReels  = [...dbReels,  ...reelsData.map((r) => ({ ...r, id: typeof r.id === "number" ? `static_${r.id}` : r.id }))];
+  const allReels  = [...dbReels, ...reelsData.map((r) => ({ ...r, id: typeof r.id === "number" ? `static_${r.id}` : r.id }))];
 
   useEffect(() => {
     if (searchQuery) fetchYouTubeByTopic(searchQuery);
@@ -893,21 +927,45 @@ const HomePage = ({ sideNavbar }) => {
         </span>
       </div>
       <div className="homePage_shortsRow">
-        {data.map((short) => (<ShortCard key={short.id} short={short} incrementView={incrementView} viewCounts={viewCounts} handleDeleteReel={handleDeleteReel} navigate={navigate} watchedContentIds={watchedContentIds} />))}
+        {data.map((short) => (
+          <ShortCard key={short.id} short={short} incrementView={incrementView} viewCounts={viewCounts} handleDeleteReel={handleDeleteReel} navigate={navigate} watchedContentIds={watchedContentIds} />
+        ))}
       </div>
     </div>
   );
 
+  // ✅ VideoCard with working New badge
   const VideoCard = ({ video, isUploaded = false, showDelete = false }) => {
-    const showNew = isUploaded && !isWatched("video", video.id, watchedContentIds);
+    const [showNew, setShowNew] = useState(false);
+
+    // ✅ Re-evaluate badge when video.id or created_at changes (covers realtime inserts)
+    useEffect(() => {
+      if (!isUploaded || !video.id) { setShowNew(false); return; }
+      setShowNew(isVideoNew(String(video.id), video.created_at));
+    }, [video.id, video.created_at, isUploaded]);
+
     const isOwner = showDelete && isUploaded && loggedInUsername && video.username === loggedInUsername;
+
     return (
       <div className="youtube_thumbnailBox" style={{ position:"relative" }}>
-        {isOwner && (<button onClick={(e)=>handleDeleteVideo(e,video.id)} title="Delete video" style={{ position:"absolute", top:"8px", right:"8px", zIndex:10, background:"rgba(239,68,68,0.92)", border:"none", color:"white", borderRadius:"8px", padding:"4px 8px", cursor:"pointer", fontSize:"11px", fontWeight:"800", boxShadow:"0 2px 8px rgba(239,68,68,0.4)" }}>🗑 Delete</button>)}
-        <Link to={"/video/"+video.id} className="youtube_thumbnailWrapper" onClick={()=>{ if(isUploaded) incrementView(video.id,"video"); }}>
+        {isOwner && (
+          <button onClick={(e)=>handleDeleteVideo(e,video.id)} title="Delete video" style={{ position:"absolute", top:"8px", right:"8px", zIndex:10, background:"rgba(239,68,68,0.92)", border:"none", color:"white", borderRadius:"8px", padding:"4px 8px", cursor:"pointer", fontSize:"11px", fontWeight:"800", boxShadow:"0 2px 8px rgba(239,68,68,0.4)" }}>🗑 Delete</button>
+        )}
+        <Link
+          to={"/video/"+video.id}
+          className="youtube_thumbnailWrapper"
+          onClick={() => {
+            if (isUploaded) {
+              incrementView(video.id, "video");
+              markVideoViewed(String(video.id));
+              setShowNew(false);
+            }
+          }}
+        >
           <img src={video.thumbnail} alt={video.title} className="youtube_thumbnailPic" />
           <div className="youtube_timingThumbnail">{video.duration}</div>
-          {showNew && (<div style={{ position:"absolute", top:"8px", left:"8px", background:"linear-gradient(135deg,#f43f5e,#f97316)", color:"white", fontSize:"10px", fontWeight:"800", padding:"2px 7px", borderRadius:"5px", zIndex:2 }}>New</div>)}
+          {/* ✅ New badge on video card */}
+          {showNew && <NewBadge />}
           <div className="youtube_playOverlay"><div className="youtube_playButton">▶</div></div>
         </Link>
         <div className="youtubeTitleBox">
@@ -918,7 +976,11 @@ const HomePage = ({ sideNavbar }) => {
           <div className="youtubeVideoInfo">
             <p className="youtube_videoTitle">{video.title}</p>
             <p className="youtubeVideo_Views" style={{ display:"flex", gap:"10px", alignItems:"center" }}>
-              {isUploaded ? (<><span>👁 {formatViews(viewCounts["video_"+video.id]??0)}</span><span style={{ color:"#d1d5db", fontSize:"11px" }}>•</span><button onClick={(e)=>handleLikeVideo(e,video.id)} style={{ background:"none", border:"none", color:"#8b84c4", cursor:"pointer", fontSize:"inherit", padding:0, display:"flex", alignItems:"center", gap:"3px", fontWeight:"600" }}>👍 {video.likes??0} Likes</button></>) : (<span>👍 3 Likes</span>)}
+              {isUploaded ? (
+                <><span>👁 {formatViews(viewCounts["video_"+video.id]??0)}</span><span style={{ color:"#d1d5db", fontSize:"11px" }}>•</span><button onClick={(e)=>handleLikeVideo(e,video.id)} style={{ background:"none", border:"none", color:"#8b84c4", cursor:"pointer", fontSize:"inherit", padding:0, display:"flex", alignItems:"center", gap:"3px", fontWeight:"600" }}>👍 {video.likes??0} Likes</button></>
+              ) : (
+                <span>👍 3 Likes</span>
+              )}
             </p>
           </div>
         </div>
@@ -991,10 +1053,7 @@ const HomePage = ({ sideNavbar }) => {
             {allReels.length === 0 ? (
               <div style={{ textAlign:"center", padding:"40px 0", color:"#8b84c4" }}><div style={{ fontSize:"36px", marginBottom:"10px" }}>📱</div><p style={{ margin:0, fontWeight:"600" }}>No shorts yet</p></div>
             ) : (
-              <>
-                <div className="mobile-tab-section-head">All Shorts ({allReels.length})</div>
-                <div className="homePage_shortsRow">{allReels.map((short)=>(<ShortCard key={short.id} short={short} incrementView={incrementView} viewCounts={viewCounts} handleDeleteReel={handleDeleteReel} navigate={navigate} watchedContentIds={watchedContentIds} />))}</div>
-              </>
+              <><div className="mobile-tab-section-head">All Shorts ({allReels.length})</div><div className="homePage_shortsRow">{allReels.map((short)=>(<ShortCard key={short.id} short={short} incrementView={incrementView} viewCounts={viewCounts} handleDeleteReel={handleDeleteReel} navigate={navigate} watchedContentIds={watchedContentIds} />))}</div></>
             )}
           </div>
         );
@@ -1031,8 +1090,7 @@ const HomePage = ({ sideNavbar }) => {
             )}
           </div>
         );
-      default:
-        return null;
+      default: return null;
     }
   };
 
@@ -1124,7 +1182,12 @@ const HomePage = ({ sideNavbar }) => {
       {watchVideo && (
         <WatchPage initialVideoId={watchVideo.videoId} initialTitle={watchVideo.title} initialChannel={watchVideo.channel} onClose={closeWatchPage} suggestions={getSuggestions()} onIncrementView={incrementView} />
       )}
-      <style>{"@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}"}</style>
+
+      <style>{`
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        @keyframes shimmer { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
+        @keyframes newBadgePop { from{opacity:0;transform:scale(0.5)} to{opacity:1;transform:scale(1)} }
+      `}</style>
     </div>
   );
 };

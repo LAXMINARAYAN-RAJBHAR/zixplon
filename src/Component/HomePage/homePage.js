@@ -220,9 +220,6 @@ const MOBILE_TABS = [
 ];
 
 // ─── SWIPE HOOK ──────────────────────────────────────────────
-// Returns touch handlers that call onSwipeLeft / onSwipeRight
-// when the finger moves more than `threshold` px horizontally
-// and less than `verticalLimit` px vertically (so scrolling still works).
 const useSwipeTabs = (onSwipeLeft, onSwipeRight, threshold = 50, verticalLimit = 80) => {
   const touchStart = useRef(null);
 
@@ -237,12 +234,9 @@ const useSwipeTabs = (onSwipeLeft, onSwipeRight, threshold = 50, verticalLimit =
     const dx = t.clientX - touchStart.current.x;
     const dy = Math.abs(t.clientY - touchStart.current.y);
     touchStart.current = null;
-
-    // Ignore if it looks more like a vertical scroll
     if (dy > verticalLimit) return;
-
-    if (dx < -threshold) onSwipeLeft();   // swipe left  → next tab
-    if (dx >  threshold) onSwipeRight();  // swipe right → prev tab
+    if (dx < -threshold) onSwipeLeft();
+    if (dx >  threshold) onSwipeRight();
   };
 
   return { onTouchStart, onTouchEnd };
@@ -305,18 +299,19 @@ const MobileTrendingStrip = ({ dbVideos, dbReels = [], onVideoClick, onReelClick
 const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigate, watchedContentIds }) => {
   const cardRef = useRef(null);
   const firedRef = useRef(false);
+
+  // ✅ FIX: Check age (7 days) + watched status + sessionStorage fresh list
   const [showNew, setShowNew] = useState(() => {
-  if (!short.dbId) return false;
-  if (isWatched("reel", short.dbId, watchedContentIds)) return false;
-  // Check if uploaded within last 7 days
-  if (short.created_at) {
-    const age = Date.now() - new Date(short.created_at).getTime();
-    return age <= 7 * 24 * 60 * 60 * 1000;
-  }
-  // Realtime-inserted reels won't have created_at yet — check sessionStorage fresh list
-  const fresh = (() => { try { return JSON.parse(sessionStorage.getItem("zixplon_fresh_reels") || "[]"); } catch { return []; } })();
-  return fresh.includes(String("db_" + short.dbId));
-});
+    if (!short.dbId) return false;
+    if (isWatched("reel", short.dbId, watchedContentIds)) return false;
+    if (short.created_at) {
+      const age = Date.now() - new Date(short.created_at).getTime();
+      return age <= 7 * 24 * 60 * 60 * 1000;
+    }
+    // Realtime-inserted reels may not have created_at yet — check sessionStorage fresh list
+    const fresh = (() => { try { return JSON.parse(sessionStorage.getItem("zixplon_fresh_reels") || "[]"); } catch { return []; } })();
+    return fresh.includes(String("db_" + short.dbId));
+  });
 
   useEffect(() => {
     if (!short.dbId) return;
@@ -335,14 +330,15 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
     return () => observer.disconnect();
   }, [short.dbId, incrementView]);
 
+  // ✅ FIX: Re-evaluate showNew when watchedContentIds changes, including age check
   useEffect(() => {
-  if (!short.dbId) return;
-  if (isWatched("reel", short.dbId, watchedContentIds)) { setShowNew(false); return; }
-  if (short.created_at) {
-    const age = Date.now() - new Date(short.created_at).getTime();
-    setShowNew(age <= 7 * 24 * 60 * 60 * 1000);
-  }
-}, [watchedContentIds, short.dbId]);
+    if (!short.dbId) return;
+    if (isWatched("reel", short.dbId, watchedContentIds)) { setShowNew(false); return; }
+    if (short.created_at) {
+      const age = Date.now() - new Date(short.created_at).getTime();
+      setShowNew(age <= 7 * 24 * 60 * 60 * 1000);
+    }
+  }, [watchedContentIds, short.dbId]);
 
   const vcKey = short.id ? "reel_" + short.id : null;
 
@@ -688,7 +684,8 @@ const HomePage = ({ sideNavbar }) => {
   const [watchedContentIds, setWatchedContentIds] = useState(new Set());
   const loggedInUsername = localStorage.getItem("username") || "";
 
-  const loadWatchedIds = async () => {
+  // ✅ FIX: Wrapped in useCallback for stable reference across effects
+  const loadWatchedIds = React.useCallback(async () => {
     const userId = localStorage.getItem("userId");
     if (!userId) return;
     const { data } = await supabase.from("views").select("content_id, content_type").eq("user_id", userId);
@@ -696,19 +693,25 @@ const HomePage = ({ sideNavbar }) => {
       const ids = new Set(data.map((r) => `${r.content_type}_${r.content_id}`));
       setWatchedContentIds(ids);
     }
-  };
+  }, []);
 
+  // ✅ FIX: Added 30s interval poll + loadWatchedIds in dep array
   useEffect(() => {
     loadWatchedIds();
     const handleVisibility = () => { if (document.visibilityState === "visible") loadWatchedIds(); };
     const handleFocus = () => loadWatchedIds();
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", handleFocus);
+
+    // Poll every 30s for long sessions
+    const interval = setInterval(loadWatchedIds, 30000);
+
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", handleFocus);
+      clearInterval(interval);
     };
-  }, []);
+  }, [loadWatchedIds]);
 
   const incrementView = async (contentId, contentType) => {
     const storageKey = `lastViewed_${contentType}_${contentId}`;
@@ -758,35 +761,45 @@ const HomePage = ({ sideNavbar }) => {
       setDbLoading(false);
     };
     fetchDbVideos();
+
     const subscription = supabase.channel("videos-channel")
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"videos" }, (payload) => {
         const v = payload.new;
-        setDbVideos((prev) => [{ id:v.id, src:v.video_url, thumbnail:v.thumbnail_url, title:v.title, duration:v.duration||"00:00", channel:v.channel, username:v.username||v.channel?.toLowerCase()||"unknown", tags:[v.category||"All"], likes:v.likes??0 }, ...prev]);
+        const newVideo = { id:v.id, src:v.video_url, thumbnail:v.thumbnail_url, title:v.title, duration:v.duration||"00:00", channel:v.channel, username:v.username||v.channel?.toLowerCase()||"unknown", tags:[v.category||"All"], likes:v.likes??0 };
+        setDbVideos((prev) => [newVideo, ...prev]);
+        // ✅ FIX: Fetch view counts and refresh watched IDs for new video
+        fetchViewCounts([v.id], "video");
+        loadWatchedIds();
       })
       .on("postgres_changes", { event:"DELETE", schema:"public", table:"videos" }, (payload) => { setDbVideos((prev) => prev.filter((v) => v.id !== payload.old.id)); })
       .subscribe();
     return () => supabase.removeChannel(subscription);
-  }, []);
+  }, [loadWatchedIds]);
 
   useEffect(() => {
     const fetchDbReels = async () => {
       const { data, error } = await supabase.from("reels").select("*").order("created_at", { ascending: false });
       if (!error && data) {
-        const formatted = data.map((r) => ({ id:"db_"+r.id, dbId:r.id, src:r.video_url, thumbnail:r.thumbnail||"https://picsum.photos/200/350?random=99", title:r.title||"Untitled", duration:r.duration||"00:00", user:r.user||r.username||"Unknown", username:r.username||"unknown", profilePic:"https://api.dicebear.com/7.x/initials/svg?seed="+(r.username||"user"), description:r.description||"", likes:r.likes??0 }));
+        const formatted = data.map((r) => ({ id:"db_"+r.id, dbId:r.id, src:r.video_url, thumbnail:r.thumbnail||"https://picsum.photos/200/350?random=99", title:r.title||"Untitled", duration:r.duration||"00:00", user:r.user||r.username||"Unknown", username:r.username||"unknown", profilePic:"https://api.dicebear.com/7.x/initials/svg?seed="+(r.username||"user"), description:r.description||"", likes:r.likes??0, created_at:r.created_at||null }));
         setDbReels(formatted);
         fetchViewCounts(formatted.map((r) => r.id), "reel");
       }
     };
     fetchDbReels();
+
     const reelsSub = supabase.channel("reels-channel")
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"reels" }, (payload) => {
         const r = payload.new;
-        setDbReels((prev) => [{ id:"db_"+r.id, dbId:r.id, src:r.video_url, thumbnail:r.thumbnail||"https://picsum.photos/200/350?random=99", title:r.title||"Untitled", duration:r.duration||"00:00", user:r.user||r.username||"Unknown", username:r.username||"unknown", profilePic:"https://api.dicebear.com/7.x/initials/svg?seed="+(r.username||"user"), description:r.description||"", likes:r.likes||0 }, ...prev]);
+        const newReel = { id:"db_"+r.id, dbId:r.id, src:r.video_url, thumbnail:r.thumbnail||"https://picsum.photos/200/350?random=99", title:r.title||"Untitled", duration:r.duration||"00:00", user:r.user||r.username||"Unknown", username:r.username||"unknown", profilePic:"https://api.dicebear.com/7.x/initials/svg?seed="+(r.username||"user"), description:r.description||"", likes:r.likes||0, created_at:r.created_at||null };
+        setDbReels((prev) => [newReel, ...prev]);
+        // ✅ FIX: Fetch view counts and refresh watched IDs for new reel
+        fetchViewCounts([r.id], "reel");
+        loadWatchedIds();
       })
       .on("postgres_changes", { event:"DELETE", schema:"public", table:"reels" }, (payload) => { setDbReels((prev) => prev.filter((r) => r.dbId !== payload.old.id)); })
       .subscribe();
     return () => supabase.removeChannel(reelsSub);
-  }, []);
+  }, [loadWatchedIds]);
 
   const allVideos = [...dbVideos, ...videos.map((v) => ({ ...v, id: typeof v.id === "number" ? `static_${v.id}` : v.id }))];
   const allReels  = [...dbReels,  ...reelsData.map((r) => ({ ...r, id: typeof r.id === "number" ? `static_${r.id}` : r.id }))];

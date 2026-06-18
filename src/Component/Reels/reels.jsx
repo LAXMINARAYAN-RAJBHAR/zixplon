@@ -92,17 +92,42 @@ const setGlobalMuted = (val) => {
 
 // ─────────────────────────────────────────────────────────
 // "New" badge helpers
-// A reel is NEW if uploaded within 7 days AND not yet seen
-// Seen IDs are persisted in localStorage as a JSON array
+// A reel is NEW if:
+//   1. It's a db_ reel (not hardcoded)
+//   2. Not yet viewed (tracked in localStorage)
+//   3. Uploaded within last 7 days OR just arrived via realtime
+//
+// "Just arrived via realtime" = stored in sessionStorage
+// so badge shows immediately without waiting for created_at
 // ─────────────────────────────────────────────────────────
-const VIEWED_KEY = "zixplon_viewed_reels";
+const VIEWED_KEY  = "zixplon_viewed_reels";
+const FRESH_KEY   = "zixplon_fresh_reels"; // reels that arrived this session via realtime
 
 const getViewedReels = () => {
   try { return JSON.parse(localStorage.getItem(VIEWED_KEY) || "[]"); }
   catch { return []; }
 };
 
+const getFreshReels = () => {
+  try { return JSON.parse(sessionStorage.getItem(FRESH_KEY) || "[]"); }
+  catch { return []; }
+};
+
+// Call this when a reel arrives via realtime INSERT
+export const markReelFresh = (id) => {
+  const fresh = getFreshReels();
+  if (!fresh.includes(String(id))) {
+    fresh.push(String(id));
+    sessionStorage.setItem(FRESH_KEY, JSON.stringify(fresh));
+  }
+};
+
+// Call this when user actually watches the reel
 const markReelViewed = (id) => {
+  // Remove from fresh list
+  const fresh = getFreshReels().filter((f) => f !== String(id));
+  sessionStorage.setItem(FRESH_KEY, JSON.stringify(fresh));
+  // Add to viewed list
   const viewed = getViewedReels();
   if (!viewed.includes(String(id))) {
     viewed.push(String(id));
@@ -111,16 +136,19 @@ const markReelViewed = (id) => {
 };
 
 const isNewReel = (reel) => {
+  const id = String(reel.id);
   // Static/hardcoded reels (rc_*) are never "new"
-  if (!String(reel.id).startsWith("db_")) return false;
+  if (!id.startsWith("db_")) return false;
   // Already viewed → not new
-  if (getViewedReels().includes(String(reel.id))) return false;
-  // Uploaded within last 7 days
+  if (getViewedReels().includes(id)) return false;
+  // Just arrived this session via realtime → always show badge
+  if (getFreshReels().includes(id)) return true;
+  // Uploaded within last 7 days → show badge
   if (reel.created_at) {
     const age = Date.now() - new Date(reel.created_at).getTime();
-    if (age > 7 * 24 * 60 * 60 * 1000) return false;
+    return age <= 7 * 24 * 60 * 60 * 1000;
   }
-  return true;
+  return false;
 };
 
 // ─────────────────────────────────────────────────────────
@@ -195,8 +223,13 @@ const ReelItem = ({ reel, allReels }) => {
   const [showMoreMenu, setShowMoreMenu]         = useState(false);
   const [viewCount, setViewCount]               = useState(0);
   const [showHeartBurst, setShowHeartBurst]     = useState(false);
-  const [showMuteBtn, setShowMuteBtn]           = useState(true); // ✅ mute pill visibility
-  const [showNewBadge, setShowNewBadge]         = useState(() => isNewReel(reel)); // "New" badge
+  const [showMuteBtn, setShowMuteBtn]           = useState(true);
+  const [showNewBadge, setShowNewBadge]         = useState(false); // "New" badge
+
+  // ✅ Re-evaluate New badge whenever reel object changes (e.g. after realtime insert)
+  useEffect(() => {
+    setShowNewBadge(isNewReel(reel));
+  }, [reel.id]);
 
   // ── show timed action toast ──
   const showToast = (msg, type = "") => {
@@ -429,9 +462,11 @@ const ReelItem = ({ reel, allReels }) => {
           setShowMuteBtn(true);
           clearTimeout(muteBtnTimerRef.current);
           muteBtnTimerRef.current = setTimeout(() => setShowMuteBtn(false), 3000);
-          // ✅ Mark as viewed → hide "New" badge
-          markReelViewed(reel.id);
-          setShowNewBadge(false);
+          // ✅ Mark as viewed after 2s delay so "New" badge is visible first
+          setTimeout(() => {
+            markReelViewed(reel.id);
+            setShowNewBadge(false);
+          }, 2000);
         } else {
           video.pause();
           setIsPlaying(false);
@@ -766,6 +801,8 @@ const Reels = () => {
       .channel("reels-page-channel")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "reels" }, (payload) => {
         const r = payload.new;
+        // ✅ Mark as fresh so "New" badge shows immediately
+        markReelFresh(`db_${r.id}`);
         setDbReels((prev) => [{
           id:                    `db_${r.id}`,
           src:                   r.video_url,

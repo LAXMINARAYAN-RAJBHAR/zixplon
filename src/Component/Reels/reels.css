@@ -658,3 +658,39 @@ body.reels-open .reel_item   { height: 100dvh; }
   from { opacity: 0; transform: scale(0.5); }
   to   { opacity: 1; transform: scale(1);   }
 }
+
+/* ══════════════════════════════════════
+   BACK BUTTON
+══════════════════════════════════════ */
+
+.reels_back_btn {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  z-index: 10001; /* above the mobile fullscreen container (z-index: 10000) */
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.reels_back_btn:hover { background: rgba(0, 0, 0, 0.65); transform: scale(1.06); }
+.reels_back_btn:active { transform: scale(0.95); }
+
+@media (max-width: 768px) {
+  .reels_back_btn {
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    left: 14px;
+    width: 38px;
+    height: 38px;
+  }
+}

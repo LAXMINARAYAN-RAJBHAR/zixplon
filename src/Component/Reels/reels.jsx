@@ -14,6 +14,7 @@ import "./reels.css";
 import { Link, useLocation, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import useViewTracker from "./useViewTracker";
+import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 
 export const reelsData = [
   { id: "rc_1", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Jyoti", username: "jyoti", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
@@ -762,8 +763,14 @@ const ReelItem = ({ reel, allReels }) => {
 const Reels = () => {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const [dbReels, setDbReels]     = useState([]);
   const [dbLoading, setDbLoading] = useState(true);
+
+  const handleBack = () => {
+    if (window.history.length > 2) navigate(-1);
+    else navigate("/");
+  };
 
   useEffect(() => {
     document.body.classList.add("reels-open");
@@ -882,12 +889,18 @@ const Reels = () => {
   }
 
   return (
+  <>
+    <button className="reels_back_btn" onClick={handleBack} aria-label="Go back">
+      <ArrowBackIosNewIcon style={{ fontSize: 18 }} />
+    </button>
+
     <div className="reels_container">
       {allReels.map((reel) => (
         <ReelItem key={reel.id} reel={reel} allReels={allReels} />
       ))}
     </div>
-  );
+  </>
+);
 };
 
 export default Reels;

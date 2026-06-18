@@ -4,7 +4,7 @@ import ContentCutIcon from "@mui/icons-material/ContentCut";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import "./libraryPages.css";
+import "../../styles/libraryPages.css";
 
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,

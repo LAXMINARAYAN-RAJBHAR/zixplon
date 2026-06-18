@@ -6,7 +6,7 @@ import PlaylistPlayIcon from "@mui/icons-material/PlaylistPlay";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
-import "./libraryPages.css";
+import "../../styles/libraryPages.css";
 
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,

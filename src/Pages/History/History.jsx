@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Link } from "react-router-dom";
 import HistoryIcon from "@mui/icons-material/History";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
-import "./libraryPages.css";
+import "../../styles/libraryPages.css";
 
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,

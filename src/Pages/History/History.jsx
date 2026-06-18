@@ -1,14 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { Link } from "react-router-dom";
 import HistoryIcon from "@mui/icons-material/History";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import "../../styles/libraryPages.css";
-
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.REACT_APP_SUPABASE_KEY
-);
+import { supabase } from "../../config/supabase";
 
 // ─── Call this from your Video.jsx when a video starts playing ───
 // import { logHistory } from "../pages/History";

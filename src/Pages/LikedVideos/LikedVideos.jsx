@@ -1,13 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { Link } from "react-router-dom";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import "../../styles/libraryPages.css";
-
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.REACT_APP_SUPABASE_KEY
-);
+import { supabase } from "../../config/supabase";
 
 const LikedVideos = () => {
   const [videos, setVideos] = useState([]);

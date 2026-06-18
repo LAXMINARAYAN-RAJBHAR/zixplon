@@ -1,13 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { Link } from "react-router-dom";
 import SubscriptionsIcon from "@mui/icons-material/Subscriptions";
 import "../../styles/libraryPages.css";
-
-const supabase = createClient(
-  process.env.REACT_APP_SUPABASE_URL,
-  process.env.REACT_APP_SUPABASE_KEY
-);
+import { supabase } from "../../config/supabase";
 
 const SubscriptionFeed = () => {
   const [videos, setVideos] = useState([]);

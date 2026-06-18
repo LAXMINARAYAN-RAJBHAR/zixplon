@@ -11,12 +11,18 @@
   min-height: 100vh;
   background: var(--zx-bg, #f0f4ff);
   padding: 24px 28px 60px;
-  padding-top: calc(55px + 24px); /* 55px navbar height + breathing room */
+  padding-top: calc(55px + 24px);
   max-width: 1100px;
   margin: 0 auto;
-  margin-left: 290px; /* sidebar width offset */
+  margin-left: 290px; /* sidebar open */
   font-family: 'Outfit', sans-serif;
   color: var(--zx-text, #1e1b4b);
+  transition: margin-left 0.2s ease;
+}
+
+/* sidebar collapsed */
+.lib-page.sidebar-collapsed {
+  margin-left: 0;
 }
 
 /* ── Header ── */

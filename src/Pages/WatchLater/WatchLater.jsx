@@ -5,13 +5,13 @@ import WatchLaterIcon from "@mui/icons-material/WatchLater";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import "../../styles/libraryPages.css";
 
-const WatchLater = () => {
+const WatchLater = ({ currentUser, sideNavbar }) => {
+  const username = currentUser || "";
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const username = localStorage.getItem("username") || "";
 
   useEffect(() => {
-    if (!username) { setLoading(false); return; }
+    if (!username) { setLoading(false); setItems([]); return; }
     loadItems();
   }, [username]);
 
@@ -34,7 +34,7 @@ const WatchLater = () => {
   };
 
   return (
-    <div className="lib-page">
+    <div className={`lib-page${sideNavbar ? "" : " sidebar-collapsed"}`}>
       <div className="lib-header">
         <WatchLaterIcon className="lib-header-icon" />
         <div>

@@ -8,16 +8,16 @@ import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import "../../styles/libraryPages.css";
 
-const Playlist = () => {
+const Playlist = ({ currentUser }) => {
+  const username = currentUser || "";
   const [playlists, setPlaylists] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const username = localStorage.getItem("username") || "";
 
   useEffect(() => {
-    if (!username) { setLoading(false); return; }
+    if (!username) { setLoading(false); setPlaylists([]); return; }
     loadPlaylists();
   }, [username]);
 
@@ -117,13 +117,22 @@ const Playlist = () => {
         </div>
         {username && <button className="lib-cta-btn" onClick={() => setCreating(true)}><AddIcon style={{ fontSize: 18 }} /> New</button>}
       </div>
+
       {creating && (
         <div className="lib-create-box">
-          <input className="lib-input" placeholder="Playlist name..." value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && createPlaylist()} autoFocus />
+          <input
+            className="lib-input"
+            placeholder="Playlist name..."
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && createPlaylist()}
+            autoFocus
+          />
           <button className="lib-cta-btn" onClick={createPlaylist}>Create</button>
           <button className="lib-remove-btn" onClick={() => { setCreating(false); setNewTitle(""); }}><CloseIcon /></button>
         </div>
       )}
+
       {!username && <div className="lib-empty"><p>Sign in to create and manage playlists.</p></div>}
       {username && loading && <div className="lib-loading"><div className="lib-spinner" /></div>}
       {username && !loading && playlists.length === 0 && !creating && (

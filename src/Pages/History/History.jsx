@@ -5,19 +5,18 @@ import HistoryIcon from "@mui/icons-material/History";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import "../../styles/libraryPages.css";
 
-// Call this from Video.jsx when a video starts playing
 export const logHistory = async (username, videoId) => {
   if (!username || !videoId) return;
   await supabase.from("history").insert({ username, video_id: Number(videoId) });
 };
 
-const History = () => {
+const History = ({ currentUser, sideNavbar }) => {
+  const username = currentUser || "";
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
-  const username = localStorage.getItem("username") || "";
 
   useEffect(() => {
-    if (!username) { setLoading(false); return; }
+    if (!username) { setLoading(false); setGroups([]); return; }
     loadHistory();
   }, [username]);
 
@@ -62,7 +61,7 @@ const History = () => {
   const totalCount = groups.reduce((acc, [, items]) => acc + items.length, 0);
 
   return (
-    <div className="lib-page">
+    <div className={`lib-page${sideNavbar ? "" : " sidebar-collapsed"}`}>
       <div className="lib-header">
         <HistoryIcon className="lib-header-icon" />
         <div style={{ flex: 1 }}>

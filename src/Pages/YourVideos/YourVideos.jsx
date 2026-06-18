@@ -4,14 +4,15 @@ import { Link } from "react-router-dom";
 import SmartDisplayIcon from "@mui/icons-material/SmartDisplay";
 import "../../styles/libraryPages.css";
 
-const YourVideos = () => {
+const YourVideos = ({ currentUser, sideNavbar }) => {
+  const username = currentUser || "";
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const username = localStorage.getItem("username") || "";
 
   useEffect(() => {
-    if (!username) { setLoading(false); return; }
+    if (!username) { setLoading(false); setVideos([]); return; }
     const loadVideos = async () => {
+      setLoading(true);
       const { data, error } = await supabase
         .from("videos")
         .select("id, title, thumbnail_url, likes, created_at")
@@ -27,7 +28,7 @@ const YourVideos = () => {
     new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
   return (
-    <div className="lib-page">
+    <div className={`lib-page${sideNavbar ? "" : " sidebar-collapsed"}`}>
       <div className="lib-header">
         <SmartDisplayIcon className="lib-header-icon" />
         <div>

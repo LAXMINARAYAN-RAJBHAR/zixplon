@@ -31,7 +31,6 @@ import {
   CommunityGuidelinesPage,
   AdvertisePage,
 } from "./Pages/ZixplonPages";
-// ── New library pages ──
 import LikedVideos      from "./Pages/LikedVideos/LikedVideos";
 import YourVideos       from "./Pages/YourVideos/YourVideos";
 import WatchLater       from "./Pages/WatchLater/WatchLater";
@@ -47,7 +46,6 @@ function App() {
     localStorage.getItem("username") || null,
   );
 
-  // ── Warm up Supabase connection on app load ──
   useEffect(() => {
     supabase.from("videos").select("id").limit(1).then(() => {});
   }, []);
@@ -123,70 +121,21 @@ function App() {
   }, []);
 
   const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      type: "upload",
-      message: "TechWorld uploaded: 'React 19 Features'",
-      time: "2m ago",
-      read: false,
-      avatar: "T",
-    },
-    {
-      id: 2,
-      type: "like",
-      message: "Alex liked your video 'My Portfolio Tour'",
-      time: "10m ago",
-      read: false,
-      avatar: "A",
-    },
-    {
-      id: 3,
-      type: "comment",
-      message: "Sara commented: 'Great content! 🔥'",
-      time: "25m ago",
-      read: false,
-      avatar: "S",
-    },
-    {
-      id: 4,
-      type: "subscriber",
-      message: "John subscribed to your channel",
-      time: "1h ago",
-      read: false,
-      avatar: "J",
-    },
-    {
-      id: 5,
-      type: "upload",
-      message: "CodeWithMe uploaded: 'Node.js Crash Course'",
-      time: "2h ago",
-      read: true,
-      avatar: "C",
-    },
-    {
-      id: 6,
-      type: "like",
-      message: "Priya liked your video 'CSS Animations'",
-      time: "3h ago",
-      read: true,
-      avatar: "P",
-    },
+    { id: 1, type: "upload",     message: "TechWorld uploaded: 'React 19 Features'",      time: "2m ago",  read: false, avatar: "T" },
+    { id: 2, type: "like",       message: "Alex liked your video 'My Portfolio Tour'",     time: "10m ago", read: false, avatar: "A" },
+    { id: 3, type: "comment",    message: "Sara commented: 'Great content! 🔥'",           time: "25m ago", read: false, avatar: "S" },
+    { id: 4, type: "subscriber", message: "John subscribed to your channel",               time: "1h ago",  read: false, avatar: "J" },
+    { id: 5, type: "upload",     message: "CodeWithMe uploaded: 'Node.js Crash Course'",   time: "2h ago",  read: true,  avatar: "C" },
+    { id: 6, type: "like",       message: "Priya liked your video 'CSS Animations'",       time: "3h ago",  read: true,  avatar: "P" },
   ]);
 
-  // ✅ Updated: hides Footer on YouTube search, Reels (incl. /reels/:id),
-  // Local Media Player, and both Upload routes (/videoUpload and /:id/upload)
   const hideFooter =
-    ["/youtube", "/local-player", "/videoUpload"].includes(
-      location.pathname,
-    ) ||
+    ["/youtube", "/local-player", "/videoUpload"].includes(location.pathname) ||
     location.pathname.startsWith("/reels") ||
     location.pathname.endsWith("/upload");
 
   return (
-    <div
-      className="App"
-      style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}
-    >
+    <div className="App" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
       <ScrollToTop />
       <Navbar
         currentUser={currentUser}
@@ -198,62 +147,44 @@ function App() {
       />
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
         <Routes>
-          <Route path="/" element={<Home sideNavbar={sideNavbar} />} />
-          <Route path="/video/:id" element={<Video />} />
-          <Route
-            path="/user/:username"
-            element={<Profile sideNavbar={sideNavbar} />}
-          />
+          <Route path="/"            element={<Home sideNavbar={sideNavbar} />} />
+          <Route path="/video/:id"   element={<Video />} />
+          <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} />} />
           <Route path="/videoUpload" element={<VideoUpload />} />
-          <Route path="/:id/upload" element={<VideoUpload />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="/reels" element={<Reels />} />
-          <Route path="/reels/:id" element={<Reels />} />
-          <Route path="/search" element={<SearchResults />} />
-          <Route path="/youtube" element={<YouTubeSearch />} />
-          <Route
-            path="/notifications"
-            element={<Notifications notifications={notifications} />}
-          />
+          <Route path="/:id/upload"  element={<VideoUpload />} />
+          <Route path="/signup"      element={<SignUp />} />
+          <Route path="/reels"       element={<Reels />} />
+          <Route path="/reels/:id"   element={<Reels />} />
+          <Route path="/search"      element={<SearchResults />} />
+          <Route path="/youtube"     element={<YouTubeSearch />} />
+          <Route path="/notifications" element={<Notifications notifications={notifications} />} />
 
-          {/* ── Library pages (fully functional) ── */}
-          <Route path="/history"      element={<History />} />
-          <Route path="/playlist"     element={<Playlist />} />
-          <Route path="/your-videos"  element={<YourVideos />} />
-          <Route path="/watch-later"  element={<WatchLater />} />
-          <Route path="/liked-videos" element={<LikedVideos />} />
-          <Route path="/your-clips"   element={<YourClips />} />
-          <Route path="/subscription" element={<SubscriptionFeed />} />
+          {/* ── Library pages — currentUser passed so they react to login/logout ── */}
+          <Route path="/history"      element={<History      currentUser={currentUser} />} />
+          <Route path="/playlist"     element={<Playlist     currentUser={currentUser} />} />
+          <Route path="/your-videos"  element={<YourVideos   currentUser={currentUser} />} />
+          <Route path="/watch-later"  element={<WatchLater   currentUser={currentUser} />} />
+          <Route path="/liked-videos" element={<LikedVideos  currentUser={currentUser} />} />
+          <Route path="/your-clips"   element={<YourClips    currentUser={currentUser} />} />
+          <Route path="/subscription" element={<SubscriptionFeed currentUser={currentUser} />} />
 
-          <Route
-            path="/live-tv"
-            element={<LiveTVPage sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/local-player"
-            element={<LocalMediaPlayer sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/terms-and-conditions"
-            element={<TermsAndConditions />}
-          />
-          <Route path="/feedback"  element={<Feedback />} />
-          <Route path="/help"      element={<Help />} />
-          <Route path="/contact"   element={<ContactSupport />} />
-          <Route path="/report"    element={<ReportProblem />} />
-          <Route path="/about"     element={<AboutPage />} />
+          <Route path="/live-tv"      element={<LiveTVPage sideNavbar={sideNavbar} />} />
+          <Route path="/local-player" element={<LocalMediaPlayer sideNavbar={sideNavbar} />} />
+          <Route path="/terms-and-conditions"  element={<TermsAndConditions />} />
+          <Route path="/feedback"              element={<Feedback />} />
+          <Route path="/help"                  element={<Help />} />
+          <Route path="/contact"               element={<ContactSupport />} />
+          <Route path="/report"                element={<ReportProblem />} />
+          <Route path="/about"                 element={<AboutPage />} />
           <Route path="/privacy-policy"        element={<PrivacyPolicyPage />} />
           <Route path="/dmca"                  element={<DmcaPage />} />
           <Route path="/community-guidelines"  element={<CommunityGuidelinesPage />} />
           <Route path="/advertise"             element={<AdvertisePage />} />
-          <Route path="/feed" element={<PostFeed sideNavbar={sideNavbar} />} />
+          <Route path="/feed"  element={<PostFeed sideNavbar={sideNavbar} />} />
         </Routes>
       </div>
 
-      {/* ✅ BottomNav OUTSIDE Routes — only visible on mobile */}
       <BottomNav currentUser={currentUser} />
-
-      {/* ✅ Footer receives sideNavbar to adjust left margin */}
       {!hideFooter && <Footer sideNavbar={sideNavbar} />}
     </div>
   );

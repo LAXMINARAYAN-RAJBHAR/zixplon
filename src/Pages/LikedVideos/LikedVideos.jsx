@@ -4,15 +4,15 @@ import { Link } from "react-router-dom";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import "../../styles/libraryPages.css";
 
-const LikedVideos = () => {
+const LikedVideos = ({ currentUser, sideNavbar }) => {
+  const username = currentUser || "";
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const username = localStorage.getItem("username") || "";
 
   useEffect(() => {
-    if (!username) { setLoading(false); return; }
+    if (!username) { setLoading(false); setVideos([]); return; }
     const loadLiked = async () => {
-      // likes table: user_id = username, content_type = 'video', content_id = video id (as text)
+      setLoading(true);
       const { data: likeRows, error: likeErr } = await supabase
         .from("likes")
         .select("content_id")
@@ -39,7 +39,7 @@ const LikedVideos = () => {
   }, [username]);
 
   return (
-    <div className="lib-page">
+    <div className={`lib-page${sideNavbar ? "" : " sidebar-collapsed"}`}>
       <div className="lib-header">
         <ThumbUpIcon className="lib-header-icon" />
         <div>

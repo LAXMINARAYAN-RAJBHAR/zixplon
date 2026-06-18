@@ -10,7 +10,7 @@ export const logHistory = async (username, videoId) => {
   await supabase.from("history").insert({ username, video_id: Number(videoId) });
 };
 
-const History = ({ currentUser, sideNavbar }) => {
+const History = ({ currentUser }) => {
   const username = currentUser || "";
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +61,7 @@ const History = ({ currentUser, sideNavbar }) => {
   const totalCount = groups.reduce((acc, [, items]) => acc + items.length, 0);
 
   return (
-    <div className={`lib-page${sideNavbar ? "" : " sidebar-collapsed"}`}>
+    <div className="lib-page">
       <div className="lib-header">
         <HistoryIcon className="lib-header-icon" />
         <div style={{ flex: 1 }}>

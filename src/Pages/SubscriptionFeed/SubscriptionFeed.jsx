@@ -4,12 +4,12 @@ import { Link } from "react-router-dom";
 import SubscriptionsIcon from "@mui/icons-material/Subscriptions";
 import "../../styles/libraryPages.css";
 
-const SubscriptionFeed = ({ currentUser, sideNavbar }) => {
+const SubscriptionFeed = () => {
   const [videos, setVideos] = useState([]);
   const [channels, setChannels] = useState([]);
   const [activeChannel, setActiveChannel] = useState("all");
   const [loading, setLoading] = useState(true);
-  const username = currentUser || "";
+  const username = localStorage.getItem("username") || "";
 
   useEffect(() => {
     if (!username) { setLoading(false); return; }
@@ -18,6 +18,7 @@ const SubscriptionFeed = ({ currentUser, sideNavbar }) => {
 
   const loadFeed = async () => {
     setLoading(true);
+    // subscriptions table: subscriber_id = username, subscribed_to = channel username
     const { data: subs } = await supabase
       .from("subscriptions")
       .select("subscribed_to")
@@ -55,7 +56,7 @@ const SubscriptionFeed = ({ currentUser, sideNavbar }) => {
     : videos.filter((v) => v.username === activeChannel);
 
   return (
-    <div className={`lib-page${sideNavbar ? "" : " sidebar-collapsed"}`}>
+    <div className="lib-page">
       <div className="lib-header">
         <SubscriptionsIcon className="lib-header-icon" />
         <div>
@@ -76,20 +77,9 @@ const SubscriptionFeed = ({ currentUser, sideNavbar }) => {
       {!loading && channels.length > 0 && (
         <>
           <div className="lib-pills">
-            <button
-              className={`lib-pill ${activeChannel === "all" ? "lib-pill-active" : ""}`}
-              onClick={() => setActiveChannel("all")}
-            >
-              All
-            </button>
+            <button className={`lib-pill ${activeChannel === "all" ? "lib-pill-active" : ""}`} onClick={() => setActiveChannel("all")}>All</button>
             {channels.map((ch) => (
-              <button
-                key={ch}
-                className={`lib-pill ${activeChannel === ch ? "lib-pill-active" : ""}`}
-                onClick={() => setActiveChannel(ch)}
-              >
-                {ch}
-              </button>
+              <button key={ch} className={`lib-pill ${activeChannel === ch ? "lib-pill-active" : ""}`} onClick={() => setActiveChannel(ch)}>{ch}</button>
             ))}
           </div>
           {filtered.length === 0 ? (

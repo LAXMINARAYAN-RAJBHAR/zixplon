@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import "../../styles/libraryPages.css";
 
-const LikedVideos = ({ currentUser, sideNavbar }) => {
+const LikedVideos = ({ currentUser }) => {
   const username = currentUser || "";
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +39,7 @@ const LikedVideos = ({ currentUser, sideNavbar }) => {
   }, [username]);
 
   return (
-    <div className={`lib-page${sideNavbar ? "" : " sidebar-collapsed"}`}>
+    <div className="lib-page">
       <div className="lib-header">
         <ThumbUpIcon className="lib-header-icon" />
         <div>

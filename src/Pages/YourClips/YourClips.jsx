@@ -1,33 +1,31 @@
 import React, { useEffect, useState } from "react";
+import { supabase } from "../../config/supabase";
 import ContentCutIcon from "@mui/icons-material/ContentCut";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import "../../styles/libraryPages.css";
-import { supabase } from "../../config/supabase";
 
 const YourClips = () => {
   const [clips, setClips] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [playing, setPlaying] = useState(null); // clip object
+  const [playing, setPlaying] = useState(null);
   const username = localStorage.getItem("username") || "";
 
   useEffect(() => {
     if (!username) { setLoading(false); return; }
+    const loadClips = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("clips")
+        .select("*")
+        .eq("username", username)
+        .order("created_at", { ascending: false });
+      if (!error && data) setClips(data);
+      setLoading(false);
+    };
     loadClips();
   }, [username]);
-
-  const loadClips = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("clips")
-      .select("*")
-      .eq("username", username)
-      .order("created_at", { ascending: false });
-
-    if (!error && data) setClips(data);
-    setLoading(false);
-  };
 
   const deleteClip = async (id, e) => {
     e.stopPropagation();
@@ -55,80 +53,47 @@ const YourClips = () => {
           <p className="lib-subtitle">{clips.length} clip{clips.length !== 1 ? "s" : ""}</p>
         </div>
       </div>
-
       {!username && <div className="lib-empty"><p>Sign in to see your clips.</p></div>}
       {username && loading && <div className="lib-loading"><div className="lib-spinner" /></div>}
-
       {username && !loading && clips.length === 0 && (
         <div className="lib-empty">
           <ContentCutIcon style={{ fontSize: 48, opacity: 0.3 }} />
           <p>You haven't created any clips yet.</p>
-          <p className="lib-card-meta" style={{ marginTop: 6 }}>
-            Clips are short segments trimmed from your videos.
-          </p>
         </div>
       )}
-
       {!loading && clips.length > 0 && (
         <div className="lib-grid">
           {clips.map((clip) => (
-            <div
-              key={clip.id}
-              className="lib-card lib-card-clickable"
-              onClick={() => setPlaying(clip)}
-            >
+            <div key={clip.id} className="lib-card lib-card-clickable" onClick={() => setPlaying(clip)}>
               <div className="lib-thumb-wrap lib-clip-thumb">
                 {clip.thumbnail_url ? (
                   <img src={clip.thumbnail_url} alt={clip.title} className="lib-thumb" />
                 ) : (
-                  <div className="lib-clip-placeholder">
-                    <ContentCutIcon style={{ fontSize: 32, color: "var(--zx-primary)" }} />
-                  </div>
+                  <div className="lib-clip-placeholder"><ContentCutIcon style={{ fontSize: 32, color: "var(--zx-primary)" }} /></div>
                 )}
-                <div className="lib-play-overlay">
-                  <PlayArrowIcon style={{ color: "#fff", fontSize: 36 }} />
-                </div>
+                <div className="lib-play-overlay"><PlayArrowIcon style={{ color: "#fff", fontSize: 36 }} /></div>
                 {clip.start_time != null && clip.end_time != null && (
-                  <span className="lib-duration-badge">
-                    {formatDuration(clip.start_time, clip.end_time)}
-                  </span>
+                  <span className="lib-duration-badge">{formatDuration(clip.start_time, clip.end_time)}</span>
                 )}
               </div>
               <div className="lib-card-info">
                 <p className="lib-card-title">{clip.title}</p>
                 <p className="lib-card-meta">{formatDate(clip.created_at)}</p>
               </div>
-              <button
-                className="lib-remove-btn lib-clip-delete"
-                onClick={(e) => deleteClip(clip.id, e)}
-                title="Delete clip"
-              >
-                <DeleteOutlineIcon />
-              </button>
+              <button className="lib-remove-btn lib-clip-delete" onClick={(e) => deleteClip(clip.id, e)}><DeleteOutlineIcon /></button>
             </div>
           ))}
         </div>
       )}
-
-      {/* ── Clip Player Modal ── */}
       {playing && (
         <div className="lib-modal-backdrop" onClick={() => setPlaying(null)}>
           <div className="lib-modal" onClick={(e) => e.stopPropagation()}>
             <div className="lib-modal-header">
               <p className="lib-card-title">{playing.title}</p>
-              <button className="lib-remove-btn" onClick={() => setPlaying(null)}>
-                <CloseIcon />
-              </button>
+              <button className="lib-remove-btn" onClick={() => setPlaying(null)}><CloseIcon /></button>
             </div>
-            {playing.description && (
-              <p className="lib-card-meta" style={{ padding: "0 16px 8px" }}>{playing.description}</p>
-            )}
-            <video
-              src={`${playing.video_url}#t=${playing.start_time ?? 0},${playing.end_time ?? ""}`}
-              controls
-              autoPlay
-              className="lib-modal-video"
-            />
+            {playing.description && <p className="lib-card-meta" style={{ padding: "0 16px 8px" }}>{playing.description}</p>}
+            <video src={`${playing.video_url}#t=${playing.start_time ?? 0},${playing.end_time ?? ""}`} controls autoPlay className="lib-modal-video" />
           </div>
         </div>
       )}

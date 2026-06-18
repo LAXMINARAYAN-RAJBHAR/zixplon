@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
+import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
 import WatchLaterIcon from "@mui/icons-material/WatchLater";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import "../../styles/libraryPages.css";
-import { supabase } from "../../config/supabase";
 
 const WatchLater = () => {
   const [items, setItems] = useState([]);
@@ -19,10 +19,9 @@ const WatchLater = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("watch_later")
-      .select("id, video_id, added_at, videos(id, title, thumbnail, views, uploaded_by)")
+      .select("id, added_at, videos(id, title, thumbnail_url, likes, username)")
       .eq("username", username)
       .order("added_at", { ascending: false });
-
     if (!error && data) setItems(data.filter((i) => i.videos));
     setLoading(false);
   };
@@ -44,33 +43,28 @@ const WatchLater = () => {
         </div>
       </div>
 
-      {!username && (
-        <div className="lib-empty">
-          <p>Sign in to save videos for later.</p>
-        </div>
-      )}
-
+      {!username && <div className="lib-empty"><p>Sign in to save videos for later.</p></div>}
       {username && loading && <div className="lib-loading"><div className="lib-spinner" /></div>}
-
       {username && !loading && items.length === 0 && (
         <div className="lib-empty">
           <WatchLaterIcon style={{ fontSize: 48, opacity: 0.3 }} />
           <p>Save videos to watch them later.</p>
         </div>
       )}
-
       {!loading && items.length > 0 && (
         <div className="lib-list">
           {items.map((item) => (
             <Link to={`/video/${item.videos.id}`} key={item.id} className="lib-list-item">
               <div className="lib-list-thumb-wrap">
-                <img src={item.videos.thumbnail || "https://via.placeholder.com/160x90?text=No+Thumbnail"} alt={item.videos.title} className="lib-list-thumb" />
+                <img
+                  src={item.videos.thumbnail_url || "https://via.placeholder.com/160x90?text=No+Thumbnail"}
+                  alt={item.videos.title}
+                  className="lib-list-thumb"
+                />
               </div>
               <div className="lib-list-info">
                 <p className="lib-card-title">{item.videos.title}</p>
-                <p className="lib-card-meta">
-                  {item.videos.uploaded_by} · {Number(item.videos.views ?? 0).toLocaleString()} views
-                </p>
+                <p className="lib-card-meta">{item.videos.username}</p>
               </div>
               <button className="lib-remove-btn" onClick={(e) => removeItem(item.id, e)} title="Remove">
                 <DeleteOutlineIcon />

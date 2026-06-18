@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from "react";
+import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
 import HistoryIcon from "@mui/icons-material/History";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import "../../styles/libraryPages.css";
-import { supabase } from "../../config/supabase";
 
-// ─── Call this from your Video.jsx when a video starts playing ───
-// import { logHistory } from "../pages/History";
+// Call this from Video.jsx when a video starts playing
 export const logHistory = async (username, videoId) => {
   if (!username || !videoId) return;
-  await supabase.from("history").insert({ username, video_id: videoId });
+  await supabase.from("history").insert({ username, video_id: Number(videoId) });
 };
 
 const History = () => {
@@ -26,14 +25,13 @@ const History = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("history")
-      .select("id, watched_at, video_id, videos(id, title, thumbnail, views, uploaded_by)")
+      .select("id, watched_at, videos(id, title, thumbnail_url, username)")
       .eq("username", username)
       .order("watched_at", { ascending: false })
       .limit(200);
 
     if (!error && data) {
       const valid = data.filter((h) => h.videos);
-      // Group by date label
       const byDate = {};
       valid.forEach((h) => {
         const label = getDateLabel(h.watched_at);
@@ -78,21 +76,14 @@ const History = () => {
         )}
       </div>
 
-      {!username && (
-        <div className="lib-empty">
-          <p>Sign in to see your watch history.</p>
-        </div>
-      )}
-
+      {!username && <div className="lib-empty"><p>Sign in to see your watch history.</p></div>}
       {username && loading && <div className="lib-loading"><div className="lib-spinner" /></div>}
-
       {username && !loading && groups.length === 0 && (
         <div className="lib-empty">
           <HistoryIcon style={{ fontSize: 48, opacity: 0.3 }} />
           <p>Videos you watch will appear here.</p>
         </div>
       )}
-
       {!loading && groups.map(([label, items]) => (
         <div key={label} className="lib-group">
           <p className="lib-group-label">{label}</p>
@@ -100,13 +91,15 @@ const History = () => {
             {items.map((h) => (
               <Link to={`/video/${h.videos.id}`} key={h.id} className="lib-list-item">
                 <div className="lib-list-thumb-wrap">
-                  <img src={h.videos.thumbnail || "https://via.placeholder.com/160x90?text=No+Thumbnail"} alt={h.videos.title} className="lib-list-thumb" />
+                  <img
+                    src={h.videos.thumbnail_url || "https://via.placeholder.com/160x90?text=No+Thumbnail"}
+                    alt={h.videos.title}
+                    className="lib-list-thumb"
+                  />
                 </div>
                 <div className="lib-list-info">
                   <p className="lib-card-title">{h.videos.title}</p>
-                  <p className="lib-card-meta">
-                    {h.videos.uploaded_by} · {Number(h.videos.views ?? 0).toLocaleString()} views
-                  </p>
+                  <p className="lib-card-meta">{h.videos.username}</p>
                   <p className="lib-card-meta" style={{ fontSize: 11 }}>
                     {new Date(h.watched_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                   </p>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
 import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
 import PlaylistPlayIcon from "@mui/icons-material/PlaylistPlay";
@@ -6,12 +7,10 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import "../../styles/libraryPages.css";
-import { supabase } from "../../config/supabase";
-
 
 const Playlist = () => {
   const [playlists, setPlaylists] = useState([]);
-  const [selected, setSelected] = useState(null); // { playlist, items }
+  const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -29,7 +28,6 @@ const Playlist = () => {
       .select("id, title, description, created_at")
       .eq("username", username)
       .order("created_at", { ascending: false });
-
     if (!error && data) setPlaylists(data);
     setLoading(false);
   };
@@ -37,10 +35,9 @@ const Playlist = () => {
   const openPlaylist = async (pl) => {
     const { data } = await supabase
       .from("playlist_items")
-      .select("id, added_at, videos(id, title, thumbnail, views, uploaded_by)")
+      .select("id, added_at, videos(id, title, thumbnail_url, username)")
       .eq("playlist_id", pl.id)
       .order("added_at", { ascending: false });
-
     setSelected({ playlist: pl, items: (data || []).filter((i) => i.videos) });
   };
 
@@ -51,7 +48,6 @@ const Playlist = () => {
       .insert({ username, title: newTitle.trim() })
       .select()
       .single();
-
     if (!error && data) {
       setPlaylists((prev) => [data, ...prev]);
       setNewTitle("");
@@ -69,10 +65,7 @@ const Playlist = () => {
 
   const removeFromPlaylist = async (itemId) => {
     await supabase.from("playlist_items").delete().eq("id", itemId);
-    setSelected((prev) => ({
-      ...prev,
-      items: prev.items.filter((i) => i.id !== itemId),
-    }));
+    setSelected((prev) => ({ ...prev, items: prev.items.filter((i) => i.id !== itemId) }));
   };
 
   if (selected) {
@@ -86,11 +79,10 @@ const Playlist = () => {
             <p className="lib-subtitle">{selected.items.length} video{selected.items.length !== 1 ? "s" : ""}</p>
           </div>
         </div>
-
         {selected.items.length === 0 ? (
           <div className="lib-empty">
             <PlaylistPlayIcon style={{ fontSize: 48, opacity: 0.3 }} />
-            <p>This playlist is empty. Add videos from the video page.</p>
+            <p>This playlist is empty.</p>
           </div>
         ) : (
           <div className="lib-list">
@@ -99,16 +91,14 @@ const Playlist = () => {
                 <span className="lib-list-index">{idx + 1}</span>
                 <Link to={`/video/${item.videos.id}`} className="lib-list-inner">
                   <div className="lib-list-thumb-wrap">
-                    <img src={item.videos.thumbnail || "https://via.placeholder.com/160x90?text=No+Thumbnail"} alt={item.videos.title} className="lib-list-thumb" />
+                    <img src={item.videos.thumbnail_url || "https://via.placeholder.com/160x90?text=No+Thumbnail"} alt={item.videos.title} className="lib-list-thumb" />
                   </div>
                   <div className="lib-list-info">
                     <p className="lib-card-title">{item.videos.title}</p>
-                    <p className="lib-card-meta">{item.videos.uploaded_by} · {Number(item.videos.views ?? 0).toLocaleString()} views</p>
+                    <p className="lib-card-meta">{item.videos.username}</p>
                   </div>
                 </Link>
-                <button className="lib-remove-btn" onClick={() => removeFromPlaylist(item.id)} title="Remove">
-                  <DeleteOutlineIcon />
-                </button>
+                <button className="lib-remove-btn" onClick={() => removeFromPlaylist(item.id)}><DeleteOutlineIcon /></button>
               </div>
             ))}
           </div>
@@ -125,54 +115,33 @@ const Playlist = () => {
           <h1 className="lib-title">Playlists</h1>
           <p className="lib-subtitle">{playlists.length} playlist{playlists.length !== 1 ? "s" : ""}</p>
         </div>
-        {username && (
-          <button className="lib-cta-btn" onClick={() => setCreating(true)}>
-            <AddIcon style={{ fontSize: 18 }} /> New
-          </button>
-        )}
+        {username && <button className="lib-cta-btn" onClick={() => setCreating(true)}><AddIcon style={{ fontSize: 18 }} /> New</button>}
       </div>
-
       {creating && (
         <div className="lib-create-box">
-          <input
-            className="lib-input"
-            placeholder="Playlist name..."
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && createPlaylist()}
-            autoFocus
-          />
+          <input className="lib-input" placeholder="Playlist name..." value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && createPlaylist()} autoFocus />
           <button className="lib-cta-btn" onClick={createPlaylist}>Create</button>
-          <button className="lib-remove-btn" onClick={() => { setCreating(false); setNewTitle(""); }}>
-            <CloseIcon />
-          </button>
+          <button className="lib-remove-btn" onClick={() => { setCreating(false); setNewTitle(""); }}><CloseIcon /></button>
         </div>
       )}
-
       {!username && <div className="lib-empty"><p>Sign in to create and manage playlists.</p></div>}
       {username && loading && <div className="lib-loading"><div className="lib-spinner" /></div>}
-
       {username && !loading && playlists.length === 0 && !creating && (
         <div className="lib-empty">
           <PlaylistAddIcon style={{ fontSize: 48, opacity: 0.3 }} />
           <p>No playlists yet. Create one to get started.</p>
         </div>
       )}
-
       {!loading && playlists.length > 0 && (
         <div className="lib-pl-grid">
           {playlists.map((pl) => (
             <div key={pl.id} className="lib-pl-card" onClick={() => openPlaylist(pl)}>
-              <div className="lib-pl-icon-wrap">
-                <PlaylistPlayIcon style={{ fontSize: 36, color: "var(--zx-primary)" }} />
-              </div>
+              <div className="lib-pl-icon-wrap"><PlaylistPlayIcon style={{ fontSize: 36, color: "var(--zx-primary)" }} /></div>
               <div className="lib-pl-info">
                 <p className="lib-card-title">{pl.title}</p>
                 {pl.description && <p className="lib-card-meta">{pl.description}</p>}
               </div>
-              <button className="lib-remove-btn" onClick={(e) => deletePlaylist(pl.id, e)} title="Delete playlist">
-                <DeleteOutlineIcon />
-              </button>
+              <button className="lib-remove-btn" onClick={(e) => deletePlaylist(pl.id, e)}><DeleteOutlineIcon /></button>
             </div>
           ))}
         </div>

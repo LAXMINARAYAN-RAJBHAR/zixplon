@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
 import SubscriptionsIcon from "@mui/icons-material/Subscriptions";
 import "../../styles/libraryPages.css";
-import { supabase } from "../../config/supabase";
 
 const SubscriptionFeed = () => {
   const [videos, setVideos] = useState([]);
@@ -18,26 +18,21 @@ const SubscriptionFeed = () => {
 
   const loadFeed = async () => {
     setLoading(true);
-
-    // 1. Get subscribed channels
+    // subscriptions table: subscriber_id = username, subscribed_to = channel username
     const { data: subs } = await supabase
-      .from("subscribers")
+      .from("subscriptions")
       .select("subscribed_to")
       .eq("subscriber_id", username);
 
-    if (!subs || subs.length === 0) {
-      setLoading(false);
-      return;
-    }
+    if (!subs || subs.length === 0) { setLoading(false); return; }
 
     const channelNames = subs.map((s) => s.subscribed_to);
     setChannels(channelNames);
 
-    // 2. Get latest videos from those channels
     const { data, error } = await supabase
       .from("videos")
-      .select("id, title, thumbnail, views, uploaded_by, created_at")
-      .in("uploaded_by", channelNames)
+      .select("id, title, thumbnail_url, likes, username, created_at")
+      .in("username", channelNames)
       .order("created_at", { ascending: false })
       .limit(60);
 
@@ -58,7 +53,7 @@ const SubscriptionFeed = () => {
 
   const filtered = activeChannel === "all"
     ? videos
-    : videos.filter((v) => v.uploaded_by === activeChannel);
+    : videos.filter((v) => v.username === activeChannel);
 
   return (
     <div className="lib-page">
@@ -70,14 +65,8 @@ const SubscriptionFeed = () => {
         </div>
       </div>
 
-      {!username && (
-        <div className="lib-empty">
-          <p>Sign in to see videos from channels you subscribe to.</p>
-        </div>
-      )}
-
+      {!username && <div className="lib-empty"><p>Sign in to see videos from channels you subscribe to.</p></div>}
       {username && loading && <div className="lib-loading"><div className="lib-spinner" /></div>}
-
       {username && !loading && channels.length === 0 && (
         <div className="lib-empty">
           <SubscriptionsIcon style={{ fontSize: 48, opacity: 0.3 }} />
@@ -87,41 +76,28 @@ const SubscriptionFeed = () => {
 
       {!loading && channels.length > 0 && (
         <>
-          {/* Channel filter pills */}
           <div className="lib-pills">
-            <button
-              className={`lib-pill ${activeChannel === "all" ? "lib-pill-active" : ""}`}
-              onClick={() => setActiveChannel("all")}
-            >
-              All
-            </button>
+            <button className={`lib-pill ${activeChannel === "all" ? "lib-pill-active" : ""}`} onClick={() => setActiveChannel("all")}>All</button>
             {channels.map((ch) => (
-              <button
-                key={ch}
-                className={`lib-pill ${activeChannel === ch ? "lib-pill-active" : ""}`}
-                onClick={() => setActiveChannel(ch)}
-              >
-                {ch}
-              </button>
+              <button key={ch} className={`lib-pill ${activeChannel === ch ? "lib-pill-active" : ""}`} onClick={() => setActiveChannel(ch)}>{ch}</button>
             ))}
           </div>
-
           {filtered.length === 0 ? (
-            <div className="lib-empty">
-              <p>No videos from this channel yet.</p>
-            </div>
+            <div className="lib-empty"><p>No videos from this channel yet.</p></div>
           ) : (
             <div className="lib-grid">
               {filtered.map((v) => (
                 <Link to={`/video/${v.id}`} key={v.id} className="lib-card">
                   <div className="lib-thumb-wrap">
-                    <img src={v.thumbnail || "https://via.placeholder.com/320x180?text=No+Thumbnail"} alt={v.title} className="lib-thumb" />
+                    <img
+                      src={v.thumbnail_url || "https://via.placeholder.com/320x180?text=No+Thumbnail"}
+                      alt={v.title}
+                      className="lib-thumb"
+                    />
                   </div>
                   <div className="lib-card-info">
                     <p className="lib-card-title">{v.title}</p>
-                    <p className="lib-card-meta">
-                      {v.uploaded_by} · {Number(v.views ?? 0).toLocaleString()} views · {formatDate(v.created_at)}
-                    </p>
+                    <p className="lib-card-meta">{v.username} · {formatDate(v.created_at)}</p>
                   </div>
                 </Link>
               ))}

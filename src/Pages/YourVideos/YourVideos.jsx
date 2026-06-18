@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
 import SmartDisplayIcon from "@mui/icons-material/SmartDisplay";
 import "../../styles/libraryPages.css";
-import { supabase } from "../../config/supabase";
 
 const YourVideos = () => {
   const [videos, setVideos] = useState([]);
@@ -11,17 +11,16 @@ const YourVideos = () => {
 
   useEffect(() => {
     if (!username) { setLoading(false); return; }
-    const fetch = async () => {
+    const loadVideos = async () => {
       const { data, error } = await supabase
         .from("videos")
-        .select("id, title, thumbnail, views, created_at, likes, dislikes")
-        .eq("uploaded_by", username)
+        .select("id, title, thumbnail_url, likes, created_at")
+        .eq("username", username)
         .order("created_at", { ascending: false });
-
       if (!error && data) setVideos(data);
       setLoading(false);
     };
-    fetch();
+    loadVideos();
   }, [username]);
 
   const formatDate = (d) =>
@@ -37,14 +36,8 @@ const YourVideos = () => {
         </div>
       </div>
 
-      {!username && (
-        <div className="lib-empty">
-          <p>Sign in to manage your videos.</p>
-        </div>
-      )}
-
+      {!username && <div className="lib-empty"><p>Sign in to manage your videos.</p></div>}
       {username && loading && <div className="lib-loading"><div className="lib-spinner" /></div>}
-
       {username && !loading && videos.length === 0 && (
         <div className="lib-empty">
           <SmartDisplayIcon style={{ fontSize: 48, opacity: 0.3 }} />
@@ -52,22 +45,21 @@ const YourVideos = () => {
           <Link to="/videoUpload" className="lib-cta-btn">Upload a video</Link>
         </div>
       )}
-
       {!loading && videos.length > 0 && (
         <div className="lib-list">
           {videos.map((v) => (
             <Link to={`/video/${v.id}`} key={v.id} className="lib-list-item">
               <div className="lib-list-thumb-wrap">
-                <img src={v.thumbnail || "https://via.placeholder.com/160x90?text=No+Thumbnail"} alt={v.title} className="lib-list-thumb" />
+                <img
+                  src={v.thumbnail_url || "https://via.placeholder.com/160x90?text=No+Thumbnail"}
+                  alt={v.title}
+                  className="lib-list-thumb"
+                />
               </div>
               <div className="lib-list-info">
                 <p className="lib-card-title">{v.title}</p>
-                <p className="lib-card-meta">
-                  {Number(v.views ?? 0).toLocaleString()} views · {formatDate(v.created_at)}
-                </p>
-                <p className="lib-card-meta">
-                  👍 {Number(v.likes ?? 0)} &nbsp; 👎 {Number(v.dislikes ?? 0)}
-                </p>
+                <p className="lib-card-meta">{formatDate(v.created_at)}</p>
+                <p className="lib-card-meta">👍 {Number(v.likes ?? 0)}</p>
               </div>
             </Link>
           ))}

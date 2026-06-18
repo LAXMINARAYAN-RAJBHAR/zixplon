@@ -5,7 +5,7 @@ import WatchLaterIcon from "@mui/icons-material/WatchLater";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import "../../styles/libraryPages.css";
 
-const WatchLater = ({ currentUser }) => {
+const WatchLater = ({ currentUser, sideNavbar }) => {
   const username = currentUser || "";
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +34,7 @@ const WatchLater = ({ currentUser }) => {
   };
 
   return (
-    <div className="lib-page">
+    <div className={`lib-page ${sideNavbar ? "" : "sidebar-collapsed"}`}>
       <div className="lib-header">
         <WatchLaterIcon className="lib-header-icon" />
         <div>

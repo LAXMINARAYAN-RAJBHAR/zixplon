@@ -159,14 +159,14 @@ function App() {
           <Route path="/youtube"     element={<YouTubeSearch />} />
           <Route path="/notifications" element={<Notifications notifications={notifications} />} />
 
-          {/* ── Library pages — currentUser passed so they react to login/logout ── */}
-          <Route path="/history"      element={<History      currentUser={currentUser} />} />
-          <Route path="/playlist"     element={<Playlist     currentUser={currentUser} />} />
-          <Route path="/your-videos"  element={<YourVideos   currentUser={currentUser} />} />
-          <Route path="/watch-later"  element={<WatchLater   currentUser={currentUser} />} />
-          <Route path="/liked-videos" element={<LikedVideos  currentUser={currentUser} />} />
-          <Route path="/your-clips"   element={<YourClips    currentUser={currentUser} />} />
-          <Route path="/subscription" element={<SubscriptionFeed currentUser={currentUser} />} />
+          {/* ── Library pages — currentUser AND sideNavbar passed so they react to login/logout and sidebar toggle ── */}
+          <Route path="/history"      element={<History      currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/playlist"     element={<Playlist     currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/your-videos"  element={<YourVideos   currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/watch-later"  element={<WatchLater   currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/liked-videos" element={<LikedVideos  currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/your-clips"   element={<YourClips    currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/subscription" element={<SubscriptionFeed currentUser={currentUser} sideNavbar={sideNavbar} />} />
 
           <Route path="/live-tv"      element={<LiveTVPage sideNavbar={sideNavbar} />} />
           <Route path="/local-player" element={<LocalMediaPlayer sideNavbar={sideNavbar} />} />

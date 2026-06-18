@@ -4,15 +4,15 @@ import { Link } from "react-router-dom";
 import SubscriptionsIcon from "@mui/icons-material/Subscriptions";
 import "../../styles/libraryPages.css";
 
-const SubscriptionFeed = () => {
+const SubscriptionFeed = ({ currentUser, sideNavbar }) => {
   const [videos, setVideos] = useState([]);
   const [channels, setChannels] = useState([]);
   const [activeChannel, setActiveChannel] = useState("all");
   const [loading, setLoading] = useState(true);
-  const username = localStorage.getItem("username") || "";
+  const username = currentUser || "";
 
   useEffect(() => {
-    if (!username) { setLoading(false); return; }
+    if (!username) { setLoading(false); setChannels([]); setVideos([]); return; }
     loadFeed();
   }, [username]);
 
@@ -24,7 +24,12 @@ const SubscriptionFeed = () => {
       .select("subscribed_to")
       .eq("subscriber_id", username);
 
-    if (!subs || subs.length === 0) { setLoading(false); return; }
+    if (!subs || subs.length === 0) {
+      setChannels([]);
+      setVideos([]);
+      setLoading(false);
+      return;
+    }
 
     const channelNames = subs.map((s) => s.subscribed_to);
     setChannels(channelNames);
@@ -56,7 +61,7 @@ const SubscriptionFeed = () => {
     : videos.filter((v) => v.username === activeChannel);
 
   return (
-    <div className="lib-page">
+    <div className={`lib-page ${sideNavbar ? "" : "sidebar-collapsed"}`}>
       <div className="lib-header">
         <SubscriptionsIcon className="lib-header-icon" />
         <div>

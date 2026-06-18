@@ -8,7 +8,7 @@ import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import "../../styles/libraryPages.css";
 
-const Playlist = ({ currentUser }) => {
+const Playlist = ({ currentUser, sideNavbar }) => {
   const username = currentUser || "";
   const [playlists, setPlaylists] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -70,7 +70,7 @@ const Playlist = ({ currentUser }) => {
 
   if (selected) {
     return (
-      <div className="lib-page">
+      <div className={`lib-page ${sideNavbar ? "" : "sidebar-collapsed"}`}>
         <div className="lib-header">
           <button className="lib-back-btn" onClick={() => setSelected(null)}>← Back</button>
           <PlaylistPlayIcon className="lib-header-icon" />
@@ -108,7 +108,7 @@ const Playlist = ({ currentUser }) => {
   }
 
   return (
-    <div className="lib-page">
+    <div className={`lib-page ${sideNavbar ? "" : "sidebar-collapsed"}`}>
       <div className="lib-header">
         <PlaylistAddIcon className="lib-header-icon" />
         <div style={{ flex: 1 }}>

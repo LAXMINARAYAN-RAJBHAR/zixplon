@@ -6,14 +6,14 @@ import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import "../../styles/libraryPages.css";
 
-const YourClips = () => {
+const YourClips = ({ currentUser, sideNavbar }) => {
   const [clips, setClips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(null);
-  const username = localStorage.getItem("username") || "";
+  const username = currentUser || "";
 
   useEffect(() => {
-    if (!username) { setLoading(false); return; }
+    if (!username) { setLoading(false); setClips([]); return; }
     const loadClips = async () => {
       setLoading(true);
       const { data, error } = await supabase
@@ -45,7 +45,7 @@ const YourClips = () => {
     new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
   return (
-    <div className="lib-page">
+    <div className={`lib-page ${sideNavbar ? "" : "sidebar-collapsed"}`}>
       <div className="lib-header">
         <ContentCutIcon className="lib-header-icon" />
         <div>

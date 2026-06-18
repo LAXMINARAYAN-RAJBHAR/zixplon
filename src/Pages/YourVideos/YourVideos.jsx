@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import SmartDisplayIcon from "@mui/icons-material/SmartDisplay";
 import "../../styles/libraryPages.css";
 
-const YourVideos = ({ currentUser }) => {
+const YourVideos = ({ currentUser, sideNavbar }) => {
   const username = currentUser || "";
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +28,7 @@ const YourVideos = ({ currentUser }) => {
     new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
   return (
-    <div className="lib-page">
+    <div className={`lib-page ${sideNavbar ? "" : "sidebar-collapsed"}`}>
       <div className="lib-header">
         <SmartDisplayIcon className="lib-header-icon" />
         <div>

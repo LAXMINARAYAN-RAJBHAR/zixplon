@@ -1,25 +1,123 @@
 import React from "react";
 import "./sideNavbar.css";
-import OtherHousesIcon from '@mui/icons-material/OtherHouses';
-import SlideshowIcon from '@mui/icons-material/Slideshow';
-import SubscriptionsIcon from "@mui/icons-material/Subscriptions";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import RecentActorsIcon from "@mui/icons-material/RecentActors";
-import HistoryIcon from "@mui/icons-material/History";
-import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
-import SmartDisplayIcon from "@mui/icons-material/SmartDisplay";
-import WatchLaterIcon from "@mui/icons-material/WatchLater";
-import ThumbUpIcon from "@mui/icons-material/ThumbUp";
-import ContentCutIcon from "@mui/icons-material/ContentCut";
 import { Link, useLocation } from "react-router-dom";
-import NewspaperIcon from "@mui/icons-material/Newspaper";
+
+// ─── Zixplon Custom Icons ───────────────────────────────────────────────────
+const ic = {
+  width: 24,
+  height: 24,
+  display: "inline-block",
+  verticalAlign: "middle",
+};
+const s = {
+  stroke: "#534AB7",
+  strokeWidth: 2,
+  fill: "none",
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+};
+
+const HomeIcon = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z" {...s} />
+    <path d="M9 21V12h6v9" {...s} />
+  </svg>
+);
+
+const PostsIcon = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <rect x="3" y="4" width="18" height="3" rx="1" {...s} />
+    <rect x="3" y="10" width="18" height="3" rx="1" {...s} />
+    <rect x="3" y="16" width="12" height="3" rx="1" {...s} />
+  </svg>
+);
+
+const ShortsIcon = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <rect x="6" y="2" width="12" height="20" rx="3" {...s} />
+    <polygon points="10,8 16,12 10,16" fill="#534AB7" stroke="none" />
+  </svg>
+);
+
+// ✅ SubsIcon added back with matching purple color
+const SubsIcon = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <rect x="2" y="7" width="20" height="13" rx="2" {...s} />
+    <path d="M16 2H8" {...s} />
+    <polygon points="10,10 10,17 17,13.5" fill="#534AB7" stroke="none" />
+  </svg>
+);
+
+const ChevronRight = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <path d="M9 6l6 6-6 6" {...s} />
+  </svg>
+);
+
+const ChannelIcon = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <circle cx="12" cy="8" r="4" {...s} />
+    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" {...s} />
+  </svg>
+);
+
+const HistoryIcon = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <path d="M3 12a9 9 0 1 0 9-9 9 9 0 0 0-6.4 2.6L3 3" {...s} />
+    <path d="M3 3v5h5" {...s} />
+    <path d="M12 7v5l3 3" {...s} />
+  </svg>
+);
+
+const PlaylistIcon = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <line x1="3" y1="6" x2="16" y2="6" {...s} />
+    <line x1="3" y1="12" x2="16" y2="12" {...s} />
+    <line x1="3" y1="18" x2="12" y2="18" {...s} />
+    <polygon points="17,10 23,14 17,18" fill="#534AB7" stroke="none" />
+  </svg>
+);
+
+const YourVideosIcon = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <rect x="2" y="5" width="15" height="14" rx="2" {...s} />
+    <path d="M17 9l5-3v12l-5-3V9z" {...s} />
+  </svg>
+);
+
+const WatchLaterIcon = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <circle cx="12" cy="12" r="9" {...s} />
+    <path d="M12 7v5l3.5 3.5" {...s} />
+  </svg>
+);
+
+const ThumbUpIcon = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <path
+      d="M7 22V11M2 13v7a2 2 0 002 2h11.7a2 2 0 001.97-1.67l1.18-7A2 2 0 0016.87 11H13V6a3 3 0 00-3-3L7 11"
+      {...s}
+    />
+  </svg>
+);
+
+const ClipsIcon = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <path d="M6 3v10M18 3v10" {...s} />
+    <line x1="3" y1="6" x2="9" y2="6" {...s} />
+    <line x1="15" y1="6" x2="21" y2="6" {...s} />
+    <path d="M4 20h16a1 1 0 001-1v-4H3v4a1 1 0 001 1z" {...s} />
+  </svg>
+);
+// ────────────────────────────────────────────────────────────────────────────
 
 const SideNavbar = ({ sideNavbar }) => {
   const location = useLocation();
   const loggedInUsername = localStorage.getItem("username") || "";
 
   const hiddenRoutes = ["/videoUpload", "/signup", "/reels"];
-  if (hiddenRoutes.some(route => location.pathname.startsWith(route))) return null;
+  if (hiddenRoutes.some((route) => location.pathname.startsWith(route)))
+    return null;
 
   const isActive = (path) => location.pathname === path;
 
@@ -30,53 +128,70 @@ const SideNavbar = ({ sideNavbar }) => {
 
   return (
     <div className={sideNavbar ? "home-sideNavbar" : "homeSideNavbarHide"}>
-
       {/* ── TOP SECTION ── */}
       <div className="home_sideNavbarTop">
-
         <Link to="/" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/") ? activeStyle : {}}>
-            <OtherHousesIcon />
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/") ? activeStyle : {}}
+          >
+            <HomeIcon />
             <div className="home_sideNavbarTopOptionTitle">Home</div>
           </div>
         </Link>
 
         <Link to="/feed" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/feed") ? activeStyle : {}}>
-            <NewspaperIcon />
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/feed") ? activeStyle : {}}
+          >
+            <PostsIcon />
             <div className="home_sideNavbarTopOptionTitle">Posts</div>
           </div>
         </Link>
 
         <Link to="/reels" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/reels") ? activeStyle : {}}>
-            <SlideshowIcon />
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/reels") ? activeStyle : {}}
+          >
+            <ShortsIcon />
             <div className="home_sideNavbarTopOptionTitle">Shorts</div>
           </div>
         </Link>
 
         <Link to="/subscription" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/subscription") ? activeStyle : {}}>
-            <SubscriptionsIcon />
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/subscription") ? activeStyle : {}}
+          >
+            <img
+              src="/mylogo1.png"
+              alt="Zixplon"
+              style={{ width: 24, height: 24, objectFit: "contain" }}
+            />
             <div className="home_sideNavbarTopOptionTitle">Subscription</div>
           </div>
         </Link>
-
       </div>
 
       {/* ── MIDDLE SECTION ── */}
       <div className="home_sideNavbarMiddle">
-
         <div className="home_sideNavbarTopOption">
           <div className="home_sideNavbarTopOptionTitle">You</div>
-          <ChevronRightIcon />
+          <ChevronRight />
         </div>
 
-        {/* Your Channel → goes to logged-in user's profile, or opens login if not logged in */}
         {loggedInUsername ? (
-          <Link to={`/user/${loggedInUsername}`} className="home_sideNavbar_link">
-            <div className="home_sideNavbarTopOption" style={isActive(`/user/${loggedInUsername}`) ? activeStyle : {}}>
-              <RecentActorsIcon />
+          <Link
+            to={`/user/${loggedInUsername}`}
+            className="home_sideNavbar_link"
+          >
+            <div
+              className="home_sideNavbarTopOption"
+              style={isActive(`/user/${loggedInUsername}`) ? activeStyle : {}}
+            >
+              <ChannelIcon />
               <div className="home_sideNavbarTopOptionTitle">Your Channel</div>
             </div>
           </Link>
@@ -87,65 +202,86 @@ const SideNavbar = ({ sideNavbar }) => {
             onClick={() => window.dispatchEvent(new Event("openLogin"))}
           >
             <div className="home_sideNavbarTopOption">
-              <RecentActorsIcon />
+              <ChannelIcon />
               <div className="home_sideNavbarTopOptionTitle">Your Channel</div>
             </div>
           </div>
         )}
 
         <Link to="/history" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/history") ? activeStyle : {}}>
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/history") ? activeStyle : {}}
+          >
             <HistoryIcon />
             <div className="home_sideNavbarTopOptionTitle">History</div>
           </div>
         </Link>
 
         <Link to="/playlist" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/playlist") ? activeStyle : {}}>
-            <PlaylistAddIcon />
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/playlist") ? activeStyle : {}}
+          >
+            <PlaylistIcon />
             <div className="home_sideNavbarTopOptionTitle">Playlist</div>
           </div>
         </Link>
 
         <Link to="/your-videos" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/your-videos") ? activeStyle : {}}>
-            <SmartDisplayIcon />
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/your-videos") ? activeStyle : {}}
+          >
+            <YourVideosIcon />
             <div className="home_sideNavbarTopOptionTitle">Your videos</div>
           </div>
         </Link>
 
         <Link to="/watch-later" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/watch-later") ? activeStyle : {}}>
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/watch-later") ? activeStyle : {}}
+          >
             <WatchLaterIcon />
             <div className="home_sideNavbarTopOptionTitle">Watch later</div>
           </div>
         </Link>
 
         <Link to="/liked-videos" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/liked-videos") ? activeStyle : {}}>
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/liked-videos") ? activeStyle : {}}
+          >
             <ThumbUpIcon />
             <div className="home_sideNavbarTopOptionTitle">Liked videos</div>
           </div>
         </Link>
 
         <Link to="/your-clips" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/your-clips") ? activeStyle : {}}>
-            <ContentCutIcon />
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/your-clips") ? activeStyle : {}}
+          >
+            <ClipsIcon />
             <div className="home_sideNavbarTopOptionTitle">Your clips</div>
           </div>
         </Link>
-
       </div>
 
       {/* ── SUBSCRIPTIONS SECTION ── */}
       <div className="home_sideNavbarMiddle">
-
         <div className="home_sideNavbarTopOption">
-          <div className="home_sideNavbarTopOptionTitleHeader">Subscription</div>
+          <div className="home_sideNavbarTopOptionTitleHeader">
+            Subscription
+          </div>
         </div>
 
         <Link to="/user/aajtak" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/user/aajtak") ? activeStyle : {}}>
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/user/aajtak") ? activeStyle : {}}
+          >
             <img
               className="home_sideNavbar_ImgLogo"
               src="https://tse4.mm.bing.net/th/id/OIP.Auy5e_yPpkpidVF_ZRz7aQAAAA?w=404&h=316&rs=1&pid=ImgDetMain&o=7&rm=3"
@@ -156,7 +292,10 @@ const SideNavbar = ({ sideNavbar }) => {
         </Link>
 
         <Link to="/user/lallantop" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/user/lallantop") ? activeStyle : {}}>
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/user/lallantop") ? activeStyle : {}}
+          >
             <img
               className="home_sideNavbar_ImgLogo"
               src="https://tse1.mm.bing.net/th/id/OIP.At5eXfjQ0jLiO7tRFBjI_QAAAA?rs=1&pid=ImgDetMain&o=7&rm=3"
@@ -167,7 +306,10 @@ const SideNavbar = ({ sideNavbar }) => {
         </Link>
 
         <Link to="/user/ndtvindia" className="home_sideNavbar_link">
-          <div className="home_sideNavbarTopOption" style={isActive("/user/ndtvindia") ? activeStyle : {}}>
+          <div
+            className="home_sideNavbarTopOption"
+            style={isActive("/user/ndtvindia") ? activeStyle : {}}
+          >
             <img
               className="home_sideNavbar_ImgLogo"
               src="https://logodix.com/logo/2131933.jpg"
@@ -176,7 +318,6 @@ const SideNavbar = ({ sideNavbar }) => {
             <div className="home_sideNavbarTopOptionTitle">NDTV India</div>
           </div>
         </Link>
-
       </div>
     </div>
   );

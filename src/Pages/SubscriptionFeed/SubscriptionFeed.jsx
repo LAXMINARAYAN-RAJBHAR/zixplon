@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
 import SubscriptionsIcon from "@mui/icons-material/Subscriptions";
+import logo from "../../assests/mylogo.png";
 import "../../styles/libraryPages.css";
 
 const SubscriptionFeed = ({ currentUser, sideNavbar }) => {
@@ -18,7 +19,6 @@ const SubscriptionFeed = ({ currentUser, sideNavbar }) => {
 
   const loadFeed = async () => {
     setLoading(true);
-    // subscriptions table: subscriber_id = username, subscribed_to = channel username
     const { data: subs } = await supabase
       .from("subscriptions")
       .select("subscribed_to")
@@ -63,7 +63,8 @@ const SubscriptionFeed = ({ currentUser, sideNavbar }) => {
   return (
     <div className={`lib-page ${sideNavbar ? "" : "sidebar-collapsed"}`}>
       <div className="lib-header">
-        <SubscriptionsIcon className="lib-header-icon" />
+        {/* ✅ Zixplon logo */}
+        <img src={logo} alt="Zixplon" className="lib-header-icon" />
         <div>
           <h1 className="lib-title">Subscriptions</h1>
           <p className="lib-subtitle">Latest from channels you follow</p>

@@ -11,8 +11,10 @@
   min-height: 100vh;
   background: var(--zx-bg, #f0f4ff);
   padding: 24px 28px 60px;
+  padding-top: calc(55px + 24px); /* 55px navbar height + breathing room */
   max-width: 1100px;
   margin: 0 auto;
+  margin-left: 290px; /* sidebar width offset */
   font-family: 'Outfit', sans-serif;
   color: var(--zx-text, #1e1b4b);
 }
@@ -503,7 +505,9 @@
 @media (max-width: 768px) {
   .lib-page {
     padding: 16px 14px 60px;
+    padding-top: calc(55px + 16px);
     margin-left: 0 !important;
+    max-width: 100%;
   }
 
   .lib-title {

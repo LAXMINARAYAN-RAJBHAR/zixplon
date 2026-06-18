@@ -31,6 +31,14 @@ import {
   CommunityGuidelinesPage,
   AdvertisePage,
 } from "./Pages/ZixplonPages";
+// ── New library pages ──
+import LikedVideos      from "./Pages/LikedVideos/LikedVideos";
+import YourVideos       from "./Pages/YourVideos/YourVideos";
+import WatchLater       from "./Pages/WatchLater/WatchLater";
+import History          from "./Pages/History/History";
+import SubscriptionFeed from "./Pages/SubscriptionFeed/SubscriptionFeed";
+import Playlist         from "./Pages/Playlist/Playlist";
+import YourClips        from "./Pages/YourClips/YourClips";
 
 function App() {
   const location = useLocation();
@@ -196,7 +204,6 @@ function App() {
             path="/user/:username"
             element={<Profile sideNavbar={sideNavbar} />}
           />
-          {/* Fixed: BottomNav links to /videoUpload, route now matches */}
           <Route path="/videoUpload" element={<VideoUpload />} />
           <Route path="/:id/upload" element={<VideoUpload />} />
           <Route path="/signup" element={<SignUp />} />
@@ -208,38 +215,16 @@ function App() {
             path="/notifications"
             element={<Notifications notifications={notifications} />}
           />
-          <Route
-            path="/history"
-            element={<ComingSoon title="History" sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/playlist"
-            element={<ComingSoon title="Playlist" sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/your-videos"
-            element={<ComingSoon title="Your Videos" sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/watch-later"
-            element={<ComingSoon title="Watch Later" sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/liked-videos"
-            element={
-              <ComingSoon title="Liked Videos" sideNavbar={sideNavbar} />
-            }
-          />
-          <Route
-            path="/your-clips"
-            element={<ComingSoon title="Your Clips" sideNavbar={sideNavbar} />}
-          />
-          <Route
-            path="/subscription"
-            element={
-              <ComingSoon title="Subscription" sideNavbar={sideNavbar} />
-            }
-          />
+
+          {/* ── Library pages (fully functional) ── */}
+          <Route path="/history"      element={<History />} />
+          <Route path="/playlist"     element={<Playlist />} />
+          <Route path="/your-videos"  element={<YourVideos />} />
+          <Route path="/watch-later"  element={<WatchLater />} />
+          <Route path="/liked-videos" element={<LikedVideos />} />
+          <Route path="/your-clips"   element={<YourClips />} />
+          <Route path="/subscription" element={<SubscriptionFeed />} />
+
           <Route
             path="/live-tv"
             element={<LiveTVPage sideNavbar={sideNavbar} />}
@@ -252,18 +237,15 @@ function App() {
             path="/terms-and-conditions"
             element={<TermsAndConditions />}
           />
-          <Route path="/feedback" element={<Feedback />} />
-          <Route path="/help" element={<Help />} />
-          <Route path="/contact" element={<ContactSupport />} />
-          <Route path="/report" element={<ReportProblem />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-          <Route path="/dmca" element={<DmcaPage />} />
-          <Route
-            path="/community-guidelines"
-            element={<CommunityGuidelinesPage />}
-          />
-          <Route path="/advertise" element={<AdvertisePage />} />
+          <Route path="/feedback"  element={<Feedback />} />
+          <Route path="/help"      element={<Help />} />
+          <Route path="/contact"   element={<ContactSupport />} />
+          <Route path="/report"    element={<ReportProblem />} />
+          <Route path="/about"     element={<AboutPage />} />
+          <Route path="/privacy-policy"        element={<PrivacyPolicyPage />} />
+          <Route path="/dmca"                  element={<DmcaPage />} />
+          <Route path="/community-guidelines"  element={<CommunityGuidelinesPage />} />
+          <Route path="/advertise"             element={<AdvertisePage />} />
           <Route path="/feed" element={<PostFeed sideNavbar={sideNavbar} />} />
         </Routes>
       </div>

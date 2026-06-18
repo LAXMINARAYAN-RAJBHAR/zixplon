@@ -305,7 +305,18 @@ const MobileTrendingStrip = ({ dbVideos, dbReels = [], onVideoClick, onReelClick
 const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigate, watchedContentIds }) => {
   const cardRef = useRef(null);
   const firedRef = useRef(false);
-  const [showNew, setShowNew] = useState(() => !!short.dbId && !isWatched("reel", short.dbId, watchedContentIds));
+  const [showNew, setShowNew] = useState(() => {
+  if (!short.dbId) return false;
+  if (isWatched("reel", short.dbId, watchedContentIds)) return false;
+  // Check if uploaded within last 7 days
+  if (short.created_at) {
+    const age = Date.now() - new Date(short.created_at).getTime();
+    return age <= 7 * 24 * 60 * 60 * 1000;
+  }
+  // Realtime-inserted reels won't have created_at yet — check sessionStorage fresh list
+  const fresh = (() => { try { return JSON.parse(sessionStorage.getItem("zixplon_fresh_reels") || "[]"); } catch { return []; } })();
+  return fresh.includes(String("db_" + short.dbId));
+});
 
   useEffect(() => {
     if (!short.dbId) return;
@@ -325,8 +336,13 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
   }, [short.dbId, incrementView]);
 
   useEffect(() => {
-    if (short.dbId && isWatched("reel", short.dbId, watchedContentIds)) setShowNew(false);
-  }, [watchedContentIds, short.dbId]);
+  if (!short.dbId) return;
+  if (isWatched("reel", short.dbId, watchedContentIds)) { setShowNew(false); return; }
+  if (short.created_at) {
+    const age = Date.now() - new Date(short.created_at).getTime();
+    setShowNew(age <= 7 * 24 * 60 * 60 * 1000);
+  }
+}, [watchedContentIds, short.dbId]);
 
   const vcKey = short.id ? "reel_" + short.id : null;
 

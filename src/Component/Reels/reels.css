@@ -689,9 +689,9 @@ body.reels-open .reel_item   { height: 100dvh; }
 @media (max-width: 768px) {
   .reels_back_btn {
     top: calc(env(safe-area-inset-top, 0px) + 12px);
-    left: 14px;
+    right: 14px;
+    left: auto; /* unset the desktop left positioning */
     width: 38px;
     height: 38px;
-    top: 50px;
   }
 }

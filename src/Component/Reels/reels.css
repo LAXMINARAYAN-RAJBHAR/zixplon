@@ -692,5 +692,6 @@ body.reels-open .reel_item   { height: 100dvh; }
     left: 14px;
     width: 38px;
     height: 38px;
+    top: 50px;
   }
 }

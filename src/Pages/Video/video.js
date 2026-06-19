@@ -648,7 +648,6 @@ const Video = () => {
   const loggedInUser = localStorage.getItem("username") || "Guest";
   const controlsTimer = useRef(null);
   const videoRef = useRef(null);
-  const topRef = useRef(null);
 
   // ── View tracking: records a view after 10s, once per 15 days ──
   useViewTracker({
@@ -904,19 +903,13 @@ const Video = () => {
     loadComments();
   }, [id]);
 
+  // ── FIXED: scroll to top of page instead of scrollIntoView ──
   useEffect(() => {
-  setDisliked(false);
-  setVideoError(false);
-  setIsVideoPlaying(false);
-  
-  // scroll the video player into view
-  setTimeout(() => {
-    const player = document.querySelector(".video_player_wrapper");
-    if (player) {
-      player.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, 100);
-}, [id]);
+    setDisliked(false);
+    setVideoError(false);
+    setIsVideoPlaying(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [id]);
 
   if (dbLoading) {
     return (
@@ -979,7 +972,6 @@ const Video = () => {
 
   return (
     <div className="video">
-    <div ref={topRef} style={{ position: "absolute", top: 0 }} />
       <div className="videoPostSection">
         <div
           className="video_player_wrapper"
@@ -1061,7 +1053,6 @@ const Video = () => {
             </div>
           )}
 
-          {/* ── onPlay/onPause track isVideoPlaying for view tracker ── */}
           <video
             ref={videoRef}
             key={video.id}
@@ -1135,7 +1126,6 @@ const Video = () => {
         <div className="video_youtubeAbout">
           <div className="video_uTubeTitle">{video.title}</div>
 
-          {/* ── View count display ── */}
           <div style={{ color: "#aaa", fontSize: "13px", marginBottom: "8px" }}>
             👁 {viewCount} {viewCount === 1 ? "view" : "views"}
           </div>

@@ -22,7 +22,7 @@
 /* ── Page wrapper ── */
 .video {
   background: var(--zx-bg);
-  padding-top: 56px;   /* was margin-top: 56px */
+  padding-top: 56px;
   margin-top: 0;
   display: flex;
   color: var(--zx-text);
@@ -50,6 +50,7 @@
   overflow: hidden;
   background: #1e1b4b;
   box-shadow: 0 8px 32px rgba(124,58,237,0.12);
+  scroll-margin-top: 64px; /* clears fixed navbar if ever scrolled into view */
 }
 
 .video_youtube_video {
@@ -291,7 +292,6 @@
   position: relative;
 }
 
-/* Colorful left accent on description box */
 .youtube_video_About::before {
   content: '';
   position: absolute;
@@ -378,7 +378,6 @@
   gap: 10px;
 }
 
-/* Colorful accent before comments title */
 .youtubeCommentSectionTitle::before {
   content: '';
   display: inline-block;

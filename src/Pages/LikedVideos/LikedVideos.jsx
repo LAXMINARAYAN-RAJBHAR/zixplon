@@ -5,39 +5,41 @@ import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import "../../styles/libraryPages.css";
 
 const LikedVideos = ({ currentUser, sideNavbar }) => {
-  const username = currentUser || "";
-  const [videos, setVideos] = useState([]);
+  const username              = currentUser || "";
+  const [videos, setVideos]   = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
 
   useEffect(() => {
     if (!username) { setLoading(false); setVideos([]); return; }
-    const loadLiked = async () => {
-      setLoading(true);
-      const { data: likeRows, error: likeErr } = await supabase
-        .from("likes")
-        .select("content_id")
-        .eq("user_id", username)
-        .eq("content_type", "video");
-
-      if (likeErr || !likeRows || likeRows.length === 0) {
-        setVideos([]);
-        setLoading(false);
-        return;
-      }
-
-      const videoIds = likeRows.map((r) => r.content_id);
-
-      const { data, error } = await supabase
-        .from("videos")
-        .select("id, title, thumbnail_url, likes, username, created_at")
-        .in("id", videoIds)
-        .order("created_at", { ascending: false });
-
-      if (!error && data) setVideos(data);
-      setLoading(false);
-    };
     loadLiked();
   }, [username]);
+
+  const loadLiked = async () => {
+    setLoading(true);
+    setError("");
+
+    const { data: likeRows, error: likeErr } = await supabase
+      .from("likes")
+      .select("content_id")
+      .eq("user_id", username)
+      .eq("content_type", "video");
+
+    if (likeErr) { setError(`Likes fetch error: ${likeErr.message}`); setLoading(false); return; }
+    if (!likeRows || likeRows.length === 0) { setVideos([]); setLoading(false); return; }
+
+    const videoIds = likeRows.map((r) => r.content_id);
+
+    const { data, error: vidErr } = await supabase
+      .from("videos")
+      .select("id, title, thumbnail_url, likes, username, created_at")
+      .in("id", videoIds)
+      .order("created_at", { ascending: false });
+
+    if (vidErr) { setError(`Videos fetch error: ${vidErr.message}`); setLoading(false); return; }
+    if (data) setVideos(data);
+    setLoading(false);
+  };
 
   return (
     <div className={`lib-page ${sideNavbar ? "" : "sidebar-collapsed"}`}>
@@ -50,13 +52,15 @@ const LikedVideos = ({ currentUser, sideNavbar }) => {
       </div>
 
       {!username && <div className="lib-empty"><p>Sign in to see videos you've liked.</p></div>}
+      {error      && <div className="lib-empty" style={{ color: "#ef4444" }}><p>{error}</p></div>}
       {username && loading && <div className="lib-loading"><div className="lib-spinner" /></div>}
-      {username && !loading && videos.length === 0 && (
+      {username && !loading && !error && videos.length === 0 && (
         <div className="lib-empty">
           <ThumbUpIcon style={{ fontSize: 48, opacity: 0.3 }} />
           <p>Videos you like will appear here.</p>
         </div>
       )}
+
       {!loading && videos.length > 0 && (
         <div className="lib-grid">
           {videos.map((v) => (

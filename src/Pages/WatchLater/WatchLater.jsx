@@ -6,9 +6,10 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import "../../styles/libraryPages.css";
 
 const WatchLater = ({ currentUser, sideNavbar }) => {
-  const username = currentUser || "";
-  const [items, setItems] = useState([]);
+  const username              = currentUser || "";
+  const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
 
   useEffect(() => {
     if (!username) { setLoading(false); setItems([]); return; }
@@ -17,12 +18,36 @@ const WatchLater = ({ currentUser, sideNavbar }) => {
 
   const loadItems = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    setError("");
+
+    // ── Step 1: fetch watch_later rows ──────────────────────────────────
+    const { data: wlRows, error: wlErr } = await supabase
       .from("watch_later")
-      .select("id, added_at, videos(id, title, thumbnail_url, likes, username)")
+      .select("id, added_at, video_id")
       .eq("username", username)
       .order("added_at", { ascending: false });
-    if (!error && data) setItems(data.filter((i) => i.videos));
+
+    if (wlErr) { setError(`Watch Later fetch error: ${wlErr.message}`); setLoading(false); return; }
+    if (!wlRows || wlRows.length === 0) { setItems([]); setLoading(false); return; }
+
+    // ── Step 2: fetch matching videos ───────────────────────────────────
+    const videoIds = wlRows.map((r) => r.video_id);
+    const { data: videoRows, error: vidErr } = await supabase
+      .from("videos")
+      .select("id, title, thumbnail_url, likes, username")
+      .in("id", videoIds);
+
+    if (vidErr) { setError(`Videos fetch error: ${vidErr.message}`); setLoading(false); return; }
+
+    // ── Step 3: merge ───────────────────────────────────────────────────
+    const videoMap = {};
+    (videoRows || []).forEach((v) => { videoMap[v.id] = v; });
+
+    setItems(
+      wlRows
+        .filter((r) => videoMap[r.video_id])
+        .map((r) => ({ ...r, video: videoMap[r.video_id] }))
+    );
     setLoading(false);
   };
 
@@ -44,27 +69,29 @@ const WatchLater = ({ currentUser, sideNavbar }) => {
       </div>
 
       {!username && <div className="lib-empty"><p>Sign in to save videos for later.</p></div>}
+      {error      && <div className="lib-empty" style={{ color: "#ef4444" }}><p>{error}</p></div>}
       {username && loading && <div className="lib-loading"><div className="lib-spinner" /></div>}
-      {username && !loading && items.length === 0 && (
+      {username && !loading && !error && items.length === 0 && (
         <div className="lib-empty">
           <WatchLaterIcon style={{ fontSize: 48, opacity: 0.3 }} />
           <p>Save videos to watch them later.</p>
         </div>
       )}
+
       {!loading && items.length > 0 && (
         <div className="lib-list">
           {items.map((item) => (
-            <Link to={`/video/${item.videos.id}`} key={item.id} className="lib-list-item">
+            <Link to={`/video/${item.video.id}`} key={item.id} className="lib-list-item">
               <div className="lib-list-thumb-wrap">
                 <img
-                  src={item.videos.thumbnail_url || "https://via.placeholder.com/160x90?text=No+Thumbnail"}
-                  alt={item.videos.title}
+                  src={item.video.thumbnail_url || "https://via.placeholder.com/160x90?text=No+Thumbnail"}
+                  alt={item.video.title}
                   className="lib-list-thumb"
                 />
               </div>
               <div className="lib-list-info">
-                <p className="lib-card-title">{item.videos.title}</p>
-                <p className="lib-card-meta">{item.videos.username}</p>
+                <p className="lib-card-title">{item.video.title}</p>
+                <p className="lib-card-meta">{item.video.username}</p>
               </div>
               <button className="lib-remove-btn" onClick={(e) => removeItem(item.id, e)} title="Remove">
                 <DeleteOutlineIcon />

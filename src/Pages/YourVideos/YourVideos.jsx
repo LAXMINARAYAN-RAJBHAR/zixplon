@@ -5,20 +5,23 @@ import SmartDisplayIcon from "@mui/icons-material/SmartDisplay";
 import "../../styles/libraryPages.css";
 
 const YourVideos = ({ currentUser, sideNavbar }) => {
-  const username = currentUser || "";
-  const [videos, setVideos] = useState([]);
+  const username              = currentUser || "";
+  const [videos, setVideos]   = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
 
   useEffect(() => {
     if (!username) { setLoading(false); setVideos([]); return; }
     const loadVideos = async () => {
       setLoading(true);
-      const { data, error } = await supabase
+      setError("");
+      const { data, error: err } = await supabase
         .from("videos")
         .select("id, title, thumbnail_url, likes, created_at")
         .eq("username", username)
         .order("created_at", { ascending: false });
-      if (!error && data) setVideos(data);
+      if (err) setError(`Videos fetch error: ${err.message}`);
+      else if (data) setVideos(data);
       setLoading(false);
     };
     loadVideos();
@@ -38,14 +41,16 @@ const YourVideos = ({ currentUser, sideNavbar }) => {
       </div>
 
       {!username && <div className="lib-empty"><p>Sign in to manage your videos.</p></div>}
+      {error      && <div className="lib-empty" style={{ color: "#ef4444" }}><p>{error}</p></div>}
       {username && loading && <div className="lib-loading"><div className="lib-spinner" /></div>}
-      {username && !loading && videos.length === 0 && (
+      {username && !loading && !error && videos.length === 0 && (
         <div className="lib-empty">
           <SmartDisplayIcon style={{ fontSize: 48, opacity: 0.3 }} />
           <p>You haven't uploaded any videos yet.</p>
           <Link to="/videoUpload" className="lib-cta-btn">Upload a video</Link>
         </div>
       )}
+
       {!loading && videos.length > 0 && (
         <div className="lib-list">
           {videos.map((v) => (

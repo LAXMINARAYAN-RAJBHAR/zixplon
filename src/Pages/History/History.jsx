@@ -12,8 +12,9 @@ export const logHistory = async (username, videoId) => {
 
 const History = ({ currentUser, sideNavbar }) => {
   const username = currentUser || "";
-  const [groups, setGroups] = useState([]);
+  const [groups, setGroups]   = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
 
   useEffect(() => {
     if (!username) { setLoading(false); setGroups([]); return; }
@@ -22,32 +23,51 @@ const History = ({ currentUser, sideNavbar }) => {
 
   const loadHistory = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    setError("");
+
+    // ── Step 1: fetch history rows ──────────────────────────────────────
+    const { data: histRows, error: histErr } = await supabase
       .from("history")
-      .select("id, watched_at, videos(id, title, thumbnail_url, username)")
+      .select("id, watched_at, video_id")
       .eq("username", username)
       .order("watched_at", { ascending: false })
       .limit(200);
 
-    if (!error && data) {
-      const valid = data.filter((h) => h.videos);
-      const byDate = {};
-      valid.forEach((h) => {
-        const label = getDateLabel(h.watched_at);
-        if (!byDate[label]) byDate[label] = [];
-        byDate[label].push(h);
-      });
-      setGroups(Object.entries(byDate));
-    }
+    if (histErr) { setError(`History fetch error: ${histErr.message}`); setLoading(false); return; }
+    if (!histRows || histRows.length === 0) { setGroups([]); setLoading(false); return; }
+
+    // ── Step 2: fetch matching videos ───────────────────────────────────
+    const videoIds = [...new Set(histRows.map((h) => h.video_id))];
+    const { data: videoRows, error: vidErr } = await supabase
+      .from("videos")
+      .select("id, title, thumbnail_url, username")
+      .in("id", videoIds);
+
+    if (vidErr) { setError(`Videos fetch error: ${vidErr.message}`); setLoading(false); return; }
+
+    // ── Step 3: merge and group by date ─────────────────────────────────
+    const videoMap = {};
+    (videoRows || []).forEach((v) => { videoMap[v.id] = v; });
+
+    const byDate = {};
+    histRows.forEach((h) => {
+      const vid = videoMap[h.video_id];
+      if (!vid) return;
+      const label = getDateLabel(h.watched_at);
+      if (!byDate[label]) byDate[label] = [];
+      byDate[label].push({ ...h, video: vid });
+    });
+
+    setGroups(Object.entries(byDate));
     setLoading(false);
   };
 
   const getDateLabel = (dateStr) => {
-    const d = new Date(dateStr);
-    const today = new Date();
+    const d         = new Date(dateStr);
+    const today     = new Date();
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
-    if (d.toDateString() === today.toDateString()) return "Today";
+    if (d.toDateString() === today.toDateString())     return "Today";
     if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
     return d.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
   };
@@ -76,29 +96,31 @@ const History = ({ currentUser, sideNavbar }) => {
       </div>
 
       {!username && <div className="lib-empty"><p>Sign in to see your watch history.</p></div>}
+      {error      && <div className="lib-empty" style={{ color: "#ef4444" }}><p>{error}</p></div>}
       {username && loading && <div className="lib-loading"><div className="lib-spinner" /></div>}
-      {username && !loading && groups.length === 0 && (
+      {username && !loading && !error && groups.length === 0 && (
         <div className="lib-empty">
           <HistoryIcon style={{ fontSize: 48, opacity: 0.3 }} />
           <p>Videos you watch will appear here.</p>
         </div>
       )}
+
       {!loading && groups.map(([label, items]) => (
         <div key={label} className="lib-group">
           <p className="lib-group-label">{label}</p>
           <div className="lib-list">
             {items.map((h) => (
-              <Link to={`/video/${h.videos.id}`} key={h.id} className="lib-list-item">
+              <Link to={`/video/${h.video.id}`} key={h.id} className="lib-list-item">
                 <div className="lib-list-thumb-wrap">
                   <img
-                    src={h.videos.thumbnail_url || "https://via.placeholder.com/160x90?text=No+Thumbnail"}
-                    alt={h.videos.title}
+                    src={h.video.thumbnail_url || "https://via.placeholder.com/160x90?text=No+Thumbnail"}
+                    alt={h.video.title}
                     className="lib-list-thumb"
                   />
                 </div>
                 <div className="lib-list-info">
-                  <p className="lib-card-title">{h.videos.title}</p>
-                  <p className="lib-card-meta">{h.videos.username}</p>
+                  <p className="lib-card-title">{h.video.title}</p>
+                  <p className="lib-card-meta">{h.video.username}</p>
                   <p className="lib-card-meta" style={{ fontSize: 11 }}>
                     {new Date(h.watched_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                   </p>

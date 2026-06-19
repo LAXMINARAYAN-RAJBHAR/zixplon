@@ -6,6 +6,7 @@ import ReplyIcon from "@mui/icons-material/Reply";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import useViewTracker from "../../Component/Reels/useViewTracker";
+import { logHistory } from "../Library/History"; // ⚠️ update this path to match where History.jsx actually lives in your project
 
 const getCloudinaryThumbnail = (videoUrl) => {
   if (!videoUrl || !videoUrl.includes("cloudinary.com")) return null;
@@ -703,6 +704,15 @@ const Video = () => {
   const nextVideo = allVideos[currentIndex + 1] || allVideos[0];
   const prevVideo =
     allVideos[currentIndex - 1] || allVideos[allVideos.length - 1];
+
+  // ── Log to watch history (DB videos only — hardcoded videos aren't rows
+  // in the `videos` table, so History.jsx's join against `videos` would
+  // silently drop them anyway) ──
+  useEffect(() => {
+    if (loggedInUser !== "Guest" && video?.isDb && video?.id) {
+      logHistory(loggedInUser, video.id);
+    }
+  }, [video?.id, video?.isDb, loggedInUser]);
 
   useEffect(() => {
     const loadSubscription = async () => {

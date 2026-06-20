@@ -11,6 +11,8 @@ const LikedVideos = ({ currentUser, sideNavbar }) => {
   const [activeTab, setActiveTab] = useState("videos");
   const [videos, setVideos]       = useState([]);
   const [reels, setReels]         = useState([]);
+  const [videoLikeCounts, setVideoLikeCounts] = useState({});
+  const [reelLikeCounts, setReelLikeCounts]   = useState({});
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState("");
 
@@ -44,13 +46,36 @@ const LikedVideos = ({ currentUser, sideNavbar }) => {
     if (videoIds.length > 0) {
       const { data, error: vidErr } = await supabase
         .from("videos")
-        .select("id, title, thumbnail_url, likes, username, created_at")
+        .select("id, title, thumbnail_url, username, created_at")
         .in("id", videoIds)
         .order("created_at", { ascending: false });
-      if (vidErr) setError((prev) => prev || `Videos fetch error: ${vidErr.message}`);
-      else if (data) setVideos(data);
+
+      if (vidErr) {
+        setError((prev) => prev || `Videos fetch error: ${vidErr.message}`);
+      } else if (data) {
+        setVideos(data);
+
+        // ── Real like counts come from the `likes` table, NOT the stale
+        // `videos.likes` column (which is never incremented anywhere) ──
+        const ids = data.map((v) => String(v.id));
+        const { data: likeCountRows, error: countErr } = await supabase
+          .from("likes")
+          .select("content_id")
+          .eq("content_type", "video")
+          .eq("reaction_type", "like")
+          .in("content_id", ids);
+
+        if (!countErr && likeCountRows) {
+          const counts = {};
+          ids.forEach((vid) => {
+            counts[vid] = likeCountRows.filter((l) => l.content_id === vid).length;
+          });
+          setVideoLikeCounts(counts);
+        }
+      }
     } else {
       setVideos([]);
+      setVideoLikeCounts({});
     }
 
     // ── Step 3: fetch matching reels ──
@@ -60,10 +85,32 @@ const LikedVideos = ({ currentUser, sideNavbar }) => {
         .select("id, title, thumbnail, description, user, username, video_url, created_at")
         .in("id", reelIds)
         .order("created_at", { ascending: false });
-      if (reelErr) setError((prev) => prev || `Reels fetch error: ${reelErr.message}`);
-      else if (data) setReels(data);
+
+      if (reelErr) {
+        setError((prev) => prev || `Reels fetch error: ${reelErr.message}`);
+      } else if (data) {
+        setReels(data);
+
+        // ── Real like counts for reels, same approach ──
+        const ids = data.map((r) => `db_${r.id}`);
+        const { data: likeCountRows, error: countErr } = await supabase
+          .from("likes")
+          .select("content_id")
+          .eq("content_type", "reel")
+          .eq("reaction_type", "like")
+          .in("content_id", ids);
+
+        if (!countErr && likeCountRows) {
+          const counts = {};
+          ids.forEach((rid) => {
+            counts[rid] = likeCountRows.filter((l) => l.content_id === rid).length;
+          });
+          setReelLikeCounts(counts);
+        }
+      }
     } else {
       setReels([]);
+      setReelLikeCounts({});
     }
 
     setLoading(false);
@@ -119,7 +166,9 @@ const LikedVideos = ({ currentUser, sideNavbar }) => {
                     </div>
                     <div className="lib-card-info">
                       <p className="lib-card-title">{v.title}</p>
-                      <p className="lib-card-meta">{v.username} · 👍 {Number(v.likes ?? 0)}</p>
+                      <p className="lib-card-meta">
+                        {v.username} · 👍 {videoLikeCounts[String(v.id)] ?? 0}
+                      </p>
                     </div>
                   </Link>
                 ))}
@@ -163,7 +212,9 @@ const LikedVideos = ({ currentUser, sideNavbar }) => {
                     </div>
                     <div className="lib-card-info">
                       <p className="lib-card-title">{r.title}</p>
-                      <p className="lib-card-meta">{r.username}</p>
+                      <p className="lib-card-meta">
+                        {r.username} · 👍 {reelLikeCounts[`db_${r.id}`] ?? 0}
+                      </p>
                     </div>
                   </div>
                 ))}

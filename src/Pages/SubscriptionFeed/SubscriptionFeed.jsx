@@ -19,19 +19,34 @@ const SubscriptionFeed = ({ currentUser, sideNavbar }) => {
 
   const loadFeed = async () => {
     setLoading(true);
-    const { data: subs } = await supabase
+    const userId = localStorage.getItem("userId") || "";
+
+    // ── Subscriptions are stored inconsistently across the app:
+    // Profile.jsx writes subscriber_id as the username, while Video.jsx /
+    // Reels.jsx write it as the UUID (userId). Until that's unified, we
+    // check both so subscriptions made from either place show up here. ──
+    const { data: subsByUsername } = await supabase
       .from("subscriptions")
       .select("subscribed_to")
       .eq("subscriber_id", username);
 
-    if (!subs || subs.length === 0) {
+    const { data: subsByUserId } = userId
+      ? await supabase
+          .from("subscriptions")
+          .select("subscribed_to")
+          .eq("subscriber_id", userId)
+      : { data: [] };
+
+    const subs = [...(subsByUsername || []), ...(subsByUserId || [])];
+
+    if (subs.length === 0) {
       setChannels([]);
       setVideos([]);
       setLoading(false);
       return;
     }
 
-    const channelNames = subs.map((s) => s.subscribed_to);
+    const channelNames = [...new Set(subs.map((s) => s.subscribed_to))];
     setChannels(channelNames);
 
     const { data, error } = await supabase

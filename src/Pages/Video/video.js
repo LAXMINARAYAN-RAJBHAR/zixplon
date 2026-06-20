@@ -6,7 +6,7 @@ import ReplyIcon from "@mui/icons-material/Reply";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import useViewTracker from "../../Component/Reels/useViewTracker";
-import { logHistory } from "../Library/History"; // ⚠️ update this path to match where History.jsx actually lives in your project
+import { logHistory } from "../History/History";
 
 const getCloudinaryThumbnail = (videoUrl) => {
   if (!videoUrl || !videoUrl.includes("cloudinary.com")) return null;

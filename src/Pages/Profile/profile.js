@@ -430,16 +430,30 @@ const Profile = ({ sideNavbar }) => {
         .select("*", { count: "exact", head: true })
         .eq("subscribed_to", key);
 
+      // ── Standardized to UUID going forward, but existing rows in the table
+      // may still hold a username in subscriber_id from before this fix, so
+      // we check both formats here to correctly detect prior subscriptions. ──
       const currentUser = localStorage.getItem("username") || "";
+      const currentUserId = localStorage.getItem("userId") || "";
       let alreadySubscribed = false;
       if (currentUser && currentUser.toLowerCase() !== key) {
-        const { data: subCheck } = await supabase
+        const { data: subCheckById } = currentUserId
+          ? await supabase
+              .from("subscriptions")
+              .select("id")
+              .eq("subscriber_id", currentUserId)
+              .eq("subscribed_to", key)
+              .maybeSingle()
+          : { data: null };
+
+        const { data: subCheckByUsername } = await supabase
           .from("subscriptions")
           .select("id")
           .eq("subscriber_id", currentUser)
           .eq("subscribed_to", key)
           .maybeSingle();
-        alreadySubscribed = !!subCheck;
+
+        alreadySubscribed = !!(subCheckById || subCheckByUsername);
       }
       setSubscriberCount(subCount || 0);
       setIsSubscribed(alreadySubscribed);
@@ -457,13 +471,24 @@ const Profile = ({ sideNavbar }) => {
 
   // ── Subscribe / Unsubscribe handler ───────────────────────────────────────
   // "subscriptions" table columns: subscriber_id, subscribed_to
+  // ── Standardized: subscriber_id is now always written as the UUID
+  // (userId), matching how Video.jsx and Reels.jsx already write it. On
+  // unsubscribe, we still clear the legacy username-keyed row too, in case
+  // this particular subscription pre-dates the standardization. ──
   const handleSubscribe = async () => {
     const currentUser = localStorage.getItem("username") || "";
-    if (!currentUser) { alert("Please log in to subscribe."); return; }
+    const currentUserId = localStorage.getItem("userId") || "";
+    if (!currentUser || !currentUserId) { alert("Please log in to subscribe."); return; }
     if (currentUser.toLowerCase() === key) return;
 
     setSubLoading(true);
     if (isSubscribed) {
+      await supabase
+        .from("subscriptions")
+        .delete()
+        .eq("subscriber_id", currentUserId)
+        .eq("subscribed_to", key);
+      // also clean up a legacy username-keyed row, if one exists
       await supabase
         .from("subscriptions")
         .delete()
@@ -474,7 +499,7 @@ const Profile = ({ sideNavbar }) => {
     } else {
       await supabase
         .from("subscriptions")
-        .insert({ subscriber_id: currentUser, subscribed_to: key });
+        .insert({ subscriber_id: currentUserId, subscribed_to: key });
       setIsSubscribed(true);
       setSubscriberCount((n) => n + 1);
     }

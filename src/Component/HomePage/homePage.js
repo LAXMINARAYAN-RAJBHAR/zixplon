@@ -436,21 +436,37 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
     return () => saveMenuBus.removeEventListener("claim", handleClaim);
   }, [open, videoId]);
 
-  // While this sheet is open, watch for the cursor entering ANY other video card
-  // (mouse) or a tap landing on a different card (touch) and close in response.
+  // While this sheet is open: on desktop, closing should happen the instant the
+  // cursor leaves THIS card's bounds — whether it lands on another card, the
+  // gutter between cards, or empty space. The sheet itself is `position: fixed`
+  // (so it visually sits outside the card's bounding box even though it's a DOM
+  // descendant of it) — moving into the open sheet must NOT count as "leaving".
+  // On touch devices (no real hover), fall back to closing when a tap lands on
+  // a different card.
   useEffect(() => {
     if (!open) return;
-    const handlePointerMove = (e) => {
-      const card = e.target.closest && e.target.closest(".youtube_thumbnailBox");
-      if (card && card !== wrapperRef.current?.closest(".youtube_thumbnailBox")) {
+    const card = wrapperRef.current?.closest(".youtube_thumbnailBox");
+    if (!card) return;
+
+    const handleMouseLeave = (e) => {
+      const goingTo = e.relatedTarget;
+      if (goingTo && goingTo.closest && goingTo.closest(".save-menu-sheet")) return;
+      saveMenuBus.dispatchEvent(new CustomEvent("claim", { detail: null }));
+    };
+    const handleTouchStart = (e) => {
+      const targetCard = e.target.closest && e.target.closest(".youtube_thumbnailBox");
+      const inSheet = e.target.closest && e.target.closest(".save-menu-sheet");
+      if (inSheet) return;
+      if (targetCard && targetCard !== card) {
         saveMenuBus.dispatchEvent(new CustomEvent("claim", { detail: null }));
       }
     };
-    document.addEventListener("mouseover", handlePointerMove);
-    document.addEventListener("touchstart", handlePointerMove, { passive: true });
+
+    card.addEventListener("mouseleave", handleMouseLeave);
+    document.addEventListener("touchstart", handleTouchStart, { passive: true });
     return () => {
-      document.removeEventListener("mouseover", handlePointerMove);
-      document.removeEventListener("touchstart", handlePointerMove);
+      card.removeEventListener("mouseleave", handleMouseLeave);
+      document.removeEventListener("touchstart", handleTouchStart);
     };
   }, [open]);
 

@@ -403,6 +403,10 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
   );
 };
 
+// Module-level: lets any open SaveMenuButton know another one should take over,
+// and lets card hover/touch broadcast "close whatever's open elsewhere".
+const saveMenuBus = new EventTarget();
+
 // ─── SAVE MENU (Watch Later + Add to Playlist, combined under ⋮) ──
 // Opens as a slide-up bottom sheet modal, styled after the Playlist.jsx create box.
 const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, setPlaylistsCache, offsetRight = "8px" }) => {
@@ -411,6 +415,7 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [memberIds, setMemberIds] = useState(new Set()); // playlist ids that already contain this video
+  const wrapperRef = useRef(null);
   const username = localStorage.getItem("username") || "";
 
   // Lock background scroll while the sheet is open
@@ -419,6 +424,34 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prevOverflow; };
+  }, [open]);
+
+  // Close this sheet if a different card claims focus (mouse moved to it, or it was tapped)
+  useEffect(() => {
+    if (!open) return;
+    const handleClaim = (e) => {
+      if (e.detail !== videoId) setOpen(false);
+    };
+    saveMenuBus.addEventListener("claim", handleClaim);
+    return () => saveMenuBus.removeEventListener("claim", handleClaim);
+  }, [open, videoId]);
+
+  // While this sheet is open, watch for the cursor entering ANY other video card
+  // (mouse) or a tap landing on a different card (touch) and close in response.
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerMove = (e) => {
+      const card = e.target.closest && e.target.closest(".youtube_thumbnailBox");
+      if (card && card !== wrapperRef.current?.closest(".youtube_thumbnailBox")) {
+        saveMenuBus.dispatchEvent(new CustomEvent("claim", { detail: null }));
+      }
+    };
+    document.addEventListener("mouseover", handlePointerMove);
+    document.addEventListener("touchstart", handlePointerMove, { passive: true });
+    return () => {
+      document.removeEventListener("mouseover", handlePointerMove);
+      document.removeEventListener("touchstart", handlePointerMove);
+    };
   }, [open]);
 
   const ensurePlaylistsLoaded = async () => {
@@ -447,6 +480,8 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
     e.preventDefault();
     e.stopPropagation();
     if (!username) { alert("Please login to save videos"); return; }
+    // Tell any other open sheet to close before this one opens
+    saveMenuBus.dispatchEvent(new CustomEvent("claim", { detail: videoId }));
     setOpen(true);
     setLoading(true);
     const list = await ensurePlaylistsLoaded();
@@ -494,7 +529,7 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
 
   return (
     <>
-      <div style={{ position: "absolute", top: "8px", right: offsetRight, zIndex: 11 }} onClick={(e) => e.stopPropagation()}>
+      <div ref={wrapperRef} style={{ position: "absolute", top: "8px", right: offsetRight, zIndex: 11 }} onClick={(e) => e.stopPropagation()}>
         <button
           onClick={openSheet}
           title="More options"

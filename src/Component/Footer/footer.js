@@ -7,7 +7,7 @@ const Footer = ({ sideNavbar }) => {
     <div className={`footer ${sideNavbar ? 'footer-sidebar-open' : ''}`}>
       <p>© 2021 - {new Date().getFullYear()} ZIXPLON&reg; All rights reserved.</p>
       <p>Origin: <span className="footer_dev">Made in India</span></p>
-      <p>Developed By: <span className="footer_dev">Laxminarayan Rajbhar</span></p>
+      <p>Developer: <span className="footer_dev">Laxminarayan Rajbhar</span></p>
       <div className="footer_links">
         <Link to="/about" className="footer_link">About</Link>
         <span className="footer_divider">|</span>

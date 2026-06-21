@@ -425,13 +425,36 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
 
       {open && (
         <div
-          onClick={(e) => { e.stopPropagation(); closeSheet(); }}
-          style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(30,27,75,0.45)", display: "flex", alignItems: "flex-end", justifyContent: "center", animation: "saveMenuFadeIn 0.18s ease" }}
-        >
+  onClick={(e) => { e.stopPropagation(); closeSheet(); }}
+  style={{ 
+    position: "fixed", 
+    top: 0, left: 0,          // explicit instead of inset shorthand
+    width: "100vw",            // full viewport width
+    height: "100vh",           // full viewport height
+    zIndex: 9999,              // higher z-index
+    background: "rgba(30,27,75,0.45)", 
+    display: "flex", 
+    alignItems: "flex-end",    // sheet slides up from bottom
+    justifyContent: "center", 
+    animation: "saveMenuFadeIn 0.18s ease",
+    margin: 0, padding: 0      // reset any inherited spacing
+  }}
+>
           <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: "480px", background: "#ffffff", borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 32px rgba(76,69,137,0.25)", padding: "10px 18px 22px", maxHeight: "75vh", overflowY: "auto", animation: "saveMenuSlideUp 0.22s cubic-bezier(0.32,0.72,0,1)" }}
-          >
+  onClick={(e) => e.stopPropagation()}
+  style={{ 
+    width: "100%",             // always full width
+    maxWidth: "100%",          // no max-width constraint on mobile
+    background: "#ffffff", 
+    borderRadius: "20px 20px 0 0", 
+    boxShadow: "0 -8px 32px rgba(76,69,137,0.25)", 
+    padding: "10px 18px 22px", 
+    maxHeight: "75vh", 
+    overflowY: "auto", 
+    animation: "saveMenuSlideUp 0.22s cubic-bezier(0.32,0.72,0,1)",
+    boxSizing: "border-box"    // prevent overflow from padding
+  }}
+>
             <div style={{ width: "40px", height: "4px", background: "#e0d4ff", borderRadius: "4px", margin: "4px auto 14px" }} />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
               <span style={{ color: "#1e1b4b", fontWeight: "800", fontSize: "16px" }}>Save video</span>

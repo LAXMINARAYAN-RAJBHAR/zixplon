@@ -929,6 +929,47 @@ const ShortCard = ({
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DropdownPortal — renders dropdown via portal so it's never clipped by
+// overflow:hidden on parent cards. Positions itself relative to the trigger.
+// ─────────────────────────────────────────────────────────────────────────────
+const DropdownPortal = ({ wrapperRef, children }) => {
+  const [style, setStyle] = React.useState({});
+
+  React.useLayoutEffect(() => {
+    if (!wrapperRef.current) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const menuWidth = 230;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // Prefer opening to the LEFT of the button (so text is never clipped)
+    let left = rect.right - menuWidth;
+    if (left < 8) left = 8;                          // clamp left edge
+    if (left + menuWidth > viewportWidth - 8)         // clamp right edge
+      left = viewportWidth - menuWidth - 8;
+
+    // Open below; if not enough space flip above
+    let top = rect.bottom + 6;
+    const estimatedHeight = 220;
+    if (top + estimatedHeight > viewportHeight - 8)
+      top = rect.top - estimatedHeight - 6;
+
+    setStyle({
+      position: "fixed",
+      top: top + "px",
+      left: left + "px",
+      width: menuWidth + "px",
+      zIndex: 99999,
+    });
+  }, [wrapperRef]);
+
+  return createPortal(
+    <div style={style}>{children}</div>,
+    document.body
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SaveMenuButton — three-dots dropdown with direct navigation
 // ─────────────────────────────────────────────────────────────────────────────
 const SaveMenuButton = ({
@@ -1084,21 +1125,18 @@ const SaveMenuButton = ({
           <MoreVertIcon style={{ fontSize: 17 }} />
         </button>
 
-        {/* Dropdown menu */}
+        {/* Dropdown menu — uses fixed positioning so it never gets clipped */}
         {open && (
+          <DropdownPortal wrapperRef={wrapperRef}>
           <div
             style={{
-              position: "absolute",
-              top: "calc(100% + 6px)",
-              right: 0,
-              minWidth: "200px",
+              minWidth: "230px",
               background: "#ffffff",
               borderRadius: "14px",
               boxShadow:
-                "0 8px 32px rgba(76,69,137,0.22), 0 2px 8px rgba(0,0,0,0.10)",
+                "0 8px 32px rgba(76,69,137,0.28), 0 2px 8px rgba(0,0,0,0.14)",
               border: "1.5px solid #e0d4ff",
               overflow: "hidden",
-              zIndex: 9999,
               animation: "ddFadeSlide 0.16s cubic-bezier(0.32,0.72,0,1)",
             }}
           >
@@ -1153,6 +1191,7 @@ const SaveMenuButton = ({
               </button>
             ))}
           </div>
+          </DropdownPortal>
         )}
       </div>
 

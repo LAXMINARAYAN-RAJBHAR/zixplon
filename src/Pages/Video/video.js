@@ -628,7 +628,11 @@ const defaultComments = [
 
 // ── Helper: instant scroll to top (used on mobile suggestion clicks) ──
 const scrollToTopInstant = () => {
-  window.scrollTo({ top: 0, behavior: "instant" });
+  window.scrollTo(0, 0);                    // window
+  document.documentElement.scrollTop = 0;  // <html>
+  document.body.scrollTop = 0;             // <body>
+  let el = document.getElementById("root");
+  while (el) { el.scrollTop = 0; el = el.parentElement; } // React root + all ancestors
 };
 
 const Video = () => {

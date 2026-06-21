@@ -152,27 +152,71 @@ const PostFeed = ({ sideNavbar }) => {
     }
   }, [posts, highlightedPostId]);
 
+  // ── Notify subscribers about a new post ─────────────────────────────────
+  // FIX: "subscriptions" table columns are "subscriber_id" and
+  // "subscribed_to" (NOT "subscriber_username"). The old query selected a
+  // column that doesn't exist, so `s.subscriber_username` was always
+  // undefined, the .filter() dropped every row, and notifications were
+  // silently never sent to anyone. "subscriber_id" can hold either a UUID
+  // (current accounts) or a legacy plain username (older rows written
+  // before the UUID standardization) — same dual-format situation as in
+  // Profile.jsx, so we resolve UUIDs to usernames via the "profiles" table
+  // before building notification rows, and pass legacy username rows
+  // straight through.
+  const notifySubscribers = async (uploaderUsername, post) => {
+    if (!uploaderUsername) return;
+
+    const { data: subRows } = await supabase
+      .from("subscriptions")
+      .select("subscriber_id")
+      .eq("subscribed_to", uploaderUsername);
+
+    if (!subRows || subRows.length === 0) return;
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidIds = [...new Set(subRows.filter((s) => uuidRegex.test(s.subscriber_id)).map((s) => s.subscriber_id))];
+
+    let idToUsername = {};
+    if (uuidIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("id", uuidIds);
+      profilesData?.forEach((p) => {
+        if (p.username && p.username.trim()) idToUsername[p.id] = p.username;
+      });
+    }
+
+    const recipientUsernames = [
+      ...new Set(
+        subRows
+          .map((s) =>
+            uuidRegex.test(s.subscriber_id)
+              ? idToUsername[s.subscriber_id]
+              : s.subscriber_id
+          )
+          .filter(Boolean) // drops UUIDs that still couldn't be resolved
+      ),
+    ];
+
+    if (recipientUsernames.length === 0) return;
+
+    const notifications = recipientUsernames.map((recipient) => ({
+      recipient_username: recipient,
+      sender_username: uploaderUsername,
+      type: "upload",
+      message: `${uploaderUsername} made a new post: "${post.text?.slice(0, 60) || "Check it out"}"`,
+      is_read: false,
+    }));
+
+    await supabase.from("notifications").insert(notifications);
+  };
+
   const handleNewPost = async (post) => {
     setPosts((prev) => [post, ...prev]);
 
     const uploaderUsername = localStorage.getItem("username");
-    const { data: subUsers } = await supabase
-      .from("subscriptions")
-      .select("subscriber_username")
-      .eq("subscribed_to", uploaderUsername);
-
-    if (subUsers && subUsers.length > 0) {
-      const notifications = subUsers
-        .filter((s) => s.subscriber_username)
-        .map((s) => ({
-          recipient_username: s.subscriber_username,
-          sender_username: uploaderUsername,
-          type: "upload",
-          message: `${uploaderUsername} made a new post: "${post.text?.slice(0, 60) || "Check it out"}"`,
-          is_read: false,
-        }));
-      await supabase.from("notifications").insert(notifications);
-    }
+    await notifySubscribers(uploaderUsername, post);
   };
 
   const handleReaction = async (postId, reactionType) => {

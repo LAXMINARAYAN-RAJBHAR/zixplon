@@ -999,7 +999,7 @@ const SaveMenuButton = ({
       onClick: (e) => {
         e.preventDefault();
         e.stopPropagation();
-        navigate("/playlists", { state: { addVideoId: videoId } });
+        navigate("/playlist", { state: { addVideoId: videoId } });
         setOpen(false);
       },
     },

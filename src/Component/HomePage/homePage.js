@@ -402,8 +402,8 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
   );
 };
 
-// ─── ADD TO PLAYLIST MENU ──────────────────────────────────
-const PlaylistMenuButton = ({ videoId, playlistsCache, setPlaylistsCache }) => {
+// ─── SAVE MENU (Watch Later + Add to Playlist, combined under ⋮) ──
+const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, setPlaylistsCache }) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -450,7 +450,7 @@ const PlaylistMenuButton = ({ videoId, playlistsCache, setPlaylistsCache }) => {
   const toggleMenu = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!username) { alert("Please login to use playlists"); return; }
+    if (!username) { alert("Please login to save videos"); return; }
     if (open) { setOpen(false); return; }
     setOpen(true);
     setLoading(true);
@@ -502,8 +502,25 @@ const PlaylistMenuButton = ({ videoId, playlistsCache, setPlaylistsCache }) => {
       </button>
 
       {open && (
-        <div style={{ position: "absolute", top: "32px", right: 0, width: "220px", background: "#ffffff", border: "1.5px solid #e0d4ff", borderRadius: "12px", boxShadow: "0 8px 24px rgba(76,69,137,0.18)", padding: "8px", maxHeight: "260px", overflowY: "auto" }}>
-          <div style={{ color: "#4c4589", fontSize: "12px", fontWeight: "800", padding: "4px 8px 8px", display: "flex", alignItems: "center", gap: "6px" }}>
+        <div style={{ position: "absolute", top: "32px", right: 0, width: "220px", background: "#ffffff", border: "1.5px solid #e0d4ff", borderRadius: "12px", boxShadow: "0 8px 24px rgba(76,69,137,0.18)", padding: "8px", maxHeight: "320px", overflowY: "auto" }}>
+
+          {/* ── Watch Later row ── */}
+          <div
+            onClick={(e) => { onToggleWatchLater(e, videoId); }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", color: "#1e1b4b", fontWeight: "700" }}
+            onMouseEnter={(ev) => (ev.currentTarget.style.background = "#f7f0ff")}
+            onMouseLeave={(ev) => (ev.currentTarget.style.background = "transparent")}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {isSaved ? <BookmarkIcon style={{ fontSize: 16, color: "#7c3aed" }} /> : <BookmarkBorderIcon style={{ fontSize: 16 }} />}
+              Watch Later
+            </span>
+            {isSaved && <CheckIcon style={{ fontSize: 16, color: "#7c3aed", flexShrink: 0 }} />}
+          </div>
+
+          <div style={{ borderTop: "1px solid #f0ebff", margin: "4px 0 6px" }} />
+
+          <div style={{ color: "#4c4589", fontSize: "12px", fontWeight: "800", padding: "2px 8px 8px", display: "flex", alignItems: "center", gap: "6px" }}>
             <PlaylistAddIcon style={{ fontSize: 15 }} /> Save to playlist
           </div>
 
@@ -1151,32 +1168,17 @@ const HomePage = ({ sideNavbar }) => {
     return (
       <div className="youtube_thumbnailBox" style={{ position:"relative" }}>
         {isOwner && (<button onClick={(e)=>handleDeleteVideo(e,video.id)} title="Delete video" style={{ position:"absolute", top:"8px", right:"8px", zIndex:10, background:"rgba(239,68,68,0.92)", border:"none", color:"white", borderRadius:"8px", padding:"4px 8px", cursor:"pointer", fontSize:"11px", fontWeight:"800", boxShadow:"0 2px 8px rgba(239,68,68,0.4)" }}>🗑 Delete</button>)}
+        {/* ── Combined Save menu (Watch Later + Add to Playlist) — only for real DB-backed videos ── */}
         {isUploaded && (
-          <button
-            onClick={(e) => handleToggleWatchLater(e, video.id)}
-            title={isSaved ? "Remove from Watch Later" : "Save to Watch Later"}
-            style={{
-              position: "absolute",
-              top: "8px",
-              right: isOwner ? "118px" : "44px",
-              zIndex: 10,
-              background: "rgba(0,0,0,0.6)",
-              border: "none",
-              color: "white",
-              borderRadius: "8px",
-              padding: "5px 7px",
-              cursor: "pointer",
-              fontSize: "15px",
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
-            {isSaved ? <BookmarkIcon style={{ fontSize: 16, color: "#7c3aed" }} /> : <BookmarkBorderIcon style={{ fontSize: 16 }} />}
-          </button>
-        )}
-        {/* ── Add to Playlist (⋮ menu) — only for real DB-backed videos ── */}
-        {isUploaded && (
-          <PlaylistMenuButton videoId={video.id} playlistsCache={playlistsCache} setPlaylistsCache={setPlaylistsCache} />
+          <div style={{ position: "absolute", top: "8px", right: isOwner ? "44px" : "8px", zIndex: 10 }}>
+            <SaveMenuButton
+              videoId={video.id}
+              isSaved={isSaved}
+              onToggleWatchLater={handleToggleWatchLater}
+              playlistsCache={playlistsCache}
+              setPlaylistsCache={setPlaylistsCache}
+            />
+          </div>
         )}
         <Link to={"/video/"+video.id} className="youtube_thumbnailWrapper" onClick={()=>{ if(isUploaded) incrementView(video.id,"video"); }}>
           <img src={video.thumbnail} alt={video.title} className="youtube_thumbnailPic" />

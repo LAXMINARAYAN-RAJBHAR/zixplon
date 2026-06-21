@@ -928,163 +928,128 @@ const ShortCard = ({
   );
 };
 
-const saveMenuBus = new EventTarget();
-
-// ── CHANGE: removed offsetRight prop — three dots now always on LEFT side ──
+// ─────────────────────────────────────────────────────────────────────────────
+// SaveMenuButton — three-dots dropdown with direct navigation
+// ─────────────────────────────────────────────────────────────────────────────
 const SaveMenuButton = ({
   videoId,
   isSaved,
   onToggleWatchLater,
-  playlistsCache,
-  setPlaylistsCache,
+  video,
+  loggedInUsername,
+  onDelete,
 }) => {
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [memberIds, setMemberIds] = useState(new Set());
   const wrapperRef = useRef(null);
-  const username = localStorage.getItem("username") || "";
+  const navigate = useNavigate();
 
+  // Close on outside click / touch
   useEffect(() => {
     if (!open) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleClaim = (e) => {
-      if (e.detail !== videoId) setOpen(false);
-    };
-    saveMenuBus.addEventListener("claim", handleClaim);
-    return () => saveMenuBus.removeEventListener("claim", handleClaim);
-  }, [open, videoId]);
-
-  useEffect(() => {
-    if (!open) return;
-    const card = wrapperRef.current?.closest(".youtube_thumbnailBox");
-    if (!card) return;
-    const handleMouseLeave = (e) => {
-      const goingTo = e.relatedTarget;
-      if (goingTo && goingTo.closest && goingTo.closest(".save-menu-sheet"))
-        return;
-      saveMenuBus.dispatchEvent(new CustomEvent("claim", { detail: null }));
-    };
-    const handleTouchStart = (e) => {
-      const targetCard =
-        e.target.closest && e.target.closest(".youtube_thumbnailBox");
-      const inSheet = e.target.closest && e.target.closest(".save-menu-sheet");
-      if (inSheet) return;
-      if (targetCard && targetCard !== card) {
-        saveMenuBus.dispatchEvent(new CustomEvent("claim", { detail: null }));
+    const close = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setOpen(false);
       }
     };
-    card.addEventListener("mouseleave", handleMouseLeave);
-    document.addEventListener("touchstart", handleTouchStart, {
-      passive: true,
-    });
+    const t = setTimeout(() => {
+      document.addEventListener("mousedown", close);
+      document.addEventListener("touchstart", close);
+    }, 50);
     return () => {
-      card.removeEventListener("mouseleave", handleMouseLeave);
-      document.removeEventListener("touchstart", handleTouchStart);
+      clearTimeout(t);
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("touchstart", close);
     };
   }, [open]);
 
-  const ensurePlaylistsLoaded = async () => {
-    if (playlistsCache) return playlistsCache;
-    const { data } = await supabase
-      .from("playlists")
-      .select("id, title")
-      .eq("username", username)
-      .order("created_at", { ascending: false });
-    const list = data || [];
-    setPlaylistsCache(list);
-    return list;
-  };
+  // Lock body scroll while open on mobile
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
 
-  const loadMembership = async (list) => {
-    if (!list.length) {
-      setMemberIds(new Set());
-      return;
-    }
-    const { data } = await supabase
-      .from("playlist_items")
-      .select("playlist_id")
-      .eq("video_id", videoId)
-      .in(
-        "playlist_id",
-        list.map((p) => p.id),
-      );
-    setMemberIds(new Set((data || []).map((r) => r.playlist_id)));
-  };
+  const isOwner =
+    loggedInUsername &&
+    video?.username &&
+    video.username === loggedInUsername;
 
-  const openSheet = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!username) {
-      alert("Please login to save videos");
-      return;
-    }
-    saveMenuBus.dispatchEvent(new CustomEvent("claim", { detail: videoId }));
-    setOpen(true);
-    setLoading(true);
-    const list = await ensurePlaylistsLoaded();
-    await loadMembership(list);
-    setLoading(false);
-  };
-
-  const closeSheet = () => {
-    setOpen(false);
-    setCreating(false);
-    setNewTitle("");
-  };
-
-  const togglePlaylist = async (e, playlistId) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const inPlaylist = memberIds.has(playlistId);
-    if (inPlaylist) {
-      await supabase
-        .from("playlist_items")
-        .delete()
-        .eq("playlist_id", playlistId)
-        .eq("video_id", videoId);
-      setMemberIds((prev) => {
-        const next = new Set(prev);
-        next.delete(playlistId);
-        return next;
-      });
-    } else {
-      await supabase
-        .from("playlist_items")
-        .insert({ playlist_id: playlistId, video_id: videoId });
-      setMemberIds((prev) => new Set(prev).add(playlistId));
-    }
-  };
-
-  const createAndAdd = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!newTitle.trim()) return;
-    const { data, error } = await supabase
-      .from("playlists")
-      .insert({ username, title: newTitle.trim() })
-      .select()
-      .single();
-    if (!error && data) {
-      const updatedList = [data, ...(playlistsCache || [])];
-      setPlaylistsCache(updatedList);
-      await supabase
-        .from("playlist_items")
-        .insert({ playlist_id: data.id, video_id: videoId });
-      setMemberIds((prev) => new Set(prev).add(data.id));
-      setNewTitle("");
-      setCreating(false);
-    }
-  };
+  const MENU_ITEMS = [
+    {
+      id: "watch-later",
+      icon: isSaved ? (
+        <BookmarkIcon style={{ fontSize: 17, color: "#7c3aed" }} />
+      ) : (
+        <BookmarkBorderIcon style={{ fontSize: 17, color: "#7c3aed" }} />
+      ),
+      label: isSaved ? "Saved to Watch Later" : "Save to Watch Later",
+      active: isSaved,
+      onClick: (e) => {
+        onToggleWatchLater(e, videoId);
+        setOpen(false);
+      },
+    },
+    {
+      id: "playlist",
+      icon: <PlaylistAddIcon style={{ fontSize: 17, color: "#7c3aed" }} />,
+      label: "Add to Playlist",
+      onClick: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        navigate("/playlists", { state: { addVideoId: videoId } });
+        setOpen(false);
+      },
+    },
+    {
+      id: "channel",
+      icon: <span style={{ fontSize: 15 }}>👤</span>,
+      label: "Go to Channel",
+      onClick: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const slug =
+          video?.username ||
+          video?.channel?.toLowerCase() ||
+          "unknown";
+        navigate("/user/" + slug);
+        setOpen(false);
+      },
+    },
+    {
+      id: "share",
+      icon: <span style={{ fontSize: 15 }}>🔗</span>,
+      label: "Share",
+      onClick: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const url = window.location.origin + "/video/" + videoId;
+        if (navigator.share) {
+          navigator.share({ title: video?.title || "Video", url }).catch(() => {});
+        } else {
+          navigator.clipboard.writeText(url);
+          alert("Link copied!");
+        }
+        setOpen(false);
+      },
+    },
+    ...(isOwner
+      ? [
+          {
+            id: "delete",
+            icon: <span style={{ fontSize: 15 }}>🗑️</span>,
+            label: "Delete video",
+            danger: true,
+            onClick: (e) => {
+              onDelete && onDelete(e, videoId);
+              setOpen(false);
+            },
+          },
+        ]
+      : []),
+  ];
 
   return (
     <>
@@ -1094,332 +1059,109 @@ const SaveMenuButton = ({
         style={{ position: "absolute", top: "8px", right: "8px", zIndex: 11 }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Trigger button */}
         <button
-          onClick={openSheet}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen((o) => !o);
+          }}
           title="More options"
           style={{
-            background: "rgba(0,0,0,0.6)",
+            background: open
+              ? "rgba(124,58,237,0.22)"
+              : "rgba(0,0,0,0.55)",
             border: "none",
             color: "white",
             borderRadius: "8px",
-            padding: "5px",
+            padding: "5px 6px",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
+            transition: "background 0.18s",
           }}
         >
           <MoreVertIcon style={{ fontSize: 17 }} />
         </button>
-      </div>
 
-      {open && (
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-            closeSheet();
-          }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 2000,
-            background: "rgba(30,27,75,0.45)",
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "center",
-            animation: "saveMenuFadeIn 0.18s ease",
-          }}
-        >
-          {/* ── SHEET ── */}
+        {/* Dropdown menu */}
+        {open && (
           <div
-            onClick={(e) => e.stopPropagation()}
             style={{
-              width: "100%",
-              maxWidth: "480px",
+              position: "absolute",
+              top: "calc(100% + 6px)",
+              right: 0,
+              minWidth: "200px",
               background: "#ffffff",
-              borderRadius: "20px 20px 0 0",
-              boxShadow: "0 -8px 32px rgba(76,69,137,0.25)",
-              maxHeight: "60vh",
-              display: "flex",
-              flexDirection: "column",
-              animation: "saveMenuSlideUp 0.22s cubic-bezier(0.32,0.72,0,1)",
+              borderRadius: "14px",
+              boxShadow:
+                "0 8px 32px rgba(76,69,137,0.22), 0 2px 8px rgba(0,0,0,0.10)",
+              border: "1.5px solid #e0d4ff",
+              overflow: "hidden",
+              zIndex: 9999,
+              animation: "ddFadeSlide 0.16s cubic-bezier(0.32,0.72,0,1)",
             }}
           >
-            {/* ── FIXED HEADER: drag pill + title row + Watch Later + label ── */}
-            <div style={{ padding: "10px 18px 0", flexShrink: 0 }}>
-              {/* drag pill */}
-              <div
+            {MENU_ITEMS.map((item, idx) => (
+              <button
+                key={item.id}
+                onClick={item.onClick}
                 style={{
-                  width: "40px",
-                  height: "4px",
-                  background: "#e0d4ff",
-                  borderRadius: "4px",
-                  margin: "4px auto 14px",
-                }}
-              />
-
-              {/* title row */}
-              <div
-                style={{
+                  width: "100%",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: "14px",
-                }}
-              >
-                <span
-                  style={{
-                    color: "#1e1b4b",
-                    fontWeight: "800",
-                    fontSize: "16px",
-                  }}
-                >
-                  Save video
-                </span>
-                <button
-                  onClick={closeSheet}
-                  style={{
-                    background: "#f7f0ff",
-                    border: "none",
-                    color: "#7c3aed",
-                    borderRadius: "50%",
-                    width: "30px",
-                    height: "30px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                  }}
-                >
-                  <CloseIcon style={{ fontSize: 18 }} />
-                </button>
-              </div>
-
-              {/* Watch Later — always visible, never scrolls away */}
-              <div
-                onClick={(e) => {
-                  onToggleWatchLater(e, videoId);
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px 10px",
-                  borderRadius: "12px",
+                  gap: "10px",
+                  padding: "11px 16px",
+                  background: item.active ? "#f7f0ff" : "transparent",
+                  border: "none",
+                  borderTop:
+                    idx === MENU_ITEMS.length - 1 && item.danger
+                      ? "1px solid #fee2e2"
+                      : idx > 0
+                      ? "1px solid #f5f0ff"
+                      : "none",
+                  color: item.danger ? "#ef4444" : "#1e1b4b",
+                  fontSize: "14px",
+                  fontWeight: item.active ? "700" : "600",
+                  fontFamily: "Outfit, sans-serif",
                   cursor: "pointer",
-                  fontSize: "15px",
-                  color: "#1e1b4b",
-                  fontWeight: "700",
-                  background: "#f7f0ff",
-                  marginBottom: "12px",
+                  textAlign: "left",
+                  transition: "background 0.14s",
+                  letterSpacing: "0.1px",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = item.danger
+                    ? "#fff1f2"
+                    : "#f7f0ff";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = item.active
+                    ? "#f7f0ff"
+                    : "transparent";
                 }}
               >
                 <span
                   style={{
+                    flexShrink: 0,
                     display: "flex",
                     alignItems: "center",
-                    gap: "10px",
                   }}
                 >
-                  {isSaved ? (
-                    <BookmarkIcon style={{ fontSize: 20, color: "#7c3aed" }} />
-                  ) : (
-                    <BookmarkBorderIcon
-                      style={{ fontSize: 20, color: "#7c3aed" }}
-                    />
-                  )}
-                  Watch Later
+                  {item.icon}
                 </span>
-                {isSaved && (
-                  <CheckIcon
-                    style={{ fontSize: 20, color: "#7c3aed", flexShrink: 0 }}
-                  />
-                )}
-              </div>
-
-              {/* "Save to playlist" label with separator */}
-              <div
-                style={{
-                  color: "#4c4589",
-                  fontSize: "13px",
-                  fontWeight: "800",
-                  padding: "4px 10px 10px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  borderBottom: "1px solid #f0ebff",
-                }}
-              >
-                <PlaylistAddIcon style={{ fontSize: 16 }} /> Save to playlist
-              </div>
-            </div>
-
-            {/* ── SCROLLABLE BODY: playlist list + new playlist button ── */}
-            <div
-              style={{
-                flex: 1,
-                overflowY: "auto",
-                WebkitOverflowScrolling: "touch",
-                overscrollBehavior: "contain",
-                padding: "4px 18px 22px",
-              }}
-            >
-              {loading && (
-                <div
-                  style={{
-                    padding: "14px 10px",
-                    color: "#8b84c4",
-                    fontSize: "14px",
-                  }}
-                >
-                  Loading…
-                </div>
-              )}
-
-              {!loading &&
-                (playlistsCache || []).length === 0 &&
-                !creating && (
-                  <div
-                    style={{
-                      padding: "8px 10px 14px",
-                      color: "#8b84c4",
-                      fontSize: "14px",
-                    }}
-                  >
-                    No playlists yet.
-                  </div>
-                )}
-
-              {!loading &&
-                (playlistsCache || []).map((pl) => {
-                  const checked = memberIds.has(pl.id);
-                  return (
-                    <div
-                      key={pl.id}
-                      onClick={(e) => togglePlaylist(e, pl.id)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "12px 10px",
-                        borderRadius: "12px",
-                        cursor: "pointer",
-                        fontSize: "15px",
-                        color: "#1e1b4b",
-                        fontWeight: "600",
-                      }}
-                      onMouseEnter={(ev) =>
-                        (ev.currentTarget.style.background = "#f7f0ff")
-                      }
-                      onMouseLeave={(ev) =>
-                        (ev.currentTarget.style.background = "transparent")
-                      }
-                    >
-                      <span
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {pl.title}
-                      </span>
-                      {checked && (
-                        <CheckIcon
-                          style={{
-                            fontSize: 18,
-                            color: "#7c3aed",
-                            flexShrink: 0,
-                          }}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-
-              {/* New playlist — lives inside scroll area */}
-              <div
-                style={{
-                  borderTop: "1px solid #f0ebff",
-                  marginTop: "10px",
-                  paddingTop: "12px",
-                }}
-              >
-                {!creating ? (
-                  <div
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setCreating(true);
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      padding: "12px 10px",
-                      borderRadius: "12px",
-                      cursor: "pointer",
-                      fontSize: "15px",
-                      color: "#7c3aed",
-                      fontWeight: "700",
-                    }}
-                    onMouseEnter={(ev) =>
-                      (ev.currentTarget.style.background = "#f7f0ff")
-                    }
-                    onMouseLeave={(ev) =>
-                      (ev.currentTarget.style.background = "transparent")
-                    }
-                  >
-                    <AddIcon style={{ fontSize: 18 }} /> New playlist
-                  </div>
-                ) : (
-                  <div
-                    style={{ display: "flex", gap: "8px", padding: "4px 2px" }}
-                  >
-                    <input
-                      autoFocus
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && createAndAdd(e)}
-                      onClick={(e) => e.stopPropagation()}
-                      placeholder="Playlist name"
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                        border: "1.5px solid #e0d4ff",
-                        borderRadius: "10px",
-                        padding: "10px 12px",
-                        fontSize: "14px",
-                        outline: "none",
-                        fontFamily: "Outfit, sans-serif",
-                      }}
-                    />
-                    <button
-                      onClick={createAndAdd}
-                      style={{
-                        background: "#7c3aed",
-                        border: "none",
-                        color: "white",
-                        borderRadius: "10px",
-                        padding: "0 16px",
-                        fontSize: "14px",
-                        fontWeight: "700",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Create
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
+                {item.label}
+              </button>
+            ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      <style>
-        {`@keyframes saveMenuFadeIn{from{opacity:0}to{opacity:1}}
-          @keyframes saveMenuSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}
-      </style>
+      <style>{`
+        @keyframes ddFadeSlide {
+          from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0)   scale(1);    }
+        }
+      `}</style>
     </>
   );
 };
@@ -3038,51 +2780,28 @@ const HomePage = ({ sideNavbar }) => {
     </div>
   );
 
-  const VideoCard = ({ video, isUploaded = false, showDelete = false }) => {
+  // ─────────────────────────────────────────────────────────────────────────
+  // VideoCard — delete button REMOVED (now inside SaveMenuButton dropdown)
+  // ─────────────────────────────────────────────────────────────────────────
+  const VideoCard = ({ video, isUploaded = false }) => {
     const showNew =
       isUploaded && !isWatched("video", video.id, watchedContentIds);
-    const isOwner =
-      showDelete &&
-      isUploaded &&
-      loggedInUsername &&
-      video.username === loggedInUsername;
     const isSaved = watchLaterIds.has(String(video.id));
+
     return (
       <div className="youtube_thumbnailBox" style={{ position: "relative" }}>
-        {/* ── Delete button stays on the RIGHT ── */}
-        {isOwner && (
-          <button
-            onClick={(e) => handleDeleteVideo(e, video.id)}
-            title="Delete video"
-            style={{
-              position: "absolute",
-              top: "8px",
-              right: "8px",
-              zIndex: 10,
-              background: "rgba(239,68,68,0.92)",
-              border: "none",
-              color: "white",
-              borderRadius: "8px",
-              padding: "4px 8px",
-              cursor: "pointer",
-              fontSize: "11px",
-              fontWeight: "800",
-              boxShadow: "0 2px 8px rgba(239,68,68,0.4)",
-            }}
-          >
-            🗑 Delete
-          </button>
-        )}
-        {/* ── Three dots menu now on the LEFT (offsetRight prop removed) ── */}
+        {/* Three-dots menu with full dropdown — only for uploaded videos */}
         {isUploaded && (
           <SaveMenuButton
             videoId={video.id}
             isSaved={isSaved}
             onToggleWatchLater={handleToggleWatchLater}
-            playlistsCache={playlistsCache}
-            setPlaylistsCache={setPlaylistsCache}
+            video={video}
+            loggedInUsername={loggedInUsername}
+            onDelete={handleDeleteVideo}
           />
         )}
+
         <Link
           to={"/video/" + video.id}
           className="youtube_thumbnailWrapper"
@@ -3101,7 +2820,7 @@ const HomePage = ({ sideNavbar }) => {
               style={{
                 position: "absolute",
                 top: "8px",
-                left: "38px",
+                left: "8px",
                 background: "linear-gradient(135deg,#f43f5e,#f97316)",
                 color: "white",
                 fontSize: "10px",
@@ -3418,7 +3137,6 @@ const HomePage = ({ sideNavbar }) => {
                 key={v.id}
                 video={v}
                 isUploaded={v.isUploaded || false}
-                showDelete={v.isUploaded}
               />
             ))}
           </div>
@@ -3524,12 +3242,7 @@ const HomePage = ({ sideNavbar }) => {
                   style={{ marginBottom: "16px" }}
                 >
                   {dbVideos.map((v) => (
-                    <VideoCard
-                      key={v.id}
-                      video={v}
-                      isUploaded={true}
-                      showDelete={true}
-                    />
+                    <VideoCard key={v.id} video={v} isUploaded={true} />
                   ))}
                 </div>
               </>

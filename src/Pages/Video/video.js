@@ -626,13 +626,23 @@ const defaultComments = [
   },
 ];
 
-// ── Helper: instant scroll to top (used on mobile suggestion clicks) ──
+// ── Helper: reset scroll on every possible container ──
 const scrollToTopInstant = () => {
-  window.scrollTo(0, 0);                    // window
-  document.documentElement.scrollTop = 0;  // <html>
-  document.body.scrollTop = 0;             // <body>
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
   let el = document.getElementById("root");
-  while (el) { el.scrollTop = 0; el = el.parentElement; } // React root + all ancestors
+  while (el) { el.scrollTop = 0; el = el.parentElement; }
+};
+
+// ── Deferred scroll: fires after React paint + extra tick for mobile ──
+const scrollToTopDeferred = () => {
+  scrollToTopInstant();
+  requestAnimationFrame(() => {
+    scrollToTopInstant();
+    setTimeout(scrollToTopInstant, 0);
+    setTimeout(scrollToTopInstant, 100);
+  });
 };
 
 const Video = () => {
@@ -920,13 +930,12 @@ const Video = () => {
     loadComments();
   }, [id]);
 
-  // ── FIXED: instant scroll on mobile, smooth on desktop ──
+  // ── FIXED: deferred scroll reset — fires after React paint on mobile ──
   useEffect(() => {
     setDisliked(false);
     setVideoError(false);
     setIsVideoPlaying(false);
-    const isMobile = window.innerWidth <= 768;
-    window.scrollTo({ top: 0, behavior: isMobile ? "instant" : "smooth" });
+    scrollToTopDeferred();
   }, [id]);
 
   if (dbLoading) {
@@ -1127,7 +1136,7 @@ const Video = () => {
           to={`/video/${nextVideo.id}`}
           className="next_video_preview"
           style={{ textDecoration: "none" }}
-          onClick={scrollToTopInstant}
+          onClick={scrollToTopDeferred}
         >
           <span className="next_video_label">▶ Up Next</span>
           <img
@@ -1282,7 +1291,7 @@ const Video = () => {
             className="videoSuggestionsBlock"
             style={{ textDecoration: "none", color: "inherit" }}
             // ── FIX: scroll to top instantly on mobile when tapping a suggestion ──
-            onClick={scrollToTopInstant}
+            onClick={scrollToTopDeferred}
           >
             <div className="video_suggestion_thumbnail">
               <img

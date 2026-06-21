@@ -10,6 +10,7 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
 import CheckIcon from "@mui/icons-material/Check";
 import AddIcon from "@mui/icons-material/Add";
+import CloseIcon from "@mui/icons-material/Close";
 
 const API_KEYS = [
   process.env.REACT_APP_YOUTUBE_KEY_1,
@@ -403,26 +404,21 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
 };
 
 // ─── SAVE MENU (Watch Later + Add to Playlist, combined under ⋮) ──
-const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, setPlaylistsCache }) => {
+// Opens as a slide-up bottom sheet modal, styled after the Playlist.jsx create box.
+const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, setPlaylistsCache, offsetRight = "8px" }) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [memberIds, setMemberIds] = useState(new Set()); // playlist ids that already contain this video
-  const menuRef = useRef(null);
   const username = localStorage.getItem("username") || "";
 
+  // Lock background scroll while the sheet is open
   useEffect(() => {
     if (!open) return;
-    const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setOpen(false);
-        setCreating(false);
-        setNewTitle("");
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prevOverflow; };
   }, [open]);
 
   const ensurePlaylistsLoaded = async () => {
@@ -447,16 +443,21 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
     setMemberIds(new Set((data || []).map((r) => r.playlist_id)));
   };
 
-  const toggleMenu = async (e) => {
+  const openSheet = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (!username) { alert("Please login to save videos"); return; }
-    if (open) { setOpen(false); return; }
     setOpen(true);
     setLoading(true);
     const list = await ensurePlaylistsLoaded();
     await loadMembership(list);
     setLoading(false);
+  };
+
+  const closeSheet = () => {
+    setOpen(false);
+    setCreating(false);
+    setNewTitle("");
   };
 
   const togglePlaylist = async (e, playlistId) => {
@@ -492,88 +493,105 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
   };
 
   return (
-    <div ref={menuRef} style={{ position: "absolute", top: "8px", right: "8px", zIndex: 11 }} onClick={(e) => e.stopPropagation()}>
-      <button
-        onClick={toggleMenu}
-        title="More options"
-        style={{ background: "rgba(0,0,0,0.6)", border: "none", color: "white", borderRadius: "8px", padding: "5px", cursor: "pointer", display: "flex", alignItems: "center" }}
-      >
-        <MoreVertIcon style={{ fontSize: 17 }} />
-      </button>
+    <>
+      <div style={{ position: "absolute", top: "8px", right: offsetRight, zIndex: 11 }} onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={openSheet}
+          title="More options"
+          style={{ background: "rgba(0,0,0,0.6)", border: "none", color: "white", borderRadius: "8px", padding: "5px", cursor: "pointer", display: "flex", alignItems: "center" }}
+        >
+          <MoreVertIcon style={{ fontSize: 17 }} />
+        </button>
+      </div>
 
       {open && (
-        <div style={{ position: "absolute", top: "32px", right: 0, width: "220px", background: "#ffffff", border: "1.5px solid #e0d4ff", borderRadius: "12px", boxShadow: "0 8px 24px rgba(76,69,137,0.18)", padding: "8px", maxHeight: "320px", overflowY: "auto" }}>
-
-          {/* ── Watch Later row ── */}
+        <div
+          onClick={(e) => { e.stopPropagation(); closeSheet(); }}
+          style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(30,27,75,0.45)", display: "flex", alignItems: "flex-end", justifyContent: "center", animation: "saveMenuFadeIn 0.18s ease" }}
+        >
           <div
-            onClick={(e) => { onToggleWatchLater(e, videoId); }}
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", color: "#1e1b4b", fontWeight: "700" }}
-            onMouseEnter={(ev) => (ev.currentTarget.style.background = "#f7f0ff")}
-            onMouseLeave={(ev) => (ev.currentTarget.style.background = "transparent")}
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: "480px", background: "#ffffff", borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 32px rgba(76,69,137,0.25)", padding: "10px 18px 22px", maxHeight: "75vh", overflowY: "auto", animation: "saveMenuSlideUp 0.22s cubic-bezier(0.32,0.72,0,1)" }}
           >
-            <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              {isSaved ? <BookmarkIcon style={{ fontSize: 16, color: "#7c3aed" }} /> : <BookmarkBorderIcon style={{ fontSize: 16 }} />}
-              Watch Later
-            </span>
-            {isSaved && <CheckIcon style={{ fontSize: 16, color: "#7c3aed", flexShrink: 0 }} />}
-          </div>
+            {/* Drag handle */}
+            <div style={{ width: "40px", height: "4px", background: "#e0d4ff", borderRadius: "4px", margin: "4px auto 14px" }} />
 
-          <div style={{ borderTop: "1px solid #f0ebff", margin: "4px 0 6px" }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+              <span style={{ color: "#1e1b4b", fontWeight: "800", fontSize: "16px" }}>Save video</span>
+              <button onClick={closeSheet} style={{ background: "#f7f0ff", border: "none", color: "#7c3aed", borderRadius: "50%", width: "30px", height: "30px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <CloseIcon style={{ fontSize: 18 }} />
+              </button>
+            </div>
 
-          <div style={{ color: "#4c4589", fontSize: "12px", fontWeight: "800", padding: "2px 8px 8px", display: "flex", alignItems: "center", gap: "6px" }}>
-            <PlaylistAddIcon style={{ fontSize: 15 }} /> Save to playlist
-          </div>
+            {/* ── Watch Later row ── */}
+            <div
+              onClick={(e) => { onToggleWatchLater(e, videoId); }}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 10px", borderRadius: "12px", cursor: "pointer", fontSize: "15px", color: "#1e1b4b", fontWeight: "700", background: "#f7f0ff", marginBottom: "12px" }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                {isSaved ? <BookmarkIcon style={{ fontSize: 20, color: "#7c3aed" }} /> : <BookmarkBorderIcon style={{ fontSize: 20, color: "#7c3aed" }} />}
+                Watch Later
+              </span>
+              {isSaved && <CheckIcon style={{ fontSize: 20, color: "#7c3aed", flexShrink: 0 }} />}
+            </div>
 
-          {loading && <div style={{ padding: "10px 8px", color: "#8b84c4", fontSize: "13px" }}>Loading…</div>}
+            <div style={{ color: "#4c4589", fontSize: "13px", fontWeight: "800", padding: "4px 10px 10px", display: "flex", alignItems: "center", gap: "6px" }}>
+              <PlaylistAddIcon style={{ fontSize: 16 }} /> Save to playlist
+            </div>
 
-          {!loading && (playlistsCache || []).length === 0 && !creating && (
-            <div style={{ padding: "6px 8px 10px", color: "#8b84c4", fontSize: "13px" }}>No playlists yet.</div>
-          )}
+            {loading && <div style={{ padding: "14px 10px", color: "#8b84c4", fontSize: "14px" }}>Loading…</div>}
 
-          {!loading && (playlistsCache || []).map((pl) => {
-            const checked = memberIds.has(pl.id);
-            return (
-              <div
-                key={pl.id}
-                onClick={(e) => togglePlaylist(e, pl.id)}
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", color: "#1e1b4b", fontWeight: "600" }}
-                onMouseEnter={(ev) => (ev.currentTarget.style.background = "#f7f0ff")}
-                onMouseLeave={(ev) => (ev.currentTarget.style.background = "transparent")}
-              >
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pl.title}</span>
-                {checked && <CheckIcon style={{ fontSize: 16, color: "#7c3aed", flexShrink: 0 }} />}
-              </div>
-            );
-          })}
-
-          <div style={{ borderTop: "1px solid #f0ebff", marginTop: "6px", paddingTop: "6px" }}>
-            {!creating ? (
-              <div
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCreating(true); }}
-                style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", color: "#7c3aed", fontWeight: "700" }}
-                onMouseEnter={(ev) => (ev.currentTarget.style.background = "#f7f0ff")}
-                onMouseLeave={(ev) => (ev.currentTarget.style.background = "transparent")}
-              >
-                <AddIcon style={{ fontSize: 16 }} /> New playlist
-              </div>
-            ) : (
-              <div style={{ display: "flex", gap: "6px", padding: "4px" }}>
-                <input
-                  autoFocus
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && createAndAdd(e)}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder="Playlist name"
-                  style={{ flex: 1, minWidth: 0, border: "1.5px solid #e0d4ff", borderRadius: "8px", padding: "6px 8px", fontSize: "12px", outline: "none", fontFamily: "Outfit, sans-serif" }}
-                />
-                <button onClick={createAndAdd} style={{ background: "#7c3aed", border: "none", color: "white", borderRadius: "8px", padding: "0 10px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>Add</button>
-              </div>
+            {!loading && (playlistsCache || []).length === 0 && !creating && (
+              <div style={{ padding: "8px 10px 14px", color: "#8b84c4", fontSize: "14px" }}>No playlists yet.</div>
             )}
+
+            {!loading && (playlistsCache || []).map((pl) => {
+              const checked = memberIds.has(pl.id);
+              return (
+                <div
+                  key={pl.id}
+                  onClick={(e) => togglePlaylist(e, pl.id)}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 10px", borderRadius: "12px", cursor: "pointer", fontSize: "15px", color: "#1e1b4b", fontWeight: "600" }}
+                  onMouseEnter={(ev) => (ev.currentTarget.style.background = "#f7f0ff")}
+                  onMouseLeave={(ev) => (ev.currentTarget.style.background = "transparent")}
+                >
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pl.title}</span>
+                  {checked && <CheckIcon style={{ fontSize: 18, color: "#7c3aed", flexShrink: 0 }} />}
+                </div>
+              );
+            })}
+
+            <div style={{ borderTop: "1px solid #f0ebff", marginTop: "10px", paddingTop: "12px" }}>
+              {!creating ? (
+                <div
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCreating(true); }}
+                  style={{ display: "flex", alignItems: "center", gap: "8px", padding: "12px 10px", borderRadius: "12px", cursor: "pointer", fontSize: "15px", color: "#7c3aed", fontWeight: "700" }}
+                  onMouseEnter={(ev) => (ev.currentTarget.style.background = "#f7f0ff")}
+                  onMouseLeave={(ev) => (ev.currentTarget.style.background = "transparent")}
+                >
+                  <AddIcon style={{ fontSize: 18 }} /> New playlist
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: "8px", padding: "4px 2px" }}>
+                  <input
+                    autoFocus
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && createAndAdd(e)}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder="Playlist name"
+                    style={{ flex: 1, minWidth: 0, border: "1.5px solid #e0d4ff", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", outline: "none", fontFamily: "Outfit, sans-serif" }}
+                  />
+                  <button onClick={createAndAdd} style={{ background: "#7c3aed", border: "none", color: "white", borderRadius: "10px", padding: "0 16px", fontSize: "14px", fontWeight: "700", cursor: "pointer" }}>Create</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
-    </div>
+
+      <style>{"@keyframes saveMenuFadeIn{from{opacity:0}to{opacity:1}}@keyframes saveMenuSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}"}</style>
+    </>
   );
 };
 
@@ -1170,15 +1188,14 @@ const HomePage = ({ sideNavbar }) => {
         {isOwner && (<button onClick={(e)=>handleDeleteVideo(e,video.id)} title="Delete video" style={{ position:"absolute", top:"8px", right:"8px", zIndex:10, background:"rgba(239,68,68,0.92)", border:"none", color:"white", borderRadius:"8px", padding:"4px 8px", cursor:"pointer", fontSize:"11px", fontWeight:"800", boxShadow:"0 2px 8px rgba(239,68,68,0.4)" }}>🗑 Delete</button>)}
         {/* ── Combined Save menu (Watch Later + Add to Playlist) — only for real DB-backed videos ── */}
         {isUploaded && (
-          <div style={{ position: "absolute", top: "8px", right: isOwner ? "44px" : "8px", zIndex: 10 }}>
-            <SaveMenuButton
-              videoId={video.id}
-              isSaved={isSaved}
-              onToggleWatchLater={handleToggleWatchLater}
-              playlistsCache={playlistsCache}
-              setPlaylistsCache={setPlaylistsCache}
-            />
-          </div>
+          <SaveMenuButton
+            videoId={video.id}
+            isSaved={isSaved}
+            onToggleWatchLater={handleToggleWatchLater}
+            playlistsCache={playlistsCache}
+            setPlaylistsCache={setPlaylistsCache}
+            offsetRight={isOwner ? "44px" : "8px"}
+          />
         )}
         <Link to={"/video/"+video.id} className="youtube_thumbnailWrapper" onClick={()=>{ if(isUploaded) incrementView(video.id,"video"); }}>
           <img src={video.thumbnail} alt={video.title} className="youtube_thumbnailPic" />

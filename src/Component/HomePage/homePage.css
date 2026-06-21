@@ -721,3 +721,10 @@
   0%   { background-position: -400px 0; }
   100% { background-position: 400px 0; }
 }
+
+/* Hide three-dot save menu on mobile */
+@media (max-width: 768px) {
+  .save-menu-wrapper {
+    display: none !important;
+  }
+}

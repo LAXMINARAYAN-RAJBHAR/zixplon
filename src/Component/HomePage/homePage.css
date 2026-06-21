@@ -721,15 +721,3 @@
   0%   { background-position: -400px 0; }
   100% { background-position: 400px 0; }
 }
-
-/* Save menu overlay fix for mobile */
-@media (max-width: 768px) {
-  .save-menu-overlay {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    z-index: 9999 !important;
-  }
-}

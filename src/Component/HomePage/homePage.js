@@ -931,8 +931,12 @@ const ShortCard = ({
 // ─────────────────────────────────────────────────────────────────────────────
 // DropdownPortal — renders dropdown via portal so it's never clipped by
 // overflow:hidden on parent cards. Positions itself relative to the trigger.
+// ✅ FIX: now accepts `menuRef` and attaches it to the portaled DOM node, so
+// the outside-click handler in SaveMenuButton can correctly detect clicks
+// that land *inside* the portaled menu (which lives in document.body, not
+// inside wrapperRef in the real DOM tree).
 // ─────────────────────────────────────────────────────────────────────────────
-const DropdownPortal = ({ wrapperRef, children }) => {
+const DropdownPortal = ({ wrapperRef, menuRef, children }) => {
   const [style, setStyle] = React.useState({});
 
   React.useLayoutEffect(() => {
@@ -964,7 +968,7 @@ const DropdownPortal = ({ wrapperRef, children }) => {
   }, [wrapperRef]);
 
   return createPortal(
-    <div style={style}>{children}</div>,
+    <div ref={menuRef} style={style}>{children}</div>,
     document.body
   );
 };
@@ -982,13 +986,23 @@ const SaveMenuButton = ({
 }) => {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
+  const menuRef = useRef(null); // ✅ FIX: ref to the portaled menu's DOM node
   const navigate = useNavigate();
 
-  // Close on outside click / touch
+  // ✅ FIX: Close on outside click / touch — now checks BOTH the trigger
+  // wrapper AND the portaled menu content, since the portal renders into
+  // document.body and is therefore not a DOM descendant of wrapperRef.
+  // Previously this only checked wrapperRef, so every mousedown on a menu
+  // item was (incorrectly) treated as "outside" and closed the menu before
+  // the click handler could fire.
   useEffect(() => {
     if (!open) return;
     const close = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+      const clickedWrapper =
+        wrapperRef.current && wrapperRef.current.contains(e.target);
+      const clickedMenu =
+        menuRef.current && menuRef.current.contains(e.target);
+      if (!clickedWrapper && !clickedMenu) {
         setOpen(false);
       }
     };
@@ -1029,6 +1043,8 @@ const SaveMenuButton = ({
       label: isSaved ? "Saved to Watch Later" : "Save to Watch Later",
       active: isSaved,
       onClick: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         onToggleWatchLater(e, videoId);
         setOpen(false);
       },
@@ -1084,6 +1100,8 @@ const SaveMenuButton = ({
             label: "Delete video",
             danger: true,
             onClick: (e) => {
+              e.preventDefault();
+              e.stopPropagation();
               onDelete && onDelete(e, videoId);
               setOpen(false);
             },
@@ -1127,7 +1145,7 @@ const SaveMenuButton = ({
 
         {/* Dropdown menu — uses fixed positioning so it never gets clipped */}
         {open && (
-          <DropdownPortal wrapperRef={wrapperRef}>
+          <DropdownPortal wrapperRef={wrapperRef} menuRef={menuRef}>
           <div
             style={{
               minWidth: "230px",
@@ -1143,6 +1161,12 @@ const SaveMenuButton = ({
             {MENU_ITEMS.map((item, idx) => (
               <button
                 key={item.id}
+                onMouseDown={(e) => {
+                  // ✅ FIX: stop the document-level mousedown listener from
+                  // ever treating this click as "outside" in the first
+                  // place — belt-and-braces alongside the menuRef check.
+                  e.stopPropagation();
+                }}
                 onClick={item.onClick}
                 style={{
                   width: "100%",
@@ -2819,9 +2843,6 @@ const HomePage = ({ sideNavbar }) => {
     </div>
   );
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // VideoCard — delete button REMOVED (now inside SaveMenuButton dropdown)
-  // ─────────────────────────────────────────────────────────────────────────
   const VideoCard = ({ video, isUploaded = false }) => {
     const showNew =
       isUploaded && !isWatched("video", video.id, watchedContentIds);

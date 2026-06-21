@@ -413,7 +413,7 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
   return (
     <>
       {/* ── CHANGE: position is now left: "8px" instead of right: offsetRight ── */}
-      <div ref={wrapperRef} style={{ position: "absolute", top: "8px", left: "8px", zIndex: 11 }} onClick={(e) => e.stopPropagation()}>
+      <div ref={wrapperRef} style={{ position: "absolute", top: "8px", right: "8px", zIndex: 11 }} onClick={(e) => e.stopPropagation()}>
         <button
           onClick={openSheet}
           title="More options"

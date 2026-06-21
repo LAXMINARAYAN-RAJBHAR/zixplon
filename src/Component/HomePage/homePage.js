@@ -23,113 +23,18 @@ const API_KEYS = [
 let currentKeyIndex = 0;
 
 const videos = [
-  {
-    id: 7679,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTu-l3JR0guZspKsBZkVoakjkQ-qxUCCpkQnw&s",
-    title: "Big Buck Bunny open-source film",
-    duration: "09:56",
-    channel: "Gangeshwary",
-    tags: ["Film Criticisms", "Live"],
-  },
-  {
-    id: 2,
-    thumbnail: "https://i.ytimg.com/vi/ScMzIvxBSi4/hqdefault.jpg",
-    title: "Sample Video 2",
-    duration: "30:00",
-    channel: "Mummy",
-    tags: ["Music"],
-  },
-  {
-    id: 3,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwyNTbTLzlbDj6RSQdV6imNyxNywT3pchKKg&s",
-    title: "3d Lion Stock Photo",
-    duration: "60:00",
-    channel: "Papa",
-    tags: ["AI"],
-  },
-  {
-    id: 4,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpWv_QvC-7P4_8Ubbg2rwn0Om4APOgf6B3yA&s",
-    title: "Sample Video 4",
-    duration: "10:00",
-    channel: "Karthik",
-    tags: ["News"],
-  },
-  {
-    id: 5,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRZleDiTkppd2k7GVmREMQRs8D8JBbNXuuxUA&s",
-    title: "8k Wallpaper 3d Photos",
-    duration: "18:00",
-    channel: "Annu",
-    tags: ["Astronomy"],
-  },
-  {
-    id: 6,
-    thumbnail:
-      "https://damassets.autodesk.net/content/dam/autodesk/www/industry/3d-animation/create-beautiful-3d-animations-thumb-1204x677.jpg",
-    title: "3D Animation Solutions",
-    duration: "08:00",
-    channel: "Jyoti",
-    tags: ["AI", "Web Development"],
-  },
-  {
-    id: 7,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMxQZtpZz8NgMYzzNMiBm-n4h2oGYovjK2lQ&s",
-    title: "3D Shapes | Types & Examples",
-    duration: "28:00",
-    channel: "Sarita",
-    tags: ["Web Development"],
-  },
-  {
-    id: 8,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSK5izd-jLAR_UjqnUULPW42Pv_LIpL0W60cQ&s",
-    title: "3d Graphics Pictures",
-    duration: "20:00",
-    channel: "Jaynarayan",
-    tags: ["AI"],
-  },
-  {
-    id: 9,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQN6EQg2_-8zTqUk1YRvLpJinJk67VF0wEZfg&s",
-    title: "Scenery 3d wallpaper",
-    duration: "10:00",
-    channel: "Shyamnarayan",
-    tags: ["Astronomy"],
-  },
-  {
-    id: 10,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRS5r-8k6FyUEN9OYQu5WgyyNqT8lrqgw7dCQ&s",
-    title: "3D Nature Images",
-    duration: "12:00",
-    channel: "Rajbhar",
-    tags: ["History"],
-  },
-  {
-    id: 11,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeUzhAtZL9ElXiENfplVjR5dCJsUQUG2NuXg&s",
-    title: "5,364,800+ 3d Images",
-    duration: "13:30",
-    channel: "Narayan",
-    tags: ["AI"],
-  },
-  {
-    id: 12,
-    thumbnail:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQdcK3NWfTM_cOjFOH6ArcBdUbu29e0AVjFZw&s",
-    title: "Understanding 3D Computer Graphics",
-    duration: "20:50",
-    channel: "Laxminarayan",
-    tags: ["Web Development", "AI"],
-  },
+  { id: 7679, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTu-l3JR0guZspKsBZkVoakjkQ-qxUCCpkQnw&s", title: "Big Buck Bunny open-source film", duration: "09:56", channel: "Gangeshwary", tags: ["Film Criticisms", "Live"] },
+  { id: 2, thumbnail: "https://i.ytimg.com/vi/ScMzIvxBSi4/hqdefault.jpg", title: "Sample Video 2", duration: "30:00", channel: "Mummy", tags: ["Music"] },
+  { id: 3, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwyNTbTLzlbDj6RSQdV6imNyxNywT3pchKKg&s", title: "3d Lion Stock Photo", duration: "60:00", channel: "Papa", tags: ["AI"] },
+  { id: 4, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpWv_QvC-7P4_8Ubbg2rwn0Om4APOgf6B3yA&s", title: "Sample Video 4", duration: "10:00", channel: "Karthik", tags: ["News"] },
+  { id: 5, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRZleDiTkppd2k7GVmREMQRs8D8JBbNXuuxUA&s", title: "8k Wallpaper 3d Photos", duration: "18:00", channel: "Annu", tags: ["Astronomy"] },
+  { id: 6, thumbnail: "https://damassets.autodesk.net/content/dam/autodesk/www/industry/3d-animation/create-beautiful-3d-animations-thumb-1204x677.jpg", title: "3D Animation Solutions", duration: "08:00", channel: "Jyoti", tags: ["AI", "Web Development"] },
+  { id: 7, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMxQZtpZz8NgMYzzNMiBm-n4h2oGYovjK2lQ&s", title: "3D Shapes | Types & Examples", duration: "28:00", channel: "Sarita", tags: ["Web Development"] },
+  { id: 8, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSK5izd-jLAR_UjqnUULPW42Pv_LIpL0W60cQ&s", title: "3d Graphics Pictures", duration: "20:00", channel: "Jaynarayan", tags: ["AI"] },
+  { id: 9, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQN6EQg2_-8zTqUk1YRvLpJinJk67VF0wEZfg&s", title: "Scenery 3d wallpaper", duration: "10:00", channel: "Shyamnarayan", tags: ["Astronomy"] },
+  { id: 10, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRS5r-8k6FyUEN9OYQu5WgyyNqT8lrqgw7dCQ&s", title: "3D Nature Images", duration: "12:00", channel: "Rajbhar", tags: ["History"] },
+  { id: 11, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeUzhAtZL9ElXiENfplVjR5dCJsUQUG2NuXg&s", title: "5,364,800+ 3d Images", duration: "13:30", channel: "Narayan", tags: ["AI"] },
+  { id: 12, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQdcK3NWfTM_cOjFOH6ArcBdUbu29e0AVjFZw&s", title: "Understanding 3D Computer Graphics", duration: "20:50", channel: "Laxminarayan", tags: ["Web Development", "AI"] },
   { id: 13, thumbnail: "https://picsum.photos/seed/lion1/320/180", title: "3D Lion Stock Photo", duration: "60:00", channel: "Papa", tags: ["Film Criticisms"] },
   { id: 14, thumbnail: "https://picsum.photos/seed/tiger2/320/180", title: "Tiger in Wild", duration: "45:00", channel: "NatureTV", tags: ["History"] },
   { id: 15, thumbnail: "https://picsum.photos/seed/forest3/320/180", title: "Forest Walk", duration: "30:00", channel: "EcoWorld", tags: ["Live"] },
@@ -202,7 +107,6 @@ const formatViews = (n) => {
   return n + " views";
 };
 
-// ✅ NEW: relative "time ago" formatter for video/reel upload timestamps
 const formatTimeAgo = (dateString) => {
   if (!dateString) return null;
   const diffMs = Date.now() - new Date(dateString).getTime();
@@ -236,7 +140,6 @@ const useIsMobile = () => {
   return mobile;
 };
 
-// ─── MOBILE TAB DEFINITIONS ─────────────────────────────────
 const MOBILE_TABS = [
   { id: "shorts", label: "Shorts", icon: "📱" },
   { id: "videos", label: "Videos", icon: "🎬" },
@@ -244,15 +147,12 @@ const MOBILE_TABS = [
   { id: "live",   label: "Live",   icon: "🔴" },
 ];
 
-// ─── SWIPE HOOK ──────────────────────────────────────────────
 const useSwipeTabs = (onSwipeLeft, onSwipeRight, threshold = 50, verticalLimit = 80) => {
   const touchStart = useRef(null);
-
   const onTouchStart = (e) => {
     const t = e.touches[0];
     touchStart.current = { x: t.clientX, y: t.clientY };
   };
-
   const onTouchEnd = (e) => {
     if (!touchStart.current) return;
     const t = e.changedTouches[0];
@@ -263,11 +163,9 @@ const useSwipeTabs = (onSwipeLeft, onSwipeRight, threshold = 50, verticalLimit =
     if (dx < -threshold) onSwipeLeft();
     if (dx >  threshold) onSwipeRight();
   };
-
   return { onTouchStart, onTouchEnd };
 };
 
-// ─── TRENDING STRIP ──────────────────────────────────────────
 const MobileTrendingStrip = ({ dbVideos, dbReels = [], onVideoClick, onReelClick }) => {
   const trendingVideos = [
     ...dbVideos.slice(0, 6).map(v => ({ ...v, _type: 'video' })),
@@ -320,12 +218,10 @@ const MobileTrendingStrip = ({ dbVideos, dbReels = [], onVideoClick, onReelClick
   );
 };
 
-// ─── SHORT CARD ──────────────────────────────────────────────
 const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigate, watchedContentIds }) => {
   const cardRef = useRef(null);
   const firedRef = useRef(false);
 
-  // ✅ FIX: Check age (7 days) + watched status + sessionStorage fresh list
   const [showNew, setShowNew] = useState(() => {
     if (!short.dbId) return false;
     if (isWatched("reel", short.dbId, watchedContentIds)) return false;
@@ -333,7 +229,6 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
       const age = Date.now() - new Date(short.created_at).getTime();
       return age <= 7 * 24 * 60 * 60 * 1000;
     }
-    // Realtime-inserted reels may not have created_at yet — check sessionStorage fresh list
     const fresh = (() => { try { return JSON.parse(sessionStorage.getItem("zixplon_fresh_reels") || "[]"); } catch { return []; } })();
     return fresh.includes(String("db_" + short.dbId));
   });
@@ -355,7 +250,6 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
     return () => observer.disconnect();
   }, [short.dbId, incrementView]);
 
-  // ✅ FIX: Re-evaluate showNew when watchedContentIds changes, including age check
   useEffect(() => {
     if (!short.dbId) return;
     if (isWatched("reel", short.dbId, watchedContentIds)) { setShowNew(false); return; }
@@ -403,22 +297,18 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
   );
 };
 
-// Module-level: lets any open SaveMenuButton know another one should take over,
-// and lets card hover/touch broadcast "close whatever's open elsewhere".
 const saveMenuBus = new EventTarget();
 
-// ─── SAVE MENU (Watch Later + Add to Playlist, combined under ⋮) ──
-// Opens as a slide-up bottom sheet modal, styled after the Playlist.jsx create box.
-const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, setPlaylistsCache, offsetRight = "8px" }) => {
+// ── CHANGE: removed offsetRight prop — three dots now always on LEFT side ──
+const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, setPlaylistsCache }) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const [memberIds, setMemberIds] = useState(new Set()); // playlist ids that already contain this video
+  const [memberIds, setMemberIds] = useState(new Set());
   const wrapperRef = useRef(null);
   const username = localStorage.getItem("username") || "";
 
-  // Lock background scroll while the sheet is open
   useEffect(() => {
     if (!open) return;
     const prevOverflow = document.body.style.overflow;
@@ -426,7 +316,6 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
     return () => { document.body.style.overflow = prevOverflow; };
   }, [open]);
 
-  // Close this sheet if a different card claims focus (mouse moved to it, or it was tapped)
   useEffect(() => {
     if (!open) return;
     const handleClaim = (e) => {
@@ -436,18 +325,10 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
     return () => saveMenuBus.removeEventListener("claim", handleClaim);
   }, [open, videoId]);
 
-  // While this sheet is open: on desktop, closing should happen the instant the
-  // cursor leaves THIS card's bounds — whether it lands on another card, the
-  // gutter between cards, or empty space. The sheet itself is `position: fixed`
-  // (so it visually sits outside the card's bounding box even though it's a DOM
-  // descendant of it) — moving into the open sheet must NOT count as "leaving".
-  // On touch devices (no real hover), fall back to closing when a tap lands on
-  // a different card.
   useEffect(() => {
     if (!open) return;
     const card = wrapperRef.current?.closest(".youtube_thumbnailBox");
     if (!card) return;
-
     const handleMouseLeave = (e) => {
       const goingTo = e.relatedTarget;
       if (goingTo && goingTo.closest && goingTo.closest(".save-menu-sheet")) return;
@@ -461,7 +342,6 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
         saveMenuBus.dispatchEvent(new CustomEvent("claim", { detail: null }));
       }
     };
-
     card.addEventListener("mouseleave", handleMouseLeave);
     document.addEventListener("touchstart", handleTouchStart, { passive: true });
     return () => {
@@ -472,11 +352,7 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
 
   const ensurePlaylistsLoaded = async () => {
     if (playlistsCache) return playlistsCache;
-    const { data } = await supabase
-      .from("playlists")
-      .select("id, title")
-      .eq("username", username)
-      .order("created_at", { ascending: false });
+    const { data } = await supabase.from("playlists").select("id, title").eq("username", username).order("created_at", { ascending: false });
     const list = data || [];
     setPlaylistsCache(list);
     return list;
@@ -484,11 +360,7 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
 
   const loadMembership = async (list) => {
     if (!list.length) { setMemberIds(new Set()); return; }
-    const { data } = await supabase
-      .from("playlist_items")
-      .select("playlist_id")
-      .eq("video_id", videoId)
-      .in("playlist_id", list.map((p) => p.id));
+    const { data } = await supabase.from("playlist_items").select("playlist_id").eq("video_id", videoId).in("playlist_id", list.map((p) => p.id));
     setMemberIds(new Set((data || []).map((r) => r.playlist_id)));
   };
 
@@ -496,7 +368,6 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
     e.preventDefault();
     e.stopPropagation();
     if (!username) { alert("Please login to save videos"); return; }
-    // Tell any other open sheet to close before this one opens
     saveMenuBus.dispatchEvent(new CustomEvent("claim", { detail: videoId }));
     setOpen(true);
     setLoading(true);
@@ -528,11 +399,7 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
     e.preventDefault();
     e.stopPropagation();
     if (!newTitle.trim()) return;
-    const { data, error } = await supabase
-      .from("playlists")
-      .insert({ username, title: newTitle.trim() })
-      .select()
-      .single();
+    const { data, error } = await supabase.from("playlists").insert({ username, title: newTitle.trim() }).select().single();
     if (!error && data) {
       const updatedList = [data, ...(playlistsCache || [])];
       setPlaylistsCache(updatedList);
@@ -545,7 +412,8 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
 
   return (
     <>
-      <div ref={wrapperRef} style={{ position: "absolute", top: "8px", right: offsetRight, zIndex: 11 }} onClick={(e) => e.stopPropagation()}>
+      {/* ── CHANGE: position is now left: "8px" instead of right: offsetRight ── */}
+      <div ref={wrapperRef} style={{ position: "absolute", top: "8px", left: "8px", zIndex: 11 }} onClick={(e) => e.stopPropagation()}>
         <button
           onClick={openSheet}
           title="More options"
@@ -564,17 +432,13 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
             onClick={(e) => e.stopPropagation()}
             style={{ width: "100%", maxWidth: "480px", background: "#ffffff", borderRadius: "20px 20px 0 0", boxShadow: "0 -8px 32px rgba(76,69,137,0.25)", padding: "10px 18px 22px", maxHeight: "75vh", overflowY: "auto", animation: "saveMenuSlideUp 0.22s cubic-bezier(0.32,0.72,0,1)" }}
           >
-            {/* Drag handle */}
             <div style={{ width: "40px", height: "4px", background: "#e0d4ff", borderRadius: "4px", margin: "4px auto 14px" }} />
-
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
               <span style={{ color: "#1e1b4b", fontWeight: "800", fontSize: "16px" }}>Save video</span>
               <button onClick={closeSheet} style={{ background: "#f7f0ff", border: "none", color: "#7c3aed", borderRadius: "50%", width: "30px", height: "30px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                 <CloseIcon style={{ fontSize: 18 }} />
               </button>
             </div>
-
-            {/* ── Watch Later row ── */}
             <div
               onClick={(e) => { onToggleWatchLater(e, videoId); }}
               style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 10px", borderRadius: "12px", cursor: "pointer", fontSize: "15px", color: "#1e1b4b", fontWeight: "700", background: "#f7f0ff", marginBottom: "12px" }}
@@ -585,17 +449,13 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
               </span>
               {isSaved && <CheckIcon style={{ fontSize: 20, color: "#7c3aed", flexShrink: 0 }} />}
             </div>
-
             <div style={{ color: "#4c4589", fontSize: "13px", fontWeight: "800", padding: "4px 10px 10px", display: "flex", alignItems: "center", gap: "6px" }}>
               <PlaylistAddIcon style={{ fontSize: 16 }} /> Save to playlist
             </div>
-
             {loading && <div style={{ padding: "14px 10px", color: "#8b84c4", fontSize: "14px" }}>Loading…</div>}
-
             {!loading && (playlistsCache || []).length === 0 && !creating && (
               <div style={{ padding: "8px 10px 14px", color: "#8b84c4", fontSize: "14px" }}>No playlists yet.</div>
             )}
-
             {!loading && (playlistsCache || []).map((pl) => {
               const checked = memberIds.has(pl.id);
               return (
@@ -611,7 +471,6 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
                 </div>
               );
             })}
-
             <div style={{ borderTop: "1px solid #f0ebff", marginTop: "10px", paddingTop: "12px" }}>
               {!creating ? (
                 <div
@@ -640,13 +499,11 @@ const SaveMenuButton = ({ videoId, isSaved, onToggleWatchLater, playlistsCache, 
           </div>
         </div>
       )}
-
       <style>{"@keyframes saveMenuFadeIn{from{opacity:0}to{opacity:1}}@keyframes saveMenuSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}"}</style>
     </>
   );
 };
 
-// ─── WATCH PAGE ──────────────────────────────────────────────
 const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, suggestions, onIncrementView }) => {
   const isMobile = useIsMobile();
   const [currentIndex, setCurrentIndex] = useState(() => {
@@ -910,7 +767,6 @@ const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, sugg
   );
 };
 
-// ─── HOME PAGE ───────────────────────────────────────────────
 const HomePage = ({ sideNavbar }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -918,7 +774,6 @@ const HomePage = ({ sideNavbar }) => {
   const [selectedOption, setSelectedOption] = useState("All");
   const [mobileTab, setMobileTab] = useState("shorts");
 
-  // ── Swipe to change tabs ──────────────────────────────────
   const TAB_IDS = MOBILE_TABS.map((t) => t.id);
   const goNextTab = () => {
     setMobileTab((cur) => {
@@ -950,13 +805,10 @@ const HomePage = ({ sideNavbar }) => {
   const [dbReels, setDbReels] = useState([]);
   const [viewCounts, setViewCounts] = useState({});
   const [watchedContentIds, setWatchedContentIds] = useState(new Set());
-  // ── Watch Later: tracks video IDs (as strings) the current user has saved ──
   const [watchLaterIds, setWatchLaterIds] = useState(new Set());
-  // ── Add to Playlist: shared cache of this user's playlists, loaded lazily on first menu open ──
   const [playlistsCache, setPlaylistsCache] = useState(null);
   const loggedInUsername = localStorage.getItem("username") || "";
 
-  // ✅ FIX: Wrapped in useCallback for stable reference across effects
   const loadWatchedIds = React.useCallback(async () => {
     const userId = localStorage.getItem("userId");
     if (!userId) return;
@@ -967,7 +819,6 @@ const HomePage = ({ sideNavbar }) => {
     }
   }, []);
 
-  // ── Load this user's Watch Later list so bookmark icons reflect saved state ──
   useEffect(() => {
     const loadWatchLater = async () => {
       const username = localStorage.getItem("username");
@@ -978,17 +829,13 @@ const HomePage = ({ sideNavbar }) => {
     loadWatchLater();
   }, []);
 
-  // ✅ FIX: Added 30s interval poll + loadWatchedIds in dep array
   useEffect(() => {
     loadWatchedIds();
     const handleVisibility = () => { if (document.visibilityState === "visible") loadWatchedIds(); };
     const handleFocus = () => loadWatchedIds();
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", handleFocus);
-
-    // Poll every 30s for long sessions
     const interval = setInterval(loadWatchedIds, 30000);
-
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", handleFocus);
@@ -1031,7 +878,6 @@ const HomePage = ({ sideNavbar }) => {
       setDbLoading(true);
       const { data, error } = await supabase.from("videos").select("*").order("created_at", { ascending: false });
       if (!error && data) {
-        // ✅ NEW: include created_at so we can show the upload date/time on each video card
         const formatted = data.map((v) => ({ id:v.id, src:v.video_url, thumbnail:v.thumbnail_url, title:v.title, duration:v.duration||"00:00", channel:v.channel, username:v.username||v.channel?.toLowerCase()||"unknown", tags:[v.category||"All"], likes:v.likes??0, created_at:v.created_at||null }));
         const videoIds = formatted.map((v) => String(v.id));
         const { data: likesData } = await supabase.from("likes").select("content_id").eq("content_type","video").in("content_id", videoIds);
@@ -1049,10 +895,8 @@ const HomePage = ({ sideNavbar }) => {
     const subscription = supabase.channel("videos-channel")
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"videos" }, (payload) => {
         const v = payload.new;
-        // ✅ NEW: include created_at on realtime-inserted videos too
         const newVideo = { id:v.id, src:v.video_url, thumbnail:v.thumbnail_url, title:v.title, duration:v.duration||"00:00", channel:v.channel, username:v.username||v.channel?.toLowerCase()||"unknown", tags:[v.category||"All"], likes:v.likes??0, created_at:v.created_at||null };
         setDbVideos((prev) => [newVideo, ...prev]);
-        // ✅ FIX: Fetch view counts and refresh watched IDs for new video
         fetchViewCounts([v.id], "video");
         loadWatchedIds();
       })
@@ -1077,7 +921,6 @@ const HomePage = ({ sideNavbar }) => {
         const r = payload.new;
         const newReel = { id:"db_"+r.id, dbId:r.id, src:r.video_url, thumbnail:r.thumbnail||"https://picsum.photos/200/350?random=99", title:r.title||"Untitled", duration:r.duration||"00:00", user:r.user||r.username||"Unknown", username:r.username||"unknown", profilePic:"https://api.dicebear.com/7.x/initials/svg?seed="+(r.username||"user"), description:r.description||"", likes:r.likes||0, created_at:r.created_at||null };
         setDbReels((prev) => [newReel, ...prev]);
-        // ✅ FIX: Fetch view counts and refresh watched IDs for new reel
         fetchViewCounts([r.id], "reel");
         loadWatchedIds();
       })
@@ -1198,14 +1041,11 @@ const HomePage = ({ sideNavbar }) => {
     else alert("Failed to delete reel.");
   };
 
-  // ── Watch Later toggle: only valid for DB-backed videos (watch_later.video_id
-  // joins against the real `videos` table, same constraint as History) ──
   const handleToggleWatchLater = async (e, videoId) => {
     e.preventDefault();
     e.stopPropagation();
     const username = localStorage.getItem("username");
     if (!username) { alert("Please login to save videos"); return; }
-
     const idStr = String(videoId);
     if (watchLaterIds.has(idStr)) {
       await supabase.from("watch_later").delete().eq("username", username).eq("video_id", videoId);
@@ -1236,8 +1076,11 @@ const HomePage = ({ sideNavbar }) => {
     const isSaved = watchLaterIds.has(String(video.id));
     return (
       <div className="youtube_thumbnailBox" style={{ position:"relative" }}>
-        {isOwner && (<button onClick={(e)=>handleDeleteVideo(e,video.id)} title="Delete video" style={{ position:"absolute", top:"8px", right:"8px", zIndex:10, background:"rgba(239,68,68,0.92)", border:"none", color:"white", borderRadius:"8px", padding:"4px 8px", cursor:"pointer", fontSize:"11px", fontWeight:"800", boxShadow:"0 2px 8px rgba(239,68,68,0.4)" }}>🗑 Delete</button>)}
-        {/* ── Combined Save menu (Watch Later + Add to Playlist) — only for real DB-backed videos ── */}
+        {/* ── Delete button stays on the RIGHT ── */}
+        {isOwner && (
+          <button onClick={(e)=>handleDeleteVideo(e,video.id)} title="Delete video" style={{ position:"absolute", top:"8px", right:"8px", zIndex:10, background:"rgba(239,68,68,0.92)", border:"none", color:"white", borderRadius:"8px", padding:"4px 8px", cursor:"pointer", fontSize:"11px", fontWeight:"800", boxShadow:"0 2px 8px rgba(239,68,68,0.4)" }}>🗑 Delete</button>
+        )}
+        {/* ── Three dots menu now on the LEFT (offsetRight prop removed) ── */}
         {isUploaded && (
           <SaveMenuButton
             videoId={video.id}
@@ -1245,13 +1088,12 @@ const HomePage = ({ sideNavbar }) => {
             onToggleWatchLater={handleToggleWatchLater}
             playlistsCache={playlistsCache}
             setPlaylistsCache={setPlaylistsCache}
-            offsetRight={isOwner ? "44px" : "8px"}
           />
         )}
         <Link to={"/video/"+video.id} className="youtube_thumbnailWrapper" onClick={()=>{ if(isUploaded) incrementView(video.id,"video"); }}>
           <img src={video.thumbnail} alt={video.title} className="youtube_thumbnailPic" />
           <div className="youtube_timingThumbnail">{video.duration}</div>
-          {showNew && (<div style={{ position:"absolute", top:"8px", left:"8px", background:"linear-gradient(135deg,#f43f5e,#f97316)", color:"white", fontSize:"10px", fontWeight:"800", padding:"2px 7px", borderRadius:"5px", zIndex:2 }}>New</div>)}
+          {showNew && (<div style={{ position:"absolute", top:"8px", left:"38px", background:"linear-gradient(135deg,#f43f5e,#f97316)", color:"white", fontSize:"10px", fontWeight:"800", padding:"2px 7px", borderRadius:"5px", zIndex:2 }}>New</div>)}
           <div className="youtube_playOverlay"><div className="youtube_playButton">▶</div></div>
         </Link>
         <div className="youtubeTitleBox">
@@ -1264,7 +1106,6 @@ const HomePage = ({ sideNavbar }) => {
             <p className="youtubeVideo_Views" style={{ display:"flex", gap:"10px", alignItems:"center" }}>
               {isUploaded ? (<><span>👁 {formatViews(viewCounts["video_"+video.id]??0)}</span><span style={{ color:"#d1d5db", fontSize:"11px" }}>•</span><button onClick={(e)=>handleLikeVideo(e,video.id)} style={{ background:"none", border:"none", color:"#8b84c4", cursor:"pointer", fontSize:"inherit", padding:0, display:"flex", alignItems:"center", gap:"3px", fontWeight:"600" }}>👍 {video.likes??0} Likes</button></>) : (<span>👍 3 Likes</span>)}
             </p>
-            {/* ✅ NEW: upload date/time, shown for real uploaded videos only */}
             {isUploaded && video.created_at && (
               <p className="youtubeVideo_UploadDate" style={{ color:"#a8a3d6", fontSize:"12px", margin:"3px 0 0", fontWeight:"500" }}>
                 {formatTimeAgo(video.created_at)}
@@ -1433,7 +1274,6 @@ const HomePage = ({ sideNavbar }) => {
 
         {!searchActive && renderMobileTabContent()}
 
-        {/* ── DESKTOP LAYOUT ── */}
         {!searchActive && (selectedOption === "All" ? (
           <>
             {(()=>{

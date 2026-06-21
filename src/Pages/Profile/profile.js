@@ -149,6 +149,16 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
 // channel's username, while "subscriber_id" may contain either a UUID or a
 // plain username depending on which page wrote the row. UUIDs are resolved to
 // usernames via the "profiles" table.
+//
+// DISPLAY NAME FALLBACK CHAIN (handles orphaned/incomplete profile rows so we
+// never show a bare "User" if we have ANYTHING better to show):
+//   1. profiles.username for that UUID, if present and non-empty
+//   2. a shortened form of the UUID itself (e.g. "User a1b2c3d4") so each
+//      subscriber is at least visually distinguishable instead of all saying
+//      the exact same word "User"
+// The root cause (profiles rows missing/empty username for some accounts)
+// should still be fixed at the database level — this is a presentation-layer
+// safety net, not a substitute for that fix.
 const SubscribersModal = ({ channelUsername, onClose }) => {
   const [subscribers, setSubscribers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -184,16 +194,28 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
           .from("profiles")
           .select("id, username")
           .in("id", uuids);
-        profilesData?.forEach((p) => { idToUsername[p.id] = p.username; });
+        profilesData?.forEach((p) => {
+          if (p.username && p.username.trim()) idToUsername[p.id] = p.username;
+        });
       }
 
       setSubscribers(
-        data.map((s) => ({
-          ...s,
-          displayName: uuidRegex.test(s.subscriber_id)
-            ? (idToUsername[s.subscriber_id] || "User")
-            : s.subscriber_id,
-        }))
+        data.map((s) => {
+          const isUuid = uuidRegex.test(s.subscriber_id);
+          let displayName;
+          if (!isUuid) {
+            // subscriber_id already holds a plain username (legacy rows)
+            displayName = s.subscriber_id;
+          } else if (idToUsername[s.subscriber_id]) {
+            // resolved via profiles table
+            displayName = idToUsername[s.subscriber_id];
+          } else {
+            // orphaned/incomplete profile — fall back to a short, unique
+            // label instead of a generic "User" so entries aren't identical
+            displayName = `User ${s.subscriber_id.slice(0, 8)}`;
+          }
+          return { ...s, displayName };
+        })
       );
       setLoading(false);
     };

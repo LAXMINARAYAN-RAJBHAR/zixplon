@@ -4,6 +4,8 @@ import { reelsData } from "../Reels/reels";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { supabase } from "../../config/supabase";
+import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
+import BookmarkIcon from "@mui/icons-material/Bookmark";
 
 const API_KEYS = [
   process.env.REACT_APP_YOUTUBE_KEY_1,
@@ -682,6 +684,8 @@ const HomePage = ({ sideNavbar }) => {
   const [dbReels, setDbReels] = useState([]);
   const [viewCounts, setViewCounts] = useState({});
   const [watchedContentIds, setWatchedContentIds] = useState(new Set());
+  // ── Watch Later: tracks video IDs (as strings) the current user has saved ──
+  const [watchLaterIds, setWatchLaterIds] = useState(new Set());
   const loggedInUsername = localStorage.getItem("username") || "";
 
   // ✅ FIX: Wrapped in useCallback for stable reference across effects
@@ -693,6 +697,17 @@ const HomePage = ({ sideNavbar }) => {
       const ids = new Set(data.map((r) => `${r.content_type}_${r.content_id}`));
       setWatchedContentIds(ids);
     }
+  }, []);
+
+  // ── Load this user's Watch Later list so bookmark icons reflect saved state ──
+  useEffect(() => {
+    const loadWatchLater = async () => {
+      const username = localStorage.getItem("username");
+      if (!username) return;
+      const { data } = await supabase.from("watch_later").select("video_id").eq("username", username);
+      if (data) setWatchLaterIds(new Set(data.map((r) => String(r.video_id))));
+    };
+    loadWatchLater();
   }, []);
 
   // ✅ FIX: Added 30s interval poll + loadWatchedIds in dep array
@@ -913,6 +928,24 @@ const HomePage = ({ sideNavbar }) => {
     else alert("Failed to delete reel.");
   };
 
+  // ── Watch Later toggle: only valid for DB-backed videos (watch_later.video_id
+  // joins against the real `videos` table, same constraint as History) ──
+  const handleToggleWatchLater = async (e, videoId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const username = localStorage.getItem("username");
+    if (!username) { alert("Please login to save videos"); return; }
+
+    const idStr = String(videoId);
+    if (watchLaterIds.has(idStr)) {
+      await supabase.from("watch_later").delete().eq("username", username).eq("video_id", videoId);
+      setWatchLaterIds((prev) => { const next = new Set(prev); next.delete(idStr); return next; });
+    } else {
+      await supabase.from("watch_later").insert({ username, video_id: videoId });
+      setWatchLaterIds((prev) => new Set(prev).add(idStr));
+    }
+  };
+
   const ShortsRow = ({ data, title }) => (
     <div className="homePage_shortsSection">
       <div className="homePage_shortsHeader">
@@ -930,9 +963,33 @@ const HomePage = ({ sideNavbar }) => {
   const VideoCard = ({ video, isUploaded = false, showDelete = false }) => {
     const showNew = isUploaded && !isWatched("video", video.id, watchedContentIds);
     const isOwner = showDelete && isUploaded && loggedInUsername && video.username === loggedInUsername;
+    const isSaved = watchLaterIds.has(String(video.id));
     return (
       <div className="youtube_thumbnailBox" style={{ position:"relative" }}>
         {isOwner && (<button onClick={(e)=>handleDeleteVideo(e,video.id)} title="Delete video" style={{ position:"absolute", top:"8px", right:"8px", zIndex:10, background:"rgba(239,68,68,0.92)", border:"none", color:"white", borderRadius:"8px", padding:"4px 8px", cursor:"pointer", fontSize:"11px", fontWeight:"800", boxShadow:"0 2px 8px rgba(239,68,68,0.4)" }}>🗑 Delete</button>)}
+        {isUploaded && (
+          <button
+            onClick={(e) => handleToggleWatchLater(e, video.id)}
+            title={isSaved ? "Remove from Watch Later" : "Save to Watch Later"}
+            style={{
+              position: "absolute",
+              top: "8px",
+              right: isOwner ? "78px" : "8px",
+              zIndex: 10,
+              background: "rgba(0,0,0,0.6)",
+              border: "none",
+              color: "white",
+              borderRadius: "8px",
+              padding: "5px 7px",
+              cursor: "pointer",
+              fontSize: "15px",
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
+            {isSaved ? <BookmarkIcon style={{ fontSize: 16, color: "#7c3aed" }} /> : <BookmarkBorderIcon style={{ fontSize: 16 }} />}
+          </button>
+        )}
         <Link to={"/video/"+video.id} className="youtube_thumbnailWrapper" onClick={()=>{ if(isUploaded) incrementView(video.id,"video"); }}>
           <img src={video.thumbnail} alt={video.title} className="youtube_thumbnailPic" />
           <div className="youtube_timingThumbnail">{video.duration}</div>

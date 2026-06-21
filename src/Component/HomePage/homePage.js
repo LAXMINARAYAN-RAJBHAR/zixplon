@@ -197,6 +197,24 @@ const formatViews = (n) => {
   return n + " views";
 };
 
+// ✅ NEW: relative "time ago" formatter for video/reel upload timestamps
+const formatTimeAgo = (dateString) => {
+  if (!dateString) return null;
+  const diffMs = Date.now() - new Date(dateString).getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+  const diffMonth = Math.floor(diffDay / 30);
+  const diffYear = Math.floor(diffDay / 365);
+  if (diffSec < 60) return "Just now";
+  if (diffMin < 60) return diffMin + (diffMin === 1 ? " minute ago" : " minutes ago");
+  if (diffHour < 24) return diffHour + (diffHour === 1 ? " hour ago" : " hours ago");
+  if (diffDay < 30) return diffDay + (diffDay === 1 ? " day ago" : " days ago");
+  if (diffMonth < 12) return diffMonth + (diffMonth === 1 ? " month ago" : " months ago");
+  return diffYear + (diffYear === 1 ? " year ago" : " years ago");
+};
+
 const isWatched = (contentType, contentId, watchedContentIds) => {
   const localKey = `viewed_${contentType}_${contentId}`;
   if (localStorage.getItem(localKey) === "true") return true;
@@ -763,7 +781,8 @@ const HomePage = ({ sideNavbar }) => {
       setDbLoading(true);
       const { data, error } = await supabase.from("videos").select("*").order("created_at", { ascending: false });
       if (!error && data) {
-        const formatted = data.map((v) => ({ id:v.id, src:v.video_url, thumbnail:v.thumbnail_url, title:v.title, duration:v.duration||"00:00", channel:v.channel, username:v.username||v.channel?.toLowerCase()||"unknown", tags:[v.category||"All"], likes:v.likes??0 }));
+        // ✅ NEW: include created_at so we can show the upload date/time on each video card
+        const formatted = data.map((v) => ({ id:v.id, src:v.video_url, thumbnail:v.thumbnail_url, title:v.title, duration:v.duration||"00:00", channel:v.channel, username:v.username||v.channel?.toLowerCase()||"unknown", tags:[v.category||"All"], likes:v.likes??0, created_at:v.created_at||null }));
         const videoIds = formatted.map((v) => String(v.id));
         const { data: likesData } = await supabase.from("likes").select("content_id").eq("content_type","video").in("content_id", videoIds);
         if (likesData) {
@@ -780,7 +799,8 @@ const HomePage = ({ sideNavbar }) => {
     const subscription = supabase.channel("videos-channel")
       .on("postgres_changes", { event:"INSERT", schema:"public", table:"videos" }, (payload) => {
         const v = payload.new;
-        const newVideo = { id:v.id, src:v.video_url, thumbnail:v.thumbnail_url, title:v.title, duration:v.duration||"00:00", channel:v.channel, username:v.username||v.channel?.toLowerCase()||"unknown", tags:[v.category||"All"], likes:v.likes??0 };
+        // ✅ NEW: include created_at on realtime-inserted videos too
+        const newVideo = { id:v.id, src:v.video_url, thumbnail:v.thumbnail_url, title:v.title, duration:v.duration||"00:00", channel:v.channel, username:v.username||v.channel?.toLowerCase()||"unknown", tags:[v.category||"All"], likes:v.likes??0, created_at:v.created_at||null };
         setDbVideos((prev) => [newVideo, ...prev]);
         // ✅ FIX: Fetch view counts and refresh watched IDs for new video
         fetchViewCounts([v.id], "video");
@@ -1006,6 +1026,12 @@ const HomePage = ({ sideNavbar }) => {
             <p className="youtubeVideo_Views" style={{ display:"flex", gap:"10px", alignItems:"center" }}>
               {isUploaded ? (<><span>👁 {formatViews(viewCounts["video_"+video.id]??0)}</span><span style={{ color:"#d1d5db", fontSize:"11px" }}>•</span><button onClick={(e)=>handleLikeVideo(e,video.id)} style={{ background:"none", border:"none", color:"#8b84c4", cursor:"pointer", fontSize:"inherit", padding:0, display:"flex", alignItems:"center", gap:"3px", fontWeight:"600" }}>👍 {video.likes??0} Likes</button></>) : (<span>👍 3 Likes</span>)}
             </p>
+            {/* ✅ NEW: upload date/time, shown for real uploaded videos only */}
+            {isUploaded && video.created_at && (
+              <p className="youtubeVideo_UploadDate" style={{ color:"#a8a3d6", fontSize:"12px", margin:"3px 0 0", fontWeight:"500" }}>
+                {formatTimeAgo(video.created_at)}
+              </p>
+            )}
           </div>
         </div>
       </div>

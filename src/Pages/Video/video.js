@@ -626,6 +626,11 @@ const defaultComments = [
   },
 ];
 
+// ── Helper: instant scroll to top (used on mobile suggestion clicks) ──
+const scrollToTopInstant = () => {
+  window.scrollTo({ top: 0, behavior: "instant" });
+};
+
 const Video = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -705,9 +710,7 @@ const Video = () => {
   const prevVideo =
     allVideos[currentIndex - 1] || allVideos[allVideos.length - 1];
 
-  // ── Log to watch history (DB videos only — hardcoded videos aren't rows
-  // in the `videos` table, so History.jsx's join against `videos` would
-  // silently drop them anyway) ──
+  // ── Log to watch history (DB videos only) ──
   useEffect(() => {
     if (loggedInUser !== "Guest" && video?.isDb && video?.id) {
       logHistory(loggedInUser, video.id);
@@ -913,12 +916,13 @@ const Video = () => {
     loadComments();
   }, [id]);
 
-  // ── FIXED: scroll to top of page instead of scrollIntoView ──
+  // ── FIXED: instant scroll on mobile, smooth on desktop ──
   useEffect(() => {
     setDisliked(false);
     setVideoError(false);
     setIsVideoPlaying(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    const isMobile = window.innerWidth <= 768;
+    window.scrollTo({ top: 0, behavior: isMobile ? "instant" : "smooth" });
   }, [id]);
 
   if (dbLoading) {
@@ -1119,6 +1123,7 @@ const Video = () => {
           to={`/video/${nextVideo.id}`}
           className="next_video_preview"
           style={{ textDecoration: "none" }}
+          onClick={scrollToTopInstant}
         >
           <span className="next_video_label">▶ Up Next</span>
           <img
@@ -1272,6 +1277,8 @@ const Video = () => {
             key={suggestion.id}
             className="videoSuggestionsBlock"
             style={{ textDecoration: "none", color: "inherit" }}
+            // ── FIX: scroll to top instantly on mobile when tapping a suggestion ──
+            onClick={scrollToTopInstant}
           >
             <div className="video_suggestion_thumbnail">
               <img

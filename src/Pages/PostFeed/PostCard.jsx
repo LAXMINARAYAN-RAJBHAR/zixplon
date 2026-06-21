@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
 
 const REACTIONS = [
   { key: "like", emoji: "👍", label: "Like", color: "#1877f2" },
@@ -327,10 +328,20 @@ const PostCard = ({
 
       <div className="pf-card">
         <div className="pf-card-header">
-          <div className="pf-avatar pf-avatar-green">{initials}</div>
+          {/* ── Clickable avatar → poster's profile ── */}
+          <Link
+            to={`/user/${post.username}`}
+            className="pf-avatar pf-avatar-green pf-avatar-link"
+            title={`View ${post.username}'s profile`}
+          >
+            {initials}
+          </Link>
           <div className="pf-card-meta">
             <p className="pf-card-author">
-              {post.username}
+              {/* ── Clickable username → poster's profile ── */}
+              <Link to={`/user/${post.username}`} className="pf-author-link">
+                {post.username}
+              </Link>
               {post.feeling && (
                 <span className="pf-card-feeling"> — feeling {post.feeling}</span>
               )}
@@ -530,11 +541,19 @@ const PostCard = ({
           <div className="pf-comments-section">
             {(post.comments || []).map((c) => (
               <div className="pf-comment" key={c.id}>
-                <div className="pf-avatar pf-avatar-sm pf-avatar-amber">
+                {/* ── Clickable avatar → commenter's profile ── */}
+                <Link
+                  to={`/user/${c.username}`}
+                  className="pf-avatar pf-avatar-sm pf-avatar-amber pf-avatar-link"
+                  title={`View ${c.username}'s profile`}
+                >
                   {(c.username || "?").slice(0, 2).toUpperCase()}
-                </div>
+                </Link>
                 <div className="pf-comment-bubble">
-                  <p className="pf-comment-author">{c.username}</p>
+                  {/* ── Clickable username → commenter's profile ── */}
+                  <Link to={`/user/${c.username}`} className="pf-comment-author-link">
+                    <p className="pf-comment-author">{c.username}</p>
+                  </Link>
                   <p className="pf-comment-text">{c.text}</p>
                 </div>
               </div>

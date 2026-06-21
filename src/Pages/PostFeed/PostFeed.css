@@ -69,6 +69,40 @@
 .pf-avatar-green { background: linear-gradient(135deg, #10b981, #059669); }
 .pf-avatar-amber { background: linear-gradient(135deg, #f97316, #eab308); }
 
+/* ── Profile links (avatar + username, on posts and comments) ──
+   These wrap the post author's and commenter's avatar/name in a
+   react-router <Link> to /user/:username. Since <Link> renders an <a>,
+   we strip default link styling here and add a small hover affordance
+   instead, so they still look like the original avatar/text but are
+   clearly interactive. */
+.pf-avatar-link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.pf-avatar-link:hover {
+  transform: scale(1.06);
+  box-shadow: 0 4px 16px rgba(124,58,237,0.4);
+}
+
+.pf-author-link {
+  text-decoration: none;
+  color: inherit;
+}
+.pf-author-link:hover {
+  text-decoration: underline;
+  color: var(--zx-primary);
+}
+
+.pf-comment-author-link {
+  text-decoration: none;
+  color: inherit;
+}
+.pf-comment-author-link:hover .pf-comment-author {
+  text-decoration: underline;
+  color: var(--zx-primary2);
+}
+
 /* ══════════════════════════════════
    COMPOSER
 ══════════════════════════════════ */

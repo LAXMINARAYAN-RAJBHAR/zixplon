@@ -6,6 +6,10 @@ import axios from "axios";
 import { supabase } from "../../config/supabase";
 import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
 import BookmarkIcon from "@mui/icons-material/Bookmark";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
+import CheckIcon from "@mui/icons-material/Check";
+import AddIcon from "@mui/icons-material/Add";
 
 const API_KEYS = [
   process.env.REACT_APP_YOUTUBE_KEY_1,
@@ -398,6 +402,164 @@ const ShortCard = ({ short, incrementView, viewCounts, handleDeleteReel, navigat
   );
 };
 
+// ─── ADD TO PLAYLIST MENU ──────────────────────────────────
+const PlaylistMenuButton = ({ videoId, playlistsCache, setPlaylistsCache }) => {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [memberIds, setMemberIds] = useState(new Set()); // playlist ids that already contain this video
+  const menuRef = useRef(null);
+  const username = localStorage.getItem("username") || "";
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpen(false);
+        setCreating(false);
+        setNewTitle("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const ensurePlaylistsLoaded = async () => {
+    if (playlistsCache) return playlistsCache;
+    const { data } = await supabase
+      .from("playlists")
+      .select("id, title")
+      .eq("username", username)
+      .order("created_at", { ascending: false });
+    const list = data || [];
+    setPlaylistsCache(list);
+    return list;
+  };
+
+  const loadMembership = async (list) => {
+    if (!list.length) { setMemberIds(new Set()); return; }
+    const { data } = await supabase
+      .from("playlist_items")
+      .select("playlist_id")
+      .eq("video_id", videoId)
+      .in("playlist_id", list.map((p) => p.id));
+    setMemberIds(new Set((data || []).map((r) => r.playlist_id)));
+  };
+
+  const toggleMenu = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!username) { alert("Please login to use playlists"); return; }
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    setLoading(true);
+    const list = await ensurePlaylistsLoaded();
+    await loadMembership(list);
+    setLoading(false);
+  };
+
+  const togglePlaylist = async (e, playlistId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const inPlaylist = memberIds.has(playlistId);
+    if (inPlaylist) {
+      await supabase.from("playlist_items").delete().eq("playlist_id", playlistId).eq("video_id", videoId);
+      setMemberIds((prev) => { const next = new Set(prev); next.delete(playlistId); return next; });
+    } else {
+      await supabase.from("playlist_items").insert({ playlist_id: playlistId, video_id: videoId });
+      setMemberIds((prev) => new Set(prev).add(playlistId));
+    }
+  };
+
+  const createAndAdd = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!newTitle.trim()) return;
+    const { data, error } = await supabase
+      .from("playlists")
+      .insert({ username, title: newTitle.trim() })
+      .select()
+      .single();
+    if (!error && data) {
+      const updatedList = [data, ...(playlistsCache || [])];
+      setPlaylistsCache(updatedList);
+      await supabase.from("playlist_items").insert({ playlist_id: data.id, video_id: videoId });
+      setMemberIds((prev) => new Set(prev).add(data.id));
+      setNewTitle("");
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div ref={menuRef} style={{ position: "absolute", top: "8px", right: "8px", zIndex: 11 }} onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={toggleMenu}
+        title="More options"
+        style={{ background: "rgba(0,0,0,0.6)", border: "none", color: "white", borderRadius: "8px", padding: "5px", cursor: "pointer", display: "flex", alignItems: "center" }}
+      >
+        <MoreVertIcon style={{ fontSize: 17 }} />
+      </button>
+
+      {open && (
+        <div style={{ position: "absolute", top: "32px", right: 0, width: "220px", background: "#ffffff", border: "1.5px solid #e0d4ff", borderRadius: "12px", boxShadow: "0 8px 24px rgba(76,69,137,0.18)", padding: "8px", maxHeight: "260px", overflowY: "auto" }}>
+          <div style={{ color: "#4c4589", fontSize: "12px", fontWeight: "800", padding: "4px 8px 8px", display: "flex", alignItems: "center", gap: "6px" }}>
+            <PlaylistAddIcon style={{ fontSize: 15 }} /> Save to playlist
+          </div>
+
+          {loading && <div style={{ padding: "10px 8px", color: "#8b84c4", fontSize: "13px" }}>Loading…</div>}
+
+          {!loading && (playlistsCache || []).length === 0 && !creating && (
+            <div style={{ padding: "6px 8px 10px", color: "#8b84c4", fontSize: "13px" }}>No playlists yet.</div>
+          )}
+
+          {!loading && (playlistsCache || []).map((pl) => {
+            const checked = memberIds.has(pl.id);
+            return (
+              <div
+                key={pl.id}
+                onClick={(e) => togglePlaylist(e, pl.id)}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", color: "#1e1b4b", fontWeight: "600" }}
+                onMouseEnter={(ev) => (ev.currentTarget.style.background = "#f7f0ff")}
+                onMouseLeave={(ev) => (ev.currentTarget.style.background = "transparent")}
+              >
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pl.title}</span>
+                {checked && <CheckIcon style={{ fontSize: 16, color: "#7c3aed", flexShrink: 0 }} />}
+              </div>
+            );
+          })}
+
+          <div style={{ borderTop: "1px solid #f0ebff", marginTop: "6px", paddingTop: "6px" }}>
+            {!creating ? (
+              <div
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCreating(true); }}
+                style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px", borderRadius: "8px", cursor: "pointer", fontSize: "13px", color: "#7c3aed", fontWeight: "700" }}
+                onMouseEnter={(ev) => (ev.currentTarget.style.background = "#f7f0ff")}
+                onMouseLeave={(ev) => (ev.currentTarget.style.background = "transparent")}
+              >
+                <AddIcon style={{ fontSize: 16 }} /> New playlist
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: "6px", padding: "4px" }}>
+                <input
+                  autoFocus
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && createAndAdd(e)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Playlist name"
+                  style={{ flex: 1, minWidth: 0, border: "1.5px solid #e0d4ff", borderRadius: "8px", padding: "6px 8px", fontSize: "12px", outline: "none", fontFamily: "Outfit, sans-serif" }}
+                />
+                <button onClick={createAndAdd} style={{ background: "#7c3aed", border: "none", color: "white", borderRadius: "8px", padding: "0 10px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>Add</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── WATCH PAGE ──────────────────────────────────────────────
 const WatchPage = ({ initialVideoId, initialTitle, initialChannel, onClose, suggestions, onIncrementView }) => {
   const isMobile = useIsMobile();
@@ -704,6 +866,8 @@ const HomePage = ({ sideNavbar }) => {
   const [watchedContentIds, setWatchedContentIds] = useState(new Set());
   // ── Watch Later: tracks video IDs (as strings) the current user has saved ──
   const [watchLaterIds, setWatchLaterIds] = useState(new Set());
+  // ── Add to Playlist: shared cache of this user's playlists, loaded lazily on first menu open ──
+  const [playlistsCache, setPlaylistsCache] = useState(null);
   const loggedInUsername = localStorage.getItem("username") || "";
 
   // ✅ FIX: Wrapped in useCallback for stable reference across effects
@@ -994,7 +1158,7 @@ const HomePage = ({ sideNavbar }) => {
             style={{
               position: "absolute",
               top: "8px",
-              right: isOwner ? "78px" : "8px",
+              right: isOwner ? "118px" : "44px",
               zIndex: 10,
               background: "rgba(0,0,0,0.6)",
               border: "none",
@@ -1009,6 +1173,10 @@ const HomePage = ({ sideNavbar }) => {
           >
             {isSaved ? <BookmarkIcon style={{ fontSize: 16, color: "#7c3aed" }} /> : <BookmarkBorderIcon style={{ fontSize: 16 }} />}
           </button>
+        )}
+        {/* ── Add to Playlist (⋮ menu) — only for real DB-backed videos ── */}
+        {isUploaded && (
+          <PlaylistMenuButton videoId={video.id} playlistsCache={playlistsCache} setPlaylistsCache={setPlaylistsCache} />
         )}
         <Link to={"/video/"+video.id} className="youtube_thumbnailWrapper" onClick={()=>{ if(isUploaded) incrementView(video.id,"video"); }}>
           <img src={video.thumbnail} alt={video.title} className="youtube_thumbnailPic" />

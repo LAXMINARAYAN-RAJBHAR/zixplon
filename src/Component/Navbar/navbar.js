@@ -398,6 +398,13 @@ const Navbar = ({
             avatar: n.sender_username?.[0]?.toUpperCase() || "?",
             time: timeAgo(n.created_at),
             read: n.is_read,
+            // ── Best-effort mapping: if your `notifications` table has
+            // content_id / content_type columns, clicking a notification
+            // will navigate to the right place. If these columns don't
+            // exist, they'll just be undefined and the click handler
+            // safely no-ops (same as before). ──
+            contentId: n.content_id ?? null,
+            contentType: n.content_type ?? null,
           })),
         );
       }
@@ -424,6 +431,8 @@ const Navbar = ({
               avatar: n.sender_username?.[0]?.toUpperCase() || "?",
               time: "just now",
               read: false,
+              contentId: n.content_id ?? null,
+              contentType: n.content_type ?? null,
             },
             ...prev,
           ]);
@@ -641,6 +650,18 @@ const Navbar = ({
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
+  };
+
+  // ── Click a notification: mark read, close dropdown, and navigate to
+  // the related content if we know what it is. Safely no-ops if the
+  // notification has no contentId/contentType. ──
+  const handleNotificationClick = (n) => {
+    markOneRead(n.id);
+    setShowNotifications(false);
+    if (!n.contentId || !n.contentType) return;
+    if (n.contentType === "reel") navigate(`/reels/${n.contentId}`);
+    else if (n.contentType === "video") navigate(`/video/${n.contentId}`);
+    else if (n.contentType === "post") navigate(`/post/${n.contentId}`);
   };
 
   const historyCount = suggestionData.history.length;
@@ -1251,6 +1272,7 @@ const Navbar = ({
 
           {showNotifications && (
             <div
+              className="navbar-notif-dropdown"
               style={{
                 position: "absolute",
                 top: "42px",
@@ -1318,7 +1340,7 @@ const Navbar = ({
                     return (
                       <div
                         key={n.id}
-                        onClick={() => markOneRead(n.id)}
+                        onClick={() => handleNotificationClick(n)}
                         style={{
                           display: "flex",
                           alignItems: "flex-start",
@@ -1569,6 +1591,17 @@ const Navbar = ({
         @keyframes spinIcon {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        /* ── Keep the notification dropdown safely inside the viewport
+           on small screens — it was overflowing off the left edge ── */
+        @media (max-width: 480px) {
+          .navbar-notif-dropdown {
+            position: fixed !important;
+            top: 60px !important;
+            left: 4px !important;
+            right: 4px !important;
+            width: auto !important;
+          }
         }
       `}</style>
     </div>

@@ -405,3 +405,13 @@
     gap: 4px;
   }
 }
+
+@media (max-width: 480px) {
+  .navbar-notif-dropdown {
+    position: fixed !important;
+    top: 60px !important;
+    left: 4px !important;
+    right: 4px !important;
+    width: auto !important;
+  }
+}

@@ -457,14 +457,14 @@ const Playlist = ({ currentUser, sideNavbar }) => {
             return (
               <div
                 key={pl.id}
-                onClick={() => pendingVideoId ? null : openPlaylist(pl)}
+                onClick={() => openPlaylist(pl)}
                 style={{
                   background: C.surface,
                   border: `1.5px solid ${isAdded ? C.primary : C.border}`,
                   borderRadius: "16px",
                   padding: "16px 16px",
                   display: "flex", alignItems: "center", gap: "14px",
-                  cursor: pendingVideoId ? "default" : "pointer",
+                  cursor: "pointer",
                   boxShadow: isAdded
                     ? "0 4px 18px rgba(124,58,237,0.2)"
                     : "0 2px 10px rgba(124,58,237,0.06)",
@@ -472,18 +472,14 @@ const Playlist = ({ currentUser, sideNavbar }) => {
                   position: "relative",
                 }}
                 onMouseEnter={(e) => {
-                  if (!pendingVideoId) {
-                    e.currentTarget.style.boxShadow = "0 6px 24px rgba(124,58,237,0.18)";
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                    e.currentTarget.style.borderColor = C.primary;
-                  }
+                  e.currentTarget.style.boxShadow = "0 6px 24px rgba(124,58,237,0.18)";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.borderColor = C.primary;
                 }}
                 onMouseLeave={(e) => {
-                  if (!pendingVideoId) {
-                    e.currentTarget.style.boxShadow = "0 2px 10px rgba(124,58,237,0.06)";
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.borderColor = isAdded ? C.primary : C.border;
-                  }
+                  e.currentTarget.style.boxShadow = isAdded ? "0 4px 18px rgba(124,58,237,0.2)" : "0 2px 10px rgba(124,58,237,0.06)";
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.borderColor = isAdded ? C.primary : C.border;
                 }}
               >
                 {/* Icon */}
@@ -512,12 +508,17 @@ const Playlist = ({ currentUser, sideNavbar }) => {
                       {pl.description}
                     </p>
                   )}
+                  {pendingVideoId && isAdded && (
+                    <p style={{ margin: "2px 0 0", color: C.primary, fontSize: "11px", fontWeight: "700" }}>
+                      ✓ Video added
+                    </p>
+                  )}
                 </div>
 
                 {/* If adding a video — show toggle button */}
                 {pendingVideoId ? (
                   <button
-                    onClick={(e) => toggleVideoInPlaylist(e, pl.id)}
+                    onClick={(e) => { e.stopPropagation(); toggleVideoInPlaylist(e, pl.id); }}
                     style={{
                       background: isAdded ? C.primary : C.surface2,
                       border: `1.5px solid ${isAdded ? C.primary : C.border}`,
@@ -560,6 +561,24 @@ const Playlist = ({ currentUser, sideNavbar }) => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Done button when in add-video mode ── */}
+      {pendingVideoId && !loading && (
+        <div style={{ textAlign: "center", marginTop: "28px" }}>
+          <button
+            onClick={() => window.history.back()}
+            style={{
+              background: C.primary, border: "none", color: "#fff",
+              borderRadius: "20px", padding: "12px 36px",
+              cursor: "pointer", fontWeight: "700", fontSize: "15px",
+              fontFamily: "inherit",
+              boxShadow: "0 4px 16px rgba(124,58,237,0.35)",
+            }}
+          >
+            ✓ Done
+          </button>
         </div>
       )}
     </Shell>

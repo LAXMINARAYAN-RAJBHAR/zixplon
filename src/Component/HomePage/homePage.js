@@ -1087,10 +1087,9 @@ const SaveMenuButton = ({
 
   return (
     <>
-      {/* ── CHANGE: position is now left: "8px" instead of right: offsetRight ── */}
       <div
         ref={wrapperRef}
-        className="save-menu-wrapper" // ← add this class
+        className="save-menu-wrapper"
         style={{ position: "absolute", top: "8px", right: "8px", zIndex: 11 }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1129,6 +1128,7 @@ const SaveMenuButton = ({
             animation: "saveMenuFadeIn 0.18s ease",
           }}
         >
+          {/* ── SHEET ── */}
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
@@ -1137,144 +1137,229 @@ const SaveMenuButton = ({
               background: "#ffffff",
               borderRadius: "20px 20px 0 0",
               boxShadow: "0 -8px 32px rgba(76,69,137,0.25)",
-              padding: "10px 18px 22px",
-              maxHeight: "75vh",
-              overflowY: "auto",
+              maxHeight: "60vh",
+              display: "flex",
+              flexDirection: "column",
               animation: "saveMenuSlideUp 0.22s cubic-bezier(0.32,0.72,0,1)",
             }}
           >
-            <div
-              style={{
-                width: "40px",
-                height: "4px",
-                background: "#e0d4ff",
-                borderRadius: "4px",
-                margin: "4px auto 14px",
-              }}
-            />
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "14px",
-              }}
-            >
-              <span
+            {/* ── FIXED HEADER: drag pill + title row + Watch Later + label ── */}
+            <div style={{ padding: "10px 18px 0", flexShrink: 0 }}>
+              {/* drag pill */}
+              <div
                 style={{
-                  color: "#1e1b4b",
-                  fontWeight: "800",
-                  fontSize: "16px",
+                  width: "40px",
+                  height: "4px",
+                  background: "#e0d4ff",
+                  borderRadius: "4px",
+                  margin: "4px auto 14px",
                 }}
-              >
-                Save video
-              </span>
-              <button
-                onClick={closeSheet}
+              />
+
+              {/* title row */}
+              <div
                 style={{
-                  background: "#f7f0ff",
-                  border: "none",
-                  color: "#7c3aed",
-                  borderRadius: "50%",
-                  width: "30px",
-                  height: "30px",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
+                  justifyContent: "space-between",
+                  marginBottom: "14px",
                 }}
               >
-                <CloseIcon style={{ fontSize: 18 }} />
-              </button>
-            </div>
-            <div
-              onClick={(e) => {
-                onToggleWatchLater(e, videoId);
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px 10px",
-                borderRadius: "12px",
-                cursor: "pointer",
-                fontSize: "15px",
-                color: "#1e1b4b",
-                fontWeight: "700",
-                background: "#f7f0ff",
-                marginBottom: "12px",
-              }}
-            >
-              <span
-                style={{ display: "flex", alignItems: "center", gap: "10px" }}
+                <span
+                  style={{
+                    color: "#1e1b4b",
+                    fontWeight: "800",
+                    fontSize: "16px",
+                  }}
+                >
+                  Save video
+                </span>
+                <button
+                  onClick={closeSheet}
+                  style={{
+                    background: "#f7f0ff",
+                    border: "none",
+                    color: "#7c3aed",
+                    borderRadius: "50%",
+                    width: "30px",
+                    height: "30px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <CloseIcon style={{ fontSize: 18 }} />
+                </button>
+              </div>
+
+              {/* Watch Later — always visible, never scrolls away */}
+              <div
+                onClick={(e) => {
+                  onToggleWatchLater(e, videoId);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "12px 10px",
+                  borderRadius: "12px",
+                  cursor: "pointer",
+                  fontSize: "15px",
+                  color: "#1e1b4b",
+                  fontWeight: "700",
+                  background: "#f7f0ff",
+                  marginBottom: "12px",
+                }}
               >
-                {isSaved ? (
-                  <BookmarkIcon style={{ fontSize: 20, color: "#7c3aed" }} />
-                ) : (
-                  <BookmarkBorderIcon
-                    style={{ fontSize: 20, color: "#7c3aed" }}
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  {isSaved ? (
+                    <BookmarkIcon style={{ fontSize: 20, color: "#7c3aed" }} />
+                  ) : (
+                    <BookmarkBorderIcon
+                      style={{ fontSize: 20, color: "#7c3aed" }}
+                    />
+                  )}
+                  Watch Later
+                </span>
+                {isSaved && (
+                  <CheckIcon
+                    style={{ fontSize: 20, color: "#7c3aed", flexShrink: 0 }}
                   />
                 )}
-                Watch Later
-              </span>
-              {isSaved && (
-                <CheckIcon
-                  style={{ fontSize: 20, color: "#7c3aed", flexShrink: 0 }}
-                />
-              )}
+              </div>
+
+              {/* "Save to playlist" label with separator */}
+              <div
+                style={{
+                  color: "#4c4589",
+                  fontSize: "13px",
+                  fontWeight: "800",
+                  padding: "4px 10px 10px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  borderBottom: "1px solid #f0ebff",
+                }}
+              >
+                <PlaylistAddIcon style={{ fontSize: 16 }} /> Save to playlist
+              </div>
             </div>
+
+            {/* ── SCROLLABLE BODY: playlist list + new playlist button ── */}
             <div
               style={{
-                color: "#4c4589",
-                fontSize: "13px",
-                fontWeight: "800",
-                padding: "4px 10px 10px",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
+                flex: 1,
+                overflowY: "auto",
+                WebkitOverflowScrolling: "touch",
+                overscrollBehavior: "contain",
+                padding: "4px 18px 22px",
               }}
             >
-              <PlaylistAddIcon style={{ fontSize: 16 }} /> Save to playlist
-            </div>
-            {loading && (
-              <div
-                style={{
-                  padding: "14px 10px",
-                  color: "#8b84c4",
-                  fontSize: "14px",
-                }}
-              >
-                Loading…
-              </div>
-            )}
-            {!loading && (playlistsCache || []).length === 0 && !creating && (
-              <div
-                style={{
-                  padding: "8px 10px 14px",
-                  color: "#8b84c4",
-                  fontSize: "14px",
-                }}
-              >
-                No playlists yet.
-              </div>
-            )}
-            {!loading &&
-              (playlistsCache || []).map((pl) => {
-                const checked = memberIds.has(pl.id);
-                return (
+              {loading && (
+                <div
+                  style={{
+                    padding: "14px 10px",
+                    color: "#8b84c4",
+                    fontSize: "14px",
+                  }}
+                >
+                  Loading…
+                </div>
+              )}
+
+              {!loading &&
+                (playlistsCache || []).length === 0 &&
+                !creating && (
                   <div
-                    key={pl.id}
-                    onClick={(e) => togglePlaylist(e, pl.id)}
+                    style={{
+                      padding: "8px 10px 14px",
+                      color: "#8b84c4",
+                      fontSize: "14px",
+                    }}
+                  >
+                    No playlists yet.
+                  </div>
+                )}
+
+              {!loading &&
+                (playlistsCache || []).map((pl) => {
+                  const checked = memberIds.has(pl.id);
+                  return (
+                    <div
+                      key={pl.id}
+                      onClick={(e) => togglePlaylist(e, pl.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "12px 10px",
+                        borderRadius: "12px",
+                        cursor: "pointer",
+                        fontSize: "15px",
+                        color: "#1e1b4b",
+                        fontWeight: "600",
+                      }}
+                      onMouseEnter={(ev) =>
+                        (ev.currentTarget.style.background = "#f7f0ff")
+                      }
+                      onMouseLeave={(ev) =>
+                        (ev.currentTarget.style.background = "transparent")
+                      }
+                    >
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {pl.title}
+                      </span>
+                      {checked && (
+                        <CheckIcon
+                          style={{
+                            fontSize: 18,
+                            color: "#7c3aed",
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+
+              {/* New playlist — lives inside scroll area */}
+              <div
+                style={{
+                  borderTop: "1px solid #f0ebff",
+                  marginTop: "10px",
+                  paddingTop: "12px",
+                }}
+              >
+                {!creating ? (
+                  <div
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCreating(true);
+                    }}
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "space-between",
+                      gap: "8px",
                       padding: "12px 10px",
                       borderRadius: "12px",
                       cursor: "pointer",
                       fontSize: "15px",
-                      color: "#1e1b4b",
-                      fontWeight: "600",
+                      color: "#7c3aed",
+                      fontWeight: "700",
                     }}
                     onMouseEnter={(ev) =>
                       (ev.currentTarget.style.background = "#f7f0ff")
@@ -1283,108 +1368,56 @@ const SaveMenuButton = ({
                       (ev.currentTarget.style.background = "transparent")
                     }
                   >
-                    <span
+                    <AddIcon style={{ fontSize: 18 }} /> New playlist
+                  </div>
+                ) : (
+                  <div
+                    style={{ display: "flex", gap: "8px", padding: "4px 2px" }}
+                  >
+                    <input
+                      autoFocus
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && createAndAdd(e)}
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="Playlist name"
                       style={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        flex: 1,
+                        minWidth: 0,
+                        border: "1.5px solid #e0d4ff",
+                        borderRadius: "10px",
+                        padding: "10px 12px",
+                        fontSize: "14px",
+                        outline: "none",
+                        fontFamily: "Outfit, sans-serif",
+                      }}
+                    />
+                    <button
+                      onClick={createAndAdd}
+                      style={{
+                        background: "#7c3aed",
+                        border: "none",
+                        color: "white",
+                        borderRadius: "10px",
+                        padding: "0 16px",
+                        fontSize: "14px",
+                        fontWeight: "700",
+                        cursor: "pointer",
                       }}
                     >
-                      {pl.title}
-                    </span>
-                    {checked && (
-                      <CheckIcon
-                        style={{
-                          fontSize: 18,
-                          color: "#7c3aed",
-                          flexShrink: 0,
-                        }}
-                      />
-                    )}
+                      Create
+                    </button>
                   </div>
-                );
-              })}
-            <div
-              style={{
-                borderTop: "1px solid #f0ebff",
-                marginTop: "10px",
-                paddingTop: "12px",
-              }}
-            >
-              {!creating ? (
-                <div
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setCreating(true);
-                  }}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "12px 10px",
-                    borderRadius: "12px",
-                    cursor: "pointer",
-                    fontSize: "15px",
-                    color: "#7c3aed",
-                    fontWeight: "700",
-                  }}
-                  onMouseEnter={(ev) =>
-                    (ev.currentTarget.style.background = "#f7f0ff")
-                  }
-                  onMouseLeave={(ev) =>
-                    (ev.currentTarget.style.background = "transparent")
-                  }
-                >
-                  <AddIcon style={{ fontSize: 18 }} /> New playlist
-                </div>
-              ) : (
-                <div
-                  style={{ display: "flex", gap: "8px", padding: "4px 2px" }}
-                >
-                  <input
-                    autoFocus
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && createAndAdd(e)}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Playlist name"
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      border: "1.5px solid #e0d4ff",
-                      borderRadius: "10px",
-                      padding: "10px 12px",
-                      fontSize: "14px",
-                      outline: "none",
-                      fontFamily: "Outfit, sans-serif",
-                    }}
-                  />
-                  <button
-                    onClick={createAndAdd}
-                    style={{
-                      background: "#7c3aed",
-                      border: "none",
-                      color: "white",
-                      borderRadius: "10px",
-                      padding: "0 16px",
-                      fontSize: "14px",
-                      fontWeight: "700",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Create
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
+
       <style>
-        {
-          "@keyframes saveMenuFadeIn{from{opacity:0}to{opacity:1}}@keyframes saveMenuSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}"
-        }
+        {`@keyframes saveMenuFadeIn{from{opacity:0}to{opacity:1}}
+          @keyframes saveMenuSlideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}
       </style>
     </>
   );

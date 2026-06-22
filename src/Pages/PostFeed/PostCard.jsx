@@ -20,6 +20,9 @@ const timeAgo = (dateStr) => {
   return `${Math.floor(diff / 86400)}d ago`;
 };
 
+/* ─────────────────────────────────────────
+   LIGHTBOX
+───────────────────────────────────────── */
 const Lightbox = ({ images, startIndex = 0, onClose }) => {
   const [index, setIndex] = useState(startIndex);
   const [autoPlay, setAutoPlay] = useState(false);
@@ -255,6 +258,137 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
   );
 };
 
+/* ─────────────────────────────────────────
+   IMAGE CAROUSEL
+   Swipe / drag to slide between images.
+   Tap (drag < 8px) opens the lightbox.
+───────────────────────────────────────── */
+const ImageCarousel = ({ images, onOpenLightbox }) => {
+  const [idx, setIdx] = useState(0);
+  const trackRef = useRef();
+  const startXRef = useRef(0);
+  const dragXRef = useRef(0);
+  const isDraggingRef = useRef(false);
+
+  const goTo = (i) => {
+    const next = (i + images.length) % images.length;
+    setIdx(next);
+    if (trackRef.current) {
+      trackRef.current.style.transition = "transform 0.3s ease";
+      trackRef.current.style.transform = `translateX(-${next * 100}%)`;
+    }
+  };
+
+  const applyDrag = (dx) => {
+    if (trackRef.current) {
+      trackRef.current.style.transition = "none";
+      trackRef.current.style.transform = `translateX(calc(-${idx * 100}% + ${dx}px))`;
+    }
+  };
+
+  const onMouseDown = (e) => {
+    isDraggingRef.current = true;
+    startXRef.current = e.clientX;
+    dragXRef.current = 0;
+  };
+
+  const onMouseMove = (e) => {
+    if (!isDraggingRef.current) return;
+    dragXRef.current = e.clientX - startXRef.current;
+    applyDrag(dragXRef.current);
+  };
+
+  const onMouseUp = () => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    const dx = dragXRef.current;
+    if (dx < -50) goTo(idx + 1);
+    else if (dx > 50) goTo(idx - 1);
+    else goTo(idx);
+  };
+
+  const onTouchStart = (e) => {
+    startXRef.current = e.touches[0].clientX;
+    dragXRef.current = 0;
+  };
+
+  const onTouchMove = (e) => {
+    dragXRef.current = e.touches[0].clientX - startXRef.current;
+    applyDrag(dragXRef.current);
+  };
+
+  const onTouchEnd = () => {
+    const dx = dragXRef.current;
+    if (dx < -50) goTo(idx + 1);
+    else if (dx > 50) goTo(idx - 1);
+    else goTo(idx);
+  };
+
+  const handleClick = () => {
+    // Only open lightbox if it wasn't a drag
+    if (Math.abs(dragXRef.current) < 8) {
+      onOpenLightbox(idx);
+    }
+  };
+
+  return (
+    <div
+      className="pf-carousel-wrap"
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseUp}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onClick={handleClick}
+    >
+      <div className="pf-carousel-track" ref={trackRef}>
+        {images.map((url, i) => (
+          <div className="pf-carousel-slide" key={i}>
+            <img src={url} alt={`Image ${i + 1}`} loading="lazy" draggable={false} />
+          </div>
+        ))}
+      </div>
+
+      {images.length > 1 && (
+        <>
+          <span className="pf-carousel-counter">{idx + 1} / {images.length}</span>
+
+          <button
+            className="pf-carousel-arrow pf-carousel-arrow-l"
+            onClick={(e) => { e.stopPropagation(); goTo(idx - 1); }}
+            aria-label="Previous image"
+          >
+            ‹
+          </button>
+          <button
+            className="pf-carousel-arrow pf-carousel-arrow-r"
+            onClick={(e) => { e.stopPropagation(); goTo(idx + 1); }}
+            aria-label="Next image"
+          >
+            ›
+          </button>
+
+          <div className="pf-carousel-dots">
+            {images.map((_, i) => (
+              <button
+                key={i}
+                className={`pf-carousel-dot${i === idx ? " active" : ""}`}
+                onClick={(e) => { e.stopPropagation(); goTo(i); }}
+                aria-label={`Go to image ${i + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────
+   POST CARD
+───────────────────────────────────────── */
 const PostCard = ({
   post,
   currentUser,
@@ -277,7 +411,7 @@ const PostCard = ({
   const initials = (post.username || "?").slice(0, 2).toUpperCase();
   const totalReactions = Object.values(post.reactionCounts || {}).reduce(
     (a, b) => a + b,
-    0,
+    0
   );
   const myReact = REACTIONS.find((r) => r.key === post.myReaction);
 
@@ -304,13 +438,9 @@ const PostCard = ({
     }
   };
 
-  // ✅ FIX: use correct domain + /api/og endpoint so shared links show
-  // the post's image as a thumbnail (OG meta tags) on WhatsApp/Telegram/etc.
   const handleCopyLink = () => {
     const shareUrl = `https://zixplon-tawny.vercel.app/api/og?type=post&id=${post.id}`;
-    navigator.clipboard
-      ?.writeText(shareUrl)
-      .catch(() => {});
+    navigator.clipboard?.writeText(shareUrl).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     setShowShareMenu(false);
@@ -327,8 +457,8 @@ const PostCard = ({
       )}
 
       <div className="pf-card">
+        {/* ── Header ── */}
         <div className="pf-card-header">
-          {/* ── Clickable avatar → poster's profile ── */}
           <Link
             to={`/user/${post.username}`}
             className="pf-avatar pf-avatar-green pf-avatar-link"
@@ -338,7 +468,6 @@ const PostCard = ({
           </Link>
           <div className="pf-card-meta">
             <p className="pf-card-author">
-              {/* ── Clickable username → poster's profile ── */}
               <Link to={`/user/${post.username}`} className="pf-author-link">
                 {post.username}
               </Link>
@@ -378,28 +507,18 @@ const PostCard = ({
           )}
         </div>
 
+        {/* ── Body ── */}
         <div className="pf-card-body">
           {post.text && <p className="pf-card-text">{post.text}</p>}
 
+          {/* Multi-image carousel (swipeable) */}
           {post.image_urls && post.image_urls.length > 0 ? (
-            <div className={`pf-img-grid pf-img-grid-${Math.min(post.image_urls.length, 4)}`}>
-              {post.image_urls.slice(0, 4).map((url, idx) => (
-                <div
-                  className="pf-img-grid-item"
-                  key={idx}
-                  onClick={() =>
-                    setLightboxData({ images: post.image_urls, startIndex: idx })
-                  }
-                >
-                  <img src={url} alt={`Post image ${idx + 1}`} loading="lazy" />
-                  {idx === 3 && post.image_urls.length > 4 && (
-                    <div className="pf-img-grid-more">
-                      +{post.image_urls.length - 4}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            <ImageCarousel
+              images={post.image_urls}
+              onOpenLightbox={(startIndex) =>
+                setLightboxData({ images: post.image_urls, startIndex })
+              }
+            />
           ) : (
             post.image_url && (
               <img
@@ -432,6 +551,7 @@ const PostCard = ({
           )}
         </div>
 
+        {/* ── Reaction summary ── */}
         {totalReactions > 0 && (
           <div className="pf-reaction-summary">
             <div className="pf-reaction-emojis">
@@ -455,6 +575,7 @@ const PostCard = ({
           </div>
         )}
 
+        {/* ── Action bar ── */}
         <div className="pf-action-bar">
           <div className="pf-action-wrap" ref={pickerRef}>
             <button
@@ -537,11 +658,11 @@ const PostCard = ({
           </div>
         </div>
 
+        {/* ── Comments ── */}
         {post.showComments && (
           <div className="pf-comments-section">
             {(post.comments || []).map((c) => (
               <div className="pf-comment" key={c.id}>
-                {/* ── Clickable avatar → commenter's profile ── */}
                 <Link
                   to={`/user/${c.username}`}
                   className="pf-avatar pf-avatar-sm pf-avatar-amber pf-avatar-link"
@@ -550,8 +671,10 @@ const PostCard = ({
                   {(c.username || "?").slice(0, 2).toUpperCase()}
                 </Link>
                 <div className="pf-comment-bubble">
-                  {/* ── Clickable username → commenter's profile ── */}
-                  <Link to={`/user/${c.username}`} className="pf-comment-author-link">
+                  <Link
+                    to={`/user/${c.username}`}
+                    className="pf-comment-author-link"
+                  >
                     <p className="pf-comment-author">{c.username}</p>
                   </Link>
                   <p className="pf-comment-text">{c.text}</p>

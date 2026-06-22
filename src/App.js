@@ -154,7 +154,7 @@ function App() {
         notifications={notifications}
         setNotifications={setNotifications}
       />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#f0f4ff" }}>
         <Routes>
           <Route path="/"            element={<Home sideNavbar={sideNavbar} />} />
           <Route path="/video/:id"   element={<Video />} />

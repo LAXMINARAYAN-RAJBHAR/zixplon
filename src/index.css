@@ -2,9 +2,17 @@
   color-scheme: light;
 }
 
-body {
+html, body, #root {
+  height: 100%;
+  width: 100%;
   margin: 0;
-  background-color: #f0f4ff;
+  padding: 0;
+  background-color: #f0f4ff !important;
+  overflow-x: hidden;
+}
+
+body {
+  background-color: #f0f4ff !important;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
@@ -16,15 +24,6 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
-html, body, #root {
-  height: 100%;
-  width: 100%;
-  overflow-x: hidden;
-  background-color: #f0f4ff;
-  margin: 0;
-  padding: 0;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -34,18 +33,17 @@ html, body, #root {
     -webkit-tap-highlight-color: transparent;
     touch-action: pan-x pan-y;
   }
-
   html {
     touch-action: pan-x pan-y;
     -ms-touch-action: pan-x pan-y;
   }
 }
 
-/* ── Hide scrollbars globally (html, body, root, and inner scroll containers) ── */
+/* ── Hide scrollbars globally ── */
 html, body, #root,
 .homePage, .home_mainPage {
-  scrollbar-width: none;       /* Firefox */
-  -ms-overflow-style: none;     /* IE/Edge legacy */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 html::-webkit-scrollbar,
@@ -53,5 +51,5 @@ body::-webkit-scrollbar,
 #root::-webkit-scrollbar,
 .homePage::-webkit-scrollbar,
 .home_mainPage::-webkit-scrollbar {
-  display: none;                /* Chrome, Safari, Edge (Chromium) */
+  display: none;
 }

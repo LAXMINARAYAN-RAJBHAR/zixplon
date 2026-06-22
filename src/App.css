@@ -2,8 +2,8 @@
   padding: 0;
   margin: 0;
   box-sizing: border-box;
-  padding-top: 5px;
   width: 100%;
-  background-color: #f0f4ff; /* ← ADD THIS */
-  min-height: 100vh;          /* ← ADD THIS */
+  min-height: 100vh;
+  background-color: #f0f4ff;
+  overflow-x: hidden;
 }

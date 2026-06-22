@@ -135,7 +135,16 @@ function App() {
     location.pathname.endsWith("/upload");
 
   return (
-    <div className="App" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+    <div
+  className="App"
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    minHeight: "100vh",
+    backgroundColor: "#f0f4ff", /* ← Add this */
+    width: "100%",
+  }}
+>
       <ScrollToTop />
       <Navbar
         currentUser={currentUser}

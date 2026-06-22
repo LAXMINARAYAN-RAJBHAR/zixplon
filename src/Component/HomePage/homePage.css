@@ -80,6 +80,7 @@
   font-family: 'Outfit', sans-serif;
   color: var(--zx-text);
   width: 100%;
+  background-color: #f0f4ff;
 }
 
 /* ── Options bar ── */

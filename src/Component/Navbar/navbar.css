@@ -63,6 +63,8 @@
   top: 0;
   position: fixed;
   background-color: #ffffff;
+  left: 0;
+  right: 0;
   border-bottom: 2px solid var(--zx-border);
   box-shadow: 0 2px 16px rgba(124, 58, 237, 0.08);
   z-index: 9999;

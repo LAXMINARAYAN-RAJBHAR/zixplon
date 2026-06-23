@@ -74,7 +74,12 @@ const SignUp = () => {
       if (signUpError) throw signUpError;
 
       const user = data?.user;
-      if (!user) throw new Error("Sign up failed — no user returned.");
+
+      // Supabase silently returns a fake user with empty identities[] when email already exists
+      if (!user) throw new Error("Sign up failed. Please try again.");
+      if (user.identities && user.identities.length === 0) {
+        throw new Error("An account with this email already exists. Please sign in instead.");
+      }
 
       // ── Step 2: Insert profile row ──
       // Adjust column names below to match YOUR actual `profiles` (or `users`) table

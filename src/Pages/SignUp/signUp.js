@@ -71,26 +71,26 @@ const SignUp = () => {
         password: signUpField.password,
       });
 
+      console.log("Supabase signUp response → data:", data, "error:", signUpError);
+
       if (signUpError) throw signUpError;
 
       const user = data?.user;
 
       // Supabase silently returns a fake user with empty identities[] when email already exists
-      if (!user) throw new Error("Sign up failed. Please try again.");
+      if (!user) throw new Error(`Sign up failed — Supabase returned no user. Check console for details.`);
       if (user.identities && user.identities.length === 0) {
         throw new Error("An account with this email already exists. Please sign in instead.");
       }
 
       // ── Step 2: Insert profile row ──
-      // Adjust column names below to match YOUR actual `profiles` (or `users`) table
-      const { error: profileError } = await supabase.from("users").insert([
+      const { error: profileError } = await supabase.from("profiles").insert([
         {
-          id: user.id,                              // FK → auth.users.id
-          channel_name: signUpField.channelName.trim(),
+          id: user.id,
           username: signUpField.userName.trim(),
-          email: signUpField.email.trim(),
-          about: signUpField.about.trim(),
           profile_pic: signUpField.profilePic,
+          about: signUpField.about.trim(),
+          banner_pic: "",
         },
       ]);
 

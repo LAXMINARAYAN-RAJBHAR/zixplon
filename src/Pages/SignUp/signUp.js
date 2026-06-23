@@ -53,10 +53,8 @@ const SignUp = () => {
       return setError("Please enter a Channel Name.");
     if (!signUpField.userName.trim())
       return setError("Please enter a User Name.");
-    if (!signUpField.email.trim())
-      return setError("Please enter an Email.");
-    if (!signUpField.password)
-      return setError("Please enter a Password.");
+    if (!signUpField.email.trim()) return setError("Please enter an Email.");
+    if (!signUpField.password) return setError("Please enter a Password.");
     if (signUpField.password.length < 6)
       return setError("Password must be at least 6 characters.");
 
@@ -71,16 +69,26 @@ const SignUp = () => {
         password: signUpField.password,
       });
 
-      console.log("Supabase signUp response → data:", data, "error:", signUpError);
+      console.log(
+        "Supabase signUp response → data:",
+        data,
+        "error:",
+        signUpError,
+      );
 
       if (signUpError) throw signUpError;
 
       const user = data?.user;
 
-      // Supabase silently returns a fake user with empty identities[] when email already exists
-      if (!user) throw new Error(`Sign up failed — Supabase returned no user. Check console for details.`);
+      if (!user) {
+        throw new Error(
+          "An account with this email already exists. Please sign in instead.",
+        );
+      }
       if (user.identities && user.identities.length === 0) {
-        throw new Error("An account with this email already exists. Please sign in instead.");
+        throw new Error(
+          "An account with this email already exists. Please sign in instead.",
+        );
       }
 
       // ── Step 2: Insert profile row ──

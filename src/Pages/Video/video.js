@@ -828,29 +828,23 @@ const Video = () => {
   };
 
   const handleShare = () => {
-    // Always use the og URL for sharing — works for both db and static videos
-    const shareUrl = `https://zixplon-tawny.vercel.app/api/og?type=video&id=${id}`;
+  const ogUrl = `https://zixplon-tawny.vercel.app/api/og?type=video&id=${id}`;
 
-    if (navigator.share) {
-      // Mobile native share sheet
-      navigator
-        .share({
-          title: video?.title || "Watch on Zixplon",
-          text: `Watch "${video?.title}" on Zixplon`,
-          url: shareUrl,
-        })
-        .catch(() => {
-          // Fallback to clipboard if share cancelled
-          navigator.clipboard.writeText(shareUrl).catch(() => {});
-        });
-    } else {
-      // Desktop — copy to clipboard
-      navigator.clipboard.writeText(shareUrl).catch(() => {});
-    }
+  if (navigator.share) {
+    navigator.share({
+      title: video?.title || "Watch on Zixplon",
+      text: `Watch "${video?.title}" on Zixplon`,
+      url: ogUrl,
+    }).catch(() => {
+      navigator.clipboard.writeText(ogUrl).catch(() => {});
+    });
+  } else {
+    navigator.clipboard.writeText(ogUrl).catch(() => {});
+  }
 
-    setShareToast(true);
-    setTimeout(() => setShareToast(false), 2500);
-  };
+  setShareToast(true);
+  setTimeout(() => setShareToast(false), 2500);
+};
 
   const handleCommentSubmit = async () => {
     if (!message.trim()) return;

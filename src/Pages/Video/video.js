@@ -632,7 +632,10 @@ const scrollToTopInstant = () => {
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
   let el = document.getElementById("root");
-  while (el) { el.scrollTop = 0; el = el.parentElement; }
+  while (el) {
+    el.scrollTop = 0;
+    el = el.parentElement;
+  }
 };
 
 // ── Deferred scroll: fires after React paint + extra tick for mobile ──
@@ -825,11 +828,26 @@ const Video = () => {
   };
 
   const handleShare = () => {
-    const isDbVideo = video?.isDb;
-    const shareUrl = isDbVideo
-      ? `https://zixplon-tawny.vercel.app/api/og?type=video&id=${id}`
-      : window.location.href;
-    navigator.clipboard.writeText(shareUrl).catch(() => {});
+    // Always use the og URL for sharing — works for both db and static videos
+    const shareUrl = `https://zixplon-tawny.vercel.app/api/og?type=video&id=${id}`;
+
+    if (navigator.share) {
+      // Mobile native share sheet
+      navigator
+        .share({
+          title: video?.title || "Watch on Zixplon",
+          text: `Watch "${video?.title}" on Zixplon`,
+          url: shareUrl,
+        })
+        .catch(() => {
+          // Fallback to clipboard if share cancelled
+          navigator.clipboard.writeText(shareUrl).catch(() => {});
+        });
+    } else {
+      // Desktop — copy to clipboard
+      navigator.clipboard.writeText(shareUrl).catch(() => {});
+    }
+
     setShareToast(true);
     setTimeout(() => setShareToast(false), 2500);
   };

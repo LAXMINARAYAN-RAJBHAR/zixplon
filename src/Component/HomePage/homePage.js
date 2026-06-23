@@ -689,15 +689,13 @@ const MobileTrendingStrip = ({
 }) => {
   const trendingVideos = [
     ...dbVideos.slice(0, 6).map((v) => ({ ...v, _type: "video" })),
-    ...dbReels
-      .slice(0, 5)
-      .map((r) => ({
-        ...r,
-        _type: "reel",
-        thumbnail: r.thumbnail,
-        title: r.title,
-        channel: r.user,
-      })),
+    ...dbReels.slice(0, 5).map((r) => ({
+      ...r,
+      _type: "reel",
+      thumbnail: r.thumbnail,
+      title: r.title,
+      channel: r.user,
+    })),
     ...dbVideos
       .filter((v) =>
         v.tags?.some((t) =>
@@ -948,8 +946,9 @@ const DropdownPortal = ({ wrapperRef, menuRef, children }) => {
 
     // Prefer opening to the LEFT of the button (so text is never clipped)
     let left = rect.right - menuWidth;
-    if (left < 8) left = 8;                          // clamp left edge
-    if (left + menuWidth > viewportWidth - 8)         // clamp right edge
+    if (left < 8) left = 8; // clamp left edge
+    if (left + menuWidth > viewportWidth - 8)
+      // clamp right edge
       left = viewportWidth - menuWidth - 8;
 
     // Open below; if not enough space flip above
@@ -968,8 +967,10 @@ const DropdownPortal = ({ wrapperRef, menuRef, children }) => {
   }, [wrapperRef]);
 
   return createPortal(
-    <div ref={menuRef} style={style}>{children}</div>,
-    document.body
+    <div ref={menuRef} style={style}>
+      {children}
+    </div>,
+    document.body,
   );
 };
 
@@ -1000,8 +1001,7 @@ const SaveMenuButton = ({
     const close = (e) => {
       const clickedWrapper =
         wrapperRef.current && wrapperRef.current.contains(e.target);
-      const clickedMenu =
-        menuRef.current && menuRef.current.contains(e.target);
+      const clickedMenu = menuRef.current && menuRef.current.contains(e.target);
       if (!clickedWrapper && !clickedMenu) {
         setOpen(false);
       }
@@ -1028,9 +1028,7 @@ const SaveMenuButton = ({
   }, [open]);
 
   const isOwner =
-    loggedInUsername &&
-    video?.username &&
-    video.username === loggedInUsername;
+    loggedInUsername && video?.username && video.username === loggedInUsername;
 
   const MENU_ITEMS = [
     {
@@ -1068,9 +1066,7 @@ const SaveMenuButton = ({
         e.preventDefault();
         e.stopPropagation();
         const slug =
-          video?.username ||
-          video?.channel?.toLowerCase() ||
-          "unknown";
+          video?.username || video?.channel?.toLowerCase() || "unknown";
         navigate("/user/" + slug);
         setOpen(false);
       },
@@ -1082,9 +1078,16 @@ const SaveMenuButton = ({
       onClick: (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const url = window.location.origin + "/video/" + videoId;
+        // ← Use og URL so WhatsApp shows thumbnail preview
+        const url = `https://zixplon-tawny.vercel.app/api/og?type=video&id=${videoId}`;
         if (navigator.share) {
-          navigator.share({ title: video?.title || "Video", url }).catch(() => {});
+          navigator
+            .share({
+              title: video?.title || "Video",
+              text: `Watch "${video?.title}" on Zixplon`,
+              url,
+            })
+            .catch(() => {});
         } else {
           navigator.clipboard.writeText(url);
           alert("Link copied!");
@@ -1127,9 +1130,7 @@ const SaveMenuButton = ({
           }}
           title="More options"
           style={{
-            background: open
-              ? "rgba(124,58,237,0.22)"
-              : "rgba(0,0,0,0.55)",
+            background: open ? "rgba(124,58,237,0.22)" : "rgba(0,0,0,0.55)",
             border: "none",
             color: "white",
             borderRadius: "8px",
@@ -1146,75 +1147,75 @@ const SaveMenuButton = ({
         {/* Dropdown menu — uses fixed positioning so it never gets clipped */}
         {open && (
           <DropdownPortal wrapperRef={wrapperRef} menuRef={menuRef}>
-          <div
-            style={{
-              minWidth: "230px",
-              background: "#ffffff",
-              borderRadius: "14px",
-              boxShadow:
-                "0 8px 32px rgba(76,69,137,0.28), 0 2px 8px rgba(0,0,0,0.14)",
-              border: "1.5px solid #e0d4ff",
-              overflow: "hidden",
-              animation: "ddFadeSlide 0.16s cubic-bezier(0.32,0.72,0,1)",
-            }}
-          >
-            {MENU_ITEMS.map((item, idx) => (
-              <button
-                key={item.id}
-                onMouseDown={(e) => {
-                  // ✅ FIX: stop the document-level mousedown listener from
-                  // ever treating this click as "outside" in the first
-                  // place — belt-and-braces alongside the menuRef check.
-                  e.stopPropagation();
-                }}
-                onClick={item.onClick}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  padding: "11px 16px",
-                  background: item.active ? "#f7f0ff" : "transparent",
-                  border: "none",
-                  borderTop:
-                    idx === MENU_ITEMS.length - 1 && item.danger
-                      ? "1px solid #fee2e2"
-                      : idx > 0
-                      ? "1px solid #f5f0ff"
-                      : "none",
-                  color: item.danger ? "#ef4444" : "#1e1b4b",
-                  fontSize: "14px",
-                  fontWeight: item.active ? "700" : "600",
-                  fontFamily: "Outfit, sans-serif",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  transition: "background 0.14s",
-                  letterSpacing: "0.1px",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = item.danger
-                    ? "#fff1f2"
-                    : "#f7f0ff";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = item.active
-                    ? "#f7f0ff"
-                    : "transparent";
-                }}
-              >
-                <span
+            <div
+              style={{
+                minWidth: "230px",
+                background: "#ffffff",
+                borderRadius: "14px",
+                boxShadow:
+                  "0 8px 32px rgba(76,69,137,0.28), 0 2px 8px rgba(0,0,0,0.14)",
+                border: "1.5px solid #e0d4ff",
+                overflow: "hidden",
+                animation: "ddFadeSlide 0.16s cubic-bezier(0.32,0.72,0,1)",
+              }}
+            >
+              {MENU_ITEMS.map((item, idx) => (
+                <button
+                  key={item.id}
+                  onMouseDown={(e) => {
+                    // ✅ FIX: stop the document-level mousedown listener from
+                    // ever treating this click as "outside" in the first
+                    // place — belt-and-braces alongside the menuRef check.
+                    e.stopPropagation();
+                  }}
+                  onClick={item.onClick}
                   style={{
-                    flexShrink: 0,
+                    width: "100%",
                     display: "flex",
                     alignItems: "center",
+                    gap: "10px",
+                    padding: "11px 16px",
+                    background: item.active ? "#f7f0ff" : "transparent",
+                    border: "none",
+                    borderTop:
+                      idx === MENU_ITEMS.length - 1 && item.danger
+                        ? "1px solid #fee2e2"
+                        : idx > 0
+                          ? "1px solid #f5f0ff"
+                          : "none",
+                    color: item.danger ? "#ef4444" : "#1e1b4b",
+                    fontSize: "14px",
+                    fontWeight: item.active ? "700" : "600",
+                    fontFamily: "Outfit, sans-serif",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "background 0.14s",
+                    letterSpacing: "0.1px",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = item.danger
+                      ? "#fff1f2"
+                      : "#f7f0ff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = item.active
+                      ? "#f7f0ff"
+                      : "transparent";
                   }}
                 >
-                  {item.icon}
-                </span>
-                {item.label}
-              </button>
-            ))}
-          </div>
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </DropdownPortal>
         )}
       </div>
@@ -2332,17 +2333,15 @@ const HomePage = ({ sideNavbar }) => {
     try {
       const userId = localStorage.getItem("userId");
       if (!userId) return;
-      await supabase
-        .from("views")
-        .upsert(
-          {
-            user_id: userId,
-            content_id: String(contentId),
-            content_type: contentType,
-            viewed_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,content_id,content_type" },
-        );
+      await supabase.from("views").upsert(
+        {
+          user_id: userId,
+          content_id: String(contentId),
+          content_type: contentType,
+          viewed_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,content_id,content_type" },
+      );
     } catch (_) {}
   };
 
@@ -2735,13 +2734,11 @@ const HomePage = ({ sideNavbar }) => {
           ),
         );
       } else {
-        await supabase
-          .from("likes")
-          .insert({
-            user_id: userId,
-            content_id: String(videoId),
-            content_type: "video",
-          });
+        await supabase.from("likes").insert({
+          user_id: userId,
+          content_id: String(videoId),
+          content_type: "video",
+        });
         await supabase.rpc("increment_likes", {
           p_table: "videos",
           p_id: videoId,

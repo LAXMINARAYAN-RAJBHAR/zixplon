@@ -157,6 +157,7 @@
   width: 100%;
   transition: margin-left 0.3s ease, width 0.3s ease;
   background: var(--zx-bg);
+    background-color: #f0f4ff !important;
 }
 .home_mainPage.sidebar-open  { margin-left: 275px; width: calc(100% - 275px); }
 .home_mainPage.sidebar-closed { margin-left: 0; width: 100%; }

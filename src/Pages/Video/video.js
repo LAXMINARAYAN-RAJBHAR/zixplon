@@ -14,11 +14,11 @@ const timeAgo = (dateStr) => {
   const date = new Date(dateStr);
   if (isNaN(date)) return dateStr;
   const diff = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (diff < 60)   return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  if (diff < 2592000) return `${Math.floor(diff / 86400)}d ago`;
-  if (diff < 31536000) return `${Math.floor(diff / 2592000)}mo ago`;
+  if (diff < 60)        return "just now";
+  if (diff < 3600)      return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400)     return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 2592000)   return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 31536000)  return `${Math.floor(diff / 2592000)}mo ago`;
   return `${Math.floor(diff / 31536000)}y ago`;
 };
 
@@ -130,6 +130,13 @@ const scrollToTopDeferred = () => {
   });
 };
 
+// ── Detect touch/mobile device ────────────────────────────────────────────────
+const isMobileDevice = () =>
+  typeof window !== "undefined" &&
+  (window.matchMedia("(max-width: 768px)").matches ||
+    "ontouchstart" in window ||
+    navigator.maxTouchPoints > 0);
+
 const Video = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -149,8 +156,37 @@ const Video = () => {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [viewCount, setViewCount] = useState(0);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
-  // ── DB row for the current video (has created_at, description etc.) ──
   const [videoMeta, setVideoMeta] = useState(null);
+
+  // ── Mobile: tap video to toggle overlay visibility ────────────────────────
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileOverlayVisible, setMobileOverlayVisible] = useState(true);
+  const mobileOverlayTimer = useRef(null);
+
+  useEffect(() => {
+    const check = () => setIsMobile(isMobileDevice());
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  // Auto-hide overlay on mobile after 3.5 s of inactivity
+  const resetMobileOverlayTimer = () => {
+    setMobileOverlayVisible(true);
+    clearTimeout(mobileOverlayTimer.current);
+    mobileOverlayTimer.current = setTimeout(() => setMobileOverlayVisible(false), 3500);
+  };
+
+  const handleVideoAreaTap = () => {
+    if (!isMobile) return;
+    resetMobileOverlayTimer();
+  };
+
+  // Start the timer as soon as mobile is detected
+  useEffect(() => {
+    if (isMobile) resetMobileOverlayTimer();
+    return () => clearTimeout(mobileOverlayTimer.current);
+  }, [isMobile]);
 
   const loggedInUser = localStorage.getItem("username") || "Guest";
   const controlsTimer = useRef(null);
@@ -202,7 +238,6 @@ const Video = () => {
   const nextVideo = allVideos[currentIndex + 1] || allVideos[0];
   const prevVideo = allVideos[currentIndex - 1] || allVideos[allVideos.length - 1];
 
-  // ── Fetch full DB meta for current video (description, created_at) ──
   useEffect(() => {
     if (!video?.isDb) { setVideoMeta(null); return; }
     supabase
@@ -248,7 +283,9 @@ const Video = () => {
     }
   };
 
+  // Desktop mouse-move handler (controls bar show/hide)
   const handleMouseMove = () => {
+    if (isMobile) return;
     setShowControls(true);
     clearTimeout(controlsTimer.current);
     controlsTimer.current = setTimeout(() => setShowControls(false), 2500);
@@ -377,26 +414,40 @@ const Video = () => {
 
   const suggestions = allVideos.filter((v) => String(v.id) !== String(id));
   const formatName = video.src?.split(".").pop().split("?")[0].toUpperCase();
-
-  // ── Description & date: prefer DB meta, fallback to video object ──
-  const uploadedAt  = videoMeta?.created_at || video.created_at || null;
-  const description = videoMeta?.description || video.description || "";
+  const uploadedAt    = videoMeta?.created_at || video.created_at || null;
+  const description   = videoMeta?.description || video.description || "";
   const channelUsername = video.username || video.channel?.toLowerCase();
+
+  // ── Derive overlay visibility ─────────────────────────────────────────────
+  // Desktop: driven by mouse-move timer (showControls)
+  // Mobile:  driven by tap timer (mobileOverlayVisible), always starts visible
+  const overlayVisible = isMobile ? mobileOverlayVisible : showControls;
 
   return (
     <div className="video">
       <div className="videoPostSection">
+
         {/* ── Video player ── */}
-        <div className="video_player_wrapper" onMouseMove={handleMouseMove} onMouseEnter={handleMouseMove}>
-          <div className={`video_controls_bar ${showControls ? "visible" : "hidden"}`}>
-            <button className="video_nav_btn" onClick={() => navigate(`/video/${prevVideo.id}`)}>⏮ Prev</button>
+        <div
+          className="video_player_wrapper"
+          onMouseMove={handleMouseMove}
+          onMouseEnter={handleMouseMove}
+          onTouchStart={handleVideoAreaTap}   /* mobile tap wakes overlay */
+        >
+          {/* FLOATING CONTROLS BAR — centred pill */}
+          <div className={`video_controls_bar ${overlayVisible ? "visible" : "hidden"}`}>
+            <button className="video_nav_btn" onClick={() => navigate(`/video/${prevVideo.id}`)}>
+              ⏮ Prev
+            </button>
             <div className="video_autoplay_toggle">
               <span>Autoplay</span>
               <div className={`toggle_switch ${autoPlay ? "on" : "off"}`} onClick={() => setAutoPlay(!autoPlay)}>
                 <div className="toggle_knob" />
               </div>
             </div>
-            <button className="video_nav_btn" onClick={() => navigate(`/video/${nextVideo.id}`)}>Next ⏭</button>
+            <button className="video_nav_btn" onClick={() => navigate(`/video/${nextVideo.id}`)}>
+              Next ⏭
+            </button>
           </div>
 
           {isUnsupportedFormat(video.src) && !videoError && (
@@ -431,18 +482,30 @@ const Video = () => {
             Your browser does not support the video tag.
           </video>
 
-          {/* ── Frame actions: always visible on mobile, hover on desktop ── */}
-          <div className="video_frame_actions">
-            <div className={`video_frame_btn video_like_btn ${liked ? "video_liked" : ""}`} onClick={handleLike} title="Like">
+          {/* FLOATING LIKE / DISLIKE / SHARE
+              Desktop: fades in on hover via CSS
+              Mobile:  .mobile-visible class keeps them always visible      */}
+          <div className={`video_frame_actions${isMobile ? " mobile-visible" : ""}`}>
+            <div
+              className={`video_frame_btn video_like_btn ${liked ? "video_liked" : ""}`}
+              onClick={handleLike}
+              title="Like"
+            >
               <span className="video_like_inner">
-                <ThumbUpOutlinedIcon fontSize="small" style={{ color: liked ? "#7c3aed" : "white" }} />
+                <ThumbUpOutlinedIcon fontSize="small" style={{ color: liked ? "#c4b5fd" : "white" }} />
                 <span>{likeCount}</span>
               </span>
               <span className="video_like_emoji">😊</span>
             </div>
-            <div className={`video_frame_btn ${disliked ? "active" : ""}`} onClick={handleDislike} title="Dislike">
+
+            <div
+              className={`video_frame_btn ${disliked ? "active" : ""}`}
+              onClick={handleDislike}
+              title="Dislike"
+            >
               <ThumbDownAltOutlinedIcon fontSize="small" />
             </div>
+
             <div className="video_frame_btn" onClick={handleShare} title="Share">
               <ReplyIcon fontSize="small" style={{ transform: "scaleX(-1)" }} />
               <span>Share</span>
@@ -451,12 +514,16 @@ const Video = () => {
         </div>
 
         {/* ── Up Next ── */}
-        <Link to={`/video/${nextVideo.id}`} className="next_video_preview" style={{ textDecoration: "none" }} onClick={scrollToTopDeferred}>
+        <Link
+          to={`/video/${nextVideo.id}`}
+          className="next_video_preview"
+          style={{ textDecoration: "none" }}
+          onClick={scrollToTopDeferred}
+        >
           <span className="next_video_label">▶ Up Next</span>
           <img src={nextVideo.thumbnail} alt={nextVideo.title} className="next_video_thumb" />
           <div className="next_video_info">
             <div className="next_video_title">{nextVideo.title}</div>
-            {/* FIX: show channel name, not raw username */}
             <div className="next_video_channel">{nextVideo.channel || nextVideo.username}</div>
             <div className="next_video_duration">{nextVideo.duration}</div>
           </div>
@@ -466,7 +533,6 @@ const Video = () => {
         <div className="video_youtubeAbout">
           <div className="video_uTubeTitle">{video.title}</div>
 
-          {/* Views + relative upload time */}
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "6px", marginBottom: "8px" }}>
             <span style={{ color: "#8b84c4", fontSize: "13px", fontWeight: "600", fontFamily: "'Nunito', sans-serif" }}>
               👁 {viewCount} {viewCount === 1 ? "view" : "views"}
@@ -490,10 +556,8 @@ const Video = () => {
               </Link>
               <div className="youtubeVideo_subsView">
                 <Link to={`/user/${channelUsername}`} style={{ textDecoration: "none", color: "inherit" }}>
-                  {/* FIX: show channel name, not raw username */}
                   <div className="youtubePostProfileName">{video.channel || video.username}</div>
                 </Link>
-                {/* FIX: relative time instead of hardcoded date */}
                 <div className="youtubePostProfileSubs">
                   {uploadedAt ? timeAgo(uploadedAt) : ""}
                 </div>
@@ -503,7 +567,6 @@ const Video = () => {
                   className="subscribeBtnYoutube"
                   onClick={handleSubscribe}
                   style={{
-                    // FIX: purple theme — subscribed = muted, unsubscribed = purple
                     background: isSubscribed ? "#e0d4ff" : "#7c3aed",
                     color:      isSubscribed ? "#7c3aed" : "#ffffff",
                     border:     isSubscribed ? "2px solid #7c3aed" : "none",
@@ -522,7 +585,6 @@ const Video = () => {
             </div>
           )}
 
-          {/* FIX: description box — real data, no hardcoded date+text */}
           {description ? (
             <div className="youtube_video_About">
               {uploadedAt && (
@@ -581,7 +643,6 @@ const Video = () => {
                     <div className="others_commentSection">
                       <div className="others_commentSectionHeader">
                         <div className="channelName_comment">{c.user}</div>
-                        {/* FIX: relative time on comments */}
                         <div className="commentTimingOthers">{timeAgo(c.date)}</div>
                       </div>
                       <div className="otherCommentSectionComment">{c.text}</div>

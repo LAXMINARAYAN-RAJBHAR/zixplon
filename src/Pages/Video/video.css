@@ -19,12 +19,19 @@
   50%       { opacity: 0.4; }
 }
 
-@keyframes floatIn {
-  from { opacity: 0; transform: translateX(12px); }
-  to   { opacity: 1; transform: translateX(0); }
+@keyframes floatInRight {
+  from { opacity: 0; transform: translateX(16px) scale(0.9); }
+  to   { opacity: 1; transform: translateX(0)    scale(1);   }
 }
 
-/* ── Page wrapper ── */
+@keyframes floatInTop {
+  from { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0)     scale(1);    }
+}
+
+/* ══════════════════════════════════════
+   PAGE WRAPPER
+══════════════════════════════════════ */
 .video {
   background: var(--zx-bg);
   padding-top: 56px;
@@ -45,7 +52,9 @@
   padding: 0 16px;
 }
 
-/* ── Video player wrapper ── */
+/* ══════════════════════════════════════
+   VIDEO PLAYER WRAPPER
+══════════════════════════════════════ */
 .video_youtube { width: 100%; }
 
 .video_player_wrapper {
@@ -54,7 +63,7 @@
   border-radius: 16px;
   overflow: hidden;
   background: #0d0d1a;
-  box-shadow: 0 8px 32px rgba(124,58,237,0.18);
+  box-shadow: 0 8px 40px rgba(124,58,237,0.20);
   scroll-margin-top: 64px;
 }
 
@@ -67,74 +76,85 @@
 }
 
 /* ══════════════════════════════════════
-   FLOATING CONTROLS BAR  (top centre pill)
+   FLOATING CONTROLS BAR  — centred top pill
+   Prev  |  Autoplay toggle  |  Next
 ══════════════════════════════════════ */
 .video_controls_bar {
   position: absolute;
-  top: 12px;
+  top: 14px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 20;
+  z-index: 30;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
-  background: rgba(15, 10, 40, 0.72);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(255,255,255,0.18);
+  gap: 8px;
+  padding: 6px 10px;
+
+  /* glassmorphism */
+  background: rgba(12, 8, 35, 0.68);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.16);
   border-radius: 999px;
   box-shadow:
-    0 4px 24px rgba(0,0,0,0.4),
-    0 0 0 1px rgba(124,58,237,0.25),
+    0 6px 28px rgba(0,0,0,0.45),
+    0 0 0 1px rgba(124,58,237,0.22),
     inset 0 1px 0 rgba(255,255,255,0.08);
-  transition: opacity 0.35s, visibility 0.35s;
+
+  transition: opacity 0.3s, visibility 0.3s;
   white-space: nowrap;
+  pointer-events: auto;
 }
 
-.video_controls_bar.visible  { opacity: 1; visibility: visible; }
-.video_controls_bar.hidden   { opacity: 0; visibility: hidden; }
+/* visible / hidden states driven by JS */
+.video_controls_bar.visible {
+  opacity: 1;
+  visibility: visible;
+  animation: floatInTop 0.25s ease both;
+}
+.video_controls_bar.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
 
-/* Prev / Next floating pill buttons inside bar */
+/* ── Prev / Next pill buttons inside the bar ── */
 .video_nav_btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   background: rgba(255,255,255,0.10);
-  color: #ffffff;
-  border: 1px solid rgba(255,255,255,0.25);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.22);
   padding: 5px 16px;
   border-radius: 999px;
   font-size: 11px;
   font-family: 'Nunito', sans-serif;
   font-weight: 800;
-  letter-spacing: 0.2px;
   cursor: pointer;
   transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  user-select: none;
 }
 
 .video_nav_btn:hover {
   background: rgba(124,58,237,0.55);
-  border-color: rgba(168,85,247,0.7);
-  box-shadow: 0 0 16px rgba(124,58,237,0.5);
-  transform: scale(1.05);
+  border-color: rgba(168,85,247,0.70);
+  box-shadow: 0 0 18px rgba(124,58,237,0.55);
+  transform: scale(1.06);
 }
+.video_nav_btn:active { transform: scale(0.95); }
 
-.video_nav_btn:active {
-  transform: scale(0.96);
-}
-
-/* Autoplay toggle inside bar */
+/* ── Autoplay toggle ── */
 .video_autoplay_toggle {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #ffffff;
+  color: #fff;
   font-family: 'Nunito', sans-serif;
   font-size: 11px;
   font-weight: 700;
-  padding: 0 2px;
+  padding: 0 4px;
+  user-select: none;
 }
 
 .toggle_switch {
@@ -146,51 +166,59 @@
   transition: background 0.3s;
   flex-shrink: 0;
 }
-
 .toggle_switch.on {
   background: var(--zx-primary2);
-  box-shadow: 0 0 10px rgba(168,85,247,0.6);
+  box-shadow: 0 0 10px rgba(168,85,247,0.60);
 }
-.toggle_switch.off {
-  background: rgba(255,255,255,0.22);
-}
+.toggle_switch.off { background: rgba(255,255,255,0.22); }
 
 .toggle_knob {
   position: absolute;
   top: 3px;
   width: 14px;
   height: 14px;
-  background: #ffffff;
+  background: #fff;
   border-radius: 50%;
   transition: left 0.3s cubic-bezier(.4,0,.2,1);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.30);
 }
 .toggle_switch.on  .toggle_knob { left: 19px; }
-.toggle_switch.off .toggle_knob { left: 3px; }
+.toggle_switch.off .toggle_knob { left: 3px;  }
 
 /* ══════════════════════════════════════
    FLOATING LIKE / DISLIKE / SHARE
-   Right-side vertical stack — glassmorphism cards
+   Right-side vertical stack (glassmorphism)
 ══════════════════════════════════════ */
 .video_frame_actions {
   position: absolute;
   right: 14px;
-  bottom: 68px;
-  z-index: 20;
+  bottom: 72px;
+  z-index: 30;
   display: flex;
   flex-direction: column;
   gap: 8px;
+
+  /* hidden by default on desktop — shown on hover */
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity 0.25s;
+  pointer-events: none;
 }
 
-/* Desktop: show on hover */
+/* Desktop hover reveal */
 .video_player_wrapper:hover .video_frame_actions {
   opacity: 1;
-  animation: floatIn 0.25s ease both;
+  pointer-events: auto;
+  animation: floatInRight 0.25s ease both;
 }
 
-/* Individual floating action button */
+/* Mobile: always visible class added via JSX */
+.video_frame_actions.mobile-visible {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  animation: floatInRight 0.3s ease both;
+}
+
+/* ── Individual floating button ── */
 .video_frame_btn {
   display: flex;
   flex-direction: column;
@@ -199,42 +227,43 @@
   gap: 3px;
   width: 54px;
   height: 54px;
-  background: rgba(15, 10, 40, 0.70);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  color: #ffffff;
-  border: 1px solid rgba(255,255,255,0.22);
+
+  background: rgba(12, 8, 35, 0.68);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.20);
   border-radius: 18px;
   cursor: pointer;
   font-size: 10px;
   font-family: 'Nunito', sans-serif;
   font-weight: 800;
-  transition: background 0.2s, border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+
   box-shadow:
-    0 4px 18px rgba(0,0,0,0.35),
+    0 6px 20px rgba(0,0,0,0.40),
     inset 0 1px 0 rgba(255,255,255,0.08);
+
+  transition: background 0.2s, border-color 0.2s, transform 0.15s, box-shadow 0.2s;
   position: relative;
   overflow: visible;
+  user-select: none;
 }
 
 .video_frame_btn:hover {
-  background: rgba(124,58,237,0.60);
-  border-color: rgba(168,85,247,0.70);
-  box-shadow: 0 6px 24px rgba(124,58,237,0.50);
-  transform: scale(1.08) translateY(-1px);
+  background: rgba(124,58,237,0.62);
+  border-color: rgba(168,85,247,0.72);
+  box-shadow: 0 8px 26px rgba(124,58,237,0.55);
+  transform: scale(1.09) translateY(-2px);
 }
+.video_frame_btn:active { transform: scale(0.93); }
 
-.video_frame_btn:active {
-  transform: scale(0.93);
-}
-
-/* Liked / active state */
+/* active / liked */
 .video_frame_btn.active,
 .video_frame_btn.video_liked {
-  background: rgba(124,58,237,0.70);
+  background: rgba(124,58,237,0.72);
   border-color: rgba(168,85,247,0.90);
   box-shadow:
-    0 0 20px rgba(124,58,237,0.60),
+    0 0 22px rgba(124,58,237,0.65),
     inset 0 1px 0 rgba(255,255,255,0.12);
 }
 
@@ -245,7 +274,7 @@
 }
 
 /* ── Like animation ── */
-.video_like_btn   { position: relative; overflow: visible; }
+.video_like_btn { position: relative; overflow: visible; }
 
 .video_like_inner {
   display: flex;
@@ -270,24 +299,23 @@
 
 .video_like_emoji {
   position: absolute;
-  font-size: 22px;
+  font-size: 24px;
   opacity: 0;
   transform: scale(0.3) rotate(-20deg);
   pointer-events: none;
 }
-
-.video_liked .video_like_emoji {
-  animation: videoEmojiPop 1.5s ease forwards;
-}
+.video_liked .video_like_emoji { animation: videoEmojiPop 1.5s ease forwards; }
 
 @keyframes videoEmojiPop {
   0%   { opacity: 0; transform: scale(0.3) rotate(-20deg); }
-  30%  { opacity: 1; transform: scale(1.3) rotate(0deg); }
+  30%  { opacity: 1; transform: scale(1.4) rotate(0deg); }
   60%  { opacity: 1; transform: scale(1)   rotate(0deg); }
   100% { opacity: 0; transform: scale(0.8) rotate(0deg); }
 }
 
-/* ── Video about section ── */
+/* ══════════════════════════════════════
+   VIDEO INFO SECTION
+══════════════════════════════════════ */
 .video_youtubeAbout {
   display: flex;
   flex-direction: column;
@@ -330,11 +358,7 @@
   box-shadow: 0 0 10px rgba(124,58,237,0.25);
 }
 
-.youtubeVideo_subsView {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
+.youtubeVideo_subsView { display: flex; flex-direction: column; gap: 2px; }
 
 .youtubePostProfileName {
   font-weight: 800;
@@ -352,7 +376,7 @@
 
 .subscribeBtnYoutube {
   background: var(--zx-primary);
-  color: #ffffff;
+  color: #fff;
   border: none;
   padding: 0 22px;
   border-radius: 20px;
@@ -364,7 +388,6 @@
   transition: all 0.2s;
   box-shadow: 0 4px 14px rgba(124,58,237,0.28);
 }
-
 .subscribeBtnYoutube:hover {
   opacity: 0.9;
   box-shadow: 0 6px 20px rgba(124,58,237,0.4);
@@ -387,7 +410,6 @@
   box-sizing: border-box;
   position: relative;
 }
-
 .youtube_video_About::before {
   content: '';
   position: absolute;
@@ -410,10 +432,9 @@
   cursor: pointer;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-
 .next_video_preview:hover {
   border-color: var(--zx-primary);
-  box-shadow: 0 4px 16px rgba(124,58,237,0.1);
+  box-shadow: 0 4px 16px rgba(124,58,237,0.10);
 }
 
 .next_video_label {
@@ -442,14 +463,12 @@
   color: var(--zx-text);
   font-family: 'Outfit', sans-serif;
 }
-
 .next_video_channel {
   font-family: 'Nunito', sans-serif;
   font-size: 11px;
   color: var(--zx-primary2);
   font-weight: 700;
 }
-
 .next_video_duration {
   font-family: 'Nunito', sans-serif;
   font-size: 10px;
@@ -457,7 +476,9 @@
   font-weight: 600;
 }
 
-/* ── Comment section ── */
+/* ══════════════════════════════════════
+   COMMENT SECTION
+══════════════════════════════════════ */
 .youtubeCommentSection {
   display: flex;
   flex-direction: column;
@@ -473,12 +494,10 @@
   align-items: center;
   gap: 10px;
 }
-
 .youtubeCommentSectionTitle::before {
   content: '';
   display: inline-block;
-  width: 5px;
-  height: 20px;
+  width: 5px; height: 20px;
   background: linear-gradient(180deg, var(--zx-primary), var(--zx-accent1));
   border-radius: 3px;
   flex-shrink: 0;
@@ -498,11 +517,7 @@
   flex-shrink: 0;
 }
 
-.addAComment {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
+.addAComment { display: flex; flex-direction: column; width: 100%; }
 
 .addACommentInput {
   width: 100%;
@@ -515,16 +530,11 @@
   font-family: 'Outfit', sans-serif;
   transition: border-color 0.2s;
 }
-
 .addACommentInput:focus {
   outline: none;
   border-bottom-color: var(--zx-primary);
 }
-
-.addACommentInput::placeholder {
-  font-size: 14px;
-  color: var(--zx-text3);
-}
+.addACommentInput::placeholder { font-size: 14px; color: var(--zx-text3); }
 
 .cancelSubmitComment {
   display: flex;
@@ -545,14 +555,12 @@
   background: transparent;
   transition: all 0.15s;
 }
-
 .cancelcomment:hover {
   border-color: var(--zx-primary);
   color: var(--zx-primary);
   background: var(--zx-surface2);
 }
 
-/* ── Others' comments ── */
 .youtubeothersComments {
   display: flex;
   flex-direction: column;
@@ -592,7 +600,9 @@
   line-height: 1.5;
 }
 
-/* ── Video suggestions sidebar ── */
+/* ══════════════════════════════════════
+   SUGGESTIONS SIDEBAR
+══════════════════════════════════════ */
 .videoSuggestions {
   display: flex;
   flex-direction: column;
@@ -601,7 +611,6 @@
   overflow-y: scroll;
   scrollbar-width: none;
 }
-
 .videoSuggestions::-webkit-scrollbar { display: none; }
 
 .videoSuggestionsBlock {
@@ -615,7 +624,6 @@
   border: 2px solid transparent;
   transition: all 0.2s;
 }
-
 .videoSuggestionsBlock:hover {
   background: var(--zx-surface);
   border-color: var(--zx-border);
@@ -638,7 +646,6 @@
   border: 2px solid var(--zx-border);
   transition: border-color 0.2s, transform 0.2s;
 }
-
 .videoSuggestionsBlock:hover .video_suggestion_thumbnail_img {
   border-color: var(--zx-primary);
   transform: scale(1.03);
@@ -684,11 +691,7 @@
     background: var(--zx-bg);
   }
 
-  .videoPostSection {
-    width: 100%;
-    order: 1;
-    padding: 0 8px;
-  }
+  .videoPostSection { width: 100%; order: 1; padding: 0 8px; }
 
   .videoSuggestions {
     width: 100%;
@@ -698,14 +701,8 @@
     padding: 8px;
   }
 
-  .video_youtube_video {
-    height: 220px;
-    border-radius: 0;
-  }
-
-  .video_player_wrapper {
-    border-radius: 0;
-  }
+  .video_youtube_video { height: 220px; border-radius: 0; }
+  .video_player_wrapper { border-radius: 0; }
 
   .youtube_video_About {
     width: 100% !important;
@@ -713,20 +710,15 @@
     border-radius: 10px !important;
   }
 
-  .addAComment { width: 100% !important; }
-  .video_uTubeTitle { font-size: 16px; }
+  .addAComment       { width: 100% !important; }
+  .video_uTubeTitle  { font-size: 16px; }
 
-  .subscribeBtnYoutube {
-    font-size: 11px;
-    padding: 0 14px;
-    height: 32px;
-  }
-
+  .subscribeBtnYoutube { font-size: 11px; padding: 0 14px; height: 32px; }
   .youtubeCommentSectionTitle { font-size: 15px; }
-  .next_video_preview         { border-radius: 10px; }
-  .videoSuggestionsBlock      { border-radius: 10px; }
+  .next_video_preview { border-radius: 10px; }
+  .videoSuggestionsBlock { border-radius: 10px; }
 
-  /* Floating controls bar — compact pill */
+  /* ── Controls bar: compact floating pill ── */
   .video_controls_bar {
     top: 8px;
     gap: 6px;
@@ -734,51 +726,37 @@
   }
 
   .video_nav_btn {
-    padding: 4px 10px;
+    padding: 4px 12px;
     font-size: 10px;
     gap: 3px;
   }
 
-  .video_autoplay_toggle {
-    font-size: 9px;
-    gap: 4px;
-  }
+  .video_autoplay_toggle { font-size: 9px; gap: 5px; }
 
-  .toggle_switch {
-    width: 28px;
-    height: 16px;
-    border-radius: 8px;
-  }
-
-  .toggle_knob {
-    width: 11px;
-    height: 11px;
-    top: 2px;
-  }
-
+  .toggle_switch { width: 28px; height: 16px; border-radius: 8px; }
+  .toggle_knob   { width: 11px; height: 11px; top: 2px; }
   .toggle_switch.on  .toggle_knob { left: 14px; }
   .toggle_switch.off .toggle_knob { left: 2px;  }
 
-  /* Floating action buttons — always visible, tighter */
+  /* ── Frame actions: always visible via .mobile-visible ── */
   .video_frame_actions {
-    opacity: 1 !important;
     right: 8px;
-    bottom: 54px;
-    gap: 6px;
+    bottom: 52px;
+    gap: 7px;
   }
 
   .video_frame_btn {
-    width: 42px;
-    height: 42px;
-    border-radius: 13px;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
     font-size: 9px;
     gap: 2px;
   }
 
   .video_frame_btn .MuiSvgIcon-root {
-    font-size: 15px !important;
-    width: 15px !important;
-    height: 15px !important;
+    font-size: 16px !important;
+    width: 16px !important;
+    height: 16px !important;
   }
 }
 
@@ -786,45 +764,32 @@
    MOBILE  ≤ 480px
 ══════════════════════════════════════ */
 @media (max-width: 480px) {
-  .video_uTubeTitle            { font-size: 14px; }
-  .next_video_thumb            { width: 100px; height: 58px; }
+  .video_uTubeTitle                { font-size: 14px; }
+  .next_video_thumb                { width: 100px; height: 58px; }
   .youtube_video_ProfileBlock_left { gap: 8px; }
-  .youtubePostProfileName      { font-size: 13px; }
+  .youtubePostProfileName          { font-size: 13px; }
 
-  .video_controls_bar {
-    top: 6px;
-    gap: 4px;
-    padding: 3px 7px;
-  }
-
-  .video_nav_btn {
-    padding: 3px 8px;
-    font-size: 9px;
-  }
-
-  .video_autoplay_toggle { font-size: 8px; gap: 3px; }
+  .video_controls_bar { top: 6px; gap: 5px; padding: 3px 7px; }
+  .video_nav_btn      { padding: 3px 9px; font-size: 9px; }
+  .video_autoplay_toggle { font-size: 8px; gap: 4px; }
 
   .toggle_switch { width: 24px; height: 14px; border-radius: 7px; }
   .toggle_knob   { width: 10px; height: 10px; top: 2px; }
   .toggle_switch.on  .toggle_knob { left: 12px; }
   .toggle_switch.off .toggle_knob { left: 2px;  }
 
-  .video_frame_actions {
-    right: 6px;
-    bottom: 50px;
-    gap: 5px;
-  }
+  .video_frame_actions { right: 6px; bottom: 48px; gap: 6px; }
 
   .video_frame_btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
     font-size: 8px;
   }
 
   .video_frame_btn .MuiSvgIcon-root {
-    font-size: 13px !important;
-    width: 13px !important;
-    height: 13px !important;
+    font-size: 14px !important;
+    width: 14px !important;
+    height: 14px !important;
   }
 }

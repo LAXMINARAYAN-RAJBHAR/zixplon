@@ -53,8 +53,10 @@ const SignUp = () => {
       return setError("Please enter a Channel Name.");
     if (!signUpField.userName.trim())
       return setError("Please enter a User Name.");
-    if (!signUpField.email.trim()) return setError("Please enter an Email.");
-    if (!signUpField.password) return setError("Please enter a Password.");
+    if (!signUpField.email.trim())
+      return setError("Please enter an Email.");
+    if (!signUpField.password)
+      return setError("Please enter a Password.");
     if (signUpField.password.length < 6)
       return setError("Password must be at least 6 characters.");
 
@@ -69,26 +71,18 @@ const SignUp = () => {
         password: signUpField.password,
       });
 
-      console.log(
-        "Supabase signUp response → data:",
-        data,
-        "error:",
-        signUpError,
-      );
+      console.log("Supabase signUp response → data:", data, "error:", signUpError);
 
       if (signUpError) throw signUpError;
 
       const user = data?.user;
 
+      // Supabase returns null user OR empty identities when email already exists
       if (!user) {
-        throw new Error(
-          "An account with this email already exists. Please sign in instead.",
-        );
+        throw new Error("An account with this email already exists. Please sign in instead.");
       }
       if (user.identities && user.identities.length === 0) {
-        throw new Error(
-          "An account with this email already exists. Please sign in instead.",
-        );
+        throw new Error("An account with this email already exists. Please sign in instead.");
       }
 
       // ── Step 2: Insert profile row ──
@@ -103,20 +97,21 @@ const SignUp = () => {
       ]);
 
       if (profileError) {
-        // Log but don't block — auth user already created
-        console.error("Profile insert error:", profileError.message);
+        // Profile insert failed — throw so user knows something went wrong
+        throw new Error("Account created but profile setup failed: " + profileError.message);
       }
 
       // ── Step 3: Persist to localStorage ──
       localStorage.setItem("userId", user.id);
-      localStorage.setItem("username", signUpField.channelName.trim());
+      localStorage.setItem("username", signUpField.userName.trim());      // ✅ FIXED: was channelName
+      localStorage.setItem("channelName", signUpField.channelName.trim()); // ✅ store channelName separately
       localStorage.setItem("userName", signUpField.userName.trim());
       localStorage.setItem("email", signUpField.email.trim());
       localStorage.setItem("profilePic", signUpField.profilePic);
       localStorage.setItem("about", signUpField.about.trim());
 
       // ── Step 4: Feedback & redirect ──
-      const emailConfirmRequired = !data.session; // session is null when confirm email is ON
+      const emailConfirmRequired = !data.session;
       if (emailConfirmRequired) {
         setSuccess(
           "Account created! Please check your email to confirm, then sign in.",
@@ -124,7 +119,6 @@ const SignUp = () => {
         setLoading(false);
         setTimeout(() => navigate("/signin"), 3000);
       } else {
-        // Email confirm is OFF in Supabase dashboard — user is immediately active
         setSuccess("Account created! Redirecting…");
         setLoading(false);
         setTimeout(() => navigate("/"), 1500);

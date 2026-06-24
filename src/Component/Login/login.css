@@ -1,11 +1,11 @@
 .login {
   width: 100%;
   height: 100%;
-  background: rgba(240, 244, 255, 0.92);
+  background: rgba(240,244,255,0.92);
   backdrop-filter: blur(12px);
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  color: #1a1a3e;
+  color: var(--zx-text);
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -19,24 +19,25 @@
   height: auto;
   margin-top: 60px;
   margin-bottom: 60px;
-  background: #ffffff;
+  background: var(--zx-surface);
   box-sizing: border-box;
   padding: 36px 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  border: 1px solid #ddd6fe;
+  border: 2px solid var(--zx-border);
   border-radius: 20px;
   position: relative;
-  box-shadow: 0 12px 48px rgba(124, 58, 237, 0.10);
+  box-shadow: 0 12px 48px rgba(124,58,237,0.12);
 }
 
+/* Colorful top accent on login card */
 .login_card::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #7c3aed, #a855f7, #7c3aed);
+  background: linear-gradient(90deg, var(--zx-primary), var(--zx-accent1), var(--zx-primary2));
   border-radius: 20px 20px 0 0;
 }
 
@@ -48,8 +49,10 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #1a1a3e;
+  color: var(--zx-text);
 }
+
+.login_youtubeImage { color: var(--zx-primary); }
 
 .loginCredentials {
   display: flex;
@@ -60,14 +63,21 @@
   align-items: center;
 }
 
+.userNameLogin {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .userNameLoginUserName {
   width: 70%;
   height: 46px;
-  color: #1a1a3e;
+  color: var(--zx-text);
   padding: 0 16px;
-  border: 1.5px solid #ddd6fe;
+  border: 2px solid var(--zx-border);
   border-radius: 12px;
-  background: #eef0fb;
+  background: var(--zx-bg);
   font-size: 14px;
   font-family: 'Outfit', sans-serif;
   box-sizing: border-box;
@@ -76,14 +86,12 @@
 
 .userNameLoginUserName:focus {
   outline: none;
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+  border-color: var(--zx-primary);
+  box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
   background: #ffffff;
 }
 
-.userNameLoginUserName::placeholder {
-  color: #9ca3af;
-}
+.userNameLoginUserName::placeholder { color: var(--zx-text3); }
 
 .login_buttons {
   width: 70%;
@@ -93,7 +101,41 @@
   gap: 10px;
 }
 
+.login-btn {
+  width: auto;
+  padding: 0 20px;
+  border: 2px solid var(--zx-primary);
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 20px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  color: var(--zx-primary);
+  text-decoration: none;
+  background: transparent;
+  transition: all 0.2s;
+}
+
+.login-btn:hover {
+  background: var(--zx-primary);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(124,58,237,0.3);
+}
+
+/* ── Mobile ── */
 @media (max-width: 768px) {
+  .signup_card { width: 92% !important; margin-top: 16px !important; padding: 24px 18px !important; }
+  .signUp_title { font-size: 16px !important; }
+  .signUp_Inputs { gap: 12px !important; margin-top: 16px !important; }
+  .signUp_Inputs_inp { width: 100% !important; height: 48px !important; font-size: 15px !important; }
+  .image_upload_signup { gap: 12px !important; flex-direction: column !important; align-items: center !important; }
+  .signUpBtns { gap: 10px !important; }
+  .signUpBtn { font-size: 13px !important; padding: 10px 20px !important; }
+
   .login { align-items: center !important; padding: 16px !important; }
   .login_card { width: 92% !important; margin-top: 20px !important; margin-bottom: 20px !important; padding: 28px 20px !important; }
   .titleCard_login { font-size: 17px !important; }
@@ -104,6 +146,10 @@
 }
 
 @media (max-width: 480px) {
+  .signup_card { width: 96% !important; padding: 18px 14px !important; }
+  .signUp_title { font-size: 14px !important; }
+  .signUpBtns { flex-direction: column !important; align-items: center !important; width: 100% !important; }
+  .signUpBtn { width: 100% !important; text-align: center !important; }
   .login_card { width: 96% !important; padding: 22px 14px !important; }
   .titleCard_login { font-size: 15px !important; }
   .userNameLoginUserName { height: 44px !important; }

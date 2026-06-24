@@ -79,7 +79,6 @@ const SignUp = () => {
 
       const user = data?.user;
 
-      // Supabase returns null user OR empty identities when email already exists
       if (!user) {
         throw new Error("An account with this email already exists. Please sign in instead.");
       }
@@ -107,8 +106,16 @@ const SignUp = () => {
         throw new Error("Profile setup failed: " + profileError.message);
       }
 
-      // ── Step 3: Clear stale data & persist fresh session ──
-      localStorage.clear(); // ← wipes any stale previous session
+      // ── Step 3: Clear only auth-related stale keys, not everything ──
+      localStorage.removeItem("username");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("email");
+      localStorage.removeItem("profilePic");
+      localStorage.removeItem("about");
+      localStorage.removeItem("channelName");
+      localStorage.removeItem("userName");
+
+      // Set fresh values
       localStorage.setItem("userId", user.id);
       localStorage.setItem("username", signUpField.userName.trim());
       localStorage.setItem("channelName", signUpField.channelName.trim());
@@ -202,34 +209,30 @@ const SignUp = () => {
 
           {/* Error / Success Messages */}
           {error && (
-            <div
-              style={{
-                background: "#ff444422",
-                border: "1px solid #ff4444",
-                color: "#ff4444",
-                padding: "10px 16px",
-                borderRadius: "8px",
-                fontSize: "14px",
-                width: "60%",
-                textAlign: "center",
-              }}
-            >
+            <div style={{
+              background: "#ff444422",
+              border: "1px solid #ff4444",
+              color: "#ff4444",
+              padding: "10px 16px",
+              borderRadius: "8px",
+              fontSize: "14px",
+              width: "60%",
+              textAlign: "center",
+            }}>
               ❌ {error}
             </div>
           )}
           {success && (
-            <div
-              style={{
-                background: "#4caf5022",
-                border: "1px solid #4caf50",
-                color: "#4caf50",
-                padding: "10px 16px",
-                borderRadius: "8px",
-                fontSize: "14px",
-                width: "60%",
-                textAlign: "center",
-              }}
-            >
+            <div style={{
+              background: "#4caf5022",
+              border: "1px solid #4caf50",
+              color: "#4caf50",
+              padding: "10px 16px",
+              borderRadius: "8px",
+              fontSize: "14px",
+              width: "60%",
+              textAlign: "center",
+            }}>
               ✅ {success}
             </div>
           )}

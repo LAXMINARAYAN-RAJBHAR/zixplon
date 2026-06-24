@@ -1,7 +1,7 @@
 import "./App.css";
 import Navbar from "./Component/Navbar/navbar";
 import Home from "./Pages/Home/home";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import Video from "./Pages/Video/video";
 import Profile from "./Pages/Profile/profile";
@@ -126,13 +126,47 @@ const LoadingScreen = ({ onFinish }) => {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Exit Confirmation Toast ───────────────────────────────────────────────────
+const ExitToast = ({ visible }) => (
+  <div
+    style={{
+      position: "fixed",
+      bottom: "80px",
+      left: "50%",
+      transform: `translateX(-50%) translateY(${visible ? "0" : "20px"})`,
+      background: "rgba(30, 30, 40, 0.92)",
+      color: "#fff",
+      padding: "12px 24px",
+      borderRadius: "24px",
+      fontSize: "14px",
+      fontWeight: "500",
+      fontFamily: "'Outfit', 'Nunito', sans-serif",
+      letterSpacing: "0.3px",
+      zIndex: 99999,
+      opacity: visible ? 1 : 0,
+      transition: "opacity 0.25s ease, transform 0.25s ease",
+      pointerEvents: "none",
+      whiteSpace: "nowrap",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
+    }}
+  >
+    Press back again to exit
+  </div>
+);
+// ─────────────────────────────────────────────────────────────────────────────
+
 function App() {
   const location = useLocation();
-  const [appReady, setAppReady] = useState(false);        // ← splash gate
+  const [appReady, setAppReady] = useState(false);
   const [sideNavbar, setSideNavbar] = useState(true);
   const [currentUser, setCurrentUser] = useState(
     localStorage.getItem("username") || null,
   );
+
+  // ── Exit-on-back state ──
+  const [showExitToast, setShowExitToast] = useState(false);
+  const exitToastTimer = useRef(null);
+  const backPressedOnce = useRef(false);
 
   // ── Supabase warmup ──
   useEffect(() => {
@@ -219,6 +253,66 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ── Mobile back-button exit logic ──────────────────────────────────────────
+  // Strategy: push a dummy history entry when on "/". When the user presses
+  // back, the browser pops that dummy entry and fires "popstate". We catch it,
+  // show the toast, and push the dummy entry again so the next back press
+  // repeats the cycle — UNLESS they pressed back twice within 2 s, in which
+  // case we call window.close() / history.go(-history.length) to exit.
+  useEffect(() => {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (!isMobile) return; // desktop: do nothing
+
+    const isHome = location.pathname === "/";
+    if (!isHome) {
+      // Not on home — clean up any pending exit state
+      backPressedOnce.current = false;
+      setShowExitToast(false);
+      clearTimeout(exitToastTimer.current);
+      return;
+    }
+
+    // Push a sentinel entry so the first back press lands here instead of
+    // leaving the app. Use a state flag so we can identify it.
+    window.history.pushState({ exitSentinel: true }, "");
+
+    const handlePopState = (e) => {
+      // The sentinel was popped — user pressed back on the home page
+      if (backPressedOnce.current) {
+        // Second back press within 2 s → exit
+        clearTimeout(exitToastTimer.current);
+        setShowExitToast(false);
+        backPressedOnce.current = false;
+
+        // Best-effort close for PWA / Android WebView
+        // For standard browsers this navigates all the way back (closes tab history)
+        window.history.go(-(window.history.length));
+        // Fallback
+        setTimeout(() => window.close(), 100);
+        return;
+      }
+
+      // First back press — show toast, re-push sentinel
+      backPressedOnce.current = true;
+      setShowExitToast(true);
+      window.history.pushState({ exitSentinel: true }, "");
+
+      // Auto-reset after 2 s
+      clearTimeout(exitToastTimer.current);
+      exitToastTimer.current = setTimeout(() => {
+        backPressedOnce.current = false;
+        setShowExitToast(false);
+      }, 2000);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      clearTimeout(exitToastTimer.current);
+    };
+  }, [location.pathname]);
+  // ──────────────────────────────────────────────────────────────────────────
+
   const [notifications, setNotifications] = useState([
     { id: 1, type: "upload",     message: "TechWorld uploaded: 'React 19 Features'",     time: "2m ago",  read: false, avatar: "T" },
     { id: 2, type: "like",       message: "Alex liked your video 'My Portfolio Tour'",    time: "10m ago", read: false, avatar: "A" },
@@ -250,6 +344,10 @@ function App() {
       }}
     >
       <ScrollToTop />
+
+      {/* Mobile exit toast — sits above everything */}
+      <ExitToast visible={showExitToast} />
+
       <Navbar
         currentUser={currentUser}
         setCurrentUser={setCurrentUser}

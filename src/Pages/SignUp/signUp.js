@@ -85,26 +85,30 @@ const SignUp = () => {
         throw new Error("An account with this email already exists. Please sign in instead.");
       }
 
-      // ── Step 2: Insert profile row ──
-      const { error: profileError } = await supabase.from("profiles").insert([
-        {
-          id: user.id,
-          username: signUpField.userName.trim(),
-          profile_pic: signUpField.profilePic,
-          about: signUpField.about.trim(),
-          banner_pic: "",
-        },
-      ]);
+      // ── Step 2: Upsert profile row (retry-safe) ──
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(
+          [
+            {
+              id: user.id,
+              username: signUpField.userName.trim(),
+              profile_pic: signUpField.profilePic,
+              about: signUpField.about.trim(),
+              banner_pic: "",
+            },
+          ],
+          { onConflict: "id" }
+        );
 
       if (profileError) {
-        // Profile insert failed — throw so user knows something went wrong
-        throw new Error("Account created but profile setup failed: " + profileError.message);
+        throw new Error("Profile setup failed: " + profileError.message);
       }
 
       // ── Step 3: Persist to localStorage ──
       localStorage.setItem("userId", user.id);
-      localStorage.setItem("username", signUpField.userName.trim());      // ✅ FIXED: was channelName
-      localStorage.setItem("channelName", signUpField.channelName.trim()); // ✅ store channelName separately
+      localStorage.setItem("username", signUpField.userName.trim());
+      localStorage.setItem("channelName", signUpField.channelName.trim());
       localStorage.setItem("userName", signUpField.userName.trim());
       localStorage.setItem("email", signUpField.email.trim());
       localStorage.setItem("profilePic", signUpField.profilePic);

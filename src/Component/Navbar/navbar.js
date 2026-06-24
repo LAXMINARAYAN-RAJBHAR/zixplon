@@ -1217,7 +1217,7 @@ const Navbar = ({
 
         {/* ── Upload Button — direct navigate, no dropdown ── */}
         <span
-        className="navbar-upload-btn"
+          className="navbar-upload-btn"
           onClick={() => {
             if (!currentUser) {
               setLogin(true);
@@ -1496,7 +1496,6 @@ const Navbar = ({
       {/* ── MODALS ── */}
       {login && (
         <Login
-          key={Date.now()}
           setLoginModal={setLoginModal}
           onLoginSuccess={(name) => {
             setCurrentUser(name);

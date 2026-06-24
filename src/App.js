@@ -54,41 +54,50 @@ function App() {
   // ── Single auth effect — profiles table is always source of truth ──
   useEffect(() => {
     const resolveUsername = async (u) => {
-      const { data: profileRow } = await supabase
-        .from("profiles")
-        .select("username, profile_pic, about")
-        .eq("id", u.id)
-        .maybeSingle();
+      try {
+        const { data: profileRow } = await supabase
+          .from("profiles")
+          .select("username, profile_pic, about")
+          .eq("id", u.id)
+          .maybeSingle();
 
-      const name =
-        profileRow?.username ||
-        localStorage.getItem("username") ||
-        u.user_metadata?.channelName ||
-        u.user_metadata?.username ||
-        u.user_metadata?.full_name ||
-        u.email?.split("@")[0];
+        const name =
+          profileRow?.username ||
+          localStorage.getItem("username") ||
+          u.user_metadata?.channelName ||
+          u.user_metadata?.username ||
+          u.user_metadata?.full_name ||
+          u.email?.split("@")[0];
 
-      const pic =
-        profileRow?.profile_pic ||
-        localStorage.getItem("profilePic") ||
-        u.user_metadata?.profilePic ||
-        u.user_metadata?.avatar_url ||
-        u.user_metadata?.picture ||
-        "";
+        const pic =
+          profileRow?.profile_pic ||
+          localStorage.getItem("profilePic") ||
+          u.user_metadata?.profilePic ||
+          u.user_metadata?.avatar_url ||
+          u.user_metadata?.picture ||
+          "";
 
-      const about =
-        profileRow?.about ||
-        localStorage.getItem("about") ||
-        u.user_metadata?.about ||
-        "";
+        const about =
+          profileRow?.about ||
+          localStorage.getItem("about") ||
+          u.user_metadata?.about ||
+          "";
 
-      localStorage.setItem("username", name);
-      localStorage.setItem("userId", u.id);
-      localStorage.setItem("email", u.email);
-      if (pic) localStorage.setItem("profilePic", pic);
-      if (about) localStorage.setItem("about", about);
+        localStorage.setItem("username", name);
+        localStorage.setItem("userId", u.id);
+        localStorage.setItem("email", u.email);
+        if (pic) localStorage.setItem("profilePic", pic);
+        if (about) localStorage.setItem("about", about);
 
-      return name;
+        return name;
+      } catch (e) {
+        // fallback — never crash the app
+        return (
+          localStorage.getItem("username") ||
+          u.user_metadata?.channelName ||
+          u.email?.split("@")[0]
+        );
+      }
     };
 
     // On mount: restore existing session
@@ -96,7 +105,6 @@ function App() {
       if (session?.user) {
         const name = await resolveUsername(session.user);
         setCurrentUser(name);
-        // Clean up OAuth hash from URL if present
         if (window.location.hash?.includes("access_token")) {
           window.history.replaceState({}, document.title, "/");
         }
@@ -105,18 +113,23 @@ function App() {
 
     // On login/logout/token refresh
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (session?.user) {
-          const name = await resolveUsername(session.user);
-          setCurrentUser(name);
-        } else {
+      (_event, session) => {
+        if (!session) {
+          // ── LOGOUT — synchronous, no async ──
           setCurrentUser(null);
           localStorage.removeItem("username");
           localStorage.removeItem("email");
           localStorage.removeItem("userId");
           localStorage.removeItem("profilePic");
           localStorage.removeItem("about");
+          localStorage.removeItem("channelName");
+          localStorage.removeItem("userName");
+          return;
         }
+        // ── LOGIN — resolve username async ──
+        resolveUsername(session.user).then((name) => {
+          setCurrentUser(name);
+        });
       }
     );
 
@@ -124,12 +137,12 @@ function App() {
   }, []);
 
   const [notifications, setNotifications] = useState([
-    { id: 1, type: "upload",     message: "TechWorld uploaded: 'React 19 Features'",      time: "2m ago",  read: false, avatar: "T" },
-    { id: 2, type: "like",       message: "Alex liked your video 'My Portfolio Tour'",     time: "10m ago", read: false, avatar: "A" },
-    { id: 3, type: "comment",    message: "Sara commented: 'Great content! 🔥'",           time: "25m ago", read: false, avatar: "S" },
-    { id: 4, type: "subscriber", message: "John subscribed to your channel",               time: "1h ago",  read: false, avatar: "J" },
-    { id: 5, type: "upload",     message: "CodeWithMe uploaded: 'Node.js Crash Course'",   time: "2h ago",  read: true,  avatar: "C" },
-    { id: 6, type: "like",       message: "Priya liked your video 'CSS Animations'",       time: "3h ago",  read: true,  avatar: "P" },
+    { id: 1, type: "upload",     message: "TechWorld uploaded: 'React 19 Features'",     time: "2m ago",  read: false, avatar: "T" },
+    { id: 2, type: "like",       message: "Alex liked your video 'My Portfolio Tour'",    time: "10m ago", read: false, avatar: "A" },
+    { id: 3, type: "comment",    message: "Sara commented: 'Great content! 🔥'",          time: "25m ago", read: false, avatar: "S" },
+    { id: 4, type: "subscriber", message: "John subscribed to your channel",              time: "1h ago",  read: false, avatar: "J" },
+    { id: 5, type: "upload",     message: "CodeWithMe uploaded: 'Node.js Crash Course'",  time: "2h ago",  read: true,  avatar: "C" },
+    { id: 6, type: "like",       message: "Priya liked your video 'CSS Animations'",      time: "3h ago",  read: true,  avatar: "P" },
   ]);
 
   const hideFooter =

@@ -54,6 +54,18 @@
   <!-- ── Hash routing fix ── -->
   <script>!function (n) { if ("/" === n.search[1]) { var a = n.search.slice(1).split("&").map(function (n) { return n.replace(/~and~/g, "&") }).join("?"); window.history.replaceState(null, null, n.pathname.slice(0, -1) + a + n.hash) } }(window.location)</script>
 
+  <!-- ── Mobile back-button exit (PWA / Android) ── -->
+  <script>
+    (function () {
+      if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return;
+
+      // Push a sentinel entry on load so the first back press is catchable
+      window.addEventListener('load', function () {
+        window.history.pushState({ zixplonSentinel: true }, '', window.location.href);
+      });
+    })();
+  </script>
+
   <!-- ── PWA ── -->
   <link rel="manifest" href="/manifest.json" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -71,7 +83,7 @@
     gtag('config', 'G-5C06KXTS2F');
   </script>
 
-  <!-- ── CRITICAL: black background before React loads — prevents white/blur flash ── -->
+  <!-- ── CRITICAL: black background before React loads ── -->
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -88,7 +100,7 @@
       width: 100%;
     }
 
-    /* Pre-React native splash — shown instantly, hidden once React mounts */
+    /* Pre-React native splash */
     #native-splash {
       position: fixed;
       inset: 0;
@@ -187,6 +199,7 @@
       observer.observe(document.getElementById('root'), { childList: true, subtree: true });
     })();
   </script>
+
 </body>
 
 </html>

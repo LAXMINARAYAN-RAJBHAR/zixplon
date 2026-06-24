@@ -40,7 +40,7 @@ import Playlist         from "./Pages/Playlist/Playlist";
 import YourClips        from "./Pages/YourClips/YourClips";
 import SideNavbar       from "./Component/SideNavbar/sideNavbar";
 
-// ── Loading Screen Component ──────────────────────────────────────────────────
+// ── Loading Screen ────────────────────────────────────────────────────────────
 const LoadingScreen = ({ onFinish }) => {
   const [fade, setFade] = useState(false);
 
@@ -68,7 +68,6 @@ const LoadingScreen = ({ onFinish }) => {
         transition: "opacity 0.5s ease",
       }}
     >
-      {/* Crisp inline SVG logo — never blurs */}
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 512 512"
@@ -82,7 +81,6 @@ const LoadingScreen = ({ onFinish }) => {
         />
       </svg>
 
-      {/* App name */}
       <p
         style={{
           marginTop: "24px",
@@ -99,7 +97,6 @@ const LoadingScreen = ({ onFinish }) => {
         ZIXPLON
       </p>
 
-      {/* Bouncing dots */}
       <div style={{ display: "flex", gap: "8px", marginTop: "40px" }}>
         {[0, 1, 2].map((i) => (
           <div
@@ -124,9 +121,8 @@ const LoadingScreen = ({ onFinish }) => {
     </div>
   );
 };
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ── Exit Confirmation Toast ───────────────────────────────────────────────────
+// ── Exit Toast ────────────────────────────────────────────────────────────────
 const ExitToast = ({ visible }) => (
   <div
     style={{
@@ -153,8 +149,8 @@ const ExitToast = ({ visible }) => (
     Press back again to exit
   </div>
 );
-// ─────────────────────────────────────────────────────────────────────────────
 
+// ── App ───────────────────────────────────────────────────────────────────────
 function App() {
   const location = useLocation();
   const [appReady, setAppReady] = useState(false);
@@ -183,6 +179,39 @@ function App() {
           .eq("id", u.id)
           .maybeSingle();
 
+        // ── Auto-create profile for Google OAuth users who have none ──
+        if (!profileRow) {
+          const autoName =
+            u.user_metadata?.name ||
+            u.user_metadata?.full_name ||
+            u.user_metadata?.channelName ||
+            u.user_metadata?.username ||
+            u.email?.split("@")[0];
+
+          const autoPic =
+            u.user_metadata?.avatar_url ||
+            u.user_metadata?.picture ||
+            "";
+
+          await supabase.from("profiles").upsert(
+            [{
+              id: u.id,
+              username: autoName,
+              profile_pic: autoPic,
+              about: "",
+              banner_pic: "",
+            }],
+            { onConflict: "id" }
+          );
+
+          // Use the auto-created values
+          localStorage.setItem("username", autoName);
+          localStorage.setItem("userId", u.id);
+          localStorage.setItem("email", u.email || "");
+          if (autoPic) localStorage.setItem("profilePic", autoPic);
+          return autoName;
+        }
+
         const name =
           profileRow?.username ||
           localStorage.getItem("username") ||
@@ -207,7 +236,7 @@ function App() {
 
         localStorage.setItem("username", name);
         localStorage.setItem("userId", u.id);
-        localStorage.setItem("email", u.email);
+        localStorage.setItem("email", u.email || "");
         if (pic) localStorage.setItem("profilePic", pic);
         if (about) localStorage.setItem("about", about);
 
@@ -221,6 +250,7 @@ function App() {
       }
     };
 
+    // Restore session on mount
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         const name = await resolveUsername(session.user);
@@ -231,9 +261,11 @@ function App() {
       }
     });
 
+    // Listen for login/logout
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (!session) {
+          // ── LOGOUT — synchronous ──
           setCurrentUser(null);
           localStorage.removeItem("username");
           localStorage.removeItem("email");
@@ -244,6 +276,7 @@ function App() {
           localStorage.removeItem("userName");
           return;
         }
+        // ── LOGIN — async profile resolve ──
         resolveUsername(session.user).then((name) => {
           setCurrentUser(name);
         });
@@ -253,64 +286,59 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // ── Mobile back-button exit logic ──────────────────────────────────────────
-  // Strategy: push a dummy history entry when on "/". When the user presses
-  // back, the browser pops that dummy entry and fires "popstate". We catch it,
-  // show the toast, and push the dummy entry again so the next back press
-  // repeats the cycle — UNLESS they pressed back twice within 2 s, in which
-  // case we call window.close() / history.go(-history.length) to exit.
-  useEffect(() => {
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (!isMobile) return; // desktop: do nothing
+  // ── Mobile back-button exit logic ─────────────────────────────────────────
+  // ── Mobile back-button exit logic ─────────────────────────────────────────
+useEffect(() => {
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (!isMobile) return;
 
-    const isHome = location.pathname === "/";
-    if (!isHome) {
-      // Not on home — clean up any pending exit state
-      backPressedOnce.current = false;
-      setShowExitToast(false);
+  const isHome = location.pathname === "/";
+
+  if (!isHome) {
+    backPressedOnce.current = false;
+    setShowExitToast(false);
+    clearTimeout(exitToastTimer.current);
+    return;
+  }
+
+  // Push sentinel so back press is catchable
+  window.history.pushState({ zixplonExit: true }, "", "/");
+
+  const handlePopState = () => {
+    if (backPressedOnce.current) {
+      // Second back press — exit app
       clearTimeout(exitToastTimer.current);
+      setShowExitToast(false);
+      backPressedOnce.current = false;
+      // Re-push so app stays alive briefly while closing
+      window.history.pushState({ zixplonExit: true }, "", "/");
+      // Navigate away to close (works in Android WebView/PWA)
+      setTimeout(() => {
+        window.location.href = "about:blank";
+      }, 50);
       return;
     }
 
-    // Push a sentinel entry so the first back press lands here instead of
-    // leaving the app. Use a state flag so we can identify it.
-    window.history.pushState({ exitSentinel: true }, "");
+    // First back press — show toast, re-push sentinel
+    backPressedOnce.current = true;
+    setShowExitToast(true);
+    // Re-push sentinel so next back is also catchable
+    window.history.pushState({ zixplonExit: true }, "", "/");
 
-    const handlePopState = (e) => {
-      // The sentinel was popped — user pressed back on the home page
-      if (backPressedOnce.current) {
-        // Second back press within 2 s → exit
-        clearTimeout(exitToastTimer.current);
-        setShowExitToast(false);
-        backPressedOnce.current = false;
+    clearTimeout(exitToastTimer.current);
+    exitToastTimer.current = setTimeout(() => {
+      backPressedOnce.current = false;
+      setShowExitToast(false);
+    }, 2000);
+  };
 
-        // Best-effort close for PWA / Android WebView
-        // For standard browsers this navigates all the way back (closes tab history)
-        window.history.go(-(window.history.length));
-        // Fallback
-        setTimeout(() => window.close(), 100);
-        return;
-      }
+  window.addEventListener("popstate", handlePopState);
 
-      // First back press — show toast, re-push sentinel
-      backPressedOnce.current = true;
-      setShowExitToast(true);
-      window.history.pushState({ exitSentinel: true }, "");
-
-      // Auto-reset after 2 s
-      clearTimeout(exitToastTimer.current);
-      exitToastTimer.current = setTimeout(() => {
-        backPressedOnce.current = false;
-        setShowExitToast(false);
-      }, 2000);
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-      clearTimeout(exitToastTimer.current);
-    };
-  }, [location.pathname]);
+  return () => {
+    window.removeEventListener("popstate", handlePopState);
+    clearTimeout(exitToastTimer.current);
+  };
+}, [location.pathname]);
   // ──────────────────────────────────────────────────────────────────────────
 
   const [notifications, setNotifications] = useState([
@@ -327,7 +355,6 @@ function App() {
     location.pathname.startsWith("/reels") ||
     location.pathname.endsWith("/upload");
 
-  // ── Show splash until appReady ──────────────────────────────────────────────
   if (!appReady) {
     return <LoadingScreen onFinish={() => setAppReady(true)} />;
   }
@@ -345,7 +372,7 @@ function App() {
     >
       <ScrollToTop />
 
-      {/* Mobile exit toast — sits above everything */}
+      {/* Mobile exit toast */}
       <ExitToast visible={showExitToast} />
 
       <Navbar
@@ -360,7 +387,7 @@ function App() {
         <SideNavbar sideNavbar={sideNavbar} />
         <Routes>
           <Route path="/"               element={<Home sideNavbar={sideNavbar} />} />
-          <Route path="/video/:id" element={<Video sideNavbar={sideNavbar} />} />
+          <Route path="/video/:id"      element={<Video sideNavbar={sideNavbar} />} />
           <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} />} />
           <Route path="/videoUpload"    element={<VideoUpload />} />
           <Route path="/:id/upload"     element={<VideoUpload />} />

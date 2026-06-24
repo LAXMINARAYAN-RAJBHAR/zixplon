@@ -428,6 +428,8 @@
   color: var(--zx-text3);
   margin-top: 2px;
   font-weight: 600;
+  white-space: normal;
+  line-height: 1.6;
 }
 
 /* Kebab menu */

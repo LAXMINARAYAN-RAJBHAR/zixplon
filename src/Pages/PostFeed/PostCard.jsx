@@ -346,25 +346,38 @@ const ImageCarousel = ({ images, onOpenLightbox }) => {
       <div className="pf-carousel-track" ref={trackRef}>
         {images.map((url, i) => (
           <div className="pf-carousel-slide" key={i}>
-            <img src={url} alt={`Image ${i + 1}`} loading="lazy" draggable={false} />
+            <img
+              src={url}
+              alt={`Image ${i + 1}`}
+              loading="lazy"
+              draggable={false}
+            />
           </div>
         ))}
       </div>
 
       {images.length > 1 && (
         <>
-          <span className="pf-carousel-counter">{idx + 1} / {images.length}</span>
+          <span className="pf-carousel-counter">
+            {idx + 1} / {images.length}
+          </span>
 
           <button
             className="pf-carousel-arrow pf-carousel-arrow-l"
-            onClick={(e) => { e.stopPropagation(); goTo(idx - 1); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              goTo(idx - 1);
+            }}
             aria-label="Previous image"
           >
             ‹
           </button>
           <button
             className="pf-carousel-arrow pf-carousel-arrow-r"
-            onClick={(e) => { e.stopPropagation(); goTo(idx + 1); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              goTo(idx + 1);
+            }}
             aria-label="Next image"
           >
             ›
@@ -375,7 +388,10 @@ const ImageCarousel = ({ images, onOpenLightbox }) => {
               <button
                 key={i}
                 className={`pf-carousel-dot${i === idx ? " active" : ""}`}
-                onClick={(e) => { e.stopPropagation(); goTo(i); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goTo(i);
+                }}
                 aria-label={`Go to image ${i + 1}`}
               />
             ))}
@@ -411,7 +427,7 @@ const PostCard = ({
   const initials = (post.username || "?").slice(0, 2).toUpperCase();
   const totalReactions = Object.values(post.reactionCounts || {}).reduce(
     (a, b) => a + b,
-    0
+    0,
   );
   const myReact = REACTIONS.find((r) => r.key === post.myReaction);
 
@@ -472,12 +488,23 @@ const PostCard = ({
                 {post.username}
               </Link>
               {post.feeling && (
-                <span className="pf-card-feeling"> — feeling {post.feeling}</span>
+                <span className="pf-card-feeling">
+                  {" "}
+                  — feeling {post.feeling}
+                </span>
               )}
             </p>
             <p className="pf-card-time">
-              {timeAgo(post.created_at)}&nbsp;
-              {PRIVACY_ICON[post.privacy] || "🌐"}
+              {timeAgo(post.created_at)}&nbsp;·&nbsp;
+              {new Date(post.created_at).toLocaleString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              })}
+              &nbsp;{PRIVACY_ICON[post.privacy] || "🌐"}
             </p>
           </div>
 

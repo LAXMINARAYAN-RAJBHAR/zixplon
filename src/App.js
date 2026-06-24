@@ -38,6 +38,7 @@ import History          from "./Pages/History/History";
 import SubscriptionFeed from "./Pages/SubscriptionFeed/SubscriptionFeed";
 import Playlist         from "./Pages/Playlist/Playlist";
 import YourClips        from "./Pages/YourClips/YourClips";
+import SideNavbar       from "./Component/SideNavbar/sideNavbar";
 
 // ── Loading Screen Component ──────────────────────────────────────────────────
 const LoadingScreen = ({ onFinish }) => {
@@ -258,9 +259,10 @@ function App() {
         setNotifications={setNotifications}
       />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#f0f4ff" }}>
+        <SideNavbar sideNavbar={sideNavbar} />
         <Routes>
           <Route path="/"               element={<Home sideNavbar={sideNavbar} />} />
-          <Route path="/video/:id"      element={<Video />} />
+          <Route path="/video/:id" element={<Video sideNavbar={sideNavbar} />} />
           <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} />} />
           <Route path="/videoUpload"    element={<VideoUpload />} />
           <Route path="/:id/upload"     element={<VideoUpload />} />

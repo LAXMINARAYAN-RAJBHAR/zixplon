@@ -137,7 +137,7 @@ const isMobileDevice = () =>
     "ontouchstart" in window ||
     navigator.maxTouchPoints > 0);
 
-const Video = () => {
+const Video = ({ sideNavbar }) => {
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -424,7 +424,7 @@ const Video = () => {
   const overlayVisible = isMobile ? mobileOverlayVisible : showControls;
 
   return (
-    <div className="video">
+    <div className="video" style={{ paddingLeft: sideNavbar ? "275px" : "0px" }}>
       <div className="videoPostSection">
 
         {/* ── Video player ── */}

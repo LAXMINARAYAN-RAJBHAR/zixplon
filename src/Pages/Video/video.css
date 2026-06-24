@@ -42,6 +42,13 @@
   justify-content: center;
   font-family: 'Outfit', sans-serif;
   min-height: calc(100vh - 56px);
+  transition: padding-left 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .video {
+    padding-left: 8px !important;
+  }
 }
 
 .videoPostSection {
@@ -610,6 +617,9 @@
   padding: 8px 4px;
   overflow-y: scroll;
   scrollbar-width: none;
+  min-width: 220px;
+  max-width: 300px;
+  flex-shrink: 0;
 }
 .videoSuggestions::-webkit-scrollbar { display: none; }
 

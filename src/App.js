@@ -39,8 +39,95 @@ import SubscriptionFeed from "./Pages/SubscriptionFeed/SubscriptionFeed";
 import Playlist         from "./Pages/Playlist/Playlist";
 import YourClips        from "./Pages/YourClips/YourClips";
 
+// ── Loading Screen Component ──────────────────────────────────────────────────
+const LoadingScreen = ({ onFinish }) => {
+  const [fade, setFade] = useState(false);
+
+  useEffect(() => {
+    const fadeTimer = setTimeout(() => setFade(true), 1800);
+    const doneTimer = setTimeout(() => onFinish && onFinish(), 2300);
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(doneTimer);
+    };
+  }, [onFinish]);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "#000000",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+        opacity: fade ? 0 : 1,
+        transition: "opacity 0.5s ease",
+      }}
+    >
+      {/* Crisp inline SVG logo — never blurs */}
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 512 512"
+        style={{ width: "180px", height: "180px", display: "block" }}
+      >
+        <rect x="0" y="0" width="512" height="512" rx="110" ry="110" fill="#CC0000" />
+        <rect x="0" y="0" width="512" height="260" rx="110" ry="110" fill="#E81515" opacity="0.55" />
+        <polygon
+          points="108,108 404,108 404,178 220,334 404,334 404,404 108,404 108,334 292,178 108,178"
+          fill="#FFFFFF"
+        />
+      </svg>
+
+      {/* App name */}
+      <p
+        style={{
+          marginTop: "24px",
+          color: "#ffffff",
+          fontSize: "26px",
+          fontWeight: "800",
+          fontFamily: "'Outfit', 'Nunito', sans-serif",
+          letterSpacing: "6px",
+          textTransform: "uppercase",
+          opacity: 0.92,
+          margin: "24px 0 0",
+        }}
+      >
+        ZIXPLON
+      </p>
+
+      {/* Bouncing dots */}
+      <div style={{ display: "flex", gap: "8px", marginTop: "40px" }}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            style={{
+              width: "7px",
+              height: "7px",
+              borderRadius: "50%",
+              background: "#CC0000",
+              animation: `bounce 1s ease-in-out ${i * 0.18}s infinite`,
+            }}
+          />
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes bounce {
+          0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+          40%            { transform: scale(1.2); opacity: 1;   }
+        }
+      `}</style>
+    </div>
+  );
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 function App() {
   const location = useLocation();
+  const [appReady, setAppReady] = useState(false);        // ← splash gate
   const [sideNavbar, setSideNavbar] = useState(true);
   const [currentUser, setCurrentUser] = useState(
     localStorage.getItem("username") || null,
@@ -91,7 +178,6 @@ function App() {
 
         return name;
       } catch (e) {
-        // fallback — never crash the app
         return (
           localStorage.getItem("username") ||
           u.user_metadata?.channelName ||
@@ -100,7 +186,6 @@ function App() {
       }
     };
 
-    // On mount: restore existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         const name = await resolveUsername(session.user);
@@ -111,11 +196,9 @@ function App() {
       }
     });
 
-    // On login/logout/token refresh
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (!session) {
-          // ── LOGOUT — synchronous, no async ──
           setCurrentUser(null);
           localStorage.removeItem("username");
           localStorage.removeItem("email");
@@ -126,7 +209,6 @@ function App() {
           localStorage.removeItem("userName");
           return;
         }
-        // ── LOGIN — resolve username async ──
         resolveUsername(session.user).then((name) => {
           setCurrentUser(name);
         });
@@ -149,6 +231,11 @@ function App() {
     ["/youtube", "/local-player", "/videoUpload"].includes(location.pathname) ||
     location.pathname.startsWith("/reels") ||
     location.pathname.endsWith("/upload");
+
+  // ── Show splash until appReady ──────────────────────────────────────────────
+  if (!appReady) {
+    return <LoadingScreen onFinish={() => setAppReady(true)} />;
+  }
 
   return (
     <div

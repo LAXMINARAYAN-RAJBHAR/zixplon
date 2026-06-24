@@ -46,77 +46,80 @@ function App() {
     localStorage.getItem("username") || null,
   );
 
+  // ── Supabase warmup ──
   useEffect(() => {
     supabase.from("videos").select("id").limit(1).then(() => {});
   }, []);
 
+  // ── Single auth effect — profiles table is always source of truth ──
   useEffect(() => {
-    const handleAuthRedirect = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+    const resolveUsername = async (u) => {
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("username, profile_pic, about")
+        .eq("id", u.id)
+        .maybeSingle();
+
+      const name =
+        profileRow?.username ||
+        localStorage.getItem("username") ||
+        u.user_metadata?.channelName ||
+        u.user_metadata?.username ||
+        u.user_metadata?.full_name ||
+        u.email?.split("@")[0];
+
+      const pic =
+        profileRow?.profile_pic ||
+        localStorage.getItem("profilePic") ||
+        u.user_metadata?.profilePic ||
+        u.user_metadata?.avatar_url ||
+        u.user_metadata?.picture ||
+        "";
+
+      const about =
+        profileRow?.about ||
+        localStorage.getItem("about") ||
+        u.user_metadata?.about ||
+        "";
+
+      localStorage.setItem("username", name);
+      localStorage.setItem("userId", u.id);
+      localStorage.setItem("email", u.email);
+      if (pic) localStorage.setItem("profilePic", pic);
+      if (about) localStorage.setItem("about", about);
+
+      return name;
+    };
+
+    // On mount: restore existing session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        const user = session.user;
-        const name =
-          user.user_metadata?.channelName ||
-          user.user_metadata?.full_name ||
-          user.user_metadata?.username ||
-          user.email?.split("@")[0];
-        const pic =
-          user.user_metadata?.profilePic ||
-          user.user_metadata?.avatar_url ||
-          user.user_metadata?.picture ||
-          "";
-        localStorage.setItem("username", name);
-        localStorage.setItem("email", user.email);
-        localStorage.setItem("userId", user.id);
-        if (pic) localStorage.setItem("profilePic", pic);
+        const name = await resolveUsername(session.user);
         setCurrentUser(name);
-        if (
-          window.location.hash &&
-          window.location.hash.includes("access_token")
-        ) {
+        // Clean up OAuth hash from URL if present
+        if (window.location.hash?.includes("access_token")) {
           window.history.replaceState({}, document.title, "/");
         }
       }
-    };
-    handleAuthRedirect();
-  }, []);
+    });
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        const u = session.user;
-        const name =
-          localStorage.getItem("username") ||
-          u.user_metadata?.channelName ||
-          u.user_metadata?.username ||
-          u.user_metadata?.full_name ||
-          u.email?.split("@")[0];
-        setCurrentUser(name);
-        localStorage.setItem("username", name);
+    // On login/logout/token refresh
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (session?.user) {
+          const name = await resolveUsername(session.user);
+          setCurrentUser(name);
+        } else {
+          setCurrentUser(null);
+          localStorage.removeItem("username");
+          localStorage.removeItem("email");
+          localStorage.removeItem("userId");
+          localStorage.removeItem("profilePic");
+          localStorage.removeItem("about");
+        }
       }
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        const u = session.user;
-        const name =
-          localStorage.getItem("username") ||
-          u.user_metadata?.channelName ||
-          u.user_metadata?.username ||
-          u.user_metadata?.full_name ||
-          u.email?.split("@")[0];
-        setCurrentUser(name);
-        localStorage.setItem("username", name);
-      } else {
-        setCurrentUser(null);
-        localStorage.removeItem("username");
-        localStorage.removeItem("email");
-        localStorage.removeItem("userId");
-      }
-    });
+    );
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -136,15 +139,15 @@ function App() {
 
   return (
     <div
-  className="App"
-  style={{
-    display: "flex",
-    flexDirection: "column",
-    minHeight: "100vh",
-    backgroundColor: "#f0f4ff", /* ← Add this */
-    width: "100%",
-  }}
->
+      className="App"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        backgroundColor: "#f0f4ff",
+        width: "100%",
+      }}
+    >
       <ScrollToTop />
       <Navbar
         currentUser={currentUser}
@@ -156,29 +159,28 @@ function App() {
       />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#f0f4ff" }}>
         <Routes>
-          <Route path="/"            element={<Home sideNavbar={sideNavbar} />} />
-          <Route path="/video/:id"   element={<Video />} />
+          <Route path="/"               element={<Home sideNavbar={sideNavbar} />} />
+          <Route path="/video/:id"      element={<Video />} />
           <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} />} />
-          <Route path="/videoUpload" element={<VideoUpload />} />
-          <Route path="/:id/upload"  element={<VideoUpload />} />
-          <Route path="/signup"      element={<SignUp />} />
-          <Route path="/reels"       element={<Reels />} />
-          <Route path="/reels/:id"   element={<Reels />} />
-          <Route path="/search"      element={<SearchResults />} />
-          <Route path="/youtube"     element={<YouTubeSearch />} />
-          <Route path="/notifications" element={<Notifications notifications={notifications} />} />
+          <Route path="/videoUpload"    element={<VideoUpload />} />
+          <Route path="/:id/upload"     element={<VideoUpload />} />
+          <Route path="/signup"         element={<SignUp />} />
+          <Route path="/reels"          element={<Reels />} />
+          <Route path="/reels/:id"      element={<Reels />} />
+          <Route path="/search"         element={<SearchResults />} />
+          <Route path="/youtube"        element={<YouTubeSearch />} />
+          <Route path="/notifications"  element={<Notifications notifications={notifications} />} />
 
-          {/* ── Library pages — currentUser AND sideNavbar passed so they react to login/logout and sidebar toggle ── */}
-          <Route path="/history"      element={<History      currentUser={currentUser} sideNavbar={sideNavbar} />} />
-          <Route path="/playlist"     element={<Playlist     currentUser={currentUser} sideNavbar={sideNavbar} />} />
-          <Route path="/your-videos"  element={<YourVideos   currentUser={currentUser} sideNavbar={sideNavbar} />} />
-          <Route path="/watch-later"  element={<WatchLater   currentUser={currentUser} sideNavbar={sideNavbar} />} />
-          <Route path="/liked-videos" element={<LikedVideos  currentUser={currentUser} sideNavbar={sideNavbar} />} />
-          <Route path="/your-clips"   element={<YourClips    currentUser={currentUser} sideNavbar={sideNavbar} />} />
-          <Route path="/subscription" element={<SubscriptionFeed currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/history"        element={<History      currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/playlist"       element={<Playlist     currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/your-videos"    element={<YourVideos   currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/watch-later"    element={<WatchLater   currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/liked-videos"   element={<LikedVideos  currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/your-clips"     element={<YourClips    currentUser={currentUser} sideNavbar={sideNavbar} />} />
+          <Route path="/subscription"   element={<SubscriptionFeed currentUser={currentUser} sideNavbar={sideNavbar} />} />
 
-          <Route path="/live-tv"      element={<LiveTVPage sideNavbar={sideNavbar} />} />
-          <Route path="/local-player" element={<LocalMediaPlayer sideNavbar={sideNavbar} />} />
+          <Route path="/live-tv"        element={<LiveTVPage sideNavbar={sideNavbar} />} />
+          <Route path="/local-player"   element={<LocalMediaPlayer sideNavbar={sideNavbar} />} />
           <Route path="/terms-and-conditions"  element={<TermsAndConditions />} />
           <Route path="/feedback"              element={<Feedback />} />
           <Route path="/help"                  element={<Help />} />
@@ -189,7 +191,7 @@ function App() {
           <Route path="/dmca"                  element={<DmcaPage />} />
           <Route path="/community-guidelines"  element={<CommunityGuidelinesPage />} />
           <Route path="/advertise"             element={<AdvertisePage />} />
-          <Route path="/feed"  element={<PostFeed sideNavbar={sideNavbar} />} />
+          <Route path="/feed"                  element={<PostFeed sideNavbar={sideNavbar} />} />
         </Routes>
       </div>
 

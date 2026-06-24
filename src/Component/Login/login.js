@@ -23,16 +23,47 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     if (!email || !password) return setError("Please enter email and password.");
     setLoading(true);
     setError("");
+
     const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (err) return setError(err.message);
+    if (err) { setLoading(false); return setError(err.message); }
+
     const user = data.user;
-    const name = user.user_metadata?.channelName || user.user_metadata?.username || email.split("@")[0];
+
+    // ── Fetch real username from profiles table ──
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("username, profile_pic, about")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    // Use profiles.username as the source of truth
+    const name =
+      profileRow?.username ||
+      user.user_metadata?.channelName ||
+      user.user_metadata?.username ||
+      email.split("@")[0];
+
+    const pic =
+      profileRow?.profile_pic ||
+      user.user_metadata?.profilePic ||
+      user.user_metadata?.avatar_url ||
+      user.user_metadata?.picture ||
+      "";
+
+    const about =
+      profileRow?.about ||
+      user.user_metadata?.about ||
+      "";
+
+    // ── Clear stale data, set fresh session ──
+    localStorage.clear();
     localStorage.setItem("username", name);
     localStorage.setItem("email", email);
     localStorage.setItem("userId", user.id);
-    if (user.user_metadata?.profilePic) localStorage.setItem("profilePic", user.user_metadata.profilePic);
-    if (user.user_metadata?.about) localStorage.setItem("about", user.user_metadata.about);
+    if (pic) localStorage.setItem("profilePic", pic);
+    if (about) localStorage.setItem("about", about);
+
+    setLoading(false);
     onLoginSuccess(name, user);
     setLoginModal();
   };

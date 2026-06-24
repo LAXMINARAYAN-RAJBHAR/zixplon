@@ -1496,6 +1496,7 @@ const Navbar = ({
       {/* ── MODALS ── */}
       {login && (
         <Login
+          key={Date.now()}
           setLoginModal={setLoginModal}
           onLoginSuccess={(name) => {
             setCurrentUser(name);

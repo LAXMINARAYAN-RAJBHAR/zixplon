@@ -53,6 +53,8 @@ const SignUp = () => {
       return setError("Please enter a Channel Name.");
     if (!signUpField.userName.trim())
       return setError("Please enter a User Name.");
+    if (/\s/.test(signUpField.userName))
+      return setError("Username cannot contain spaces. Use dots or underscores (e.g. john.doe)");
     if (!signUpField.email.trim())
       return setError("Please enter an Email.");
     if (!signUpField.password)
@@ -105,7 +107,8 @@ const SignUp = () => {
         throw new Error("Profile setup failed: " + profileError.message);
       }
 
-      // ── Step 3: Persist to localStorage ──
+      // ── Step 3: Clear stale data & persist fresh session ──
+      localStorage.clear(); // ← wipes any stale previous session
       localStorage.setItem("userId", user.id);
       localStorage.setItem("username", signUpField.userName.trim());
       localStorage.setItem("channelName", signUpField.channelName.trim());
@@ -150,14 +153,14 @@ const SignUp = () => {
             className="signUp_Inputs_inp"
             value={signUpField.channelName}
             onChange={(e) => handleInputField(e, "channelName")}
-            placeholder="Channel Name *"
+            placeholder="Channel Name * (e.g. My Awesome Channel)"
           />
           <input
             type="text"
             className="signUp_Inputs_inp"
             value={signUpField.userName}
             onChange={(e) => handleInputField(e, "userName")}
-            placeholder="User Name *"
+            placeholder="User Name * (no spaces, e.g. john.doe)"
           />
           <input
             type="email"

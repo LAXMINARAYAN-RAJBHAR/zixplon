@@ -336,12 +336,29 @@ const Navbar = ({
   }, []);
 
   const handleInstall = async () => {
-    if (!installPrompt) return;
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    if (outcome === "accepted") setShowInstall(false);
-    setInstallPrompt(null);
-  };
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  const { outcome } = await installPrompt.userChoice;
+  if (outcome === "accepted") {
+    setShowInstall(false);
+    // ── Track successful install ──
+    if (window.gtag) {
+      window.gtag('event', 'pwa_install_accepted', {
+        event_category: 'PWA',
+        event_label: 'User accepted install prompt',
+      });
+    }
+  } else {
+    // ── Track dismissed install ──
+    if (window.gtag) {
+      window.gtag('event', 'pwa_install_dismissed', {
+        event_category: 'PWA',
+        event_label: 'User dismissed install prompt',
+      });
+    }
+  }
+  setInstallPrompt(null);
+};
 
   // ── Load profile picture ──
   useEffect(() => {

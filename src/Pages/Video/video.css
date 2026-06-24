@@ -50,7 +50,7 @@
   overflow: hidden;
   background: #1e1b4b;
   box-shadow: 0 8px 32px rgba(124,58,237,0.12);
-  scroll-margin-top: 64px; /* clears fixed navbar if ever scrolled into view */
+  scroll-margin-top: 64px;
 }
 
 .video_youtube_video {
@@ -624,7 +624,7 @@
 }
 
 /* ══════════════════════════════════════
-   MOBILE
+   MOBILE  ≤ 768px
 ══════════════════════════════════════ */
 @media (max-width: 768px) {
   .video {
@@ -679,11 +679,109 @@
   .next_video_preview { border-radius: 10px; }
 
   .videoSuggestionsBlock { border-radius: 10px; }
+
+  /* ── Controls bar: compact on mobile ── */
+  .video_controls_bar {
+    padding: 5px 8px;
+    gap: 4px;
+  }
+
+  .video_nav_btn {
+    padding: 4px 10px;
+    font-size: 10px;
+    border-radius: 14px;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  .video_autoplay_toggle {
+    font-size: 9px;
+    gap: 5px;
+  }
+
+  /* Smaller toggle switch */
+  .toggle_switch {
+    width: 30px;
+    height: 17px;
+    border-radius: 9px;
+  }
+
+  .toggle_knob {
+    width: 12px;
+    height: 12px;
+    top: 2px;
+  }
+
+  .toggle_switch.on  .toggle_knob { left: 15px; }
+  .toggle_switch.off .toggle_knob { left: 2px; }
+
+  /* ── Frame action buttons: small & always visible on mobile ── */
+  .video_frame_actions {
+    opacity: 1 !important;        /* override hover-only rule */
+    bottom: 50px;
+    right: 8px;
+    gap: 5px;
+  }
+
+  .video_frame_btn {
+    padding: 5px 7px;
+    min-width: 32px;
+    border-radius: 8px;
+    font-size: 9px;
+    gap: 2px;
+    backdrop-filter: blur(6px);
+  }
+
+  /* Shrink MUI icons inside buttons */
+  .video_frame_btn .MuiSvgIcon-root {
+    font-size: 14px !important;
+    width: 14px !important;
+    height: 14px !important;
+  }
 }
 
+/* ══════════════════════════════════════
+   MOBILE  ≤ 480px
+══════════════════════════════════════ */
 @media (max-width: 480px) {
   .video_uTubeTitle { font-size: 14px; }
   .next_video_thumb { width: 100px; height: 58px; }
   .youtube_video_ProfileBlock_left { gap: 8px; }
   .youtubePostProfileName { font-size: 13px; }
+
+  /* Even tighter controls bar */
+  .video_controls_bar {
+    padding: 4px 6px;
+  }
+
+  .video_nav_btn {
+    padding: 3px 8px;
+    font-size: 9px;
+    border-radius: 12px;
+  }
+
+  .video_autoplay_toggle {
+    font-size: 8px;
+    gap: 4px;
+  }
+
+  /* Frame action buttons: smallest size */
+  .video_frame_actions {
+    bottom: 46px;
+    right: 6px;
+    gap: 4px;
+  }
+
+  .video_frame_btn {
+    padding: 4px 6px;
+    min-width: 28px;
+    border-radius: 7px;
+    font-size: 8px;
+  }
+
+  .video_frame_btn .MuiSvgIcon-root {
+    font-size: 13px !important;
+    width: 13px !important;
+    height: 13px !important;
+  }
 }

@@ -1,13 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Outfit:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --zx-primary: #7c3aed;
+  --zx-primary:  #7c3aed;
   --zx-primary2: #a855f7;
-  --zx-accent1: #f43f5e;
-  --zx-accent2: #f97316;
-  --zx-accent3: #06b6d4;
-  --zx-text: #1e1b4b;
-  --zx-border: #e0d4ff;
+  --zx-accent1:  #f43f5e;
+  --zx-accent2:  #f97316;
+  --zx-accent3:  #06b6d4;
+  --zx-text:     #1e1b4b;
+  --zx-border:   #e0d4ff;
+}
+
+@keyframes floatInRight {
+  from { opacity: 0; transform: translateX(14px) scale(0.9); }
+  to   { opacity: 1; transform: translateX(0)    scale(1);   }
 }
 
 /* ══════════════════════════════════════
@@ -89,7 +94,8 @@
 .reel_video::-moz-media-controls-fullscreen-button    { display: none !important; }
 
 /* ══════════════════════════════════════
-   ACTION BAR (right rail)
+   ACTION BAR — right-side floating stack
+   Each button is a glassmorphism card
 ══════════════════════════════════════ */
 
 .reel_actions {
@@ -99,36 +105,65 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   z-index: 10;
+  animation: floatInRight 0.3s ease both;
 }
 
+/* ── Individual floating button ── */
 .reel_action_btn {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   color: #ffffff;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 10px;
   font-family: 'Nunito', sans-serif;
   font-weight: 800;
   letter-spacing: 0.3px;
-  gap: 4px;
-  transition: transform 0.15s;
-  background: rgba(255,255,255,0.18);
-  border: 1.5px solid rgba(255,255,255,0.35);
-  padding: 10px 12px;
-  border-radius: 16px;
-  backdrop-filter: blur(8px);
+  gap: 3px;
+
+  /* Size */
+  width: 52px;
+  height: 52px;
+
+  /* Glassmorphism */
+  background: rgba(12, 8, 35, 0.68);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.20);
+  border-radius: 18px;
+
+  box-shadow:
+    0 6px 20px rgba(0,0,0,0.40),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+
+  transition: background 0.2s, border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+  user-select: none;
+  position: relative;
+  overflow: visible;
 }
 
 .reel_action_btn:hover {
-  background: rgba(255,255,255,0.28);
-  border-color: rgba(255,255,255,0.6);
-  transform: scale(1.08);
+  background: rgba(124,58,237,0.62);
+  border-color: rgba(168,85,247,0.72);
+  box-shadow: 0 8px 26px rgba(124,58,237,0.55);
+  transform: scale(1.09) translateY(-2px);
 }
 
-.reel_action_btn:active { transform: scale(1.15); }
+.reel_action_btn:active { transform: scale(0.93); }
+
+/* Active / selected state */
+.reel_action_btn.reel_liked,
+.reel_action_btn.reel_disliked,
+.reel_more_btn--open {
+  background: rgba(124,58,237,0.72) !important;
+  border-color: rgba(168,85,247,0.90) !important;
+  box-shadow:
+    0 0 22px rgba(124,58,237,0.65),
+    inset 0 1px 0 rgba(255,255,255,0.12) !important;
+}
 
 /* ══════════════════════════════════════
    USER INFO (bottom-left)
@@ -226,7 +261,7 @@
 }
 
 /* ══════════════════════════════════════
-   MUTE BUTTON — centered floating pill
+   MUTE BUTTON — centred floating pill
 ══════════════════════════════════════ */
 
 .reel_mute_btn {
@@ -240,14 +275,17 @@
   gap: 8px;
   padding: 10px 20px;
   border-radius: 40px;
-  background: rgba(0, 0, 0, 0.52);
-  border: 1.5px solid rgba(255, 255, 255, 0.28);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: rgba(12, 8, 35, 0.62);
+  border: 1px solid rgba(255,255,255,0.22);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   color: #ffffff;
   cursor: pointer;
   z-index: 15;
-  pointer-events: auto;        /* always clickable while visible */
+  pointer-events: auto;
+  box-shadow:
+    0 6px 20px rgba(0,0,0,0.40),
+    inset 0 1px 0 rgba(255,255,255,0.08);
   animation: mutePillFadeIn 0.25s ease;
 }
 
@@ -256,15 +294,22 @@
   to   { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
 }
 
-/* keep hover/active as-is */
 .reel_mute_btn:hover {
-  background: rgba(0, 0, 0, 0.72);
-  border-color: rgba(255, 255, 255, 0.55);
-  transform: translate(-50%, -50%) scale(1.04);
+  background: rgba(124,58,237,0.62);
+  border-color: rgba(168,85,247,0.72);
+  box-shadow: 0 8px 26px rgba(124,58,237,0.55);
+  transform: translate(-50%, -50%) scale(1.05);
   transition: background 0.15s, border-color 0.15s, transform 0.15s;
 }
 
 .reel_mute_btn:active { transform: translate(-50%, -50%) scale(0.97); }
+
+.reel_mute_btn_label {
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
 
 /* ══════════════════════════════════════
    DOUBLE-TAP HEART BURST
@@ -347,7 +392,7 @@
   position: absolute;
   bottom: 80px;
   left: 0;
-  right: 60px;
+  right: 68px;
   background: rgba(255,255,255,0.95);
   border: 2px solid var(--zx-border);
   border-radius: 16px;
@@ -434,25 +479,26 @@
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background: #ffffff;
-  border: 2px solid var(--zx-primary);
-  color: var(--zx-primary);
+  background: rgba(12, 8, 35, 0.80);
+  border: 1px solid rgba(168,85,247,0.45);
+  color: #ffffff;
   padding: 9px 20px;
-  border-radius: 20px;
+  border-radius: 999px;
   font-size: 12px;
   font-family: 'Nunito', sans-serif;
   font-weight: 800;
   z-index: 30;
   white-space: nowrap;
-  box-shadow: 0 4px 20px rgba(124,58,237,0.25);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
 }
 
 .reel_action_toast { font-weight: 800 !important; }
-.reel_action_toast--remix       { background: linear-gradient(135deg, #7c3aed, #a855f7) !important; color: #fff !important; border: none !important; }
-.reel_action_toast--sound       { background: linear-gradient(135deg, #f97316, #fb923c) !important; color: #fff !important; border: none !important; }
-.reel_action_toast--collab      { background: linear-gradient(135deg, #0891b2, #06b6d4) !important; color: #fff !important; border: none !important; }
-.reel_action_toast--greenscreen { background: linear-gradient(135deg, #16a34a, #22c55e) !important; color: #fff !important; border: none !important; }
-.reel_action_toast--cut         { background: linear-gradient(135deg, #e11d48, #f43f5e) !important; color: #fff !important; border: none !important; }
+.reel_action_toast--remix       { background: linear-gradient(135deg,#7c3aed,#a855f7)!important; color:#fff!important; border:none!important; }
+.reel_action_toast--sound       { background: linear-gradient(135deg,#f97316,#fb923c)!important; color:#fff!important; border:none!important; }
+.reel_action_toast--collab      { background: linear-gradient(135deg,#0891b2,#06b6d4)!important; color:#fff!important; border:none!important; }
+.reel_action_toast--greenscreen { background: linear-gradient(135deg,#16a34a,#22c55e)!important; color:#fff!important; border:none!important; }
+.reel_action_toast--cut         { background: linear-gradient(135deg,#e11d48,#f43f5e)!important; color:#fff!important; border:none!important; }
 
 /* ══════════════════════════════════════
    MORE DROPDOWN
@@ -460,24 +506,21 @@
 
 .reel_more_btn { position: relative; }
 
-.reel_more_btn--open {
-  background: rgba(124, 58, 237, 0.35) !important;
-  border-color: rgba(168, 85, 247, 0.7) !important;
-  box-shadow: 0 0 14px rgba(124, 58, 237, 0.4);
-}
-
 .reel_more_dropdown {
   position: absolute;
   right: calc(100% + 10px);
   bottom: 0;
   width: 168px;
-  background: rgba(20, 16, 46, 0.92);
-  border: 1.5px solid rgba(124, 58, 237, 0.45);
+  background: rgba(12, 8, 35, 0.92);
+  border: 1px solid rgba(124,58,237,0.45);
   border-radius: 16px;
   padding: 6px 0;
   z-index: 100;
   backdrop-filter: blur(18px);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(124,58,237,0.15);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.55),
+    0 0 0 1px rgba(124,58,237,0.15);
   animation: dropdownSlideIn 0.18s ease;
   overflow: hidden;
 }
@@ -511,7 +554,7 @@
   border-radius: 8px;
   background: rgba(255,255,255,0.07);
   flex-shrink: 0;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.10);
 }
 
 .reel_more_dropdown_label {
@@ -535,13 +578,13 @@
   align-items: center;
   gap: 5px;
   background: rgba(124,58,237,0.75);
-  border: 1.5px solid rgba(168,85,247,0.6);
+  border: 1px solid rgba(168,85,247,0.6);
   color: #ffffff;
   font-size: 11px;
   font-family: 'Nunito', sans-serif;
   font-weight: 800;
   padding: 5px 12px;
-  border-radius: 20px;
+  border-radius: 999px;
   backdrop-filter: blur(8px);
   cursor: pointer;
   z-index: 10;
@@ -551,6 +594,7 @@
   text-overflow: ellipsis;
   transition: background 0.2s, transform 0.15s;
   letter-spacing: 0.2px;
+  box-shadow: 0 4px 14px rgba(124,58,237,0.35);
 }
 
 .reel_remix_origin_badge:hover {
@@ -559,7 +603,7 @@
 }
 
 /* ══════════════════════════════════════
-   FULLSCREEN OVERRIDES (body.reels-open)
+   FULLSCREEN OVERRIDES
 ══════════════════════════════════════ */
 
 body.reels-open .navbar      { display: none !important; }
@@ -570,7 +614,7 @@ body.reels-open .reels_container { padding-bottom: 0 !important; }
 body.reels-open .reel_item   { height: 100dvh; }
 
 /* ══════════════════════════════════════
-   MOBILE  (max-width: 768px)
+   MOBILE  ≤ 768px
 ══════════════════════════════════════ */
 
 @media (max-width: 768px) {
@@ -587,6 +631,23 @@ body.reels-open .reel_item   { height: 100dvh; }
   .reel_video_wrapper::before { display: none; }
 
   .reel_item { height: 100dvh; }
+
+  /* Slightly smaller floating buttons on mobile */
+  .reel_action_btn {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    font-size: 9px;
+    gap: 2px;
+  }
+
+  .reel_action_btn .MuiSvgIcon-root {
+    font-size: 18px !important;
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .reel_actions { gap: 8px; bottom: 90px; right: 10px; }
 
   .reel_mute_btn { padding: 9px 16px; gap: 6px; }
   .reel_mute_btn_label { font-size: 12px; }
@@ -613,7 +674,7 @@ body.reels-open .reel_item   { height: 100dvh; }
 }
 
 /* ══════════════════════════════════════
-   DESKTOP  (min-width: 769px)
+   DESKTOP  ≥ 769px
 ══════════════════════════════════════ */
 
 @media (min-width: 769px) {
@@ -646,11 +707,11 @@ body.reels-open .reel_item   { height: 100dvh; }
   font-family: 'Nunito', sans-serif;
   font-weight: 900;
   padding: 5px 12px;
-  border-radius: 20px;
+  border-radius: 999px;
   z-index: 20;
   letter-spacing: 0.5px;
-  box-shadow: 0 2px 12px rgba(244, 63, 94, 0.5);
-  animation: newBadgePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  box-shadow: 0 2px 12px rgba(244,63,94,0.5);
+  animation: newBadgePop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
   pointer-events: none;
 }
 
@@ -667,30 +728,40 @@ body.reels-open .reel_item   { height: 100dvh; }
   position: fixed;
   top: 18px;
   left: 18px;
-  z-index: 10001; /* above the mobile fullscreen container (z-index: 10000) */
+  z-index: 10001;
   width: 42px;
   height: 42px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  /* glassmorphism matching the action buttons */
+  background: rgba(12, 8, 35, 0.68);
+  border: 1px solid rgba(255,255,255,0.22);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   color: #ffffff;
   cursor: pointer;
-  transition: background 0.15s, transform 0.15s;
+  box-shadow:
+    0 6px 20px rgba(0,0,0,0.40),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  transition: background 0.15s, transform 0.15s, box-shadow 0.2s;
 }
 
-.reels_back_btn:hover { background: rgba(0, 0, 0, 0.65); transform: scale(1.06); }
+.reels_back_btn:hover {
+  background: rgba(124,58,237,0.62);
+  border-color: rgba(168,85,247,0.72);
+  box-shadow: 0 8px 26px rgba(124,58,237,0.55);
+  transform: scale(1.07);
+}
+
 .reels_back_btn:active { transform: scale(0.95); }
 
 @media (max-width: 768px) {
   .reels_back_btn {
     top: calc(env(safe-area-inset-top, 0px) + 12px);
     right: 14px;
-    left: auto; /* unset the desktop left positioning */
+    left: auto;
     width: 38px;
     height: 38px;
   }

@@ -91,8 +91,12 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
   };
 
   return (
-    <div className="login" onClick={(e) => e.target === e.currentTarget && setLoginModal()}>
-      <div className="login_card">
+    <div
+      className="login"
+      onClick={(e) => e.target === e.currentTarget && setLoginModal()}
+    >
+      {/* stopPropagation prevents backdrop click from firing when tapping inside card on mobile */}
+      <div className="login_card" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div className="titleCard_login">
@@ -128,6 +132,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
                 padding: "8px",
                 cursor: "pointer",
                 borderBottom: mode === m ? "2px solid #7c3aed" : "2px solid transparent",
+                touchAction: "manipulation",
               }}
             >
               {m === "login" ? "Sign In" : "Forgot Password"}
@@ -144,7 +149,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
             placeholder="Email Address"
             type="email"
             autoComplete="email"
-            autoFocus
+            // autoFocus removed — causes keyboard pop + viewport shift on mobile
           />
           {mode === "login" && (
             <input
@@ -206,6 +211,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
               fontSize: "15px",
               fontWeight: "700",
               cursor: loading ? "not-allowed" : "pointer",
+              touchAction: "manipulation",
             }}
           >
             {loading ? "Please wait..." : mode === "login" ? "Login" : "Send Reset Email"}
@@ -227,6 +233,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
               alignItems: "center",
               justifyContent: "center",
               gap: "10px",
+              touchAction: "manipulation",
             }}
           >
             <svg width="18" height="18" viewBox="0 0 48 48">
@@ -252,6 +259,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
                 textDecoration: "none",
                 fontSize: "14px",
                 fontWeight: "600",
+                touchAction: "manipulation",
               }}
             >
               Sign Up
@@ -267,6 +275,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
                 color: "#9ca3af",
                 fontSize: "14px",
                 cursor: "pointer",
+                touchAction: "manipulation",
               }}
             >
               Cancel

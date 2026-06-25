@@ -11,12 +11,9 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ── Only clear messages on mount, NOT state that would cause re-render issues ──
   useEffect(() => {
     setError("");
     setSuccess("");
-    // Removed setMode("login") — it's already the default and calling it
-    // here can trigger a re-render that interferes with controlled inputs
   }, []);
 
   const handleLogin = useCallback(async () => {
@@ -89,14 +86,13 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     });
   }, []);
 
-  // ── Stable overlay click handler ──
   const handleOverlayClick = useCallback((e) => {
     if (e.target === e.currentTarget) setLoginModal();
   }, [setLoginModal]);
 
   return (
     <div className="login" onClick={handleOverlayClick}>
-      <div className="login_card">
+      <div className="login_card" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div className="titleCard_login">
@@ -112,12 +108,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
         </div>
 
         {/* Mode Tabs */}
-        <div style={{
-          display: "flex",
-          width: "60%",
-          marginTop: "20px",
-          borderBottom: "1px solid #ddd6fe",
-        }}>
+        <div className="login_tab_bar">
           {["login", "forgot"].map((m) => (
             <button
               key={m}
@@ -165,51 +156,26 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
 
         {/* Error */}
         {error && (
-          <div style={{
-            color: "#dc2626",
-            fontSize: "13px",
-            marginTop: "10px",
-            background: "#fee2e2",
-            padding: "8px 14px",
-            borderRadius: "6px",
-            width: "60%",
-            textAlign: "center",
-          }}>❌ {error}</div>
+          <div className="login_feedback login_feedback--error">
+            ❌ {error}
+          </div>
         )}
 
         {/* Success */}
         {success && (
-          <div style={{
-            color: "#16a34a",
-            fontSize: "13px",
-            marginTop: "10px",
-            background: "#dcfce7",
-            padding: "8px 14px",
-            borderRadius: "6px",
-            width: "60%",
-            textAlign: "center",
-          }}>✅ {success}</div>
+          <div className="login_feedback login_feedback--success">
+            ✅ {success}
+          </div>
         )}
 
         {/* Buttons */}
-        <div className="login_buttons" style={{
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "12px",
-          width: "60%",
-        }}>
+        <div className="login_buttons">
           <button
             onClick={mode === "login" ? handleLogin : handleForgot}
             disabled={loading}
+            className="login_btn_primary"
             style={{
-              width: "100%",
               background: loading ? "#c4b5fd" : "#7c3aed",
-              color: "white",
-              border: "none",
-              borderRadius: "25px",
-              padding: "12px",
-              fontSize: "15px",
-              fontWeight: "700",
               cursor: loading ? "not-allowed" : "pointer",
             }}
           >
@@ -218,21 +184,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
 
           <button
             onClick={handleGoogleLogin}
-            style={{
-              width: "100%",
-              background: "white",
-              color: "#1a1a3e",
-              border: "1.5px solid #ddd6fe",
-              borderRadius: "25px",
-              padding: "11px",
-              fontSize: "14px",
-              fontWeight: "600",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "10px",
-            }}
+            className="login_btn_google"
           >
             <svg width="18" height="18" viewBox="0 0 48 48">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -243,36 +195,17 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
             Continue with Google
           </button>
 
-          <div style={{ display: "flex", width: "100%", gap: "10px" }}>
+          <div className="login_btn_row">
             <Link
               to="/signup"
               onClick={setLoginModal}
-              style={{
-                flex: 1,
-                border: "1.5px solid #7c3aed",
-                borderRadius: "25px",
-                padding: "10px",
-                textAlign: "center",
-                color: "#7c3aed",
-                textDecoration: "none",
-                fontSize: "14px",
-                fontWeight: "600",
-              }}
+              className="login_btn_signup"
             >
               Sign Up
             </Link>
             <button
               onClick={setLoginModal}
-              style={{
-                flex: 1,
-                background: "none",
-                border: "1.5px solid #ddd6fe",
-                borderRadius: "25px",
-                padding: "10px",
-                color: "#9ca3af",
-                fontSize: "14px",
-                cursor: "pointer",
-              }}
+              className="login_btn_cancel"
             >
               Cancel
             </button>

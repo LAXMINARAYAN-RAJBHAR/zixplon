@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import "./login.css";
 import { Link } from "react-router-dom";
 import { supabase } from "../../config/supabase";
@@ -11,18 +11,29 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    setError("");
-    setSuccess("");
-    setMode("login");
-  }, []);
+  // Refs to read actual DOM value at submit time —
+  // guards against mobile autofill not syncing with React state
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+
+  // NOTE: useEffect with reset removed — it was re-running on mobile
+  // re-renders (keyboard open/close) and wiping state unnecessarily.
+
+  const getEmailValue = () => emailRef.current?.value || email;
+  const getPasswordValue = () => passwordRef.current?.value || password;
 
   const handleLogin = async () => {
-    if (!email || !password) return setError("Please enter email and password.");
+    const emailVal = getEmailValue().trim();
+    const passwordVal = getPasswordValue();
+
+    if (!emailVal || !passwordVal) return setError("Please enter email and password.");
     setLoading(true);
     setError("");
 
-    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error: err } = await supabase.auth.signInWithPassword({
+      email: emailVal,
+      password: passwordVal,
+    });
     if (err) { setLoading(false); return setError(err.message); }
 
     const user = data.user;
@@ -38,7 +49,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
       profileRow?.username ||
       user.user_metadata?.channelName ||
       user.user_metadata?.username ||
-      email.split("@")[0];
+      emailVal.split("@")[0];
 
     const pic =
       profileRow?.profile_pic ||
@@ -63,7 +74,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
 
     // Set fresh values
     localStorage.setItem("username", name);
-    localStorage.setItem("email", email);
+    localStorage.setItem("email", emailVal);
     localStorage.setItem("userId", user.id);
     if (pic) localStorage.setItem("profilePic", pic);
     if (about) localStorage.setItem("about", about);
@@ -74,10 +85,11 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
   };
 
   const handleForgot = async () => {
-    if (!email) return setError("Please enter your email.");
+    const emailVal = getEmailValue().trim();
+    if (!emailVal) return setError("Please enter your email.");
     setLoading(true);
     setError("");
-    const { error: err } = await supabase.auth.resetPasswordForEmail(email);
+    const { error: err } = await supabase.auth.resetPasswordForEmail(emailVal);
     setLoading(false);
     if (err) return setError(err.message);
     setSuccess("Password reset email sent! Check your inbox.");
@@ -90,12 +102,18 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     });
   };
 
+  const handleModeSwitch = (m) => {
+    setMode(m);
+    setError("");
+    setSuccess("");
+    // Don't wipe email when switching tabs — user already typed it
+  };
+
   return (
     <div
       className="login"
       onClick={(e) => e.target === e.currentTarget && setLoginModal()}
     >
-      {/* stopPropagation prevents backdrop click from firing when tapping inside card on mobile */}
       <div className="login_card" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
@@ -121,7 +139,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
           {["login", "forgot"].map((m) => (
             <button
               key={m}
-              onClick={() => { setMode(m); setError(""); setSuccess(""); }}
+              onClick={() => handleModeSwitch(m)}
               style={{
                 flex: 1,
                 background: "none",
@@ -143,21 +161,32 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
         {/* Inputs */}
         <div className="loginCredentials">
           <input
+            ref={emailRef}
             className="userNameLoginUserName"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(""); }}
             placeholder="Email Address"
             type="email"
+            // name is required for browser autofill to work correctly
+            name="email"
             autoComplete="email"
-            // autoFocus removed — causes keyboard pop + viewport shift on mobile
+            inputMode="email"
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
           />
           {mode === "login" && (
             <input
+              ref={passwordRef}
               className="userNameLoginUserName"
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError(""); }}
               placeholder="Password"
               type="password"
+              // name + autoComplete="current-password" lets browser
+              // fill correctly without interfering with React state
+              name="password"
+              autoComplete="current-password"
               onKeyDown={(e) => e.key === "Enter" && handleLogin()}
             />
           )}
@@ -282,6 +311,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
             </button>
           </div>
         </div>
+
       </div>
     </div>
   );

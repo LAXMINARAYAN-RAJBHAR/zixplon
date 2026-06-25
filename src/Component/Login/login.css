@@ -12,8 +12,6 @@
   overflow-y: auto;
   z-index: 999999;
   font-family: 'Outfit', sans-serif;
-  /* Prevent scroll momentum from triggering backdrop click on iOS */
-  -webkit-overflow-scrolling: touch;
 }
 
 .login_card {
@@ -84,8 +82,6 @@
   font-family: 'Outfit', sans-serif;
   box-sizing: border-box;
   transition: border-color 0.2s, box-shadow 0.2s;
-  /* Prevents zoom on focus in iOS Safari (font-size must be >= 16px on mobile — handled below) */
-  touch-action: manipulation;
 }
 
 .userNameLoginUserName:focus {
@@ -122,20 +118,12 @@
   text-decoration: none;
   background: transparent;
   transition: all 0.2s;
-  /* Eliminates 300ms tap delay and prevents accidental scroll-cancel on tap */
-  touch-action: manipulation;
 }
 
 .login-btn:hover {
   background: var(--zx-primary);
   color: #ffffff;
   box-shadow: 0 4px 16px rgba(124,58,237,0.3);
-}
-
-/* Apply touch-action to all buttons inside the card globally */
-.login_card button,
-.login_card a {
-  touch-action: manipulation;
 }
 
 /* ── Mobile ── */
@@ -148,30 +136,11 @@
   .signUpBtns { gap: 10px !important; }
   .signUpBtn { font-size: 13px !important; padding: 10px 20px !important; }
 
-  /* Keep flex-start so card scrolls naturally when keyboard opens on mobile */
-  .login {
-    align-items: flex-start !important;
-    padding: 16px !important;
-    box-sizing: border-box;
-  }
-
-  .login_card {
-    width: 92% !important;
-    margin-top: 20px !important;
-    margin-bottom: 20px !important;
-    padding: 28px 20px !important;
-  }
-
+  .login { align-items: center !important; padding: 16px !important; }
+  .login_card { width: 92% !important; margin-top: 20px !important; margin-bottom: 20px !important; padding: 28px 20px !important; }
   .titleCard_login { font-size: 17px !important; }
   .loginCredentials { gap: 12px !important; margin-top: 18px !important; }
-
-  /* font-size 16px prevents iOS Safari auto-zoom on input focus */
-  .userNameLoginUserName {
-    width: 100% !important;
-    height: 48px !important;
-    font-size: 16px !important;
-  }
-
+  .userNameLoginUserName { width: 100% !important; height: 48px !important; font-size: 15px !important; }
   .login_buttons { width: 100% !important; }
   .login_card [style*="width: 60%"] { width: 100% !important; }
 }
@@ -181,10 +150,7 @@
   .signUp_title { font-size: 14px !important; }
   .signUpBtns { flex-direction: column !important; align-items: center !important; width: 100% !important; }
   .signUpBtn { width: 100% !important; text-align: center !important; }
-
   .login_card { width: 96% !important; padding: 22px 14px !important; }
   .titleCard_login { font-size: 15px !important; }
-
-  /* Keep 16px to prevent iOS zoom */
-  .userNameLoginUserName { height: 44px !important; font-size: 16px !important; }
+  .userNameLoginUserName { height: 44px !important; }
 }

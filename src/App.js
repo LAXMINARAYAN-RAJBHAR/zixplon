@@ -164,10 +164,6 @@ function App() {
   const exitToastTimer = useRef(null);
   const backPressedOnce = useRef(false);
 
-  // FIX: Track whether login modal is open so auth listener
-  // doesn't trigger setCurrentUser mid-typing and remount the modal
-  const loginModalOpenRef = useRef(false);
-
   // ── Supabase warmup ──
   useEffect(() => {
     supabase.from("videos").select("id").limit(1).then(() => {});
@@ -208,6 +204,7 @@ function App() {
             { onConflict: "id" }
           );
 
+          // Use the auto-created values
           localStorage.setItem("username", autoName);
           localStorage.setItem("userId", u.id);
           localStorage.setItem("email", u.email || "");
@@ -279,14 +276,7 @@ function App() {
           localStorage.removeItem("userName");
           return;
         }
-
-        // FIX: If the login modal is currently open and the user is
-        // actively typing, skip this auth state update entirely.
-        // The Login component itself calls onLoginSuccess + setCurrentUser
-        // directly after successful login — so we don't need this firing too.
-        if (loginModalOpenRef.current) return;
-
-        // ── LOGIN via OAuth or session restore — async profile resolve ──
+        // ── LOGIN — async profile resolve ──
         resolveUsername(session.user).then((name) => {
           setCurrentUser(name);
         });
@@ -297,67 +287,58 @@ function App() {
   }, []);
 
   // ── Mobile back-button exit logic ─────────────────────────────────────────
-  useEffect(() => {
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (!isMobile) return;
+  // ── Mobile back-button exit logic ─────────────────────────────────────────
+useEffect(() => {
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (!isMobile) return;
 
-    const isHome = location.pathname === "/";
+  const isHome = location.pathname === "/";
 
-    if (!isHome) {
-      backPressedOnce.current = false;
-      setShowExitToast(false);
+  if (!isHome) {
+    backPressedOnce.current = false;
+    setShowExitToast(false);
+    clearTimeout(exitToastTimer.current);
+    return;
+  }
+
+  // Push sentinel so back press is catchable
+  window.history.pushState({ zixplonExit: true }, "", "/");
+
+  const handlePopState = () => {
+    if (backPressedOnce.current) {
+      // Second back press — exit app
       clearTimeout(exitToastTimer.current);
+      setShowExitToast(false);
+      backPressedOnce.current = false;
+      // Re-push so app stays alive briefly while closing
+      window.history.pushState({ zixplonExit: true }, "", "/");
+      // Navigate away to close (works in Android WebView/PWA)
+      setTimeout(() => {
+        window.location.href = "about:blank";
+      }, 50);
       return;
     }
 
-    // FIX: Only push sentinel once — do NOT push inside the popstate handler.
-    // Pushing inside the handler was causing React Router to detect a new
-    // history entry and re-render the whole app, unmounting the Login modal
-    // and wiping input fields whenever the keyboard opened on mobile.
+    // First back press — show toast, re-push sentinel
+    backPressedOnce.current = true;
+    setShowExitToast(true);
+    // Re-push sentinel so next back is also catchable
     window.history.pushState({ zixplonExit: true }, "", "/");
 
-    const handlePopState = (e) => {
-      // FIX: If login modal is open, ignore all popstate events entirely.
-      // The keyboard opening on Android fires a resize → some browsers
-      // emit a spurious popstate — this guard prevents it from interfering.
-      if (loginModalOpenRef.current) {
-        // Re-push sentinel silently so back still works after modal closes
-        window.history.pushState({ zixplonExit: true }, "", "/");
-        return;
-      }
+    clearTimeout(exitToastTimer.current);
+    exitToastTimer.current = setTimeout(() => {
+      backPressedOnce.current = false;
+      setShowExitToast(false);
+    }, 2000);
+  };
 
-      if (backPressedOnce.current) {
-        // Second back press — exit app
-        clearTimeout(exitToastTimer.current);
-        setShowExitToast(false);
-        backPressedOnce.current = false;
-        window.history.pushState({ zixplonExit: true }, "", "/");
-        setTimeout(() => {
-          window.location.href = "about:blank";
-        }, 50);
-        return;
-      }
+  window.addEventListener("popstate", handlePopState);
 
-      // First back press — show toast, re-push sentinel
-      backPressedOnce.current = true;
-      setShowExitToast(true);
-      // Re-push sentinel so next back is also catchable
-      window.history.pushState({ zixplonExit: true }, "", "/");
-
-      clearTimeout(exitToastTimer.current);
-      exitToastTimer.current = setTimeout(() => {
-        backPressedOnce.current = false;
-        setShowExitToast(false);
-      }, 2000);
-    };
-
-    window.addEventListener("popstate", handlePopState);
-
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-      clearTimeout(exitToastTimer.current);
-    };
-  }, [location.pathname]);
+  return () => {
+    window.removeEventListener("popstate", handlePopState);
+    clearTimeout(exitToastTimer.current);
+  };
+}, [location.pathname]);
   // ──────────────────────────────────────────────────────────────────────────
 
   const [notifications, setNotifications] = useState([
@@ -394,12 +375,6 @@ function App() {
       {/* Mobile exit toast */}
       <ExitToast visible={showExitToast} />
 
-      {/*
-        FIX: Pass loginModalOpenRef down to Navbar so it can set
-        loginModalOpenRef.current = true when modal opens,
-        and false when it closes. This prevents auth listener +
-        popstate handler from interfering while user is typing.
-      */}
       <Navbar
         currentUser={currentUser}
         setCurrentUser={setCurrentUser}
@@ -407,7 +382,6 @@ function App() {
         sideNavbar={sideNavbar}
         notifications={notifications}
         setNotifications={setNotifications}
-        loginModalOpenRef={loginModalOpenRef}
       />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#f0f4ff" }}>
         <SideNavbar sideNavbar={sideNavbar} />

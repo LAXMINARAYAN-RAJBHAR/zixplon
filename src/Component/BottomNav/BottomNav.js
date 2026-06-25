@@ -170,7 +170,7 @@ const BottomNav = ({ currentUser }) => {
             className="bottom-nav-label"
             style={{ color: isActive(`/user/${currentUser}`) ? activeColor : inactiveColor }}
           >
-            {currentUser ? "Profile" : "Sign In"}
+            {currentUser ? "Profile" : "Sign Up"}
           </span>
         </Link>
       </nav>

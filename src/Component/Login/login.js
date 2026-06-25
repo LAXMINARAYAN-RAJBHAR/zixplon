@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import "./login.css";
 import { Link } from "react-router-dom";
 import { supabase } from "../../config/supabase";
@@ -11,13 +11,15 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // ── Only clear messages on mount, NOT state that would cause re-render issues ──
   useEffect(() => {
     setError("");
     setSuccess("");
-    setMode("login");
+    // Removed setMode("login") — it's already the default and calling it
+    // here can trigger a re-render that interferes with controlled inputs
   }, []);
 
-  const handleLogin = async () => {
+  const handleLogin = useCallback(async () => {
     if (!email || !password) return setError("Please enter email and password.");
     setLoading(true);
     setError("");
@@ -27,7 +29,6 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
 
     const user = data.user;
 
-    // ── Fetch real username from profiles table ──
     const { data: profileRow } = await supabase
       .from("profiles")
       .select("username, profile_pic, about")
@@ -52,7 +53,6 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
       user.user_metadata?.about ||
       "";
 
-    // ── Clear only auth keys, not everything ──
     localStorage.removeItem("username");
     localStorage.removeItem("userId");
     localStorage.removeItem("email");
@@ -61,7 +61,6 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     localStorage.removeItem("channelName");
     localStorage.removeItem("userName");
 
-    // Set fresh values
     localStorage.setItem("username", name);
     localStorage.setItem("email", email);
     localStorage.setItem("userId", user.id);
@@ -71,9 +70,9 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     setLoading(false);
     onLoginSuccess(name, user);
     setLoginModal();
-  };
+  }, [email, password, onLoginSuccess, setLoginModal]);
 
-  const handleForgot = async () => {
+  const handleForgot = useCallback(async () => {
     if (!email) return setError("Please enter your email.");
     setLoading(true);
     setError("");
@@ -81,17 +80,22 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     setLoading(false);
     if (err) return setError(err.message);
     setSuccess("Password reset email sent! Check your inbox.");
-  };
+  }, [email]);
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = useCallback(async () => {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: "https://zixplon-tawny.vercel.app/" },
     });
-  };
+  }, []);
+
+  // ── Stable overlay click handler ──
+  const handleOverlayClick = useCallback((e) => {
+    if (e.target === e.currentTarget) setLoginModal();
+  }, [setLoginModal]);
 
   return (
-    <div className="login" onClick={(e) => e.target === e.currentTarget && setLoginModal()}>
+    <div className="login" onClick={handleOverlayClick}>
       <div className="login_card">
 
         {/* Header */}
@@ -153,6 +157,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
               onChange={(e) => { setPassword(e.target.value); setError(""); }}
               placeholder="Password"
               type="password"
+              autoComplete="current-password"
               onKeyDown={(e) => e.key === "Enter" && handleLogin()}
             />
           )}

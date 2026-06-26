@@ -1,3 +1,7 @@
+// ── Polyfills — must be first imports (for TV Browser / older Android WebView) ──
+import 'react-app-polyfill/ie11';
+import 'react-app-polyfill/stable';
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";

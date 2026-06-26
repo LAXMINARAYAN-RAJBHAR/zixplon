@@ -10,30 +10,21 @@
 
   <!-- ── FIX 1: TV Browser viewport override (mobile stays untouched) ── -->
   <script>
-  (function() {
-    var ua = navigator.userAgent;
-    var isTV = /TV|AndroidTV|HbbTV|SmartTV|SMART-TV|Tizen|WebOS/i.test(ua);
-    var isTVBrowser = isTV || (
-      /Android/i.test(ua) &&
-      !('ontouchstart' in window) &&
-      window.screen.width >= 1280
-    );
-    if (!isTVBrowser) return; // ← skip on mobile entirely
-
-    window.onerror = function(msg, src, line, col, err) {
-      var d = document.createElement('div');
-      d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:red;color:#fff;font-size:18px;padding:12px;z-index:999999;word-break:break-all;';
-      d.textContent = 'JS ERROR: ' + msg + ' @ ' + src + ':' + line;
-      document.body.appendChild(d);
-    };
-    window.addEventListener('unhandledrejection', function(e) {
-      var d = document.createElement('div');
-      d.style.cssText = 'position:fixed;top:40px;left:0;right:0;background:orange;color:#000;font-size:16px;padding:10px;z-index:999999;word-break:break-all;';
-      d.textContent = 'PROMISE ERROR: ' + (e.reason && e.reason.message || e.reason);
-      document.body.appendChild(d);
-    });
-  })();
-</script>
+    (function () {
+      var ua = navigator.userAgent;
+      var isTV = /TV|AndroidTV|HbbTV|SmartTV|SMART-TV|Tizen|WebOS/i.test(ua);
+      // TV Browser on Android also lacks touch & has large screen
+      var isTVBrowser = isTV || (
+        /Android/i.test(ua) &&
+        !('ontouchstart' in window) &&
+        window.screen.width >= 1280
+      );
+      if (isTVBrowser) {
+        var vp = document.querySelector('meta[name="viewport"]');
+        if (vp) vp.setAttribute('content', 'width=1280, initial-scale=1');
+      }
+    })();
+  </script>
 
   <meta name="theme-color" content="#000000" />
 

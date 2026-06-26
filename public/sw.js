@@ -15,6 +15,6 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  if (event.request.url.includes("supabase")) return;
+  if (event.requesgit add .t.url.includes("supabase")) return;
   event.respondWith(fetch(event.request));
 });

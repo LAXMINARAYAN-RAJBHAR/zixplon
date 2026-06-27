@@ -267,6 +267,34 @@
     })();
   </script>
 
+  <!-- ── FIX 4: TV-only JS error overlay (completely skipped on mobile) ── -->
+  <script>
+    (function () {
+      var ua = navigator.userAgent;
+      var isTV = /TV|AndroidTV|HbbTV|SmartTV|SMART-TV|Tizen|WebOS/i.test(ua);
+      var isTVBrowser = isTV || (
+        /Android/i.test(ua) &&
+        !('ontouchstart' in window) &&
+        window.screen.width >= 1280
+      );
+      if (!isTVBrowser) return; // ← mobile/desktop never enters this block
+
+      window.onerror = function (msg, src, line) {
+        var d = document.createElement('div');
+        d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:red;color:#fff;font-size:18px;padding:14px;z-index:999999;word-break:break-all;font-family:monospace;';
+        d.textContent = 'JS ERROR: ' + msg + ' @ ' + src + ':' + line;
+        document.body.appendChild(d);
+      };
+
+      window.addEventListener('unhandledrejection', function (e) {
+        var d = document.createElement('div');
+        d.style.cssText = 'position:fixed;top:60px;left:0;right:0;background:orange;color:#000;font-size:16px;padding:12px;z-index:999999;word-break:break-all;font-family:monospace;';
+        d.textContent = 'PROMISE ERROR: ' + (e.reason && e.reason.message || String(e.reason));
+        document.body.appendChild(d);
+      });
+    })();
+  </script>
+
 </body>
 
 </html>

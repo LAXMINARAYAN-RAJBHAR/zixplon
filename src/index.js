@@ -9,14 +9,27 @@ import App from "./App";
 import reportWebVitals from "./reportWebVitals";
 import { BrowserRouter } from "react-router-dom";
 
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(
-  <React.StrictMode>
+const rootEl = document.getElementById("root");
+
+try {
+  // React 18/19 — modern browsers
+  const root = ReactDOM.createRoot(rootEl);
+  root.render(
+    <React.StrictMode>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </React.StrictMode>
+  );
+} catch (e) {
+  // Fallback for old TV browsers that don't support createRoot
+  ReactDOM.render(
     <BrowserRouter>
       <App />
-    </BrowserRouter>
-  </React.StrictMode>,
-);
+    </BrowserRouter>,
+    rootEl
+  );
+}
 
 reportWebVitals();
 

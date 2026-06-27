@@ -13,7 +13,6 @@
     (function () {
       var ua = navigator.userAgent;
       var isTV = /TV|AndroidTV|HbbTV|SmartTV|SMART-TV|Tizen|WebOS/i.test(ua);
-      // TV Browser on Android also lacks touch & has large screen
       var isTVBrowser = isTV || (
         /Android/i.test(ua) &&
         !('ontouchstart' in window) &&
@@ -79,12 +78,10 @@
   <script>
     (function () {
       var ua = navigator.userAgent;
-      // Exclude Smart TV / Android TV browsers so remote back button works normally
       var isTV = /TV|AndroidTV|HbbTV|SmartTV|SMART-TV|Tizen|WebOS/i.test(ua);
       if (isTV) return;
       if (!/Android|iPhone|iPad|iPod/i.test(ua)) return;
 
-      // Push a sentinel entry on load so the first back press is catchable
       window.addEventListener('load', function () {
         window.history.pushState({ zixplonSentinel: true }, '', window.location.href);
       });
@@ -111,23 +108,18 @@
   <!-- ── PWA Install Tracking ── -->
   <script>
     (function () {
-      // Track when install prompt is shown
       window.addEventListener('beforeinstallprompt', function (e) {
         gtag('event', 'pwa_install_prompt_shown', {
           event_category: 'PWA',
           event_label: 'Install prompt shown to user',
         });
       });
-
-      // Track when user actually installs the app
       window.addEventListener('appinstalled', function () {
         gtag('event', 'pwa_installed', {
           event_category: 'PWA',
           event_label: 'App installed successfully',
         });
       });
-
-      // Track if user is already using as installed PWA
       if (window.matchMedia('(display-mode: standalone)').matches ||
           window.navigator.standalone === true) {
         gtag('event', 'pwa_launched', {
@@ -237,7 +229,7 @@
 
   <div id="root"></div>
 
-  <!-- FIX 3: Hide native splash — added 5s timeout fallback for TV Browser -->
+  <!-- FIX 3: Hide native splash — 5s timeout fallback for TV Browser -->
   <script>
     (function () {
       var splash = document.getElementById('native-splash');
@@ -253,8 +245,6 @@
         if (observer) observer.disconnect();
       }
 
-      // Fallback: force-hide splash after 5 seconds (handles TV browsers where
-      // MutationObserver may not fire correctly)
       setTimeout(hideSplash, 5000);
 
       var observer = new MutationObserver(function () {
@@ -267,28 +257,27 @@
     })();
   </script>
 
-  <!-- ── FIX 4: TV-only JS error overlay (completely skipped on mobile) ── -->
+  <!-- ── FIX 4: DEBUG error overlay
+       MOBILE SAFE: phones/tablets always have touch support → skipped automatically
+       TV sticks/boxes have no touch → error shows on screen for debugging ── -->
   <script>
     (function () {
-      var ua = navigator.userAgent;
-      var isTV = /TV|AndroidTV|HbbTV|SmartTV|SMART-TV|Tizen|WebOS/i.test(ua);
-      var isTVBrowser = isTV || (
-        /Android/i.test(ua) &&
-        !('ontouchstart' in window) &&
-        window.screen.width >= 1280
-      );
-      if (!isTVBrowser) return; // ← mobile/desktop never enters this block
+      // Real phones & tablets always have touch → exit immediately, zero effect on mobile
+      var hasTouchSupport = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      var isSmallScreen = window.screen.width < 1024;
+      if (hasTouchSupport || isSmallScreen) return;
 
+      // Only non-touch large screens reach here (TV sticks, TV browsers)
       window.onerror = function (msg, src, line) {
         var d = document.createElement('div');
-        d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:red;color:#fff;font-size:18px;padding:14px;z-index:999999;word-break:break-all;font-family:monospace;';
-        d.textContent = 'JS ERROR: ' + msg + ' @ ' + src + ':' + line;
+        d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#cc0000;color:#fff;font-size:20px;padding:16px;z-index:999999;word-break:break-all;font-family:monospace;line-height:1.5;';
+        d.textContent = 'JS ERROR: ' + msg + ' | ' + src + ':' + line;
         document.body.appendChild(d);
       };
 
       window.addEventListener('unhandledrejection', function (e) {
         var d = document.createElement('div');
-        d.style.cssText = 'position:fixed;top:60px;left:0;right:0;background:orange;color:#000;font-size:16px;padding:12px;z-index:999999;word-break:break-all;font-family:monospace;';
+        d.style.cssText = 'position:fixed;top:80px;left:0;right:0;background:#e65c00;color:#fff;font-size:18px;padding:14px;z-index:999999;word-break:break-all;font-family:monospace;line-height:1.5;';
         d.textContent = 'PROMISE ERROR: ' + (e.reason && e.reason.message || String(e.reason));
         document.body.appendChild(d);
       });

@@ -7,5 +7,9 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
+    detectSessionInUrl: true,        // ← CRITICAL for mobile OAuth redirect
+    storage: window.localStorage,    // ← explicit storage for mobile browsers
+    storageKey: 'zixplon-auth',      // ← unique key avoids conflicts
+    flowType: 'implicit',            // ← needed for mobile OAuth
   }
 })

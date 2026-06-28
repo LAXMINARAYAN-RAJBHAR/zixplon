@@ -21,69 +21,101 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     setLoading(true);
     setError("");
 
-    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
-    if (err) { setLoading(false); return setError(err.message); }
+    try {
+      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
+      if (err) {
+        setLoading(false);
+        return setError(err.message);
+      }
 
-    const user = data.user;
+      const user = data.user;
+      if (!user) {
+        setLoading(false);
+        return setError("Login failed. Please try again.");
+      }
 
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("username, profile_pic, about")
-      .eq("id", user.id)
-      .maybeSingle();
+      // Wrap profile fetch in try/catch so it never breaks login
+      let profileRow = null;
+      try {
+        const { data: pData } = await supabase
+          .from("profiles")
+          .select("username, profile_pic, about")
+          .eq("id", user.id)
+          .maybeSingle();
+        profileRow = pData;
+      } catch (_) {}
 
-    const name =
-      profileRow?.username ||
-      user.user_metadata?.channelName ||
-      user.user_metadata?.username ||
-      email.split("@")[0];
+      const name =
+        profileRow?.username ||
+        user.user_metadata?.channelName ||
+        user.user_metadata?.username ||
+        email.split("@")[0];
 
-    const pic =
-      profileRow?.profile_pic ||
-      user.user_metadata?.profilePic ||
-      user.user_metadata?.avatar_url ||
-      user.user_metadata?.picture ||
-      "";
+      const pic =
+        profileRow?.profile_pic ||
+        user.user_metadata?.profilePic ||
+        user.user_metadata?.avatar_url ||
+        user.user_metadata?.picture ||
+        "";
 
-    const about =
-      profileRow?.about ||
-      user.user_metadata?.about ||
-      "";
+      const about = profileRow?.about || user.user_metadata?.about || "";
 
-    localStorage.removeItem("username");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("email");
-    localStorage.removeItem("profilePic");
-    localStorage.removeItem("about");
-    localStorage.removeItem("channelName");
-    localStorage.removeItem("userName");
+      localStorage.removeItem("username");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("email");
+      localStorage.removeItem("profilePic");
+      localStorage.removeItem("about");
+      localStorage.removeItem("channelName");
+      localStorage.removeItem("userName");
 
-    localStorage.setItem("username", name);
-    localStorage.setItem("email", email);
-    localStorage.setItem("userId", user.id);
-    if (pic) localStorage.setItem("profilePic", pic);
-    if (about) localStorage.setItem("about", about);
+      localStorage.setItem("username", name);
+      localStorage.setItem("email", email);
+      localStorage.setItem("userId", user.id);
+      if (pic) localStorage.setItem("profilePic", pic);
+      if (about) localStorage.setItem("about", about);
 
-    setLoading(false);
-    onLoginSuccess(name, user);
-    setLoginModal();
+      setLoading(false);
+      onLoginSuccess(name, user);
+      setLoginModal();
+    } catch (e) {
+      setLoading(false);
+      setError("Something went wrong. Please try again.");
+    }
   }, [email, password, onLoginSuccess, setLoginModal]);
 
   const handleForgot = useCallback(async () => {
     if (!email) return setError("Please enter your email.");
     setLoading(true);
     setError("");
-    const { error: err } = await supabase.auth.resetPasswordForEmail(email);
-    setLoading(false);
-    if (err) return setError(err.message);
-    setSuccess("Password reset email sent! Check your inbox.");
+    try {
+      const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: "https://zixplon-tawny.vercel.app/",
+      });
+      setLoading(false);
+      if (err) return setError(err.message);
+      setSuccess("Password reset email sent! Check your inbox.");
+    } catch (e) {
+      setLoading(false);
+      setError("Something went wrong. Please try again.");
+    }
   }, [email]);
 
   const handleGoogleLogin = useCallback(async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: "https://zixplon-tawny.vercel.app/" },
-    });
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: "https://zixplon-tawny.vercel.app/",
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
+        },
+      });
+      if (error) setError(error.message);
+    } catch (e) {
+      setError("Google login failed. Please try again.");
+    }
   }, []);
 
   const handleOverlayClick = useCallback((e) => {
@@ -139,7 +171,6 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
             placeholder="Email Address"
             type="email"
             autoComplete="email"
-            autoFocus
           />
           {mode === "login" && (
             <input

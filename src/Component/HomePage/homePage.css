@@ -732,9 +732,9 @@
 } */
 
 /* ══════════════════════════════════════
-   TV BROWSER — single targeted fix
-   Only fixes card bottom cut-off.
-   Does NOT touch layout, grid, or mobile.
+   TV BROWSER — card bottom fix
+   Targets ALL card variants uniformly.
+   Zero impact on desktop or mobile.
 ══════════════════════════════════════ */
 @media (min-width: 769px) and (max-width: 1366px) {
 
@@ -743,16 +743,54 @@
     height: auto !important;
     min-height: unset !important;
     max-height: unset !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .youtube_thumbnailWrapper {
+    flex-shrink: 0 !important;
+    height: auto !important;
   }
 
   .youtubeTitleBox {
+    flex: 1 !important;
     height: auto !important;
     min-height: unset !important;
+    max-height: unset !important;
     overflow: visible !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    box-sizing: border-box !important;
   }
 
   .youtubeVideoInfo {
+    flex: 1 !important;
+    height: auto !important;
+    min-height: unset !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+  }
+
+  .youtube_videoTitle {
+    height: auto !important;
+    overflow: hidden !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+  }
+
+  .youtubeVideo_Views {
     height: auto !important;
     overflow: visible !important;
+    flex-wrap: wrap !important;
+  }
+
+  .youtubeVideo_UploadDate {
+    height: auto !important;
+    overflow: visible !important;
+    white-space: normal !important;
   }
 }

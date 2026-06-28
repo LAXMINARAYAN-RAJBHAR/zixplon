@@ -16,13 +16,6 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     setSuccess("");
   }, []);
 
-  // Prevent body scroll while modal is open (important on mobile)
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
-  }, []);
-
   const handleLogin = useCallback(async () => {
     if (!email || !password) return setError("Please enter email and password.");
     setLoading(true);
@@ -39,13 +32,10 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
       .eq("id", user.id)
       .maybeSingle();
 
-    // Prefer profile row username, fallback to metadata, fallback to email prefix
     const name =
       profileRow?.username ||
       user.user_metadata?.channelName ||
       user.user_metadata?.username ||
-      user.user_metadata?.full_name ||
-      user.user_metadata?.name ||
       email.split("@")[0];
 
     const pic =
@@ -60,14 +50,15 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
       user.user_metadata?.about ||
       "";
 
-    // Clear all auth keys first
-    ["username", "userId", "email", "profilePic", "about", "channelName", "userName"].forEach(
-      (k) => localStorage.removeItem(k)
-    );
+    localStorage.removeItem("username");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("email");
+    localStorage.removeItem("profilePic");
+    localStorage.removeItem("about");
+    localStorage.removeItem("channelName");
+    localStorage.removeItem("userName");
 
-    // Set with consistent keys
     localStorage.setItem("username", name);
-    localStorage.setItem("channelName", name); // some components read channelName
     localStorage.setItem("email", email);
     localStorage.setItem("userId", user.id);
     if (pic) localStorage.setItem("profilePic", pic);
@@ -95,32 +86,13 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     });
   }, []);
 
-  // Only close on mousedown on the backdrop itself — prevents accidental closes on mobile
-  const handleOverlayMouseDown = useCallback((e) => {
+  const handleOverlayClick = useCallback((e) => {
     if (e.target === e.currentTarget) setLoginModal();
   }, [setLoginModal]);
 
-  // Mobile: touchend on backdrop
-  const handleOverlayTouchEnd = useCallback((e) => {
-    if (e.target === e.currentTarget) {
-      e.preventDefault();
-      setLoginModal();
-    }
-  }, [setLoginModal]);
-
-  // Unified button tap handler — prevents ghost click double-fire on mobile
-  const makeTapHandler = (fn) => ({
-    onClick: fn,
-    onTouchEnd: (e) => { e.preventDefault(); fn(); },
-  });
-
   return (
-    <div
-      className="login"
-      onMouseDown={handleOverlayMouseDown}
-      onTouchEnd={handleOverlayTouchEnd}
-    >
-      <div className="login_card" onMouseDown={(e) => e.stopPropagation()} onTouchEnd={(e) => e.stopPropagation()}>
+    <div className="login" onClick={handleOverlayClick}>
+      <div className="login_card" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div className="titleCard_login">
@@ -140,7 +112,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
           {["login", "forgot"].map((m) => (
             <button
               key={m}
-              {...makeTapHandler(() => { setMode(m); setError(""); setSuccess(""); })}
+              onClick={() => { setMode(m); setError(""); setSuccess(""); }}
               style={{
                 flex: 1,
                 background: "none",
@@ -158,7 +130,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
           ))}
         </div>
 
-        {/* Inputs — NO autoFocus (causes mobile keyboard popup remount) */}
+        {/* Inputs */}
         <div className="loginCredentials">
           <input
             className="userNameLoginUserName"
@@ -167,8 +139,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
             placeholder="Email Address"
             type="email"
             autoComplete="email"
-            inputMode="email"
-            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            autoFocus
           />
           {mode === "login" && (
             <input
@@ -200,7 +171,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
         {/* Buttons */}
         <div className="login_buttons">
           <button
-            {...makeTapHandler(mode === "login" ? handleLogin : handleForgot)}
+            onClick={mode === "login" ? handleLogin : handleForgot}
             disabled={loading}
             className="login_btn_primary"
             style={{
@@ -212,7 +183,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
           </button>
 
           <button
-            {...makeTapHandler(handleGoogleLogin)}
+            onClick={handleGoogleLogin}
             className="login_btn_google"
           >
             <svg width="18" height="18" viewBox="0 0 48 48">
@@ -233,7 +204,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
               Sign Up
             </Link>
             <button
-              {...makeTapHandler(setLoginModal)}
+              onClick={setLoginModal}
               className="login_btn_cancel"
             >
               Cancel

@@ -53,7 +53,6 @@ const getUserGradient = (name = "") => {
 // ─── Lightbox ─────────────────────────────────────────────────────────────────
 const Lightbox = ({ images, startIndex = 0, onClose }) => {
   const [index, setIndex] = useState(startIndex);
-
   const next = (e) => { e?.stopPropagation(); setIndex((i) => (i + 1) % images.length); };
   const prev = (e) => { e?.stopPropagation(); setIndex((i) => (i - 1 + images.length) % images.length); };
 
@@ -65,45 +64,22 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
     };
     document.addEventListener("keydown", handleKey);
     document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKey);
-      document.body.style.overflow = "";
-    };
+    return () => { document.removeEventListener("keydown", handleKey); document.body.style.overflow = ""; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose, images.length]);
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.93)",
-        zIndex: 999999, display: "flex", alignItems: "center",
-        justifyContent: "center", cursor: "zoom-out",
-      }}
-    >
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.93)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out" }}>
       <button onClick={onClose} style={{ position: "absolute", top: "16px", right: "20px", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "22px", width: "40px", height: "40px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>✕</button>
-
-      {images.length > 1 && (
-        <button onClick={prev} style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "28px", width: "44px", height: "44px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>‹</button>
-      )}
-      {images.length > 1 && (
-        <button onClick={next} style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "28px", width: "44px", height: "44px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>›</button>
-      )}
-
+      {images.length > 1 && <button onClick={prev} style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "28px", width: "44px", height: "44px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>‹</button>}
+      {images.length > 1 && <button onClick={next} style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "28px", width: "44px", height: "44px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>›</button>}
       <img src={images[index]} alt={`Image ${index + 1}`} onClick={(e) => e.stopPropagation()} style={{ maxWidth: "92vw", maxHeight: "90vh", objectFit: "contain", borderRadius: "8px", boxShadow: "0 8px 48px rgba(0,0,0,0.8)", cursor: "default" }} />
-
       {images.length > 1 && (
         <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", bottom: "60px", left: "50%", transform: "translateX(-50%)", display: "flex", gap: "8px" }}>
-          {images.map((_, i) => (
-            <button key={i} onClick={() => setIndex(i)} style={{ width: "10px", height: "10px", borderRadius: "50%", border: "none", cursor: "pointer", padding: 0, background: i === index ? "#ffffff" : "rgba(255,255,255,0.35)", transition: "background 0.2s" }} />
-          ))}
+          {images.map((_, i) => <button key={i} onClick={() => setIndex(i)} style={{ width: "10px", height: "10px", borderRadius: "50%", border: "none", cursor: "pointer", padding: 0, background: i === index ? "#ffffff" : "rgba(255,255,255,0.35)", transition: "background 0.2s" }} />)}
         </div>
       )}
-      {images.length > 1 && (
-        <div style={{ position: "absolute", bottom: "20px", left: "50%", transform: "translateX(-50%)", color: "white", fontSize: "14px", fontWeight: "700", background: "rgba(255,255,255,0.1)", padding: "4px 12px", borderRadius: "12px" }}>
-          {index + 1} / {images.length}
-        </div>
-      )}
+      {images.length > 1 && <div style={{ position: "absolute", bottom: "20px", left: "50%", transform: "translateX(-50%)", color: "white", fontSize: "14px", fontWeight: "700", background: "rgba(255,255,255,0.1)", padding: "4px 12px", borderRadius: "12px" }}>{index + 1} / {images.length}</div>}
     </div>
   );
 };
@@ -113,13 +89,7 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
   const [lightboxData, setLightboxData] = useState(null);
   const [showComments, setShowComments] = useState(false);
   const totalReactions = Object.values(post.reactionCounts || {}).reduce((a, b) => a + b, 0);
-
-  const images =
-    post.image_urls?.length > 0
-      ? post.image_urls
-      : post.image_url
-        ? [post.image_url]
-        : [];
+  const images = post.image_urls?.length > 0 ? post.image_urls : post.image_url ? [post.image_url] : [];
 
   const gridStyle = (count) => {
     if (count === 1) return { gridTemplateColumns: "1fr", height: "auto" };
@@ -131,15 +101,12 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
   const itemStyle = (idx, count) => {
     const base = { position: "relative", overflow: "hidden", cursor: "zoom-in" };
     if (count === 3 && idx === 0) return { ...base, gridRow: "1 / 3" };
-    if (count === 1) return { ...base, cursor: "zoom-in" };
     return base;
   };
 
   return (
     <>
-      {lightboxData && (
-        <Lightbox images={lightboxData.images} startIndex={lightboxData.startIndex} onClose={() => setLightboxData(null)} />
-      )}
+      {lightboxData && <Lightbox images={lightboxData.images} startIndex={lightboxData.startIndex} onClose={() => setLightboxData(null)} />}
       <div style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "12px", padding: "16px", marginBottom: "14px", position: "relative" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
           <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: "linear-gradient(135deg,#ff4444,#cc0000)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "700", fontSize: "14px", flexShrink: 0 }}>
@@ -163,31 +130,25 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
             </button>
           )}
         </div>
-
         {post.text && <p style={{ color: "#e0e0e0", fontSize: "14px", lineHeight: "1.6", margin: "0 0 12px", wordBreak: "break-word" }}>{post.text}</p>}
-
         {images.length > 0 && (
           <div style={{ display: "grid", gap: "4px", borderRadius: "8px", overflow: "hidden", marginBottom: "12px", border: "1px solid #2a2a2a", ...gridStyle(Math.min(images.length, 4)) }}>
             {images.slice(0, 4).map((url, idx) => (
               <div key={idx} style={itemStyle(idx, Math.min(images.length, 4))} onClick={() => setLightboxData({ images, startIndex: idx })}>
                 <img src={url} alt={`Post image ${idx + 1}`} loading="lazy" style={{ width: "100%", height: images.length === 1 ? "auto" : "100%", maxHeight: images.length === 1 ? "400px" : "none", objectFit: "cover", display: "block" }} />
                 {idx === 3 && images.length > 4 && (
-                  <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "26px", fontWeight: "800" }}>
-                    +{images.length - 4}
-                  </div>
+                  <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "26px", fontWeight: "800" }}>+{images.length - 4}</div>
                 )}
               </div>
             ))}
           </div>
         )}
-
         {post.link && (
           <a href={post.link.url} target="_blank" rel="noreferrer" style={{ display: "block", background: "#111", border: "1px solid #333", borderRadius: "8px", padding: "12px", textDecoration: "none", marginBottom: "12px" }}>
             <div style={{ color: "#888", fontSize: "11px", marginBottom: "4px" }}>{post.link.domain}</div>
             <div style={{ color: "#3ea6ff", fontSize: "14px", fontWeight: "600" }}>{post.link.title}</div>
           </a>
         )}
-
         <div style={{ display: "flex", gap: "16px", alignItems: "center", paddingTop: "10px", borderTop: "1px solid #2a2a2a" }}>
           <span style={{ color: "#aaa", fontSize: "13px", display: "flex", alignItems: "center", gap: "4px" }}>
             <ThumbUpOutlinedIcon style={{ fontSize: "16px" }} /> {totalReactions}
@@ -197,7 +158,6 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
             {post.comments?.length || 0} comment{post.comments?.length !== 1 ? "s" : ""}
           </button>
         </div>
-
         {showComments && post.comments?.length > 0 && (
           <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
             {post.comments.map((c) => (
@@ -235,26 +195,21 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
       setLoading(true);
       const { data } = await supabase.from("subscriptions").select("subscriber_id, created_at").eq("subscribed_to", channelUsername).order("created_at", { ascending: false });
       if (!data) { setSubscribers([]); setLoading(false); return; }
-
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const uuids = [...new Set(data.filter((s) => uuidRegex.test(s.subscriber_id)).map((s) => s.subscriber_id))];
-
       let idToUsername = {};
       if (uuids.length > 0) {
         const { data: profilesData } = await supabase.from("profiles").select("id, username").in("id", uuids);
         profilesData?.forEach((p) => { if (p.username && p.username.trim()) idToUsername[p.id] = p.username; });
       }
-
-      setSubscribers(
-        data.map((s) => {
-          const isUuid = uuidRegex.test(s.subscriber_id);
-          let displayName;
-          if (!isUuid) displayName = s.subscriber_id;
-          else if (idToUsername[s.subscriber_id]) displayName = idToUsername[s.subscriber_id];
-          else displayName = `User ${s.subscriber_id.slice(0, 8)}`;
-          return { ...s, displayName };
-        })
-      );
+      setSubscribers(data.map((s) => {
+        const isUuid = uuidRegex.test(s.subscriber_id);
+        let displayName;
+        if (!isUuid) displayName = s.subscriber_id;
+        else if (idToUsername[s.subscriber_id]) displayName = idToUsername[s.subscriber_id];
+        else displayName = `User ${s.subscriber_id.slice(0, 8)}`;
+        return { ...s, displayName };
+      }));
       setLoading(false);
     };
     fetchSubscribers();
@@ -280,19 +235,17 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
               <div style={{ fontSize: "36px", marginBottom: "10px" }}>👤</div>
               <p style={{ margin: 0, fontSize: "14px" }}>No subscribers yet.</p>
             </div>
-          ) : (
-            subscribers.map((sub, idx) => (
-              <div key={idx} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 8px", borderRadius: "10px", transition: "background 0.15s", cursor: "default" }} onMouseEnter={(e) => e.currentTarget.style.background = "#262626"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "linear-gradient(135deg, #ff4444, #cc0000)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "700", fontSize: "14px", flexShrink: 0, textTransform: "uppercase" }}>
-                  {(sub.displayName || "?").slice(0, 2).toUpperCase()}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: "white", fontWeight: "600", fontSize: "14px" }}>{sub.displayName}</div>
-                  <div style={{ color: "#666", fontSize: "12px" }}>Subscribed {timeAgo(sub.created_at)}</div>
-                </div>
+          ) : subscribers.map((sub, idx) => (
+            <div key={idx} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 8px", borderRadius: "10px", transition: "background 0.15s", cursor: "default" }} onMouseEnter={(e) => e.currentTarget.style.background = "#262626"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+              <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "linear-gradient(135deg, #ff4444, #cc0000)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "700", fontSize: "14px", flexShrink: 0, textTransform: "uppercase" }}>
+                {(sub.displayName || "?").slice(0, 2).toUpperCase()}
               </div>
-            ))
-          )}
+              <div style={{ flex: 1 }}>
+                <div style={{ color: "white", fontWeight: "600", fontSize: "14px" }}>{sub.displayName}</div>
+                <div style={{ color: "#666", fontSize: "12px" }}>Subscribed {timeAgo(sub.created_at)}</div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -300,7 +253,7 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
 };
 
 // ─── Main Profile Component ───────────────────────────────────────────────────
-// ✅ FIX: Accept currentUser prop from App.jsx
+// currentUser is a plain STRING (username) from App.jsx
 const Profile = ({ sideNavbar, currentUser }) => {
   const { username } = useParams();
   const key = username?.toLowerCase();
@@ -314,12 +267,10 @@ const Profile = ({ sideNavbar, currentUser }) => {
   const [loading, setLoading] = useState(true);
   const [videoCounts, setVideoCounts] = useState({});
   const [reelCounts, setReelCounts] = useState({});
-
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subLoading, setSubLoading] = useState(false);
   const [showSubscribersModal, setShowSubscribersModal] = useState(false);
-
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName] = useState("");
   const [editAbout, setEditAbout] = useState("");
@@ -331,30 +282,16 @@ const Profile = ({ sideNavbar, currentUser }) => {
     const loadProfile = async () => {
       setLoading(true);
 
-      // ✅ FIX: Use currentUser object (from App.jsx) OR fallback to localStorage
-      // currentUser is now a full Supabase user object with .username, .id, .email etc.
-      const loggedInUsername =
-        (typeof currentUser === "object" ? currentUser?.username : currentUser) ||
-        localStorage.getItem("username") ||
-        "";
-      const loggedInUserId =
-        (typeof currentUser === "object" ? currentUser?.id : null) ||
-        localStorage.getItem("userId") ||
-        "";
-      const loggedInEmail =
-        (typeof currentUser === "object" ? currentUser?.email : null) ||
-        localStorage.getItem("email") ||
-        "";
-      const loggedInPic =
-        (typeof currentUser === "object" ? currentUser?.profilePic : null) ||
-        localStorage.getItem("profilePic") ||
-        "";
-      const loggedInAbout =
-        (typeof currentUser === "object" ? currentUser?.about : null) ||
-        localStorage.getItem("about") ||
-        "";
+      // ✅ currentUser is always a plain string (username) from App.jsx
+      // Also fallback to localStorage for safety
+      const loggedInUsername = currentUser || localStorage.getItem("username") || "";
+      const loggedInUserId   = localStorage.getItem("userId") || "";
+      const loggedInEmail    = localStorage.getItem("email") || "";
+      const loggedInPic      = localStorage.getItem("profilePic") || "";
+      const loggedInAbout    = localStorage.getItem("about") || "";
 
-      // ✅ FIX: isOwner now checked via prop-derived username (works on mobile)
+      // ✅ isOwner check — works on mobile because currentUser comes from
+      // Supabase getSession() in App.jsx, not just localStorage
       const isOwnerByUsername = loggedInUsername && matchesKey(loggedInUsername, key);
 
       if (isOwnerByUsername) {
@@ -363,7 +300,7 @@ const Profile = ({ sideNavbar, currentUser }) => {
           .select("banner_pic, profile_pic, about")
           .eq("username", loggedInUsername)
           .maybeSingle();
-        const bannerPic = ownerProfile?.banner_pic || null;
+        const bannerPic  = ownerProfile?.banner_pic || null;
         const profilePic = ownerProfile?.profile_pic || loggedInPic ||
           `https://ui-avatars.com/api/?name=${encodeURIComponent(loggedInUsername)}&background=ff0000&color=fff&size=120&length=2`;
         const about = ownerProfile?.about || loggedInAbout || `${loggedInUsername}'s channel`;
@@ -371,7 +308,7 @@ const Profile = ({ sideNavbar, currentUser }) => {
         if (about) localStorage.setItem("about", about);
         setUser({ name: loggedInUsername, handle: `@${loggedInUsername}`, profilePic, about, email: loggedInEmail, isOwner: true, bannerPic });
       } else {
-        // ✅ FIX: Also check via Supabase session as fallback (for mobile)
+        // Fallback: check Supabase session directly (catches edge cases on mobile)
         const { data: authData } = await supabase.auth.getUser();
         const authUser = authData?.user;
         const authUsername =
@@ -384,7 +321,7 @@ const Profile = ({ sideNavbar, currentUser }) => {
             .select("banner_pic, profile_pic, about")
             .eq("username", authUsername)
             .maybeSingle();
-          const bannerPic = ownerProfile?.banner_pic || authUser.user_metadata?.bannerPic || null;
+          const bannerPic  = ownerProfile?.banner_pic || authUser.user_metadata?.bannerPic || null;
           const profilePic = ownerProfile?.profile_pic || authUser.user_metadata?.profilePic ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`;
           const about = ownerProfile?.about || authUser.user_metadata?.about || `${authUsername}'s channel`;
@@ -431,11 +368,7 @@ const Profile = ({ sideNavbar, currentUser }) => {
       // Fetch videos
       const { data: vData } = await supabase.from("videos").select("*").order("created_at", { ascending: false });
       if (vData) {
-        setDbVideos(
-          vData
-            .filter((v) => matchesKey(v.username, key) || matchesKey(v.channel, key))
-            .map((v) => ({ id: v.id, src: v.video_url, thumbnail: v.thumbnail_url, title: v.title, duration: v.duration || "00:00", channel: v.channel }))
-        );
+        setDbVideos(vData.filter((v) => matchesKey(v.username, key) || matchesKey(v.channel, key)).map((v) => ({ id: v.id, src: v.video_url, thumbnail: v.thumbnail_url, title: v.title, duration: v.duration || "00:00", channel: v.channel })));
         const ids = vData.map((v) => String(v.id));
         const [{ data: vLikes }, { data: vViews }] = await Promise.all([
           supabase.from("likes").select("content_id").eq("content_type", "video").in("content_id", ids),
@@ -449,11 +382,7 @@ const Profile = ({ sideNavbar, currentUser }) => {
       // Fetch reels
       const { data: rData } = await supabase.from("reels").select("*").order("created_at", { ascending: false });
       if (rData) {
-        setDbReels(
-          rData
-            .filter((r) => matchesKey(r.username, key))
-            .map((r) => ({ id: `db_${r.id}`, dbId: r.id, src: r.video_url, thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99", title: r.title || "Untitled", duration: r.duration || "00:00", description: r.description || "", username: r.username, user: r.user || r.username, profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`, likes: 0 }))
-        );
+        setDbReels(rData.filter((r) => matchesKey(r.username, key)).map((r) => ({ id: `db_${r.id}`, dbId: r.id, src: r.video_url, thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99", title: r.title || "Untitled", duration: r.duration || "00:00", description: r.description || "", username: r.username, user: r.user || r.username, profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`, likes: 0 })));
         const ids = rData.map((r) => `db_${r.id}`);
         const [{ data: rLikes }, { data: rViews }] = await Promise.all([
           supabase.from("likes").select("content_id").eq("content_type", "reel").in("content_id", ids),
@@ -471,24 +400,16 @@ const Profile = ({ sideNavbar, currentUser }) => {
         .eq("username", key)
         .order("created_at", { ascending: false });
       if (postsData) {
-        // ✅ FIX: use prop-derived username for reaction check
-        const myUsername = loggedInUsername;
-        setUserPosts(
-          postsData.map((p) => ({
-            ...p,
-            myReaction: p.post_reactions?.find((r) => r.username === myUsername)?.type || null,
-            reactionCounts: p.post_reactions?.reduce((acc, r) => { acc[r.type] = (acc[r.type] || 0) + 1; return acc; }, {}),
-            comments: (p.post_comments || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
-          }))
-        );
+        setUserPosts(postsData.map((p) => ({
+          ...p,
+          myReaction: p.post_reactions?.find((r) => r.username === loggedInUsername)?.type || null,
+          reactionCounts: p.post_reactions?.reduce((acc, r) => { acc[r.type] = (acc[r.type] || 0) + 1; return acc; }, {}),
+          comments: (p.post_comments || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
+        })));
       }
 
       // Fetch subscriber count & subscription status
-      const { count: subCount } = await supabase
-        .from("subscriptions")
-        .select("*", { count: "exact", head: true })
-        .eq("subscribed_to", key);
-
+      const { count: subCount } = await supabase.from("subscriptions").select("*", { count: "exact", head: true }).eq("subscribed_to", key);
       let alreadySubscribed = false;
       if (loggedInUsername && loggedInUsername.toLowerCase() !== key) {
         const { data: subCheckById } = loggedInUserId
@@ -501,32 +422,28 @@ const Profile = ({ sideNavbar, currentUser }) => {
       setIsSubscribed(alreadySubscribed);
       setLoading(false);
     };
-    loadProfile();
-  }, [key, currentUser]); // ✅ re-run when currentUser changes (e.g. after login)
 
-  const hardcodedReels = reelsData.filter((r) => r.username?.toLowerCase() === key);
+    loadProfile();
+  }, [key, currentUser]); // re-runs when currentUser changes after login
+
+  const hardcodedReels  = reelsData.filter((r) => r.username?.toLowerCase() === key);
   const hardcodedVideos = allVideos.filter((v) => v.channel?.toLowerCase() === key);
-  const allUserVideos = [...dbVideos, ...hardcodedVideos];
-  const allUserReels = [...dbReels, ...hardcodedReels];
+  const allUserVideos   = [...dbVideos, ...hardcodedVideos];
+  const allUserReels    = [...dbReels,  ...hardcodedReels];
 
   const handleSubscribe = async () => {
-    const loggedInUsername =
-      (typeof currentUser === "object" ? currentUser?.username : currentUser) ||
-      localStorage.getItem("username") || "";
-    const loggedInUserId =
-      (typeof currentUser === "object" ? currentUser?.id : null) ||
-      localStorage.getItem("userId") || "";
-    if (!loggedInUsername || !loggedInUserId) { alert("Please log in to subscribe."); return; }
-    if (loggedInUsername.toLowerCase() === key) return;
-
+    const myUsername = currentUser || localStorage.getItem("username") || "";
+    const myUserId   = localStorage.getItem("userId") || "";
+    if (!myUsername || !myUserId) { alert("Please log in to subscribe."); return; }
+    if (myUsername.toLowerCase() === key) return;
     setSubLoading(true);
     if (isSubscribed) {
-      await supabase.from("subscriptions").delete().eq("subscriber_id", loggedInUserId).eq("subscribed_to", key);
-      await supabase.from("subscriptions").delete().eq("subscriber_id", loggedInUsername).eq("subscribed_to", key);
+      await supabase.from("subscriptions").delete().eq("subscriber_id", myUserId).eq("subscribed_to", key);
+      await supabase.from("subscriptions").delete().eq("subscriber_id", myUsername).eq("subscribed_to", key);
       setIsSubscribed(false);
       setSubscriberCount((n) => Math.max(0, n - 1));
     } else {
-      await supabase.from("subscriptions").insert({ subscriber_id: loggedInUserId, subscribed_to: key });
+      await supabase.from("subscriptions").insert({ subscriber_id: myUserId, subscribed_to: key });
       setIsSubscribed(true);
       setSubscriberCount((n) => n + 1);
     }
@@ -534,11 +451,11 @@ const Profile = ({ sideNavbar, currentUser }) => {
   };
 
   const handleSaveProfile = async () => {
-    const newName = editName.trim() || user.name;
+    const newName  = editName.trim()  || user.name;
     const newAbout = editAbout.trim() || user.about;
-    const newPic = editPic.trim() || user.profilePic;
-    localStorage.setItem("username", newName);
-    localStorage.setItem("about", newAbout);
+    const newPic   = editPic.trim()   || user.profilePic;
+    localStorage.setItem("username",   newName);
+    localStorage.setItem("about",      newAbout);
     localStorage.setItem("profilePic", newPic);
     await supabase.from("profiles").upsert(
       { username: newName, profile_pic: newPic, about: newAbout, banner_pic: user.bannerPic || null },
@@ -549,7 +466,7 @@ const Profile = ({ sideNavbar, currentUser }) => {
     setShowEditProfile(false); setEditName(""); setEditAbout(""); setEditPic("");
   };
 
-  const confirmDelete = (type, id, dbId, title) => setDeleteTarget({ type, id, dbId, title });
+  const confirmDelete  = (type, id, dbId, title) => setDeleteTarget({ type, id, dbId, title });
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -607,27 +524,25 @@ const Profile = ({ sideNavbar, currentUser }) => {
           style={{ width: "100%", height: "180px", borderRadius: "12px", marginBottom: "20px", position: "relative", overflow: "hidden", background: "#111", cursor: user.isOwner ? "pointer" : "default" }}
           onClick={() => user.isOwner && document.getElementById("bannerInput").click()}
         >
-          {user.bannerPic ? (
-            <img src={user.bannerPic} alt="channel banner" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          ) : (
-            <>
-              <div style={{ position: "absolute", inset: 0, background: getUserGradient(user.name) }} />
-              <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 30% 50%, rgba(255,255,255,0.05), transparent 60%)" }} />
-            </>
-          )}
+          {user.bannerPic
+            ? <img src={user.bannerPic} alt="channel banner" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            : <>
+                <div style={{ position: "absolute", inset: 0, background: getUserGradient(user.name) }} />
+                <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 30% 50%, rgba(255,255,255,0.05), transparent 60%)" }} />
+              </>
+          }
           {user.isOwner && (
             <div style={{ position: "absolute", bottom: "10px", right: "14px", background: "rgba(0,0,0,0.6)", color: "white", fontSize: "12px", padding: "5px 12px", borderRadius: "20px", display: "flex", alignItems: "center", gap: "6px" }}>
               🖼️ {user.bannerPic ? "Change Banner" : "Add Banner"}
             </div>
           )}
-          <input
-            type="file" id="bannerInput" accept="image/*" style={{ display: "none" }}
+          <input type="file" id="bannerInput" accept="image/*" style={{ display: "none" }}
             onChange={async (e) => {
               const file = e.target.files[0]; if (!file) return;
               const formData = new FormData();
               formData.append("file", file); formData.append("upload_preset", "youtube-clone");
               try {
-                const res = await fetch("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", { method: "POST", body: formData });
+                const res  = await fetch("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", { method: "POST", body: formData });
                 const data = await res.json(); const url = data.secure_url;
                 await supabase.auth.updateUser({ data: { bannerPic: url } });
                 await supabase.from("profiles").upsert(
@@ -643,52 +558,29 @@ const Profile = ({ sideNavbar, currentUser }) => {
         {/* Top Section */}
         <div className="profile_top_section">
           <div className="profile_top_section_profile">
-            <img
-              className="profile_top_section_img"
-              src={user.profilePic}
-              alt={user.name}
-              onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=ff0000&color=fff&size=120&length=2`; }}
-            />
+            <img className="profile_top_section_img" src={user.profilePic} alt={user.name} onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=ff0000&color=fff&size=120&length=2`; }} />
           </div>
           <div className="profile_top_section_About">
             <div className="profile_top_section_About_Name">{user.name}</div>
             <div className="profile_top_section_info">
               {user.handle} ·{" "}
-              <button
-                onClick={() => setShowSubscribersModal(true)}
-                title="View subscribers"
-                style={{ background: "none", border: "none", padding: 0, color: "inherit", fontSize: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: "3px" }}
-              >
+              <button onClick={() => setShowSubscribersModal(true)} title="View subscribers" style={{ background: "none", border: "none", padding: 0, color: "inherit", fontSize: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: "3px" }}>
                 {subscriberCount.toLocaleString()} subscriber{subscriberCount !== 1 ? "s" : ""}
               </button>
               {" "}· {allUserVideos.length} videos · {allUserReels.length} reels · {userPosts.length} posts
             </div>
             <div className="profile_top_section_info">{user.about}</div>
-
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px" }}>
               {user.isOwner ? (
                 <>
-                  <Link to="/763/upload" style={{ background: "#ff0000", color: "white", border: "none", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer", textDecoration: "none", display: "inline-block" }}>
-                    + Upload Video / Reel
-                  </Link>
-                  <button onClick={() => { setEditName(user.name); setEditAbout(user.about); setEditPic(user.profilePic); setShowEditProfile(true); }} style={{ background: "#272727", color: "white", border: "1px solid #555", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}>
-                    ✏️ Edit Profile
-                  </button>
-                  <button onClick={() => setShowSubscribersModal(true)} style={{ background: "#272727", color: "white", border: "1px solid #555", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}>
-                    👥 View Subscribers
-                  </button>
+                  <Link to="/763/upload" style={{ background: "#ff0000", color: "white", border: "none", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer", textDecoration: "none", display: "inline-block" }}>+ Upload Video / Reel</Link>
+                  <button onClick={() => { setEditName(user.name); setEditAbout(user.about); setEditPic(user.profilePic); setShowEditProfile(true); }} style={{ background: "#272727", color: "white", border: "1px solid #555", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}>✏️ Edit Profile</button>
+                  <button onClick={() => setShowSubscribersModal(true)} style={{ background: "#272727", color: "white", border: "1px solid #555", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}>👥 View Subscribers</button>
                 </>
               ) : (
-                <button
-                  onClick={handleSubscribe}
-                  disabled={subLoading}
-                  style={{ background: isSubscribed ? "#272727" : "#ff0000", color: "white", border: isSubscribed ? "1px solid #555" : "none", borderRadius: "20px", padding: "8px 24px", fontSize: "14px", fontWeight: "600", cursor: subLoading ? "not-allowed" : "pointer", transition: "all 0.2s", opacity: subLoading ? 0.7 : 1, display: "flex", alignItems: "center", gap: "6px" }}
-                >
+                <button onClick={handleSubscribe} disabled={subLoading} style={{ background: isSubscribed ? "#272727" : "#ff0000", color: "white", border: isSubscribed ? "1px solid #555" : "none", borderRadius: "20px", padding: "8px 24px", fontSize: "14px", fontWeight: "600", cursor: subLoading ? "not-allowed" : "pointer", transition: "all 0.2s", opacity: subLoading ? 0.7 : 1, display: "flex", alignItems: "center", gap: "6px" }}>
                   {subLoading
-                    ? <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span style={{ width: "14px", height: "14px", border: "2px solid rgba(255,255,255,0.4)", borderTop: "2px solid white", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
-                        {isSubscribed ? "Unsubscribing..." : "Subscribing..."}
-                      </span>
+                    ? <span style={{ display: "flex", alignItems: "center", gap: "6px" }}><span style={{ width: "14px", height: "14px", border: "2px solid rgba(255,255,255,0.4)", borderTop: "2px solid white", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />{isSubscribed ? "Unsubscribing..." : "Subscribing..."}</span>
                     : isSubscribed ? "✓ Subscribed" : "Subscribe"
                   }
                 </button>
@@ -697,11 +589,11 @@ const Profile = ({ sideNavbar, currentUser }) => {
           </div>
         </div>
 
-        {/* Tab Switcher */}
+        {/* Tabs */}
         <div style={{ display: "flex", borderBottom: "1px solid #2a2a2a", marginBottom: "24px", marginTop: "8px", gap: "4px" }}>
           <button style={tabStyle("videos")} onClick={() => setActiveTab("videos")}>🎬 Videos ({allUserVideos.length})</button>
-          <button style={tabStyle("reels")} onClick={() => setActiveTab("reels")}>📱 Reels ({allUserReels.length})</button>
-          <button style={tabStyle("posts")} onClick={() => setActiveTab("posts")}>📝 Posts ({userPosts.length})</button>
+          <button style={tabStyle("reels")}  onClick={() => setActiveTab("reels")}>📱 Reels ({allUserReels.length})</button>
+          <button style={tabStyle("posts")}  onClick={() => setActiveTab("posts")}>📝 Posts ({userPosts.length})</button>
         </div>
 
         {/* Videos Tab */}
@@ -768,9 +660,7 @@ const Profile = ({ sideNavbar, currentUser }) => {
           <div style={{ maxWidth: "680px", margin: "0 auto" }}>
             {userPosts.length === 0
               ? <div style={{ color: "#aaa", textAlign: "center", marginTop: "40px" }}><div style={{ fontSize: "40px", marginBottom: "12px" }}>📭</div><p>No posts yet.</p></div>
-              : userPosts.map((post) => (
-                  <ProfilePostCard key={post.id} post={post} isOwner={user.isOwner} onDelete={handleDeletePost} />
-                ))
+              : userPosts.map((post) => <ProfilePostCard key={post.id} post={post} isOwner={user.isOwner} onDelete={handleDeletePost} />)
             }
           </div>
         )}
@@ -798,7 +688,7 @@ const Profile = ({ sideNavbar, currentUser }) => {
                   setEditLoading(true);
                   const formData = new FormData(); formData.append("file", file); formData.append("upload_preset", "youtube-clone");
                   try {
-                    const res = await fetch("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", { method: "POST", body: formData });
+                    const res  = await fetch("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", { method: "POST", body: formData });
                     const data = await res.json(); setEditPic(data.secure_url);
                   } catch { alert("Upload failed. Try again."); }
                   setEditLoading(false);

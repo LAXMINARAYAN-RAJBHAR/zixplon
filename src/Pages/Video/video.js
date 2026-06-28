@@ -25,7 +25,7 @@ const timeAgo = (dateStr) => {
 const getCloudinaryThumbnail = (videoUrl) => {
   if (!videoUrl || !videoUrl.includes("cloudinary.com")) return null;
   return videoUrl
-    .replace("/video/upload/", "/video/upload/so_1,vs_1/")
+    .replace("/video/upload/", "/video/upload/so_0/")
     .replace(/\.(mp4|webm|mov|avi|mkv)(\?.*)?$/i, ".jpg");
 };
 
@@ -464,23 +464,34 @@ const Video = ({ sideNavbar }) => {
           )}
 
           <video
-            ref={videoRef}
-            key={video.id}
-            controls
-            autoPlay
-            controlsList="nodownload"
-            onContextMenu={(e) => e.preventDefault()}
-            className="video_youtube_video"
-            onPlay={() => setIsVideoPlaying(true)}
-            onPause={() => setIsVideoPlaying(false)}
-            onEnded={handleVideoEnd}
-            onError={handleVideoError}
-            preload="auto"
-            poster={video.thumbnail}
-          >
-            <source src={video.src} type={getVideoType(video.src)} />
-            Your browser does not support the video tag.
-          </video>
+  ref={videoRef}
+  key={video.id}
+  controls
+  autoPlay
+  muted={false}
+  playsInline
+  crossOrigin="anonymous"
+  controlsList="nodownload"
+  onContextMenu={(e) => e.preventDefault()}
+  className="video_youtube_video"
+  onPlay={() => setIsVideoPlaying(true)}
+  onPause={() => setIsVideoPlaying(false)}
+  onEnded={handleVideoEnd}
+  onError={handleVideoError}
+  preload="metadata"
+  poster={video.thumbnail}
+>
+  {/* Force mp4 format for Cloudinary — Chrome 66 needs explicit mp4 */}
+  <source
+    src={
+      video.src && video.src.includes("cloudinary.com")
+        ? video.src.replace(/\.(webm|mov|avi|mkv)(\?.*)?$/i, ".mp4")
+        : video.src
+    }
+    type="video/mp4"
+  />
+  Your browser does not support the video tag.
+</video>
 
           {/* FLOATING LIKE / DISLIKE / SHARE
               Desktop: fades in on hover via CSS

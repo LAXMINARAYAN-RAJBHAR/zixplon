@@ -730,3 +730,29 @@
     display: none !important;
   }
 } */
+
+/* ══════════════════════════════════════
+   TV BROWSER — single targeted fix
+   Only fixes card bottom cut-off.
+   Does NOT touch layout, grid, or mobile.
+══════════════════════════════════════ */
+@media (min-width: 769px) and (max-width: 1366px) {
+
+  .youtube_thumbnailBox {
+    overflow: hidden !important;
+    height: auto !important;
+    min-height: unset !important;
+    max-height: unset !important;
+  }
+
+  .youtubeTitleBox {
+    height: auto !important;
+    min-height: unset !important;
+    overflow: visible !important;
+  }
+
+  .youtubeVideoInfo {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}

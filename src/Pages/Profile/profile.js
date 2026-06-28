@@ -51,7 +51,6 @@ const getUserGradient = (name = "") => {
 };
 
 // ─── Lightbox ─────────────────────────────────────────────────────────────────
-// Supports both single src and multi-image array with prev/next navigation.
 const Lightbox = ({ images, startIndex = 0, onClose }) => {
   const [index, setIndex] = useState(startIndex);
 
@@ -82,91 +81,26 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         justifyContent: "center", cursor: "zoom-out",
       }}
     >
-      {/* Close button */}
-      <button
-        onClick={onClose}
-        style={{
-          position: "absolute", top: "16px", right: "20px",
-          background: "rgba(255,255,255,0.1)", border: "none", color: "white",
-          fontSize: "22px", width: "40px", height: "40px", borderRadius: "50%",
-          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 2,
-        }}
-      >✕</button>
+      <button onClick={onClose} style={{ position: "absolute", top: "16px", right: "20px", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "22px", width: "40px", height: "40px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>✕</button>
 
-      {/* Prev button */}
       {images.length > 1 && (
-        <button
-          onClick={prev}
-          style={{
-            position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)",
-            background: "rgba(255,255,255,0.1)", border: "none", color: "white",
-            fontSize: "28px", width: "44px", height: "44px", borderRadius: "50%",
-            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 2,
-          }}
-        >‹</button>
+        <button onClick={prev} style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "28px", width: "44px", height: "44px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>‹</button>
+      )}
+      {images.length > 1 && (
+        <button onClick={next} style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.1)", border: "none", color: "white", fontSize: "28px", width: "44px", height: "44px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>›</button>
       )}
 
-      {/* Next button */}
-      {images.length > 1 && (
-        <button
-          onClick={next}
-          style={{
-            position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)",
-            background: "rgba(255,255,255,0.1)", border: "none", color: "white",
-            fontSize: "28px", width: "44px", height: "44px", borderRadius: "50%",
-            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 2,
-          }}
-        >›</button>
-      )}
+      <img src={images[index]} alt={`Image ${index + 1}`} onClick={(e) => e.stopPropagation()} style={{ maxWidth: "92vw", maxHeight: "90vh", objectFit: "contain", borderRadius: "8px", boxShadow: "0 8px 48px rgba(0,0,0,0.8)", cursor: "default" }} />
 
-      {/* Image */}
-      <img
-        src={images[index]}
-        alt={`Image ${index + 1}`}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          maxWidth: "92vw", maxHeight: "90vh", objectFit: "contain",
-          borderRadius: "8px", boxShadow: "0 8px 48px rgba(0,0,0,0.8)", cursor: "default",
-        }}
-      />
-
-      {/* Dot indicators */}
       {images.length > 1 && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: "absolute", bottom: "60px", left: "50%",
-            transform: "translateX(-50%)", display: "flex", gap: "8px",
-          }}
-        >
+        <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", bottom: "60px", left: "50%", transform: "translateX(-50%)", display: "flex", gap: "8px" }}>
           {images.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setIndex(i)}
-              style={{
-                width: "10px", height: "10px", borderRadius: "50%",
-                border: "none", cursor: "pointer", padding: 0,
-                background: i === index ? "#ffffff" : "rgba(255,255,255,0.35)",
-                transition: "background 0.2s",
-              }}
-            />
+            <button key={i} onClick={() => setIndex(i)} style={{ width: "10px", height: "10px", borderRadius: "50%", border: "none", cursor: "pointer", padding: 0, background: i === index ? "#ffffff" : "rgba(255,255,255,0.35)", transition: "background 0.2s" }} />
           ))}
         </div>
       )}
-
-      {/* Counter */}
       {images.length > 1 && (
-        <div
-          style={{
-            position: "absolute", bottom: "20px", left: "50%",
-            transform: "translateX(-50%)", color: "white", fontSize: "14px",
-            fontWeight: "700", background: "rgba(255,255,255,0.1)",
-            padding: "4px 12px", borderRadius: "12px",
-          }}
-        >
+        <div style={{ position: "absolute", bottom: "20px", left: "50%", transform: "translateX(-50%)", color: "white", fontSize: "14px", fontWeight: "700", background: "rgba(255,255,255,0.1)", padding: "4px 12px", borderRadius: "12px" }}>
           {index + 1} / {images.length}
         </div>
       )}
@@ -176,11 +110,10 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
 
 // ─── Profile Post Card ────────────────────────────────────────────────────────
 const ProfilePostCard = ({ post, isOwner, onDelete }) => {
-  const [lightboxData, setLightboxData] = useState(null); // { images: [], startIndex: 0 }
+  const [lightboxData, setLightboxData] = useState(null);
   const [showComments, setShowComments] = useState(false);
   const totalReactions = Object.values(post.reactionCounts || {}).reduce((a, b) => a + b, 0);
 
-  // Normalise to an array — prefer image_urls (multi), fall back to image_url (single)
   const images =
     post.image_urls?.length > 0
       ? post.image_urls
@@ -188,7 +121,6 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
         ? [post.image_url]
         : [];
 
-  // Grid layout helpers
   const gridStyle = (count) => {
     if (count === 1) return { gridTemplateColumns: "1fr", height: "auto" };
     if (count === 2) return { gridTemplateColumns: "1fr 1fr", height: "260px" };
@@ -198,9 +130,7 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
 
   const itemStyle = (idx, count) => {
     const base = { position: "relative", overflow: "hidden", cursor: "zoom-in" };
-    // For 3-image layout: first item spans 2 rows
     if (count === 3 && idx === 0) return { ...base, gridRow: "1 / 3" };
-    // Single image: natural height up to 400px
     if (count === 1) return { ...base, cursor: "zoom-in" };
     return base;
   };
@@ -208,35 +138,17 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
   return (
     <>
       {lightboxData && (
-        <Lightbox
-          images={lightboxData.images}
-          startIndex={lightboxData.startIndex}
-          onClose={() => setLightboxData(null)}
-        />
+        <Lightbox images={lightboxData.images} startIndex={lightboxData.startIndex} onClose={() => setLightboxData(null)} />
       )}
-
-      <div style={{
-        background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "12px",
-        padding: "16px", marginBottom: "14px", position: "relative",
-      }}>
-        {/* Header */}
+      <div style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "12px", padding: "16px", marginBottom: "14px", position: "relative" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-          <div style={{
-            width: "38px", height: "38px", borderRadius: "50%",
-            background: "linear-gradient(135deg,#ff4444,#cc0000)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "white", fontWeight: "700", fontSize: "14px", flexShrink: 0,
-          }}>
+          <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: "linear-gradient(135deg,#ff4444,#cc0000)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "700", fontSize: "14px", flexShrink: 0 }}>
             {(post.username || "?").slice(0, 2).toUpperCase()}
           </div>
           <div>
             <div style={{ color: "white", fontWeight: "600", fontSize: "14px" }}>
               {post.username}
-              {post.feeling && (
-                <span style={{ color: "#aaa", fontWeight: "400", fontSize: "13px" }}>
-                  {" "}— feeling {post.feeling}
-                </span>
-              )}
+              {post.feeling && <span style={{ color: "#aaa", fontWeight: "400", fontSize: "13px" }}> — feeling {post.feeling}</span>}
             </div>
             <div style={{ color: "#888", fontSize: "12px" }}>
               {timeAgo(post.created_at)}
@@ -246,66 +158,21 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
             </div>
           </div>
           {isOwner && (
-            <button
-              onClick={() => onDelete(post.id)}
-              title="Delete post"
-              style={{
-                marginLeft: "auto", background: "rgba(200,0,0,0.15)",
-                border: "1px solid rgba(200,0,0,0.3)", color: "#ff6666",
-                borderRadius: "8px", padding: "4px 10px", fontSize: "12px", cursor: "pointer",
-              }}
-            >
+            <button onClick={() => onDelete(post.id)} title="Delete post" style={{ marginLeft: "auto", background: "rgba(200,0,0,0.15)", border: "1px solid rgba(200,0,0,0.3)", color: "#ff6666", borderRadius: "8px", padding: "4px 10px", fontSize: "12px", cursor: "pointer" }}>
               🗑️ Delete
             </button>
           )}
         </div>
 
-        {/* Text */}
-        {post.text && (
-          <p style={{ color: "#e0e0e0", fontSize: "14px", lineHeight: "1.6", margin: "0 0 12px", wordBreak: "break-word" }}>
-            {post.text}
-          </p>
-        )}
+        {post.text && <p style={{ color: "#e0e0e0", fontSize: "14px", lineHeight: "1.6", margin: "0 0 12px", wordBreak: "break-word" }}>{post.text}</p>}
 
-        {/* ── Images — multi-image grid with lightbox ── */}
         {images.length > 0 && (
-          <div
-            style={{
-              display: "grid",
-              gap: "4px",
-              borderRadius: "8px",
-              overflow: "hidden",
-              marginBottom: "12px",
-              border: "1px solid #2a2a2a",
-              ...gridStyle(Math.min(images.length, 4)),
-            }}
-          >
+          <div style={{ display: "grid", gap: "4px", borderRadius: "8px", overflow: "hidden", marginBottom: "12px", border: "1px solid #2a2a2a", ...gridStyle(Math.min(images.length, 4)) }}>
             {images.slice(0, 4).map((url, idx) => (
-              <div
-                key={idx}
-                style={itemStyle(idx, Math.min(images.length, 4))}
-                onClick={() => setLightboxData({ images, startIndex: idx })}
-              >
-                <img
-                  src={url}
-                  alt={`Post image ${idx + 1}`}
-                  loading="lazy"
-                  style={{
-                    width: "100%",
-                    height: images.length === 1 ? "auto" : "100%",
-                    maxHeight: images.length === 1 ? "400px" : "none",
-                    objectFit: images.length === 1 ? "cover" : "cover",
-                    display: "block",
-                  }}
-                />
-                {/* +N overlay on the 4th tile when there are more than 4 images */}
+              <div key={idx} style={itemStyle(idx, Math.min(images.length, 4))} onClick={() => setLightboxData({ images, startIndex: idx })}>
+                <img src={url} alt={`Post image ${idx + 1}`} loading="lazy" style={{ width: "100%", height: images.length === 1 ? "auto" : "100%", maxHeight: images.length === 1 ? "400px" : "none", objectFit: "cover", display: "block" }} />
                 {idx === 3 && images.length > 4 && (
-                  <div style={{
-                    position: "absolute", inset: 0,
-                    background: "rgba(0,0,0,0.6)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "white", fontSize: "26px", fontWeight: "800",
-                  }}>
+                  <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontSize: "26px", fontWeight: "800" }}>
                     +{images.length - 4}
                   </div>
                 )}
@@ -314,52 +181,28 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
           </div>
         )}
 
-        {/* Link preview */}
         {post.link && (
-          <a
-            href={post.link.url}
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              display: "block", background: "#111", border: "1px solid #333",
-              borderRadius: "8px", padding: "12px", textDecoration: "none", marginBottom: "12px",
-            }}
-          >
+          <a href={post.link.url} target="_blank" rel="noreferrer" style={{ display: "block", background: "#111", border: "1px solid #333", borderRadius: "8px", padding: "12px", textDecoration: "none", marginBottom: "12px" }}>
             <div style={{ color: "#888", fontSize: "11px", marginBottom: "4px" }}>{post.link.domain}</div>
             <div style={{ color: "#3ea6ff", fontSize: "14px", fontWeight: "600" }}>{post.link.title}</div>
           </a>
         )}
 
-        {/* Stats bar */}
-        <div style={{
-          display: "flex", gap: "16px", alignItems: "center",
-          paddingTop: "10px", borderTop: "1px solid #2a2a2a",
-        }}>
+        <div style={{ display: "flex", gap: "16px", alignItems: "center", paddingTop: "10px", borderTop: "1px solid #2a2a2a" }}>
           <span style={{ color: "#aaa", fontSize: "13px", display: "flex", alignItems: "center", gap: "4px" }}>
             <ThumbUpOutlinedIcon style={{ fontSize: "16px" }} /> {totalReactions}
           </span>
-          <button
-            onClick={() => setShowComments((v) => !v)}
-            style={{
-              background: "none", border: "none", color: "#aaa", fontSize: "13px",
-              cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", padding: 0,
-            }}
-          >
+          <button onClick={() => setShowComments((v) => !v)} style={{ background: "none", border: "none", color: "#aaa", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", padding: 0 }}>
             <ChatBubbleOutlineIcon style={{ fontSize: "16px" }} />
             {post.comments?.length || 0} comment{post.comments?.length !== 1 ? "s" : ""}
           </button>
         </div>
 
-        {/* Comments */}
         {showComments && post.comments?.length > 0 && (
           <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
             {post.comments.map((c) => (
               <div key={c.id} style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
-                <div style={{
-                  width: "28px", height: "28px", borderRadius: "50%", background: "#333",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "#ccc", fontSize: "11px", fontWeight: "700", flexShrink: 0,
-                }}>
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: "#333", display: "flex", alignItems: "center", justifyContent: "center", color: "#ccc", fontSize: "11px", fontWeight: "700", flexShrink: 0 }}>
                   {(c.username || "?").slice(0, 2).toUpperCase()}
                 </div>
                 <div style={{ background: "#262626", borderRadius: "8px", padding: "6px 10px", flex: 1 }}>
@@ -390,12 +233,7 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
   useEffect(() => {
     const fetchSubscribers = async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from("subscriptions")
-        .select("subscriber_id, created_at")
-        .eq("subscribed_to", channelUsername)
-        .order("created_at", { ascending: false });
-
+      const { data } = await supabase.from("subscriptions").select("subscriber_id, created_at").eq("subscribed_to", channelUsername).order("created_at", { ascending: false });
       if (!data) { setSubscribers([]); setLoading(false); return; }
 
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -403,26 +241,17 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
 
       let idToUsername = {};
       if (uuids.length > 0) {
-        const { data: profilesData } = await supabase
-          .from("profiles")
-          .select("id, username")
-          .in("id", uuids);
-        profilesData?.forEach((p) => {
-          if (p.username && p.username.trim()) idToUsername[p.id] = p.username;
-        });
+        const { data: profilesData } = await supabase.from("profiles").select("id, username").in("id", uuids);
+        profilesData?.forEach((p) => { if (p.username && p.username.trim()) idToUsername[p.id] = p.username; });
       }
 
       setSubscribers(
         data.map((s) => {
           const isUuid = uuidRegex.test(s.subscriber_id);
           let displayName;
-          if (!isUuid) {
-            displayName = s.subscriber_id;
-          } else if (idToUsername[s.subscriber_id]) {
-            displayName = idToUsername[s.subscriber_id];
-          } else {
-            displayName = `User ${s.subscriber_id.slice(0, 8)}`;
-          }
+          if (!isUuid) displayName = s.subscriber_id;
+          else if (idToUsername[s.subscriber_id]) displayName = idToUsername[s.subscriber_id];
+          else displayName = `User ${s.subscriber_id.slice(0, 8)}`;
           return { ...s, displayName };
         })
       );
@@ -432,46 +261,19 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
   }, [channelUsername]);
 
   return (
-    <div
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)",
-        zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center",
-      }}
-    >
-      <div style={{
-        background: "#1a1a1a", borderRadius: "16px", width: "100%", maxWidth: "420px",
-        maxHeight: "75vh", display: "flex", flexDirection: "column",
-        border: "1px solid #2a2a2a", overflow: "hidden",
-      }}>
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "20px 24px 16px", borderBottom: "1px solid #2a2a2a",
-        }}>
+    <div onClick={(e) => e.target === e.currentTarget && onClose()} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#1a1a1a", borderRadius: "16px", width: "100%", maxWidth: "420px", maxHeight: "75vh", display: "flex", flexDirection: "column", border: "1px solid #2a2a2a", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px 16px", borderBottom: "1px solid #2a2a2a" }}>
           <div>
             <h2 style={{ color: "white", margin: 0, fontSize: "18px", fontWeight: "700" }}>👥 Subscribers</h2>
-            <p style={{ color: "#888", margin: "2px 0 0", fontSize: "13px" }}>
-              {subscribers.length} {subscribers.length === 1 ? "person" : "people"} subscribed
-            </p>
+            <p style={{ color: "#888", margin: "2px 0 0", fontSize: "13px" }}>{subscribers.length} {subscribers.length === 1 ? "person" : "people"} subscribed</p>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "rgba(255,255,255,0.08)", border: "none", color: "white",
-              width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer",
-              fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >✕</button>
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "white", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", fontSize: "16px", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
-
         <div style={{ overflowY: "auto", flex: 1, padding: "12px 16px" }}>
           {loading ? (
             <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
-              <div style={{
-                width: "32px", height: "32px", border: "3px solid #333",
-                borderTop: "3px solid #ff4444", borderRadius: "50%",
-                animation: "spin 0.8s linear infinite",
-              }} />
+              <div style={{ width: "32px", height: "32px", border: "3px solid #333", borderTop: "3px solid #ff4444", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
             </div>
           ) : subscribers.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px 0", color: "#666" }}>
@@ -480,23 +282,8 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
             </div>
           ) : (
             subscribers.map((sub, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: "flex", alignItems: "center", gap: "12px",
-                  padding: "10px 8px", borderRadius: "10px",
-                  transition: "background 0.15s", cursor: "default",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "#262626"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-              >
-                <div style={{
-                  width: "40px", height: "40px", borderRadius: "50%",
-                  background: "linear-gradient(135deg, #ff4444, #cc0000)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "white", fontWeight: "700", fontSize: "14px", flexShrink: 0,
-                  textTransform: "uppercase",
-                }}>
+              <div key={idx} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 8px", borderRadius: "10px", transition: "background 0.15s", cursor: "default" }} onMouseEnter={(e) => e.currentTarget.style.background = "#262626"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "linear-gradient(135deg, #ff4444, #cc0000)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: "700", fontSize: "14px", flexShrink: 0, textTransform: "uppercase" }}>
                   {(sub.displayName || "?").slice(0, 2).toUpperCase()}
                 </div>
                 <div style={{ flex: 1 }}>
@@ -513,7 +300,8 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
 };
 
 // ─── Main Profile Component ───────────────────────────────────────────────────
-const Profile = ({ sideNavbar }) => {
+// ✅ FIX: Accept currentUser prop from App.jsx
+const Profile = ({ sideNavbar, currentUser }) => {
   const { username } = useParams();
   const key = username?.toLowerCase();
   const navigate = useNavigate();
@@ -542,27 +330,54 @@ const Profile = ({ sideNavbar }) => {
   useEffect(() => {
     const loadProfile = async () => {
       setLoading(true);
-      const lsUsername = localStorage.getItem("username");
-      const lsProfilePic = localStorage.getItem("profilePic");
-      const lsAbout = localStorage.getItem("about");
-      const lsEmail = localStorage.getItem("email");
 
-      if (lsUsername && matchesKey(lsUsername, key)) {
+      // ✅ FIX: Use currentUser object (from App.jsx) OR fallback to localStorage
+      // currentUser is now a full Supabase user object with .username, .id, .email etc.
+      const loggedInUsername =
+        (typeof currentUser === "object" ? currentUser?.username : currentUser) ||
+        localStorage.getItem("username") ||
+        "";
+      const loggedInUserId =
+        (typeof currentUser === "object" ? currentUser?.id : null) ||
+        localStorage.getItem("userId") ||
+        "";
+      const loggedInEmail =
+        (typeof currentUser === "object" ? currentUser?.email : null) ||
+        localStorage.getItem("email") ||
+        "";
+      const loggedInPic =
+        (typeof currentUser === "object" ? currentUser?.profilePic : null) ||
+        localStorage.getItem("profilePic") ||
+        "";
+      const loggedInAbout =
+        (typeof currentUser === "object" ? currentUser?.about : null) ||
+        localStorage.getItem("about") ||
+        "";
+
+      // ✅ FIX: isOwner now checked via prop-derived username (works on mobile)
+      const isOwnerByUsername = loggedInUsername && matchesKey(loggedInUsername, key);
+
+      if (isOwnerByUsername) {
         const { data: ownerProfile } = await supabase
           .from("profiles")
           .select("banner_pic, profile_pic, about")
-          .eq("username", lsUsername)
+          .eq("username", loggedInUsername)
           .maybeSingle();
         const bannerPic = ownerProfile?.banner_pic || null;
-        const profilePic = ownerProfile?.profile_pic || lsProfilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=ff0000&color=fff&size=120&length=2`;
-        const about = ownerProfile?.about || lsAbout || `${lsUsername}'s channel`;
+        const profilePic = ownerProfile?.profile_pic || loggedInPic ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(loggedInUsername)}&background=ff0000&color=fff&size=120&length=2`;
+        const about = ownerProfile?.about || loggedInAbout || `${loggedInUsername}'s channel`;
         if (profilePic) localStorage.setItem("profilePic", profilePic);
         if (about) localStorage.setItem("about", about);
-        setUser({ name: lsUsername, handle: `@${lsUsername}`, profilePic, about, email: lsEmail, isOwner: true, bannerPic });
+        setUser({ name: loggedInUsername, handle: `@${loggedInUsername}`, profilePic, about, email: loggedInEmail, isOwner: true, bannerPic });
       } else {
+        // ✅ FIX: Also check via Supabase session as fallback (for mobile)
         const { data: authData } = await supabase.auth.getUser();
         const authUser = authData?.user;
-        const authUsername = authUser?.user_metadata?.channelName || authUser?.user_metadata?.username;
+        const authUsername =
+          authUser?.user_metadata?.channelName ||
+          authUser?.user_metadata?.username;
+
         if (authUsername && matchesKey(authUsername, key)) {
           const { data: ownerProfile } = await supabase
             .from("profiles")
@@ -570,19 +385,17 @@ const Profile = ({ sideNavbar }) => {
             .eq("username", authUsername)
             .maybeSingle();
           const bannerPic = ownerProfile?.banner_pic || authUser.user_metadata?.bannerPic || null;
-          const profilePic = ownerProfile?.profile_pic || authUser.user_metadata?.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`;
+          const profilePic = ownerProfile?.profile_pic || authUser.user_metadata?.profilePic ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`;
           const about = ownerProfile?.about || authUser.user_metadata?.about || `${authUsername}'s channel`;
           setUser({ name: authUsername, handle: `@${authUsername}`, profilePic, about, email: authUser.email, isOwner: true, bannerPic });
           localStorage.setItem("username", authUsername);
           if (profilePic) localStorage.setItem("profilePic", profilePic);
           if (about) localStorage.setItem("about", about);
         } else {
+          // Viewing someone else's profile
           let foundUser = null;
-          const { data: profileRow } = await supabase
-            .from("profiles")
-            .select("username, banner_pic, profile_pic, about")
-            .eq("username", key)
-            .maybeSingle();
+          const { data: profileRow } = await supabase.from("profiles").select("username, banner_pic, profile_pic, about").eq("username", key).maybeSingle();
           if (profileRow) {
             foundUser = {
               name: profileRow.username,
@@ -621,10 +434,7 @@ const Profile = ({ sideNavbar }) => {
         setDbVideos(
           vData
             .filter((v) => matchesKey(v.username, key) || matchesKey(v.channel, key))
-            .map((v) => ({
-              id: v.id, src: v.video_url, thumbnail: v.thumbnail_url,
-              title: v.title, duration: v.duration || "00:00", channel: v.channel,
-            }))
+            .map((v) => ({ id: v.id, src: v.video_url, thumbnail: v.thumbnail_url, title: v.title, duration: v.duration || "00:00", channel: v.channel }))
         );
         const ids = vData.map((v) => String(v.id));
         const [{ data: vLikes }, { data: vViews }] = await Promise.all([
@@ -632,12 +442,7 @@ const Profile = ({ sideNavbar }) => {
           supabase.from("views").select("content_id").eq("content_type", "video").in("content_id", ids),
         ]);
         const counts = {};
-        ids.forEach((id) => {
-          counts[id] = {
-            likes: vLikes?.filter((l) => l.content_id === id).length || 0,
-            views: vViews?.filter((v) => v.content_id === id).length || 0,
-          };
-        });
+        ids.forEach((id) => { counts[id] = { likes: vLikes?.filter((l) => l.content_id === id).length || 0, views: vViews?.filter((v) => v.content_id === id).length || 0 }; });
         setVideoCounts(counts);
       }
 
@@ -647,15 +452,7 @@ const Profile = ({ sideNavbar }) => {
         setDbReels(
           rData
             .filter((r) => matchesKey(r.username, key))
-            .map((r) => ({
-              id: `db_${r.id}`, dbId: r.id, src: r.video_url,
-              thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99",
-              title: r.title || "Untitled", duration: r.duration || "00:00",
-              description: r.description || "", username: r.username,
-              user: r.user || r.username,
-              profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
-              likes: 0,
-            }))
+            .map((r) => ({ id: `db_${r.id}`, dbId: r.id, src: r.video_url, thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99", title: r.title || "Untitled", duration: r.duration || "00:00", description: r.description || "", username: r.username, user: r.user || r.username, profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`, likes: 0 }))
         );
         const ids = rData.map((r) => `db_${r.id}`);
         const [{ data: rLikes }, { data: rViews }] = await Promise.all([
@@ -663,12 +460,7 @@ const Profile = ({ sideNavbar }) => {
           supabase.from("views").select("content_id").eq("content_type", "reel").in("content_id", ids),
         ]);
         const counts = {};
-        ids.forEach((id) => {
-          counts[id] = {
-            likes: rLikes?.filter((l) => l.content_id === id).length || 0,
-            views: rViews?.filter((v) => v.content_id === id).length || 0,
-          };
-        });
+        ids.forEach((id) => { counts[id] = { likes: rLikes?.filter((l) => l.content_id === id).length || 0, views: rViews?.filter((v) => v.content_id === id).length || 0 }; });
         setReelCounts(counts);
       }
 
@@ -679,15 +471,13 @@ const Profile = ({ sideNavbar }) => {
         .eq("username", key)
         .order("created_at", { ascending: false });
       if (postsData) {
-        const currentUser = localStorage.getItem("username") || "";
+        // ✅ FIX: use prop-derived username for reaction check
+        const myUsername = loggedInUsername;
         setUserPosts(
           postsData.map((p) => ({
             ...p,
-            myReaction: p.post_reactions?.find((r) => r.username === currentUser)?.type || null,
-            reactionCounts: p.post_reactions?.reduce((acc, r) => {
-              acc[r.type] = (acc[r.type] || 0) + 1;
-              return acc;
-            }, {}),
+            myReaction: p.post_reactions?.find((r) => r.username === myUsername)?.type || null,
+            reactionCounts: p.post_reactions?.reduce((acc, r) => { acc[r.type] = (acc[r.type] || 0) + 1; return acc; }, {}),
             comments: (p.post_comments || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
           }))
         );
@@ -699,33 +489,20 @@ const Profile = ({ sideNavbar }) => {
         .select("*", { count: "exact", head: true })
         .eq("subscribed_to", key);
 
-      const currentUser = localStorage.getItem("username") || "";
-      const currentUserId = localStorage.getItem("userId") || "";
       let alreadySubscribed = false;
-      if (currentUser && currentUser.toLowerCase() !== key) {
-        const { data: subCheckById } = currentUserId
-          ? await supabase
-              .from("subscriptions")
-              .select("id")
-              .eq("subscriber_id", currentUserId)
-              .eq("subscribed_to", key)
-              .maybeSingle()
+      if (loggedInUsername && loggedInUsername.toLowerCase() !== key) {
+        const { data: subCheckById } = loggedInUserId
+          ? await supabase.from("subscriptions").select("id").eq("subscriber_id", loggedInUserId).eq("subscribed_to", key).maybeSingle()
           : { data: null };
-        const { data: subCheckByUsername } = await supabase
-          .from("subscriptions")
-          .select("id")
-          .eq("subscriber_id", currentUser)
-          .eq("subscribed_to", key)
-          .maybeSingle();
+        const { data: subCheckByUsername } = await supabase.from("subscriptions").select("id").eq("subscriber_id", loggedInUsername).eq("subscribed_to", key).maybeSingle();
         alreadySubscribed = !!(subCheckById || subCheckByUsername);
       }
       setSubscriberCount(subCount || 0);
       setIsSubscribed(alreadySubscribed);
-
       setLoading(false);
     };
     loadProfile();
-  }, [key]);
+  }, [key, currentUser]); // ✅ re-run when currentUser changes (e.g. after login)
 
   const hardcodedReels = reelsData.filter((r) => r.username?.toLowerCase() === key);
   const hardcodedVideos = allVideos.filter((v) => v.channel?.toLowerCase() === key);
@@ -733,19 +510,23 @@ const Profile = ({ sideNavbar }) => {
   const allUserReels = [...dbReels, ...hardcodedReels];
 
   const handleSubscribe = async () => {
-    const currentUser = localStorage.getItem("username") || "";
-    const currentUserId = localStorage.getItem("userId") || "";
-    if (!currentUser || !currentUserId) { alert("Please log in to subscribe."); return; }
-    if (currentUser.toLowerCase() === key) return;
+    const loggedInUsername =
+      (typeof currentUser === "object" ? currentUser?.username : currentUser) ||
+      localStorage.getItem("username") || "";
+    const loggedInUserId =
+      (typeof currentUser === "object" ? currentUser?.id : null) ||
+      localStorage.getItem("userId") || "";
+    if (!loggedInUsername || !loggedInUserId) { alert("Please log in to subscribe."); return; }
+    if (loggedInUsername.toLowerCase() === key) return;
 
     setSubLoading(true);
     if (isSubscribed) {
-      await supabase.from("subscriptions").delete().eq("subscriber_id", currentUserId).eq("subscribed_to", key);
-      await supabase.from("subscriptions").delete().eq("subscriber_id", currentUser).eq("subscribed_to", key);
+      await supabase.from("subscriptions").delete().eq("subscriber_id", loggedInUserId).eq("subscribed_to", key);
+      await supabase.from("subscriptions").delete().eq("subscriber_id", loggedInUsername).eq("subscribed_to", key);
       setIsSubscribed(false);
       setSubscriberCount((n) => Math.max(0, n - 1));
     } else {
-      await supabase.from("subscriptions").insert({ subscriber_id: currentUserId, subscribed_to: key });
+      await supabase.from("subscriptions").insert({ subscriber_id: loggedInUserId, subscribed_to: key });
       setIsSubscribed(true);
       setSubscriberCount((n) => n + 1);
     }
@@ -871,57 +652,29 @@ const Profile = ({ sideNavbar }) => {
           </div>
           <div className="profile_top_section_About">
             <div className="profile_top_section_About_Name">{user.name}</div>
-
             <div className="profile_top_section_info">
               {user.handle} ·{" "}
               <button
                 onClick={() => setShowSubscribersModal(true)}
                 title="View subscribers"
-                style={{
-                  background: "none", border: "none", padding: 0,
-                  color: "inherit", fontSize: "inherit", cursor: "pointer",
-                  textDecoration: "underline", textDecorationStyle: "dotted",
-                  textUnderlineOffset: "3px",
-                }}
+                style={{ background: "none", border: "none", padding: 0, color: "inherit", fontSize: "inherit", cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: "3px" }}
               >
                 {subscriberCount.toLocaleString()} subscriber{subscriberCount !== 1 ? "s" : ""}
               </button>
               {" "}· {allUserVideos.length} videos · {allUserReels.length} reels · {userPosts.length} posts
             </div>
-
             <div className="profile_top_section_info">{user.about}</div>
 
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px" }}>
               {user.isOwner ? (
                 <>
-                  <Link
-                    to="/763/upload"
-                    style={{
-                      background: "#ff0000", color: "white", border: "none",
-                      borderRadius: "20px", padding: "8px 20px", fontSize: "14px",
-                      fontWeight: "600", cursor: "pointer", textDecoration: "none", display: "inline-block",
-                    }}
-                  >
+                  <Link to="/763/upload" style={{ background: "#ff0000", color: "white", border: "none", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer", textDecoration: "none", display: "inline-block" }}>
                     + Upload Video / Reel
                   </Link>
-                  <button
-                    onClick={() => { setEditName(user.name); setEditAbout(user.about); setEditPic(user.profilePic); setShowEditProfile(true); }}
-                    style={{
-                      background: "#272727", color: "white", border: "1px solid #555",
-                      borderRadius: "20px", padding: "8px 20px", fontSize: "14px",
-                      fontWeight: "600", cursor: "pointer",
-                    }}
-                  >
+                  <button onClick={() => { setEditName(user.name); setEditAbout(user.about); setEditPic(user.profilePic); setShowEditProfile(true); }} style={{ background: "#272727", color: "white", border: "1px solid #555", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}>
                     ✏️ Edit Profile
                   </button>
-                  <button
-                    onClick={() => setShowSubscribersModal(true)}
-                    style={{
-                      background: "#272727", color: "white", border: "1px solid #555",
-                      borderRadius: "20px", padding: "8px 20px", fontSize: "14px",
-                      fontWeight: "600", cursor: "pointer",
-                    }}
-                  >
+                  <button onClick={() => setShowSubscribersModal(true)} style={{ background: "#272727", color: "white", border: "1px solid #555", borderRadius: "20px", padding: "8px 20px", fontSize: "14px", fontWeight: "600", cursor: "pointer" }}>
                     👥 View Subscribers
                   </button>
                 </>
@@ -929,15 +682,7 @@ const Profile = ({ sideNavbar }) => {
                 <button
                   onClick={handleSubscribe}
                   disabled={subLoading}
-                  style={{
-                    background: isSubscribed ? "#272727" : "#ff0000",
-                    color: "white",
-                    border: isSubscribed ? "1px solid #555" : "none",
-                    borderRadius: "20px", padding: "8px 24px", fontSize: "14px",
-                    fontWeight: "600", cursor: subLoading ? "not-allowed" : "pointer",
-                    transition: "all 0.2s", opacity: subLoading ? 0.7 : 1,
-                    display: "flex", alignItems: "center", gap: "6px",
-                  }}
+                  style={{ background: isSubscribed ? "#272727" : "#ff0000", color: "white", border: isSubscribed ? "1px solid #555" : "none", borderRadius: "20px", padding: "8px 24px", fontSize: "14px", fontWeight: "600", cursor: subLoading ? "not-allowed" : "pointer", transition: "all 0.2s", opacity: subLoading ? 0.7 : 1, display: "flex", alignItems: "center", gap: "6px" }}
                 >
                   {subLoading
                     ? <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -995,11 +740,7 @@ const Profile = ({ sideNavbar }) => {
             : <div className="profileVideos">
                 {allUserReels.map((reel) => (
                   <div key={reel.id} style={{ position: "relative" }}>
-                    <div
-                      className="profileVideo_block"
-                      style={{ cursor: "pointer" }}
-                      onClick={() => navigate("/reels", { state: { clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 } } })}
-                    >
+                    <div className="profileVideo_block" style={{ cursor: "pointer" }} onClick={() => navigate("/reels", { state: { clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 } } })}>
                       <div className="profileVideo_block_thumbnail" style={{ position: "relative" }}>
                         <img className="profileVideo_block_thumbnail_img" src={reel.thumbnail} alt={reel.title} />
                         <span style={{ position: "absolute", top: "6px", left: "6px", background: "rgba(0,0,0,0.7)", color: "white", fontSize: "10px", padding: "2px 6px", borderRadius: "4px", fontWeight: "600" }}>🎬 Reel</span>
@@ -1026,10 +767,7 @@ const Profile = ({ sideNavbar }) => {
         {activeTab === "posts" && (
           <div style={{ maxWidth: "680px", margin: "0 auto" }}>
             {userPosts.length === 0
-              ? <div style={{ color: "#aaa", textAlign: "center", marginTop: "40px" }}>
-                  <div style={{ fontSize: "40px", marginBottom: "12px" }}>📭</div>
-                  <p>No posts yet.</p>
-                </div>
+              ? <div style={{ color: "#aaa", textAlign: "center", marginTop: "40px" }}><div style={{ fontSize: "40px", marginBottom: "12px" }}>📭</div><p>No posts yet.</p></div>
               : userPosts.map((post) => (
                   <ProfilePostCard key={post.id} post={post} isOwner={user.isOwner} onDelete={handleDeletePost} />
                 ))
@@ -1038,25 +776,15 @@ const Profile = ({ sideNavbar }) => {
         )}
       </div>
 
-      {/* Subscribers Modal */}
-      {showSubscribersModal && (
-        <SubscribersModal channelUsername={key} onClose={() => setShowSubscribersModal(false)} />
-      )}
+      {showSubscribersModal && <SubscribersModal channelUsername={key} onClose={() => setShowSubscribersModal(false)} />}
 
       {/* Edit Profile Modal */}
       {showEditProfile && (
-        <div
-          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center" }}
-          onClick={(e) => e.target === e.currentTarget && setShowEditProfile(false)}
-        >
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={(e) => e.target === e.currentTarget && setShowEditProfile(false)}>
           <div style={{ background: "#212121", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "440px", border: "1px solid #333", display: "flex", flexDirection: "column", gap: "16px" }}>
             <h2 style={{ color: "white", margin: 0, fontSize: "20px" }}>✏️ Edit Profile</h2>
             <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <img
-                src={editPic || user.profilePic} alt="preview"
-                style={{ width: "72px", height: "72px", borderRadius: "50%", objectFit: "cover", border: "2px solid #ff0000" }}
-                onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(editName || user.name)}&background=ff0000&color=fff&size=72`; }}
-              />
+              <img src={editPic || user.profilePic} alt="preview" style={{ width: "72px", height: "72px", borderRadius: "50%", objectFit: "cover", border: "2px solid #ff0000" }} onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(editName || user.name)}&background=ff0000&color=fff&size=72`; }} />
               <div style={{ flex: 1 }}>
                 <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>Paste Image URL</p>
                 <input value={editPic} onChange={(e) => setEditPic(e.target.value)} placeholder="https://..." style={{ width: "100%", background: "#2a2a2a", border: "1px solid #444", borderRadius: "8px", color: "white", padding: "8px 12px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
@@ -1064,8 +792,7 @@ const Profile = ({ sideNavbar }) => {
             </div>
             <div>
               <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>Or upload a new photo:</p>
-              <input
-                type="file" accept="image/*"
+              <input type="file" accept="image/*"
                 onChange={async (e) => {
                   const file = e.target.files[0]; if (!file) return;
                   setEditLoading(true);
@@ -1089,16 +816,10 @@ const Profile = ({ sideNavbar }) => {
               <input value={editAbout} onChange={(e) => setEditAbout(e.target.value)} placeholder={user.about} style={{ width: "100%", background: "#2a2a2a", border: "1px solid #444", borderRadius: "8px", color: "white", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box" }} />
             </div>
             <div style={{ display: "flex", gap: "10px" }}>
-              <button
-                onClick={handleSaveProfile} disabled={editLoading}
-                style={{ flex: 1, background: editLoading ? "#555" : "#ff0000", color: "white", border: "none", borderRadius: "8px", padding: "12px", fontSize: "15px", fontWeight: "700", cursor: editLoading ? "not-allowed" : "pointer" }}
-              >
+              <button onClick={handleSaveProfile} disabled={editLoading} style={{ flex: 1, background: editLoading ? "#555" : "#ff0000", color: "white", border: "none", borderRadius: "8px", padding: "12px", fontSize: "15px", fontWeight: "700", cursor: editLoading ? "not-allowed" : "pointer" }}>
                 {editLoading ? "Uploading..." : "Save Changes"}
               </button>
-              <button
-                onClick={() => { setShowEditProfile(false); setEditName(""); setEditAbout(""); setEditPic(""); }}
-                style={{ flex: 1, background: "none", border: "1px solid #555", color: "#aaa", borderRadius: "8px", padding: "12px", fontSize: "14px", cursor: "pointer" }}
-              >Cancel</button>
+              <button onClick={() => { setShowEditProfile(false); setEditName(""); setEditAbout(""); setEditPic(""); }} style={{ flex: 1, background: "none", border: "1px solid #555", color: "#aaa", borderRadius: "8px", padding: "12px", fontSize: "14px", cursor: "pointer" }}>Cancel</button>
             </div>
           </div>
         </div>
@@ -1106,16 +827,11 @@ const Profile = ({ sideNavbar }) => {
 
       {/* Confirm Delete Modal */}
       {deleteTarget && (
-        <div
-          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center" }}
-          onClick={(e) => e.target === e.currentTarget && setDeleteTarget(null)}
-        >
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={(e) => e.target === e.currentTarget && setDeleteTarget(null)}>
           <div style={{ background: "#212121", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "380px", border: "1px solid #555", display: "flex", flexDirection: "column", gap: "16px", textAlign: "center" }}>
             <div style={{ fontSize: "40px" }}>🗑️</div>
             <h2 style={{ color: "white", margin: 0, fontSize: "18px" }}>Delete {deleteTarget.type}?</h2>
-            <p style={{ color: "#aaa", fontSize: "14px", margin: 0 }}>
-              "<strong style={{ color: "white" }}>{deleteTarget.title}</strong>" will be permanently removed.
-            </p>
+            <p style={{ color: "#aaa", fontSize: "14px", margin: 0 }}>"<strong style={{ color: "white" }}>{deleteTarget.title}</strong>" will be permanently removed.</p>
             <div style={{ display: "flex", gap: "10px" }}>
               <button onClick={handleDelete} style={{ flex: 1, background: "#cc0000", color: "white", border: "none", borderRadius: "8px", padding: "12px", fontSize: "15px", fontWeight: "700", cursor: "pointer" }}>Yes, Delete</button>
               <button onClick={() => setDeleteTarget(null)} style={{ flex: 1, background: "none", border: "1px solid #555", color: "#aaa", borderRadius: "8px", padding: "12px", fontSize: "14px", cursor: "pointer" }}>Cancel</button>

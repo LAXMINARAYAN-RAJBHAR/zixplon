@@ -54,26 +54,114 @@ const LoadingScreen = ({ onFinish }) => {
   }, [onFinish]);
 
   return (
-    <div style={{ position: "fixed", top: "0px", left: "0px", right: "0px", bottom: "0px", width: "100vw", height: "100vh", background: "#000000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", margin: "0px", padding: "0px", zIndex: 9999, opacity: fade ? 0 : 1, transition: "opacity 0.5s ease" }}>
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" style={{ width: "180px", height: "180px", display: "block" }}>
+    <div
+      style={{
+        // ── FIX: use fixed + explicit 100vw/100vh instead of inset:0
+        // so TV browsers (which mishandle inset + height:100% on #root)
+        // still stretch this overlay to the full screen correctly ──
+        position: "fixed",
+        top: "0px",
+        left: "0px",
+        right: "0px",
+        bottom: "0px",
+        width: "100vw",
+        height: "100vh",
+        background: "#000000",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        margin: "0px",
+        padding: "0px",
+        zIndex: 9999,
+        opacity: fade ? 0 : 1,
+        transition: "opacity 0.5s ease",
+      }}
+    >
+      {/* ── Crisp inline SVG logo — no image file, never blurs ── */}
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 512 512"
+        style={{ width: "180px", height: "180px", display: "block" }}
+      >
+        {/* Red rounded square */}
         <rect x="0" y="0" width="512" height="512" rx="110" ry="110" fill="#CC0000" />
+        {/* Top shine */}
         <rect x="0" y="0" width="512" height="260" rx="110" ry="110" fill="#E81515" opacity="0.55" />
-        <polygon points="108,108 404,108 404,178 220,334 404,334 404,404 108,404 108,334 292,178 108,178" fill="#FFFFFF" />
+        {/* Bold white Z */}
+        <polygon
+          points="108,108 404,108 404,178 220,334 404,334 404,404 108,404 108,334 292,178 108,178"
+          fill="#FFFFFF"
+        />
       </svg>
-      <p style={{ marginTop: "24px", color: "#ffffff", fontSize: "26px", fontWeight: "800", fontFamily: "'Outfit', 'Nunito', sans-serif", letterSpacing: "6px", textTransform: "uppercase", opacity: 0.92, margin: "24px 0 0" }}>ZIXPLON</p>
+
+      {/* ── App name ── */}
+      <p
+        style={{
+          marginTop: "24px",
+          color: "#ffffff",
+          fontSize: "26px",
+          fontWeight: "800",
+          fontFamily: "'Outfit', 'Nunito', sans-serif",
+          letterSpacing: "6px",
+          textTransform: "uppercase",
+          opacity: 0.92,
+          margin: "24px 0 0",
+        }}
+      >
+        ZIXPLON
+      </p>
+
+      {/* ── Subtle loading dots ── */}
       <div style={{ display: "flex", gap: "8px", marginTop: "40px" }}>
         {[0, 1, 2].map((i) => (
-          <div key={i} style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#CC0000", animation: `bounce 1s ease-in-out ${i * 0.18}s infinite` }} />
+          <div
+            key={i}
+            style={{
+              width: "7px",
+              height: "7px",
+              borderRadius: "50%",
+              background: "#CC0000",
+              animation: `bounce 1s ease-in-out ${i * 0.18}s infinite`,
+            }}
+          />
         ))}
       </div>
-      <style>{`@keyframes bounce { 0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; } 40% { transform: scale(1.2); opacity: 1; } }`}</style>
+
+      <style>{`
+        @keyframes bounce {
+          0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+          40%            { transform: scale(1.2); opacity: 1;   }
+        }
+      `}</style>
     </div>
   );
 };
 
 // ── Exit Toast ────────────────────────────────────────────────────────────────
 const ExitToast = ({ visible }) => (
-  <div style={{ position: "fixed", bottom: "80px", left: "50%", transform: `translateX(-50%) translateY(${visible ? "0" : "20px"})`, background: "rgba(30, 30, 40, 0.92)", color: "#fff", padding: "12px 24px", borderRadius: "24px", fontSize: "14px", fontWeight: "500", fontFamily: "'Outfit', 'Nunito', sans-serif", letterSpacing: "0.3px", zIndex: 99999, opacity: visible ? 1 : 0, transition: "opacity 0.25s ease, transform 0.25s ease", pointerEvents: "none", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.35)" }}>
+  <div
+    style={{
+      position: "fixed",
+      bottom: "80px",
+      left: "50%",
+      transform: `translateX(-50%) translateY(${visible ? "0" : "20px"})`,
+      background: "rgba(30, 30, 40, 0.92)",
+      color: "#fff",
+      padding: "12px 24px",
+      borderRadius: "24px",
+      fontSize: "14px",
+      fontWeight: "500",
+      fontFamily: "'Outfit', 'Nunito', sans-serif",
+      letterSpacing: "0.3px",
+      zIndex: 99999,
+      opacity: visible ? 1 : 0,
+      transition: "opacity 0.25s ease, transform 0.25s ease",
+      pointerEvents: "none",
+      whiteSpace: "nowrap",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
+    }}
+  >
     Press back again to exit
   </div>
 );
@@ -81,16 +169,13 @@ const ExitToast = ({ visible }) => (
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
   const location = useLocation();
-
-  const [loadingDone, setLoadingDone] = useState(false);
-  const [authReady, setAuthReady]     = useState(false);
-  const [sideNavbar, setSideNavbar]   = useState(true);
-
-  // ✅ currentUser stays a simple STRING (username) — same as your original
+  const [appReady, setAppReady] = useState(false);
+  const [sideNavbar, setSideNavbar] = useState(true);
   const [currentUser, setCurrentUser] = useState(
-    localStorage.getItem("username") || null
+    localStorage.getItem("username") || null,
   );
 
+  // ── Exit-on-back state ──
   const [showExitToast, setShowExitToast] = useState(false);
   const exitToastTimer = useRef(null);
   const backPressedOnce = useRef(false);
@@ -100,7 +185,7 @@ function App() {
     supabase.from("videos").select("id").limit(1).then(() => {});
   }, []);
 
-  // ── Auth: restore session on mount + listen for changes ──────────────────
+  // ── Single auth effect — profiles table is always source of truth ──
   useEffect(() => {
     const resolveUsername = async (u) => {
       try {
@@ -110,7 +195,7 @@ function App() {
           .eq("id", u.id)
           .maybeSingle();
 
-        // Auto-create profile for new Google OAuth users
+        // ── Auto-create profile for Google OAuth users who have none ──
         if (!profileRow) {
           const autoName =
             u.user_metadata?.name ||
@@ -118,12 +203,20 @@ function App() {
             u.user_metadata?.channelName ||
             u.user_metadata?.username ||
             u.email?.split("@")[0];
+
           const autoPic =
             u.user_metadata?.avatar_url ||
-            u.user_metadata?.picture || "";
+            u.user_metadata?.picture ||
+            "";
 
           await supabase.from("profiles").upsert(
-            [{ id: u.id, username: autoName, profile_pic: autoPic, about: "", banner_pic: "" }],
+            [{
+              id: u.id,
+              username: autoName,
+              profile_pic: autoPic,
+              about: "",
+              banner_pic: "",
+            }],
             { onConflict: "id" }
           );
 
@@ -131,11 +224,12 @@ function App() {
           localStorage.setItem("userId", u.id);
           localStorage.setItem("email", u.email || "");
           if (autoPic) localStorage.setItem("profilePic", autoPic);
-          return autoName; // ✅ return string
+          return autoName;
         }
 
         const name =
           profileRow?.username ||
+          localStorage.getItem("username") ||
           u.user_metadata?.channelName ||
           u.user_metadata?.username ||
           u.user_metadata?.full_name ||
@@ -143,11 +237,17 @@ function App() {
 
         const pic =
           profileRow?.profile_pic ||
+          localStorage.getItem("profilePic") ||
           u.user_metadata?.profilePic ||
           u.user_metadata?.avatar_url ||
-          u.user_metadata?.picture || "";
+          u.user_metadata?.picture ||
+          "";
 
-        const about = profileRow?.about || u.user_metadata?.about || "";
+        const about =
+          profileRow?.about ||
+          localStorage.getItem("about") ||
+          u.user_metadata?.about ||
+          "";
 
         localStorage.setItem("username", name);
         localStorage.setItem("userId", u.id);
@@ -155,7 +255,7 @@ function App() {
         if (pic) localStorage.setItem("profilePic", pic);
         if (about) localStorage.setItem("about", about);
 
-        return name; // ✅ return string
+        return name;
       } catch (e) {
         return (
           localStorage.getItem("username") ||
@@ -165,7 +265,7 @@ function App() {
       }
     };
 
-    // ✅ This is what fixes mobile — restore session before rendering
+    // Restore session on mount
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         const name = await resolveUsername(session.user);
@@ -174,11 +274,11 @@ function App() {
           window.history.replaceState({}, document.title, "/");
         }
       }
-      setAuthReady(true);
     });
 
+    // Listen for login/logout
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      (_event, session) => {
         if (!session) {
           setCurrentUser(null);
           localStorage.removeItem("username");
@@ -190,8 +290,9 @@ function App() {
           localStorage.removeItem("userName");
           return;
         }
-        const name = await resolveUsername(session.user);
-        setCurrentUser(name); // ✅ always a string
+        resolveUsername(session.user).then((name) => {
+          setCurrentUser(name);
+        });
       }
     );
 
@@ -202,46 +303,57 @@ function App() {
   useEffect(() => {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (!isMobile) return;
+
     const isHome = location.pathname === "/";
+
     if (!isHome) {
       backPressedOnce.current = false;
       setShowExitToast(false);
       clearTimeout(exitToastTimer.current);
       return;
     }
+
     window.history.pushState({ zixplonExit: true }, "", "/");
+
     const handlePopState = () => {
       if (backPressedOnce.current) {
         clearTimeout(exitToastTimer.current);
         setShowExitToast(false);
         backPressedOnce.current = false;
         window.history.pushState({ zixplonExit: true }, "", "/");
-        setTimeout(() => { window.location.href = "about:blank"; }, 50);
+        setTimeout(() => {
+          window.location.href = "about:blank";
+        }, 50);
         return;
       }
+
       backPressedOnce.current = true;
       setShowExitToast(true);
       window.history.pushState({ zixplonExit: true }, "", "/");
+
       clearTimeout(exitToastTimer.current);
       exitToastTimer.current = setTimeout(() => {
         backPressedOnce.current = false;
         setShowExitToast(false);
       }, 2000);
     };
+
     window.addEventListener("popstate", handlePopState);
+
     return () => {
       window.removeEventListener("popstate", handlePopState);
       clearTimeout(exitToastTimer.current);
     };
   }, [location.pathname]);
+  // ──────────────────────────────────────────────────────────────────────────
 
   const [notifications, setNotifications] = useState([
-    { id: 1, type: "upload",     message: "TechWorld uploaded: 'React 19 Features'",     time: "2m ago",  read: false, avatar: "T" },
-    { id: 2, type: "like",       message: "Alex liked your video 'My Portfolio Tour'",   time: "10m ago", read: false, avatar: "A" },
-    { id: 3, type: "comment",    message: "Sara commented: 'Great content!'",            time: "25m ago", read: false, avatar: "S" },
-    { id: 4, type: "subscriber", message: "John subscribed to your channel",             time: "1h ago",  read: false, avatar: "J" },
-    { id: 5, type: "upload",     message: "CodeWithMe uploaded: 'Node.js Crash Course'", time: "2h ago",  read: true,  avatar: "C" },
-    { id: 6, type: "like",       message: "Priya liked your video 'CSS Animations'",     time: "3h ago",  read: true,  avatar: "P" },
+    { id: 1, type: "upload",     message: "TechWorld uploaded: 'React 19 Features'",      time: "2m ago",  read: false, avatar: "T" },
+    { id: 2, type: "like",       message: "Alex liked your video 'My Portfolio Tour'",    time: "10m ago", read: false, avatar: "A" },
+    { id: 3, type: "comment",    message: "Sara commented: 'Great content!'",             time: "25m ago", read: false, avatar: "S" },
+    { id: 4, type: "subscriber", message: "John subscribed to your channel",              time: "1h ago",  read: false, avatar: "J" },
+    { id: 5, type: "upload",     message: "CodeWithMe uploaded: 'Node.js Crash Course'",  time: "2h ago",  read: true,  avatar: "C" },
+    { id: 6, type: "like",       message: "Priya liked your video 'CSS Animations'",      time: "3h ago",  read: true,  avatar: "P" },
   ]);
 
   const hideFooter =
@@ -249,17 +361,27 @@ function App() {
     location.pathname.startsWith("/reels") ||
     location.pathname.endsWith("/upload");
 
-  // ✅ Wait for auth check before showing app — prevents mobile flash of logged-out state
-  // But don't wait forever — if loading screen finishes before auth, show app anyway after 3s
-  const appVisible = loadingDone && authReady;
-
-  if (!appVisible) {
-    return <LoadingScreen onFinish={() => setLoadingDone(true)} />;
+  // ── FIX: render LoadingScreen BEFORE the main App div so it is a direct
+  // child of <body> via the React root — this bypasses any height/overflow
+  // constraints on #root that confuse TV browser fixed positioning ──
+  if (!appReady) {
+    return <LoadingScreen onFinish={() => setAppReady(true)} />;
   }
 
   return (
-    <div className="App" style={{ display: "flex", flexDirection: "column", minHeight: "100vh", backgroundColor: "#f0f4ff", width: "100%" }}>
+    <div
+      className="App"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        backgroundColor: "#f0f4ff",
+        width: "100%",
+      }}
+    >
       <ScrollToTop />
+
+      {/* Mobile exit toast */}
       <ExitToast visible={showExitToast} />
 
       <Navbar
@@ -270,13 +392,12 @@ function App() {
         notifications={notifications}
         setNotifications={setNotifications}
       />
-
       <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#f0f4ff" }}>
         <SideNavbar sideNavbar={sideNavbar} />
         <Routes>
           <Route path="/"               element={<Home sideNavbar={sideNavbar} />} />
           <Route path="/video/:id"      element={<Video sideNavbar={sideNavbar} />} />
-          <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} currentUser={currentUser} />} />
+          <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} />} />
           <Route path="/videoUpload"    element={<VideoUpload />} />
           <Route path="/:id/upload"     element={<VideoUpload />} />
           <Route path="/signup"         element={<SignUp />} />
@@ -296,17 +417,17 @@ function App() {
 
           <Route path="/live-tv"        element={<LiveTVPage sideNavbar={sideNavbar} />} />
           <Route path="/local-player"   element={<LocalMediaPlayer sideNavbar={sideNavbar} />} />
-          <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
-          <Route path="/feedback"             element={<Feedback />} />
-          <Route path="/help"                 element={<Help />} />
-          <Route path="/contact"              element={<ContactSupport />} />
-          <Route path="/report"               element={<ReportProblem />} />
-          <Route path="/about"                element={<AboutPage />} />
-          <Route path="/privacy-policy"       element={<PrivacyPolicyPage />} />
-          <Route path="/dmca"                 element={<DmcaPage />} />
-          <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
-          <Route path="/advertise"            element={<AdvertisePage />} />
-          <Route path="/feed"                 element={<PostFeed sideNavbar={sideNavbar} currentUser={currentUser} />} />
+          <Route path="/terms-and-conditions"  element={<TermsAndConditions />} />
+          <Route path="/feedback"              element={<Feedback />} />
+          <Route path="/help"                  element={<Help />} />
+          <Route path="/contact"               element={<ContactSupport />} />
+          <Route path="/report"                element={<ReportProblem />} />
+          <Route path="/about"                 element={<AboutPage />} />
+          <Route path="/privacy-policy"        element={<PrivacyPolicyPage />} />
+          <Route path="/dmca"                  element={<DmcaPage />} />
+          <Route path="/community-guidelines"  element={<CommunityGuidelinesPage />} />
+          <Route path="/advertise"             element={<AdvertisePage />} />
+          <Route path="/feed"                  element={<PostFeed sideNavbar={sideNavbar} />} />
         </Routes>
       </div>
 

@@ -342,16 +342,16 @@ const Navbar = ({
     if (outcome === "accepted") {
       setShowInstall(false);
       if (window.gtag) {
-        window.gtag("event", "pwa_install_accepted", {
-          event_category: "PWA",
-          event_label: "User accepted install prompt",
+        window.gtag('event', 'pwa_install_accepted', {
+          event_category: 'PWA',
+          event_label: 'User accepted install prompt',
         });
       }
     } else {
       if (window.gtag) {
-        window.gtag("event", "pwa_install_dismissed", {
-          event_category: "PWA",
-          event_label: "User dismissed install prompt",
+        window.gtag('event', 'pwa_install_dismissed', {
+          event_category: 'PWA',
+          event_label: 'User dismissed install prompt',
         });
       }
     }
@@ -366,9 +366,7 @@ const Navbar = ({
         if (savedPic) {
           setUserPic(savedPic);
         } else {
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
+          const { data: { session } } = await supabase.auth.getSession();
           const pic =
             session?.user?.user_metadata?.profilePic ||
             session?.user?.user_metadata?.avatar_url ||
@@ -478,10 +476,7 @@ const Navbar = ({
   // ── Close profile dropdown on outside click ──
   useEffect(() => {
     const h = (e) => {
-      if (
-        profileModalRef.current &&
-        !profileModalRef.current.contains(e.target)
-      )
+      if (profileModalRef.current && !profileModalRef.current.contains(e.target))
         setNavbarModal(false);
     };
     document.addEventListener("mousedown", h);
@@ -503,9 +498,7 @@ const Navbar = ({
   const sideNavbarFunc = () => setSideNavbarFunc(!sideNavbar);
 
   const handleprofile = () => {
-    const username =
-      typeof currentUser === "object" ? currentUser?.username : currentUser;
-    if (username) navigate(`/user/${username}`);
+    if (currentUser) navigate(`/user/${currentUser}`);
     else setLogin(true);
     setNavbarModal(false);
   };
@@ -524,13 +517,10 @@ const Navbar = ({
 
   // ── FIXED: stable callbacks so Login never remounts ──
   const setLoginModal = useCallback(() => setLogin(false), []);
-  const handleLoginSuccess = useCallback(
-    (name) => {
-      setCurrentUser(name);
-      setLogin(false);
-    },
-    [setCurrentUser],
-  );
+  const handleLoginSuccess = useCallback((name) => {
+    setCurrentUser(name);
+    setLogin(false);
+  }, [setCurrentUser]);
 
   const handleInputChange = (e) => {
     const val = e.target.value;
@@ -586,11 +576,7 @@ const Navbar = ({
       setShowDropdown(false);
       setSearchBarActive(false);
       inputRef.current?.blur();
-    } else if (
-      e.key === "Tab" &&
-      activeIndex >= 0 &&
-      allNavItems[activeIndex]
-    ) {
+    } else if (e.key === "Tab" && activeIndex >= 0 && allNavItems[activeIndex]) {
       e.preventDefault();
       setSearchQuery(allNavItems[activeIndex].text);
       setSuggestionData(getSuggestions(allNavItems[activeIndex].text));
@@ -634,9 +620,7 @@ const Navbar = ({
       };
       recognition.onend = () => {
         if (!gotResult) {
-          try {
-            recognition.start();
-          } catch (e) {}
+          try { recognition.start(); } catch (e) {}
         }
       };
       recognition.start();
@@ -698,8 +682,7 @@ const Navbar = ({
             textDecoration: "none",
             padding: "5px",
             borderRadius: "12px",
-            transition:
-              "border-color 0.25s, background 0.25s, box-shadow 0.25s",
+            transition: "border-color 0.25s, background 0.25s, box-shadow 0.25s",
             border: logoHovered
               ? "2px solid rgba(255,0,0,1)"
               : "1px solid rgba(255, 255, 255, 0.35)",
@@ -714,65 +697,20 @@ const Navbar = ({
             window.location.href = "/";
           }}
         >
-          <svg
-            width="38"
-            height="38"
-            viewBox="0 0 42 42"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
+          <svg width="38" height="38" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect width="42" height="42" rx="8" fill="#ff0000" />
-            <text
-              x="50%"
-              y="42%"
-              dominantBaseline="middle"
-              textAnchor="middle"
-              fill="white"
-              fontSize="22"
-              fontWeight="bold"
-              fontFamily="Arial"
-            >
+            <text x="50%" y="42%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="22" fontWeight="bold" fontFamily="Arial">
               Z
-              <animate
-                attributeName="opacity"
-                values="1;0.2;1;0.5;1"
-                dur="2s"
-                repeatCount="indefinite"
-              />
+              <animate attributeName="opacity" values="1;0.2;1;0.5;1" dur="2s" repeatCount="indefinite" />
             </text>
-            <text
-              x="50%"
-              y="79%"
-              dominantBaseline="middle"
-              textAnchor="middle"
-              fill="white"
-              fontSize="7.7"
-              fontWeight="700"
-              fontFamily="Arial"
-              letterSpacing="1.2"
-              opacity="1"
-            >
+            <text x="50%" y="79%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="7.7" fontWeight="700" fontFamily="Arial" letterSpacing="1.2" opacity="1">
               ZIXPLON
             </text>
           </svg>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              position: "relative",
-            }}
-          >
-            <span
-              key={logoKey}
-              className="logoText"
-              style={{ display: "inline-flex", alignItems: "center" }}
-            >
+          <div style={{ display: "flex", alignItems: "flex-start", position: "relative" }}>
+            <span key={logoKey} className="logoText" style={{ display: "inline-flex", alignItems: "center" }}>
               {"ZIXPLON".split("").map((char, i) => (
-                <span
-                  key={i}
-                  className="logoChar"
-                  style={{ animationDelay: `${i * 0.08}s` }}
-                >
+                <span key={i} className="logoChar" style={{ animationDelay: `${i * 0.08}s` }}>
                   {char}
                 </span>
               ))}
@@ -803,21 +741,14 @@ const Navbar = ({
       </div>
 
       {/* ── MIDDLE ── */}
-      <div
-        className="navbar-middle"
-        ref={dropdownRef}
-        style={{ position: "relative" }}
-      >
+      <div className="navbar-middle" ref={dropdownRef} style={{ position: "relative" }}>
         <div
           className="navbar_searchBox"
           style={{
             position: "relative",
             transition: "box-shadow 0.2s",
-            boxShadow: searchBarActive
-              ? "0 0 0 2px rgba(62,166,255,0.35)"
-              : "none",
-            borderRadius:
-              searchBarActive && showDropdown ? "20px 20px 0 0" : "20px",
+            boxShadow: searchBarActive ? "0 0 0 2px rgba(62,166,255,0.35)" : "none",
+            borderRadius: searchBarActive && showDropdown ? "20px 20px 0 0" : "20px",
           }}
         >
           <input
@@ -878,8 +809,7 @@ const Navbar = ({
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "#666";
-                e.currentTarget.style.transform =
-                  "translateY(-50%) scale(1.15)";
+                e.currentTarget.style.transform = "translateY(-50%) scale(1.15)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = "#444";
@@ -887,43 +817,23 @@ const Navbar = ({
               }}
             >
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <path
-                  d="M1 1L9 9M9 1L1 9"
-                  stroke="white"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
+                <path d="M1 1L9 9M9 1L1 9" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </div>
           )}
 
-          <div
-            className="navbar_searchIconBox"
-            onClick={() => doSearch(searchQuery)}
-          >
+          <div className="navbar_searchIconBox" onClick={() => doSearch(searchQuery)}>
             <PublicIcon
               sx={{
                 fontSize: "28px",
-                animation: isSearchFocused
-                  ? "spinIcon 0.8s linear infinite"
-                  : "none",
+                animation: isSearchFocused ? "spinIcon 0.8s linear infinite" : "none",
               }}
             />
           </div>
         </div>
 
-        <div
-          className="navbar_mike"
-          onClick={startVoiceSearch}
-          title="Voice Search"
-          style={{ cursor: "pointer" }}
-        >
-          <KeyboardVoiceIcon
-            sx={{
-              color: isListening ? "red" : "white",
-              transition: "color 0.2s",
-            }}
-          />
+        <div className="navbar_mike" onClick={startVoiceSearch} title="Voice Search" style={{ cursor: "pointer" }}>
+          <KeyboardVoiceIcon sx={{ color: isListening ? "red" : "white", transition: "color 0.2s" }} />
         </div>
 
         {/* ── Suggestions Dropdown ── */}
@@ -946,49 +856,29 @@ const Navbar = ({
                 borderTop: "none",
               }}
             >
-              {suggestionData.category &&
-                CATEGORY_LABELS[suggestionData.category] && (
-                  <div
-                    style={{
-                      padding: "8px 14px 4px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        color: "#aaa",
-                        background: "#2a2a2a",
-                        border: "1px solid #3a3a3a",
-                        borderRadius: "12px",
-                        padding: "2px 10px",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "4px",
-                      }}
-                    >
-                      {CATEGORY_LABELS[suggestionData.category]}
-                      <span style={{ color: "#666" }}>suggestions</span>
-                    </span>
-                    <span style={{ fontSize: "11px", color: "#555" }}>
-                      Tab to autocomplete
-                    </span>
-                  </div>
-                )}
+              {suggestionData.category && CATEGORY_LABELS[suggestionData.category] && (
+                <div style={{ padding: "8px 14px 4px", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{
+                    fontSize: "11px",
+                    color: "#aaa",
+                    background: "#2a2a2a",
+                    border: "1px solid #3a3a3a",
+                    borderRadius: "12px",
+                    padding: "2px 10px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}>
+                    {CATEGORY_LABELS[suggestionData.category]}
+                    <span style={{ color: "#666" }}>suggestions</span>
+                  </span>
+                  <span style={{ fontSize: "11px", color: "#555" }}>Tab to autocomplete</span>
+                </div>
+              )}
 
               {suggestionData.history.length > 0 && (
                 <>
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "#555",
-                      padding: "8px 14px 4px",
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                    }}
-                  >
+                  <div style={{ fontSize: "11px", color: "#555", padding: "8px 14px 4px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                     Recent
                   </div>
                   {suggestionData.history.map((h, i) => (
@@ -1002,8 +892,7 @@ const Navbar = ({
                         gap: "10px",
                         padding: "9px 14px",
                         cursor: "pointer",
-                        background:
-                          activeIndex === i ? "#2a2a2a" : "transparent",
+                        background: activeIndex === i ? "#2a2a2a" : "transparent",
                         transition: "background 0.15s",
                         color: "#ccc",
                         fontSize: "14px",
@@ -1014,34 +903,18 @@ const Navbar = ({
                       <span
                         onMouseDown={(e) => {
                           e.stopPropagation();
-                          _searchHistory = _searchHistory.filter(
-                            (x) => x !== h,
-                          );
+                          _searchHistory = _searchHistory.filter((x) => x !== h);
                           setSuggestionData(getSuggestions(searchQuery));
                         }}
-                        style={{
-                          marginLeft: "auto",
-                          color: "#444",
-                          fontSize: "16px",
-                          lineHeight: 1,
-                          cursor: "pointer",
-                          padding: "0 4px",
-                        }}
+                        style={{ marginLeft: "auto", color: "#444", fontSize: "16px", lineHeight: 1, cursor: "pointer", padding: "0 4px" }}
                         title="Remove"
                       >
                         x
                       </span>
                     </div>
                   ))}
-                  {(suggestionData.items.length > 0 ||
-                    suggestionData.trending.length > 0) && (
-                    <div
-                      style={{
-                        height: "0.5px",
-                        background: "#2a2a2a",
-                        margin: "2px 0",
-                      }}
-                    />
+                  {(suggestionData.items.length > 0 || suggestionData.trending.length > 0) && (
+                    <div style={{ height: "0.5px", background: "#2a2a2a", margin: "2px 0" }} />
                   )}
                 </>
               )}
@@ -1049,15 +922,7 @@ const Navbar = ({
               {suggestionData.items.length > 0 && (
                 <>
                   {!suggestionData.category && (
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        color: "#555",
-                        padding: "8px 14px 4px",
-                        letterSpacing: "0.06em",
-                        textTransform: "uppercase",
-                      }}
-                    >
+                    <div style={{ fontSize: "11px", color: "#555", padding: "8px 14px 4px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                       Suggestions
                     </div>
                   )}
@@ -1074,8 +939,7 @@ const Navbar = ({
                           gap: "10px",
                           padding: "9px 14px",
                           cursor: "pointer",
-                          background:
-                            activeIndex === flatIdx ? "#2a2a2a" : "transparent",
+                          background: activeIndex === flatIdx ? "#2a2a2a" : "transparent",
                           transition: "background 0.15s",
                           color: "#ccc",
                           fontSize: "14px",
@@ -1083,12 +947,8 @@ const Navbar = ({
                       >
                         <SearchIcon sx={{ fontSize: "17px", color: "#555" }} />
                         <span>
-                          <span style={{ color: "white", fontWeight: "500" }}>
-                            {item.displayQuery}
-                          </span>{" "}
-                          <span style={{ color: "#aaa" }}>
-                            {item.displaySuffix}
-                          </span>
+                          <span style={{ color: "white", fontWeight: "500" }}>{item.displayQuery}</span>{" "}
+                          <span style={{ color: "#aaa" }}>{item.displaySuffix}</span>
                         </span>
                         <TagBadge tag={item.tag} />
                       </div>
@@ -1099,25 +959,8 @@ const Navbar = ({
 
               {suggestionData.trending.length > 0 && (
                 <>
-                  <div
-                    style={{
-                      height: "0.5px",
-                      background: "#2a2a2a",
-                      margin: "4px 0",
-                    }}
-                  />
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "8px 14px 4px",
-                      fontSize: "11px",
-                      color: "#555",
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                    }}
-                  >
+                  <div style={{ height: "0.5px", background: "#2a2a2a", margin: "4px 0" }} />
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px 4px", fontSize: "11px", color: "#555", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                     <WhatshotIcon sx={{ fontSize: "13px", color: "#ff7066" }} />
                     Trending now
                   </div>
@@ -1134,16 +977,13 @@ const Navbar = ({
                           gap: "10px",
                           padding: "9px 14px",
                           cursor: "pointer",
-                          background:
-                            activeIndex === flatIdx ? "#2a2a2a" : "transparent",
+                          background: activeIndex === flatIdx ? "#2a2a2a" : "transparent",
                           transition: "background 0.15s",
                           color: "#ccc",
                           fontSize: "14px",
                         }}
                       >
-                        <TrendingUpIcon
-                          sx={{ fontSize: "17px", color: "#ff7066" }}
-                        />
+                        <TrendingUpIcon sx={{ fontSize: "17px", color: "#ff7066" }} />
                         <span>{t}</span>
                       </div>
                     );
@@ -1166,16 +1006,11 @@ const Navbar = ({
                       fontSize: "13px",
                       transition: "background 0.15s",
                     }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "#2a2a2a")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
                     <PublicIcon sx={{ fontSize: "17px" }} />
-                    Search for&nbsp;<strong>"{searchQuery}"</strong>&nbsp;across
-                    all categories
+                    Search for&nbsp;<strong>"{searchQuery}"</strong>&nbsp;across all categories
                   </div>
                 </>
               )}
@@ -1185,18 +1020,8 @@ const Navbar = ({
 
       {/* ── RIGHT ── */}
       <div className="navbar-right">
-        <span
-          onClick={() => navigate("/local-player")}
-          title="Local Player"
-          className="navbar-local-player"
-          style={{ cursor: "pointer" }}
-        >
-          <svg
-            width="28"
-            height="28"
-            viewBox="0 0 24 24"
-            fill="var(--zx-text2)"
-          >
+        <span onClick={() => navigate("/local-player")} title="Local Player" className="navbar-local-player" style={{ cursor: "pointer" }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="var(--zx-text2)">
             <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
           </svg>
         </span>
@@ -1225,10 +1050,7 @@ const Navbar = ({
         <span
           className="navbar-upload-btn"
           onClick={() => {
-            if (!currentUser) {
-              setLogin(true);
-              return;
-            }
+            if (!currentUser) { setLogin(true); return; }
             navigate("/763/upload");
           }}
           style={{ cursor: "pointer", display: "flex", alignItems: "center" }}
@@ -1239,10 +1061,7 @@ const Navbar = ({
 
         {/* Notifications */}
         <div ref={notifRef} style={{ position: "relative" }}>
-          <div
-            onClick={() => setShowNotifications((prev) => !prev)}
-            style={{ position: "relative", cursor: "pointer", display: "flex" }}
-          >
+          <div onClick={() => setShowNotifications((prev) => !prev)} style={{ position: "relative", cursor: "pointer", display: "flex" }}>
             <NotificationsActiveIcon
               sx={{
                 fontSize: "30px",
@@ -1252,25 +1071,23 @@ const Navbar = ({
               }}
             />
             {unreadCount > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: "-4px",
-                  right: "-4px",
-                  background: "red",
-                  color: "white",
-                  borderRadius: "50%",
-                  fontSize: "10px",
-                  fontWeight: "700",
-                  width: "18px",
-                  height: "18px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "2px solid #0f0f0f",
-                  animation: "badgePop 0.3s ease",
-                }}
-              >
+              <span style={{
+                position: "absolute",
+                top: "-4px",
+                right: "-4px",
+                background: "red",
+                color: "white",
+                borderRadius: "50%",
+                fontSize: "10px",
+                fontWeight: "700",
+                width: "18px",
+                height: "18px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "2px solid #0f0f0f",
+                animation: "badgePop 0.3s ease",
+              }}>
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
@@ -1292,34 +1109,10 @@ const Navbar = ({
                 overflow: "hidden",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "14px 16px",
-                  borderBottom: "1px solid #333",
-                }}
-              >
-                <span
-                  style={{
-                    color: "white",
-                    fontWeight: "600",
-                    fontSize: "16px",
-                  }}
-                >
-                  Notifications
-                </span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid #333" }}>
+                <span style={{ color: "white", fontWeight: "600", fontSize: "16px" }}>Notifications</span>
                 {unreadCount > 0 && (
-                  <span
-                    onClick={markAllRead}
-                    style={{
-                      color: "#3ea6ff",
-                      fontSize: "13px",
-                      cursor: "pointer",
-                      fontWeight: "500",
-                    }}
-                  >
+                  <span onClick={markAllRead} style={{ color: "#3ea6ff", fontSize: "13px", cursor: "pointer", fontWeight: "500" }}>
                     Mark all as read
                   </span>
                 )}
@@ -1327,17 +1120,8 @@ const Navbar = ({
 
               <div style={{ maxHeight: "400px", overflowY: "auto" }}>
                 {notifications.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "32px 16px",
-                      textAlign: "center",
-                      color: "#555",
-                      fontSize: "14px",
-                    }}
-                  >
-                    <div style={{ fontSize: "32px", marginBottom: "8px" }}>
-                      🔔
-                    </div>
+                  <div style={{ padding: "32px 16px", textAlign: "center", color: "#555", fontSize: "14px" }}>
+                    <div style={{ fontSize: "32px", marginBottom: "8px" }}>🔔</div>
                     No notifications yet
                   </div>
                 ) : (
@@ -1352,66 +1136,38 @@ const Navbar = ({
                           alignItems: "flex-start",
                           gap: "12px",
                           padding: "12px 16px",
-                          background: n.read
-                            ? "transparent"
-                            : "rgba(255,255,255,0.05)",
+                          background: n.read ? "transparent" : "rgba(255,255,255,0.05)",
                           borderBottom: "1px solid #2a2a2a",
                           cursor: "pointer",
                           transition: "background 0.2s",
                         }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = "#2a2a2a")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = n.read
-                            ? "transparent"
-                            : "rgba(255,255,255,0.05)")
-                        }
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = n.read ? "transparent" : "rgba(255,255,255,0.05)")}
                       >
-                        <div
-                          style={{
-                            width: "40px",
-                            height: "40px",
-                            borderRadius: "50%",
-                            background: color,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontWeight: "700",
-                            fontSize: "15px",
-                            color: "white",
-                            flexShrink: 0,
-                          }}
-                        >
+                        <div style={{
+                          width: "40px",
+                          height: "40px",
+                          borderRadius: "50%",
+                          background: color,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: "700",
+                          fontSize: "15px",
+                          color: "white",
+                          flexShrink: 0,
+                        }}>
                           {n.avatar}
                         </div>
                         <div style={{ flex: 1 }}>
-                          <p
-                            style={{
-                              margin: 0,
-                              color: n.read ? "#aaa" : "white",
-                              fontSize: "13px",
-                              lineHeight: "1.4",
-                            }}
-                          >
+                          <p style={{ margin: 0, color: n.read ? "#aaa" : "white", fontSize: "13px", lineHeight: "1.4" }}>
                             <span style={{ marginRight: "5px" }}>{icon}</span>
                             {n.message}
                           </p>
-                          <span style={{ color: "#666", fontSize: "11px" }}>
-                            {n.time}
-                          </span>
+                          <span style={{ color: "#666", fontSize: "11px" }}>{n.time}</span>
                         </div>
                         {!n.read && (
-                          <div
-                            style={{
-                              width: "8px",
-                              height: "8px",
-                              borderRadius: "50%",
-                              background: "#3ea6ff",
-                              flexShrink: 0,
-                              marginTop: "4px",
-                            }}
-                          />
+                          <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#3ea6ff", flexShrink: 0, marginTop: "4px" }} />
                         )}
                       </div>
                     );
@@ -1419,23 +1175,10 @@ const Navbar = ({
                 )}
               </div>
 
-              <div
-                style={{
-                  padding: "12px",
-                  textAlign: "center",
-                  borderTop: "1px solid #333",
-                }}
-              >
+              <div style={{ padding: "12px", textAlign: "center", borderTop: "1px solid #333" }}>
                 <span
-                  style={{
-                    color: "#3ea6ff",
-                    fontSize: "13px",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => {
-                    setShowNotifications(false);
-                    navigate("/notifications");
-                  }}
+                  style={{ color: "#3ea6ff", fontSize: "13px", cursor: "pointer" }}
+                  onClick={() => { setShowNotifications(false); navigate("/notifications"); }}
                 >
                   See all notifications
                 </span>
@@ -1453,47 +1196,23 @@ const Navbar = ({
             className="navbar-right-logo"
             onError={(e) => {
               e.target.onerror = null;
-              e.target.src =
-                "https://ui-avatars.com/api/?name=User&background=444&color=fff&size=40";
+              e.target.src = "https://ui-avatars.com/api/?name=User&background=444&color=fff&size=40";
             }}
           />
           {navbarModal && (
             <div className="navbar-modal">
               {currentUser && (
-                <div
-                  style={{
-                    padding: "10px 16px",
-                    color: "#aaa",
-                    fontSize: "12px",
-                    borderBottom: "1px solid #333",
-                    pointerEvents: "none",
-                  }}
-                >
-                  @
-                  {typeof currentUser === "object"
-                    ? currentUser?.username
-                    : currentUser}
+                <div style={{ padding: "10px 16px", color: "#aaa", fontSize: "12px", borderBottom: "1px solid #333", pointerEvents: "none" }}>
+                  @{currentUser}
                 </div>
               )}
-              <div className="navbar-modal-option" onClick={handleprofile}>
-                Profile
-              </div>
+              <div className="navbar-modal-option" onClick={handleprofile}>Profile</div>
               {currentUser ? (
-                <div
-                  className="navbar-modal-option"
-                  onClick={handleLogout}
-                  style={{ color: "#ff4444" }}
-                >
+                <div className="navbar-modal-option" onClick={handleLogout} style={{ color: "#ff4444" }}>
                   Logout
                 </div>
               ) : (
-                <div
-                  className="navbar-modal-option"
-                  onClick={() => {
-                    setLogin(true);
-                    setNavbarModal(false);
-                  }}
-                >
+                <div className="navbar-modal-option" onClick={() => { setLogin(true); setNavbarModal(false); }}>
                   Login
                 </div>
               )}
@@ -1512,65 +1231,32 @@ const Navbar = ({
 
       {/* Voice listening overlay */}
       {isListening && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.7)",
-            zIndex: 99999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexDirection: "column",
-            gap: "20px",
-          }}
-        >
-          <div
-            style={{
-              background: "#212121",
-              borderRadius: "16px",
-              padding: "40px 60px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "20px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
-            }}
-          >
-            <div
-              style={{
-                width: "80px",
-                height: "80px",
-                borderRadius: "50%",
-                background: "red",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                animation: "pulse 1.2s infinite",
-              }}
-            >
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.7)", zIndex: 99999,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexDirection: "column", gap: "20px",
+        }}>
+          <div style={{
+            background: "#212121", borderRadius: "16px", padding: "40px 60px",
+            display: "flex", flexDirection: "column", alignItems: "center",
+            gap: "20px", boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
+          }}>
+            <div style={{
+              width: "80px", height: "80px", borderRadius: "50%", background: "red",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              animation: "pulse 1.2s infinite",
+            }}>
               <KeyboardVoiceIcon sx={{ fontSize: "40px", color: "white" }} />
             </div>
-            <p style={{ color: "white", fontSize: "20px", fontWeight: "600" }}>
-              Listening...
-            </p>
-            <p style={{ color: "#aaa", fontSize: "14px" }}>
-              Speak now to search
-            </p>
+            <p style={{ color: "white", fontSize: "20px", fontWeight: "600" }}>Listening...</p>
+            <p style={{ color: "#aaa", fontSize: "14px" }}>Speak now to search</p>
             <button
               onClick={stopVoiceSearch}
               style={{
-                marginTop: "10px",
-                padding: "8px 24px",
-                borderRadius: "8px",
-                border: "1px solid #555",
-                background: "transparent",
-                color: "white",
-                cursor: "pointer",
-                fontSize: "14px",
+                marginTop: "10px", padding: "8px 24px", borderRadius: "8px",
+                border: "1px solid #555", background: "transparent",
+                color: "white", cursor: "pointer", fontSize: "14px",
               }}
             >
               Cancel

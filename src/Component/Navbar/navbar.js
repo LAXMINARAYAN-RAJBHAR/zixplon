@@ -275,6 +275,27 @@ const timeAgo = (timestamp) => {
   return `${Math.floor(diff / 86400)}d ago`;
 };
 
+// ─── Helper: resolve display name from all possible sources ───────────────────
+// Priority: profiles.username (if not auto-generated) → metadata names → email prefix
+const resolveDisplayName = (profileRow, userMeta, emailFallback) => {
+  const autoGenPattern = /^user_[a-f0-9]{8}$/i;
+
+  const profileUsername = profileRow?.username;
+  if (profileUsername && !autoGenPattern.test(profileUsername)) {
+    return profileUsername;
+  }
+
+  return (
+    userMeta?.channelName ||
+    userMeta?.username ||
+    userMeta?.full_name ||
+    userMeta?.name ||
+    profileUsername || // use auto-generated as last resort
+    emailFallback ||
+    "User"
+  );
+};
+
 // ─── Main Navbar ───────────────────────────────────────────────────────────────
 const Navbar = ({
   currentUser,
@@ -286,9 +307,7 @@ const Navbar = ({
   const location = useLocation();
   const countryCode = useCountry();
 
-  const [userPic, setUserPic] = useState(
-    "https://ui-avatars.com/api/?name=User&background=444&color=fff&size=40",
-  );
+  const [userPic, setUserPic] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [navbarModal, setNavbarModal] = useState(false);
   const [login, setLogin] = useState(false);
@@ -318,6 +337,13 @@ const Navbar = ({
 
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
+
+  // ── Resolve avatar fallback safely ──
+  const getAvatarFallback = (name) =>
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(name || "U")}&background=7c3aed&color=fff&size=40`;
+
+  const getLoggedOutAvatar = () =>
+    "https://ui-avatars.com/api/?name=Guest&background=888&color=fff&size=40";
 
   useEffect(() => {
     const handler = (e) => {
@@ -358,36 +384,115 @@ const Navbar = ({
     setInstallPrompt(null);
   };
 
-  // ── Load profile picture ──
+  // ── Load profile picture — FIXED: robust fallback chain, no "Error" state ──
   useEffect(() => {
     const loadPic = async () => {
-      if (currentUser) {
-        const savedPic = localStorage.getItem("profilePic");
-        if (savedPic) {
-          setUserPic(savedPic);
-        } else {
-          const { data: { session } } = await supabase.auth.getSession();
-          const pic =
-            session?.user?.user_metadata?.profilePic ||
-            session?.user?.user_metadata?.avatar_url ||
-            session?.user?.user_metadata?.picture;
-          if (pic) {
-            localStorage.setItem("profilePic", pic);
-            setUserPic(pic);
-          } else {
-            setUserPic(
-              `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser)}&background=ff0000&color=fff&size=40`,
-            );
+      if (!currentUser) {
+        setUserPic(getLoggedOutAvatar());
+        return;
+      }
+
+      // 1. Try localStorage first (fastest)
+      const savedPic = localStorage.getItem("profilePic");
+      if (savedPic && savedPic !== "null" && savedPic !== "undefined") {
+        setUserPic(savedPic);
+        return;
+      }
+
+      // 2. Try Supabase session metadata
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const pic =
+          session?.user?.user_metadata?.profilePic ||
+          session?.user?.user_metadata?.avatar_url ||
+          session?.user?.user_metadata?.picture;
+
+        if (pic) {
+          localStorage.setItem("profilePic", pic);
+          setUserPic(pic);
+          return;
+        }
+
+        // 3. Try profiles table
+        const userId = localStorage.getItem("userId") || session?.user?.id;
+        if (userId) {
+          const { data: profileRow } = await supabase
+            .from("profiles")
+            .select("profile_pic, username")
+            .eq("id", userId)
+            .maybeSingle();
+
+          if (profileRow?.profile_pic) {
+            localStorage.setItem("profilePic", profileRow.profile_pic);
+            setUserPic(profileRow.profile_pic);
+            return;
           }
         }
-      } else {
-        setUserPic(
-          "https://athenabpo.com/wp-content/uploads/2016/09/Headshot-Blank-Person-Circle-300x300.gif",
-        );
-      }
+      } catch (_) {}
+
+      // 4. Safe UI-Avatars fallback — never shows "Error"
+      setUserPic(getAvatarFallback(currentUser));
     };
+
     loadPic();
   }, [currentUser]);
+
+  // ── On mount: sync currentUser from localStorage if App.jsx missed it ──
+  // This fixes the case where Google OAuth redirect sets the session
+  // but App.jsx hasn't called setCurrentUser yet
+  useEffect(() => {
+    const syncUserFromSession = async () => {
+      if (currentUser) return; // already set
+
+      const storedName = localStorage.getItem("username");
+      if (storedName && storedName !== "null") {
+        setCurrentUser(storedName);
+        return;
+      }
+
+      // Try Supabase session (covers Google OAuth redirect case)
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) return;
+
+        const user = session.user;
+        const userId = localStorage.getItem("userId");
+
+        // Only proceed if this session matches stored userId OR no userId stored
+        if (userId && userId !== user.id) return;
+
+        const { data: profileRow } = await supabase
+          .from("profiles")
+          .select("username, profile_pic, about")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        const name = resolveDisplayName(
+          profileRow,
+          user.user_metadata,
+          user.email?.split("@")[0]
+        );
+
+        const pic =
+          profileRow?.profile_pic ||
+          user.user_metadata?.avatar_url ||
+          user.user_metadata?.picture ||
+          "";
+
+        // Persist to localStorage
+        localStorage.setItem("username", name);
+        localStorage.setItem("channelName", name);
+        localStorage.setItem("userId", user.id);
+        localStorage.setItem("email", user.email || "");
+        if (pic) localStorage.setItem("profilePic", pic);
+
+        setCurrentUser(name);
+        if (pic) setUserPic(pic);
+      } catch (_) {}
+    };
+
+    syncUserFromSession();
+  }, []); // run once on mount
 
   // ── Load notifications ──
   useEffect(() => {
@@ -505,12 +610,11 @@ const Navbar = ({
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    localStorage.removeItem("username");
-    localStorage.removeItem("email");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("profilePic");
-    localStorage.removeItem("about");
+    ["username", "email", "userId", "profilePic", "about", "channelName", "userName"].forEach(
+      (k) => localStorage.removeItem(k)
+    );
     setCurrentUser(null);
+    setUserPic(getLoggedOutAvatar());
     setNavbarModal(false);
     navigate("/");
   };
@@ -520,6 +624,10 @@ const Navbar = ({
   const handleLoginSuccess = useCallback((name) => {
     setCurrentUser(name);
     setLogin(false);
+    // Refresh pic from localStorage (Login.jsx already saved it)
+    const pic = localStorage.getItem("profilePic");
+    if (pic && pic !== "null") setUserPic(pic);
+    else setUserPic(getAvatarFallback(name));
   }, [setCurrentUser]);
 
   const handleInputChange = (e) => {
@@ -663,6 +771,9 @@ const Navbar = ({
 
   const historyCount = suggestionData.history.length;
   const suggCount = suggestionData.items.length;
+
+  // Safe avatar src — never null/undefined
+  const avatarSrc = userPic || (currentUser ? getAvatarFallback(currentUser) : getLoggedOutAvatar());
 
   return (
     <div className="navbar">
@@ -1191,12 +1302,15 @@ const Navbar = ({
         <div ref={profileModalRef} style={{ position: "relative" }}>
           <img
             onClick={() => setNavbarModal((prev) => !prev)}
-            src={userPic}
-            alt="User"
+            src={avatarSrc}
+            alt={currentUser || "User"}
             className="navbar-right-logo"
             onError={(e) => {
               e.target.onerror = null;
-              e.target.src = "https://ui-avatars.com/api/?name=User&background=444&color=fff&size=40";
+              // Safe fallback — never shows "Error"
+              e.target.src = currentUser
+                ? getAvatarFallback(currentUser)
+                : getLoggedOutAvatar();
             }}
           />
           {navbarModal && (

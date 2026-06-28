@@ -3,6 +3,19 @@
 
 <head>
   <meta charset="utf-8" />
+  <!-- ── globalThis polyfill for Chrome 66 TV browser ── -->
+<script>
+  (function() {
+    if (typeof globalThis === 'undefined') {
+      Object.defineProperty(Object.prototype, '__magic__', {
+        get: function() { return this; },
+        configurable: true
+      });
+      __magic__.globalThis = __magic__;
+      delete Object.prototype.__magic__;
+    }
+  })();
+</script>
   <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
 
   <!-- ── Viewport: default for mobile, overridden for TV by script below ── -->

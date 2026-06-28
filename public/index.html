@@ -8,16 +8,14 @@
   <!-- ── Viewport: default for mobile, overridden for TV by script below ── -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
 
-  <!-- ── FIX 1: TV Browser viewport override (mobile stays untouched) ── -->
+  <!-- ── FIX 1: TV Browser viewport override ── -->
   <script>
     (function () {
       var ua = navigator.userAgent;
       var isTV = /TV|AndroidTV|HbbTV|SmartTV|SMART-TV|Tizen|WebOS/i.test(ua);
-      var isTVBrowser = isTV || (
-        /Android/i.test(ua) &&
-        !('ontouchstart' in window) &&
-        window.screen.width >= 1280
-      );
+      // This TV stick reports screen 1280x720 and has touch=YES
+      // So detect by screen width >= 1280 only (not touch)
+      var isTVBrowser = isTV || window.screen.width >= 1280;
       if (isTVBrowser) {
         var vp = document.querySelector('meta[name="viewport"]');
         if (vp) vp.setAttribute('content', 'width=1280, initial-scale=1');
@@ -74,12 +72,14 @@
   <!-- ── Hash routing fix ── -->
   <script>!function (n) { if ("/" === n.search[1]) { var a = n.search.slice(1).split("&").map(function (n) { return n.replace(/~and~/g, "&") }).join("?"); window.history.replaceState(null, null, n.pathname.slice(0, -1) + a + n.hash) } }(window.location)</script>
 
-  <!-- ── FIX 2: Mobile back-button exit — excluded Android TV / TV browsers ── -->
+  <!-- ── FIX 2: Mobile back-button exit — excluded TV browsers ── -->
   <script>
     (function () {
       var ua = navigator.userAgent;
       var isTV = /TV|AndroidTV|HbbTV|SmartTV|SMART-TV|Tizen|WebOS/i.test(ua);
       if (isTV) return;
+      // Skip for large screens (TV sticks)
+      if (window.screen.width >= 1280) return;
       if (!/Android|iPhone|iPad|iPod/i.test(ua)) return;
 
       window.addEventListener('load', function () {
@@ -147,7 +147,6 @@
       width: 100%;
     }
 
-    /* Pre-React native splash */
     #native-splash {
       position: fixed;
       inset: 0;
@@ -212,7 +211,6 @@
 <body>
   <noscript>You need to enable JavaScript to run this app.</noscript>
 
-  <!-- Native splash: shows instantly before React JS even downloads -->
   <div id="native-splash">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
       <rect x="0" y="0" width="512" height="512" rx="110" ry="110" fill="#CC0000"/>
@@ -229,7 +227,7 @@
 
   <div id="root"></div>
 
-  <!-- FIX 3: Hide native splash — 5s timeout fallback for TV Browser -->
+  <!-- FIX 3: Hide native splash -->
   <script>
     (function () {
       var splash = document.getElementById('native-splash');
@@ -257,17 +255,12 @@
     })();
   </script>
 
-  <!-- ── FIX 4: DEBUG error overlay
-       MOBILE SAFE: phones/tablets always have touch support → skipped automatically
-       TV sticks/boxes have no touch → error shows on screen for debugging ── -->
+  <!-- FIX 4: Error overlay for TV (screen >= 1280px) — safe for mobile phones -->
   <script>
     (function () {
-      // Real phones & tablets always have touch → exit immediately, zero effect on mobile
-      var hasTouchSupport = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-      var isSmallScreen = window.screen.width < 1024;
-      if (hasTouchSupport || isSmallScreen) return;
+      // Mobile phones have screen.width < 1280 → skipped entirely
+      if (window.screen.width < 1280) return;
 
-      // Only non-touch large screens reach here (TV sticks, TV browsers)
       window.onerror = function (msg, src, line) {
         var d = document.createElement('div');
         d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#cc0000;color:#fff;font-size:20px;padding:16px;z-index:999999;word-break:break-all;font-family:monospace;line-height:1.5;';

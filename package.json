@@ -38,11 +38,12 @@
   },
   "browserslist": {
     "production": [
-      ">0.2%",
+      "chrome >= 66",
+      "firefox >= 60",
+      "safari >= 11",
+      "android >= 5",
       "not dead",
-      "not op_mini all",
-      "chrome >= 60",
-      "android >= 5"
+      "not op_mini all"
     ],
     "development": [
       "last 1 chrome version",

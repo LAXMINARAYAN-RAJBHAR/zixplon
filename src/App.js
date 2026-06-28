@@ -56,31 +56,46 @@ const LoadingScreen = ({ onFinish }) => {
   return (
     <div
       style={{
+        // ── FIX: use fixed + explicit 100vw/100vh instead of inset:0
+        // so TV browsers (which mishandle inset + height:100% on #root)
+        // still stretch this overlay to the full screen correctly ──
         position: "fixed",
-        inset: 0,
+        top: "0px",
+        left: "0px",
+        right: "0px",
+        bottom: "0px",
+        width: "100vw",
+        height: "100vh",
         background: "#000000",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
+        margin: "0px",
+        padding: "0px",
         zIndex: 9999,
         opacity: fade ? 0 : 1,
         transition: "opacity 0.5s ease",
       }}
     >
+      {/* ── Crisp inline SVG logo — no image file, never blurs ── */}
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 512 512"
         style={{ width: "180px", height: "180px", display: "block" }}
       >
+        {/* Red rounded square */}
         <rect x="0" y="0" width="512" height="512" rx="110" ry="110" fill="#CC0000" />
+        {/* Top shine */}
         <rect x="0" y="0" width="512" height="260" rx="110" ry="110" fill="#E81515" opacity="0.55" />
+        {/* Bold white Z */}
         <polygon
           points="108,108 404,108 404,178 220,334 404,334 404,404 108,404 108,334 292,178 108,178"
           fill="#FFFFFF"
         />
       </svg>
 
+      {/* ── App name ── */}
       <p
         style={{
           marginTop: "24px",
@@ -97,6 +112,7 @@ const LoadingScreen = ({ onFinish }) => {
         ZIXPLON
       </p>
 
+      {/* ── Subtle loading dots ── */}
       <div style={{ display: "flex", gap: "8px", marginTop: "40px" }}>
         {[0, 1, 2].map((i) => (
           <div
@@ -204,7 +220,6 @@ function App() {
             { onConflict: "id" }
           );
 
-          // Use the auto-created values
           localStorage.setItem("username", autoName);
           localStorage.setItem("userId", u.id);
           localStorage.setItem("email", u.email || "");
@@ -265,7 +280,6 @@ function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (!session) {
-          // ── LOGOUT — synchronous ──
           setCurrentUser(null);
           localStorage.removeItem("username");
           localStorage.removeItem("email");
@@ -276,7 +290,6 @@ function App() {
           localStorage.removeItem("userName");
           return;
         }
-        // ── LOGIN — async profile resolve ──
         resolveUsername(session.user).then((name) => {
           setCurrentUser(name);
         });
@@ -287,64 +300,57 @@ function App() {
   }, []);
 
   // ── Mobile back-button exit logic ─────────────────────────────────────────
-  // ── Mobile back-button exit logic ─────────────────────────────────────────
-useEffect(() => {
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if (!isMobile) return;
+  useEffect(() => {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (!isMobile) return;
 
-  const isHome = location.pathname === "/";
+    const isHome = location.pathname === "/";
 
-  if (!isHome) {
-    backPressedOnce.current = false;
-    setShowExitToast(false);
-    clearTimeout(exitToastTimer.current);
-    return;
-  }
-
-  // Push sentinel so back press is catchable
-  window.history.pushState({ zixplonExit: true }, "", "/");
-
-  const handlePopState = () => {
-    if (backPressedOnce.current) {
-      // Second back press — exit app
-      clearTimeout(exitToastTimer.current);
-      setShowExitToast(false);
+    if (!isHome) {
       backPressedOnce.current = false;
-      // Re-push so app stays alive briefly while closing
-      window.history.pushState({ zixplonExit: true }, "", "/");
-      // Navigate away to close (works in Android WebView/PWA)
-      setTimeout(() => {
-        window.location.href = "about:blank";
-      }, 50);
+      setShowExitToast(false);
+      clearTimeout(exitToastTimer.current);
       return;
     }
 
-    // First back press — show toast, re-push sentinel
-    backPressedOnce.current = true;
-    setShowExitToast(true);
-    // Re-push sentinel so next back is also catchable
     window.history.pushState({ zixplonExit: true }, "", "/");
 
-    clearTimeout(exitToastTimer.current);
-    exitToastTimer.current = setTimeout(() => {
-      backPressedOnce.current = false;
-      setShowExitToast(false);
-    }, 2000);
-  };
+    const handlePopState = () => {
+      if (backPressedOnce.current) {
+        clearTimeout(exitToastTimer.current);
+        setShowExitToast(false);
+        backPressedOnce.current = false;
+        window.history.pushState({ zixplonExit: true }, "", "/");
+        setTimeout(() => {
+          window.location.href = "about:blank";
+        }, 50);
+        return;
+      }
 
-  window.addEventListener("popstate", handlePopState);
+      backPressedOnce.current = true;
+      setShowExitToast(true);
+      window.history.pushState({ zixplonExit: true }, "", "/");
 
-  return () => {
-    window.removeEventListener("popstate", handlePopState);
-    clearTimeout(exitToastTimer.current);
-  };
-}, [location.pathname]);
+      clearTimeout(exitToastTimer.current);
+      exitToastTimer.current = setTimeout(() => {
+        backPressedOnce.current = false;
+        setShowExitToast(false);
+      }, 2000);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      clearTimeout(exitToastTimer.current);
+    };
+  }, [location.pathname]);
   // ──────────────────────────────────────────────────────────────────────────
 
   const [notifications, setNotifications] = useState([
     { id: 1, type: "upload",     message: "TechWorld uploaded: 'React 19 Features'",      time: "2m ago",  read: false, avatar: "T" },
     { id: 2, type: "like",       message: "Alex liked your video 'My Portfolio Tour'",    time: "10m ago", read: false, avatar: "A" },
-    { id: 3, type: "comment",    message: "Sara commented: 'Great content!'",                time: "25m ago", read: false, avatar: "S" },
+    { id: 3, type: "comment",    message: "Sara commented: 'Great content!'",             time: "25m ago", read: false, avatar: "S" },
     { id: 4, type: "subscriber", message: "John subscribed to your channel",              time: "1h ago",  read: false, avatar: "J" },
     { id: 5, type: "upload",     message: "CodeWithMe uploaded: 'Node.js Crash Course'",  time: "2h ago",  read: true,  avatar: "C" },
     { id: 6, type: "like",       message: "Priya liked your video 'CSS Animations'",      time: "3h ago",  read: true,  avatar: "P" },
@@ -355,6 +361,9 @@ useEffect(() => {
     location.pathname.startsWith("/reels") ||
     location.pathname.endsWith("/upload");
 
+  // ── FIX: render LoadingScreen BEFORE the main App div so it is a direct
+  // child of <body> via the React root — this bypasses any height/overflow
+  // constraints on #root that confuse TV browser fixed positioning ──
   if (!appReady) {
     return <LoadingScreen onFinish={() => setAppReady(true)} />;
   }

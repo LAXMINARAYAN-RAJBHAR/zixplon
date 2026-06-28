@@ -732,65 +732,25 @@
 } */
 
 /* ══════════════════════════════════════
-   TV BROWSER — card bottom fix
-   Targets ALL card variants uniformly.
-   Zero impact on desktop or mobile.
+   TV BROWSER ONLY — aspect-ratio fix
+   TV browsers ignore aspect-ratio so
+   thumbnail stretches and breaks cards.
+   Fixed height restores correct layout.
+   Desktop uses aspect-ratio fine → untouched.
+   Mobile has its own rules → untouched.
 ══════════════════════════════════════ */
-@media (min-width: 769px) and (max-width: 1366px) {
-
-  .youtube_thumbnailBox {
-    overflow: hidden !important;
-    height: auto !important;
-    min-height: unset !important;
-    max-height: unset !important;
-    display: flex !important;
-    flex-direction: column !important;
-  }
+@media (min-width: 769px) and (max-width: 1400px) {
 
   .youtube_thumbnailWrapper {
-    flex-shrink: 0 !important;
-    height: auto !important;
+    aspect-ratio: unset !important;
+    height: 160px !important;
+    width: 100% !important;
   }
 
-  .youtubeTitleBox {
-    flex: 1 !important;
-    height: auto !important;
-    min-height: unset !important;
-    max-height: unset !important;
-    overflow: visible !important;
-    display: flex !important;
-    flex-direction: row !important;
-    align-items: flex-start !important;
-    box-sizing: border-box !important;
-  }
-
-  .youtubeVideoInfo {
-    flex: 1 !important;
-    height: auto !important;
-    min-height: unset !important;
-    overflow: visible !important;
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 4px !important;
-  }
-
-  .youtube_videoTitle {
-    height: auto !important;
-    overflow: hidden !important;
-    display: -webkit-box !important;
-    -webkit-line-clamp: 2 !important;
-    -webkit-box-orient: vertical !important;
-  }
-
-  .youtubeVideo_Views {
-    height: auto !important;
-    overflow: visible !important;
-    flex-wrap: wrap !important;
-  }
-
-  .youtubeVideo_UploadDate {
-    height: auto !important;
-    overflow: visible !important;
-    white-space: normal !important;
+  .youtube_thumbnailPic {
+    aspect-ratio: unset !important;
+    height: 100% !important;
+    width: 100% !important;
+    object-fit: cover !important;
   }
 }

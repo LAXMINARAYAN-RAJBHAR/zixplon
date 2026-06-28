@@ -56,9 +56,6 @@ const LoadingScreen = ({ onFinish }) => {
   return (
     <div
       style={{
-        // ── FIX: use fixed + explicit 100vw/100vh instead of inset:0
-        // so TV browsers (which mishandle inset + height:100% on #root)
-        // still stretch this overlay to the full screen correctly ──
         position: "fixed",
         top: "0px",
         left: "0px",
@@ -78,24 +75,20 @@ const LoadingScreen = ({ onFinish }) => {
         transition: "opacity 0.5s ease",
       }}
     >
-      {/* ── Crisp inline SVG logo — no image file, never blurs ── */}
+      {/* ── Crisp inline SVG logo ── */}
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 512 512"
         style={{ width: "180px", height: "180px", display: "block" }}
       >
-        {/* Red rounded square */}
         <rect x="0" y="0" width="512" height="512" rx="110" ry="110" fill="#CC0000" />
-        {/* Top shine */}
         <rect x="0" y="0" width="512" height="260" rx="110" ry="110" fill="#E81515" opacity="0.55" />
-        {/* Bold white Z */}
         <polygon
           points="108,108 404,108 404,178 220,334 404,334 404,404 108,404 108,334 292,178 108,178"
           fill="#FFFFFF"
         />
       </svg>
 
-      {/* ── App name ── */}
       <p
         style={{
           marginTop: "24px",
@@ -112,7 +105,6 @@ const LoadingScreen = ({ onFinish }) => {
         ZIXPLON
       </p>
 
-      {/* ── Subtle loading dots ── */}
       <div style={{ display: "flex", gap: "8px", marginTop: "40px" }}>
         {[0, 1, 2].map((i) => (
           <div
@@ -166,18 +158,30 @@ const ExitToast = ({ visible }) => (
   </div>
 );
 
+// ── Helper: detect if current page load is an OAuth redirect return ───────────
+const isOAuthRedirect = () => {
+  const hash   = window.location.hash   || "";
+  const search = window.location.search || "";
+  return (
+    hash.includes("access_token")  ||
+    hash.includes("refresh_token") ||
+    search.includes("code=")       ||
+    search.includes("error=")
+  );
+};
+
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
   const location = useLocation();
-  const [appReady, setAppReady] = useState(false);
+  const [appReady, setAppReady]     = useState(false);
   const [sideNavbar, setSideNavbar] = useState(true);
   const [currentUser, setCurrentUser] = useState(
-    localStorage.getItem("username") || null,
+    localStorage.getItem("username") || null
   );
 
   // ── Exit-on-back state ──
   const [showExitToast, setShowExitToast] = useState(false);
-  const exitToastTimer = useRef(null);
+  const exitToastTimer  = useRef(null);
   const backPressedOnce = useRef(false);
 
   // ── Supabase warmup ──
@@ -185,7 +189,12 @@ function App() {
     supabase.from("videos").select("id").limit(1).then(() => {});
   }, []);
 
-  // ── Single auth effect — profiles table is always source of truth ──
+  // ── Auth effect ───────────────────────────────────────────────────────────
+  // onAuthStateChange is the SINGLE source of truth.
+  // It fires INITIAL_SESSION on mount (covering normal load + OAuth redirect).
+  // We do NOT call getSession() separately — that caused a race condition on
+  // mobile where one resolved null and triggered a SIGNED_OUT clear.
+  // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const resolveUsername = async (u) => {
       try {
@@ -195,91 +204,83 @@ function App() {
           .eq("id", u.id)
           .maybeSingle();
 
-        // ── Auto-create profile for Google OAuth users who have none ──
+        // Auto-create profile for first-time Google OAuth users
         if (!profileRow) {
           const autoName =
-            u.user_metadata?.name ||
-            u.user_metadata?.full_name ||
-            u.user_metadata?.channelName ||
-            u.user_metadata?.username ||
+            u.user_metadata?.name         ||
+            u.user_metadata?.full_name     ||
+            u.user_metadata?.channelName   ||
+            u.user_metadata?.username      ||
             u.email?.split("@")[0];
 
           const autoPic =
             u.user_metadata?.avatar_url ||
-            u.user_metadata?.picture ||
+            u.user_metadata?.picture    ||
             "";
 
           await supabase.from("profiles").upsert(
             [{
-              id: u.id,
-              username: autoName,
+              id:          u.id,
+              username:    autoName,
               profile_pic: autoPic,
-              about: "",
-              banner_pic: "",
+              about:       "",
+              banner_pic:  "",
             }],
             { onConflict: "id" }
           );
 
           localStorage.setItem("username", autoName);
-          localStorage.setItem("userId", u.id);
-          localStorage.setItem("email", u.email || "");
+          localStorage.setItem("userId",   u.id);
+          localStorage.setItem("email",    u.email || "");
           if (autoPic) localStorage.setItem("profilePic", autoPic);
           return autoName;
         }
 
         const name =
-          profileRow?.username ||
-          localStorage.getItem("username") ||
-          u.user_metadata?.channelName ||
-          u.user_metadata?.username ||
-          u.user_metadata?.full_name ||
+          profileRow?.username              ||
+          localStorage.getItem("username")  ||
+          u.user_metadata?.channelName      ||
+          u.user_metadata?.username         ||
+          u.user_metadata?.full_name        ||
           u.email?.split("@")[0];
 
         const pic =
-          profileRow?.profile_pic ||
-          localStorage.getItem("profilePic") ||
-          u.user_metadata?.profilePic ||
-          u.user_metadata?.avatar_url ||
-          u.user_metadata?.picture ||
+          profileRow?.profile_pic           ||
+          localStorage.getItem("profilePic")||
+          u.user_metadata?.profilePic       ||
+          u.user_metadata?.avatar_url       ||
+          u.user_metadata?.picture          ||
           "";
 
         const about =
-          profileRow?.about ||
-          localStorage.getItem("about") ||
-          u.user_metadata?.about ||
+          profileRow?.about                 ||
+          localStorage.getItem("about")     ||
+          u.user_metadata?.about            ||
           "";
 
         localStorage.setItem("username", name);
-        localStorage.setItem("userId", u.id);
-        localStorage.setItem("email", u.email || "");
-        if (pic) localStorage.setItem("profilePic", pic);
+        localStorage.setItem("userId",   u.id);
+        localStorage.setItem("email",    u.email || "");
+        if (pic)   localStorage.setItem("profilePic", pic);
         if (about) localStorage.setItem("about", about);
 
         return name;
       } catch (e) {
+        console.error("[Auth] resolveUsername error:", e);
         return (
           localStorage.getItem("username") ||
-          u.user_metadata?.channelName ||
+          u.user_metadata?.channelName     ||
           u.email?.split("@")[0]
         );
       }
     };
 
-    // Restore session on mount
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const name = await resolveUsername(session.user);
-        setCurrentUser(name);
-        if (window.location.hash?.includes("access_token")) {
-          window.history.replaceState({}, document.title, "/");
-        }
-      }
-    });
-
-    // Listen for login/logout
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!session) {
+      async (event, session) => {
+        console.log("[Auth event]", event, session?.user?.email ?? "no user");
+
+        // ── Signed out ──
+        if (event === "SIGNED_OUT" || !session) {
           setCurrentUser(null);
           localStorage.removeItem("username");
           localStorage.removeItem("email");
@@ -290,9 +291,25 @@ function App() {
           localStorage.removeItem("userName");
           return;
         }
-        resolveUsername(session.user).then((name) => {
+
+        // ── Signed in / session restored / token refreshed ──
+        // Covers: INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED
+        if (session?.user) {
+          const name = await resolveUsername(session.user);
           setCurrentUser(name);
-        });
+
+          // Clean OAuth tokens from URL *after* session is safely resolved
+          if (
+            window.location.hash?.includes("access_token") ||
+            window.location.search?.includes("code=")
+          ) {
+            window.history.replaceState(
+              {},
+              document.title,
+              window.location.pathname
+            );
+          }
+        }
       }
     );
 
@@ -303,6 +320,11 @@ function App() {
   useEffect(() => {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (!isMobile) return;
+
+    // ✅ CRITICAL FIX: Never interfere with history during an OAuth redirect.
+    // The URL hash/search carries session tokens — touching pushState here
+    // wipes them before Supabase can parse the session.
+    if (isOAuthRedirect()) return;
 
     const isHome = location.pathname === "/";
 
@@ -361,9 +383,6 @@ function App() {
     location.pathname.startsWith("/reels") ||
     location.pathname.endsWith("/upload");
 
-  // ── FIX: render LoadingScreen BEFORE the main App div so it is a direct
-  // child of <body> via the React root — this bypasses any height/overflow
-  // constraints on #root that confuse TV browser fixed positioning ──
   if (!appReady) {
     return <LoadingScreen onFinish={() => setAppReady(true)} />;
   }

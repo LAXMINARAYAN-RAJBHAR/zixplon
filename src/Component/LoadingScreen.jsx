@@ -4,7 +4,6 @@ const LoadingScreen = ({ onFinish }) => {
   const [fade, setFade] = useState(false);
 
   useEffect(() => {
-    // Start fade-out after 1.8s, call onFinish after fade completes
     const fadeTimer = setTimeout(() => setFade(true), 1800);
     const doneTimer = setTimeout(() => onFinish && onFinish(), 2300);
     return () => {
@@ -17,7 +16,10 @@ const LoadingScreen = ({ onFinish }) => {
     <div
       style={{
         position: "fixed",
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         background: "#000000",
         display: "flex",
         flexDirection: "column",

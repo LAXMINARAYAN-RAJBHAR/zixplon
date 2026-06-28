@@ -14,22 +14,27 @@ const LoadingScreen = ({ onFinish }) => {
 
   return (
     <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: "#000000",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 9999,
-        opacity: fade ? 0 : 1,
-        transition: "opacity 0.5s ease",
-      }}
-    >
+  style={{
+    position: "fixed",
+    top: "0",
+    left: "0",
+    right: "0",
+    bottom: "0",
+    width: "100vw",
+    height: "100vh",
+    background: "#000000",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    margin: "0",
+    padding: "0",
+    boxSizing: "border-box",
+    zIndex: 9999,
+    opacity: fade ? 0 : 1,
+    transition: "opacity 0.5s ease",
+  }}
+>
       {/* ── Crisp inline SVG logo — no image file, never blurs ── */}
       <svg
         xmlns="http://www.w3.org/2000/svg"

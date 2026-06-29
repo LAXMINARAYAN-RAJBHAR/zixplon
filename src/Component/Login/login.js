@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import "./login.css";
 import { Link } from "react-router-dom";
 import { supabase } from "../../config/supabase";
@@ -8,114 +8,88 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [errorType, setErrorType] = useState(""); // "google" | "unconfirmed" | "generic"
+  const [errorType, setErrorType] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // ── Refs to always read latest values (fixes stale closure on mobile) ──
+  const emailRef = useRef(email);
+  const passwordRef = useRef(password);
+  useEffect(() => { emailRef.current = email; }, [email]);
+  useEffect(() => { passwordRef.current = password; }, [password]);
 
   useEffect(() => {
     setError("");
     setSuccess("");
   }, []);
 
-  // ── Helper: check what provider an email is registered with ──────────────
-  const getProviderForEmail = async (emailAddr) => {
-    try {
-      // We attempt a password reset — if the user doesn't exist at all,
-      // Supabase returns a specific error. We use this only for UX hints,
-      // not for security decisions.
-      // Better approach: try signing in and inspect the error code.
-      return null; // handled inline in handleLogin
-    } catch {
-      return null;
-    }
-  };
-
   const handleLogin = useCallback(async () => {
-    if (!email || !password) return setError("Please enter email and password.");
+    // Read from refs — guaranteed fresh even on mobile tap lag
+    const currentEmail = emailRef.current.trim();
+    const currentPassword = passwordRef.current;
+
+    if (!currentEmail || !currentPassword) {
+      return setError("Please enter email and password.");
+    }
+
     setLoading(true);
     setError("");
     setErrorType("");
 
     try {
       const { data, error: err } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: currentEmail,
+        password: currentPassword,
       });
 
       if (err) {
         setLoading(false);
-
-        // ── Smart error detection ─────────────────────────────────────────
         const msg = err.message?.toLowerCase() || "";
+
+        if (
+          err.code === "email_not_confirmed" ||
+          msg.includes("email not confirmed")
+        ) {
+          setErrorType("unconfirmed");
+          setError(
+            "Your email is not confirmed yet. Please check your inbox and click the confirmation link."
+          );
+          return;
+        }
 
         if (
           msg.includes("invalid login credentials") ||
           msg.includes("invalid_credentials") ||
-          msg.includes("email not confirmed") ||
-          err.code === "invalid_credentials" ||
-          err.code === "email_not_confirmed"
+          err.code === "invalid_credentials"
         ) {
-          // Check if this email exists as a Google/OAuth user
-          // by trying to look up in profiles via a safe query
+          // ── Detect Google-only accounts via profiles table (no OTP side-effect) ──
           try {
             const { data: profileData } = await supabase
               .from("profiles")
-              .select("username")
-              .eq("id", "00000000-0000-0000-0000-000000000000") // dummy, just warm up
+              .select("id, username")
+              .eq("email", currentEmail)   // only works if you store email in profiles
               .maybeSingle();
-          } catch (_) {}
 
-          // ── Check auth.users for this email via a sign-in attempt insight ──
-          // Supabase doesn't expose provider lookup from client, so we use
-          // a signInWithOtp dry-run pattern to detect if it's email-only.
-          // Instead, we detect via the error code:
-
-          if (
-            err.code === "email_not_confirmed" ||
-            msg.includes("email not confirmed")
-          ) {
-            setErrorType("unconfirmed");
-            setError(
-              "Your email is not confirmed yet. Please check your inbox and click the confirmation link."
-            );
-            return;
-          }
-
-          // For "invalid_credentials" — could be wrong password OR Google-only account.
-          // We try to detect Google accounts by checking if a magic link would work.
-          // Best client-side signal: attempt OTP send and see if user exists
-          const { error: otpErr } = await supabase.auth.signInWithOtp({
-            email,
-            options: { shouldCreateUser: false },
-          });
-
-          if (!otpErr) {
-            // OTP sent = user exists with email provider, just wrong password
+            if (!profileData) {
+              // No profile row = Google OAuth user who never set a password
+              setErrorType("google");
+              setError(
+                "This email is registered with Google. Please use 'Continue with Google' to sign in."
+              );
+            } else {
+              setErrorType("generic");
+              setError("Incorrect password. Please try again or reset it below.");
+            }
+          } catch (_) {
+            // Fallback if profiles query fails
             setErrorType("generic");
-            setError("Incorrect password. Please try again or use 'Forgot Password' to reset it.");
-          } else if (
-            otpErr.message?.toLowerCase().includes("provider") ||
-            otpErr.message?.toLowerCase().includes("oauth") ||
-            otpErr.code === "user_not_found" ||
-            otpErr.message?.toLowerCase().includes("not found")
-          ) {
-            // User not found via OTP = likely Google-only account
-            setErrorType("google");
-            setError(
-              "This email is registered with Google. Please use 'Continue with Google' to sign in."
-            );
-          } else {
-            // OTP was sent but user might be Google — safest generic message
-            setErrorType("google");
-            setError(
-              "This email is registered with Google Sign-In. Please tap 'Continue with Google' instead."
-            );
+            setError("Incorrect email or password. Please try again.");
           }
-        } else {
-          setErrorType("generic");
-          setError(err.message || "Login failed. Please try again.");
+          return;
         }
 
+        setErrorType("generic");
+        setError(err.message || "Login failed. Please try again.");
         return;
       }
 
@@ -126,7 +100,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
         return setError("Login failed. Please try again.");
       }
 
-      // ── Profile fetch ─────────────────────────────────────────────────────
+      // ── Profile fetch ───────────────────────────────────────────────────
       let profileRow = null;
       try {
         const { data: pData } = await supabase
@@ -141,7 +115,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
         profileRow?.username ||
         user.user_metadata?.channelName ||
         user.user_metadata?.username ||
-        email.split("@")[0];
+        currentEmail.split("@")[0];
 
       const pic =
         profileRow?.profile_pic ||
@@ -152,16 +126,12 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
 
       const about = profileRow?.about || user.user_metadata?.about || "";
 
-      localStorage.removeItem("username");
-      localStorage.removeItem("userId");
-      localStorage.removeItem("email");
-      localStorage.removeItem("profilePic");
-      localStorage.removeItem("about");
-      localStorage.removeItem("channelName");
-      localStorage.removeItem("userName");
+      // Clear then set — prevents stale key bleed
+      ["username","userId","email","profilePic","about","channelName","userName"]
+        .forEach(k => localStorage.removeItem(k));
 
       localStorage.setItem("username", name);
-      localStorage.setItem("email", email);
+      localStorage.setItem("email", currentEmail);
       localStorage.setItem("userId", user.id);
       if (pic) localStorage.setItem("profilePic", pic);
       if (about) localStorage.setItem("about", about);
@@ -174,15 +144,16 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
       setErrorType("generic");
       setError("Something went wrong. Please try again.");
     }
-  }, [email, password, onLoginSuccess, setLoginModal]);
+  }, [onLoginSuccess, setLoginModal]); // removed email/password — using refs instead
 
   const handleForgot = useCallback(async () => {
-    if (!email) return setError("Please enter your email.");
+    const currentEmail = emailRef.current.trim();
+    if (!currentEmail) return setError("Please enter your email.");
     setLoading(true);
     setError("");
     setErrorType("");
     try {
-      const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error: err } = await supabase.auth.resetPasswordForEmail(currentEmail, {
         redirectTo: "https://zixplon-tawny.vercel.app/",
       });
       setLoading(false);
@@ -192,7 +163,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
       setLoading(false);
       setError("Something went wrong. Please try again.");
     }
-  }, [email]);
+  }, []);
 
   const handleGoogleLogin = useCallback(async () => {
     setError("");
@@ -202,10 +173,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
         provider: "google",
         options: {
           redirectTo: "https://zixplon-tawny.vercel.app/",
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent",
-          },
+          queryParams: { access_type: "offline", prompt: "consent" },
         },
       });
       if (error) {
@@ -218,7 +186,8 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     }
   }, []);
 
-  const handleOverlayClick = useCallback(
+  // ── Use onPointerDown on overlay to prevent mobile tap-through ──────────
+  const handleOverlayPointerDown = useCallback(
     (e) => {
       if (e.target === e.currentTarget) setLoginModal();
     },
@@ -226,8 +195,11 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
   );
 
   return (
-    <div className="login" onClick={handleOverlayClick}>
-      <div className="login_card" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="login"
+      onPointerDown={handleOverlayPointerDown}
+    >
+      <div className="login_card" onPointerDown={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div className="titleCard_login">
@@ -271,15 +243,18 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
             className="userNameLoginUserName"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(""); setErrorType(""); }}
+            onBlur={(e) => { emailRef.current = e.target.value.trim(); }}
             placeholder="Email Address"
             type="email"
             autoComplete="email"
+            inputMode="email"
           />
           {mode === "login" && (
             <input
               className="userNameLoginUserName"
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError(""); setErrorType(""); }}
+              onBlur={(e) => { passwordRef.current = e.target.value; }}
               placeholder="Password"
               type="password"
               autoComplete="current-password"
@@ -288,30 +263,24 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
           )}
         </div>
 
-        {/* Error — styled differently per type */}
+        {/* Error */}
         {error && (
           <div
             className="login_feedback login_feedback--error"
             style={{
               background:
-                errorType === "google"
-                  ? "#fff3e0"
-                  : errorType === "unconfirmed"
-                  ? "#e8f4fd"
-                  : "#fef2f2",
+                errorType === "google" ? "#fff3e0"
+                : errorType === "unconfirmed" ? "#e8f4fd"
+                : "#fef2f2",
               borderLeft: `4px solid ${
-                errorType === "google"
-                  ? "#f97316"
-                  : errorType === "unconfirmed"
-                  ? "#3b82f6"
-                  : "#ef4444"
+                errorType === "google" ? "#f97316"
+                : errorType === "unconfirmed" ? "#3b82f6"
+                : "#ef4444"
               }`,
               color:
-                errorType === "google"
-                  ? "#c2410c"
-                  : errorType === "unconfirmed"
-                  ? "#1d4ed8"
-                  : "#dc2626",
+                errorType === "google" ? "#c2410c"
+                : errorType === "unconfirmed" ? "#1d4ed8"
+                : "#dc2626",
               borderRadius: "8px",
               padding: "10px 14px",
               fontSize: "13px",
@@ -324,7 +293,6 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
                   🔑 Google Account Detected
                 </div>
                 <div>{error}</div>
-                {/* Inline Google button for convenience */}
                 <button
                   onClick={handleGoogleLogin}
                   style={{
@@ -352,30 +320,19 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
                 </button>
               </>
             )}
-
             {errorType === "unconfirmed" && (
               <>
-                <div style={{ fontWeight: "700", marginBottom: "4px" }}>
-                  📧 Email Not Confirmed
-                </div>
+                <div style={{ fontWeight: "700", marginBottom: "4px" }}>📧 Email Not Confirmed</div>
                 <div>{error}</div>
               </>
             )}
-
-            {errorType === "generic" && (
-              <>❌ {error}</>
-            )}
-
-            {/* Fallback for empty errorType */}
-            {!errorType && <>❌ {error}</>}
+            {(errorType === "generic" || !errorType) && <>❌ {error}</>}
           </div>
         )}
 
         {/* Success */}
         {success && (
-          <div className="login_feedback login_feedback--success">
-            ✅ {success}
-          </div>
+          <div className="login_feedback login_feedback--success">✅ {success}</div>
         )}
 
         {/* Buttons */}
@@ -389,11 +346,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
               cursor: loading ? "not-allowed" : "pointer",
             }}
           >
-            {loading
-              ? "Please wait..."
-              : mode === "login"
-              ? "Login"
-              : "Send Reset Email"}
+            {loading ? "Please wait..." : mode === "login" ? "Login" : "Send Reset Email"}
           </button>
 
           <button onClick={handleGoogleLogin} className="login_btn_google">

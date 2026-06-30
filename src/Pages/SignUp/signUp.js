@@ -47,19 +47,35 @@ const SignUp = () => {
     }
   };
 
+  // ── Check if username is already taken ──
+  const isUsernameTaken = async (username) => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("username", username)
+      .maybeSingle();
+    if (error) return false; // fail open — DB will catch it
+    return !!data;
+  };
+
   const handleSignUp = async () => {
     // ── Validation ──
-    if (!signUpField.channelName.trim())
-      return setError("Please enter a Channel Name.");
-    if (!signUpField.userName.trim())
-      return setError("Please enter a User Name.");
-    if (/\s/.test(signUpField.userName))
+    const channelName = signUpField.channelName.trim();
+    const userName    = signUpField.userName.trim().toLowerCase();
+    const email       = signUpField.email.trim().toLowerCase();
+    const password    = signUpField.password;
+    const about       = signUpField.about.trim();
+    const profilePic  = signUpField.profilePic;
+
+    if (!channelName)  return setError("Please enter a Channel Name.");
+    if (!userName)     return setError("Please enter a User Name.");
+    if (/\s/.test(userName))
       return setError("Username cannot contain spaces. Use dots or underscores (e.g. john.doe)");
-    if (!signUpField.email.trim())
-      return setError("Please enter an Email.");
-    if (!signUpField.password)
-      return setError("Please enter a Password.");
-    if (signUpField.password.length < 6)
+    if (!/^[a-zA-Z0-9._]+$/.test(userName))
+      return setError("Username can only contain letters, numbers, dots, and underscores.");
+    if (!email)        return setError("Please enter an Email.");
+    if (!password)     return setError("Please enter a Password.");
+    if (password.length < 6)
       return setError("Password must be at least 6 characters.");
 
     setLoading(true);
@@ -67,71 +83,91 @@ const SignUp = () => {
     setSuccess("");
 
     try {
-      // ── Step 1: Create auth user ──
+      // ── Step 1: Check username availability ──
+      const taken = await isUsernameTaken(userName);
+      if (taken) {
+        setLoading(false);
+        return setError("This username is already taken. Please choose another.");
+      }
+
+      // ── Step 2: Create auth user ──
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email: signUpField.email.trim(),
-        password: signUpField.password,
+        email,
+        password,
+        options: {
+          data: {
+            // Store channelName in auth metadata as backup
+            channel_name: channelName,
+            username: userName,
+          },
+        },
       });
 
-      console.log("Supabase signUp response → data:", data, "error:", signUpError);
+      console.log("Supabase signUp →", { data, signUpError });
 
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        // Surface friendly messages for common errors
+        const msg = signUpError.message || "";
+        if (msg.toLowerCase().includes("already registered") || msg.includes("already exists")) {
+          throw new Error("An account with this email already exists. Please sign in instead.");
+        }
+        throw signUpError;
+      }
 
       const user = data?.user;
-
       if (!user) {
-        throw new Error("An account with this email already exists. Please sign in instead.");
+        throw new Error("Sign up failed — no user returned. Please try again.");
       }
-      if (user.identities && user.identities.length === 0) {
+
+      // Supabase returns identities:[] when email is already registered
+      // (even without email confirmation enabled)
+      if (Array.isArray(user.identities) && user.identities.length === 0) {
         throw new Error("An account with this email already exists. Please sign in instead.");
       }
 
-      // ── Step 2: Upsert profile row (retry-safe) ──
+      // ── Step 3: Upsert profile row (includes channelName!) ──
       const { error: profileError } = await supabase
         .from("profiles")
         .upsert(
           [
             {
-              id: user.id,
-              username: signUpField.userName.trim(),
-              profile_pic: signUpField.profilePic,
-              about: signUpField.about.trim(),
-              banner_pic: "",
+              id:           user.id,
+              username:     userName,
+              channel_name: channelName,   // ← was missing before
+              profile_pic:  profilePic,
+              about:        about,
+              banner_pic:   "",
             },
           ],
           { onConflict: "id" }
         );
 
       if (profileError) {
+        // username unique constraint violation
+        if (profileError.code === "23505" || profileError.message?.includes("unique")) {
+          throw new Error("This username is already taken. Please choose another.");
+        }
         throw new Error("Profile setup failed: " + profileError.message);
       }
 
-      // ── Step 3: Clear only auth-related stale keys, not everything ──
-      localStorage.removeItem("username");
-      localStorage.removeItem("userId");
-      localStorage.removeItem("email");
-      localStorage.removeItem("profilePic");
-      localStorage.removeItem("about");
-      localStorage.removeItem("channelName");
-      localStorage.removeItem("userName");
+      // ── Step 4: Persist to localStorage ──
+      const keys = ["username","userId","email","profilePic","about","channelName","userName"];
+      keys.forEach((k) => localStorage.removeItem(k));
 
-      // Set fresh values
-      localStorage.setItem("userId", user.id);
-      localStorage.setItem("username", signUpField.userName.trim());
-      localStorage.setItem("channelName", signUpField.channelName.trim());
-      localStorage.setItem("userName", signUpField.userName.trim());
-      localStorage.setItem("email", signUpField.email.trim());
-      localStorage.setItem("profilePic", signUpField.profilePic);
-      localStorage.setItem("about", signUpField.about.trim());
+      localStorage.setItem("userId",      user.id);
+      localStorage.setItem("username",    userName);
+      localStorage.setItem("channelName", channelName);
+      localStorage.setItem("userName",    userName);
+      localStorage.setItem("email",       email);
+      localStorage.setItem("profilePic",  profilePic);
+      localStorage.setItem("about",       about);
 
-      // ── Step 4: Feedback & redirect ──
+      // ── Step 5: Feedback & redirect ──
       const emailConfirmRequired = !data.session;
       if (emailConfirmRequired) {
-        setSuccess(
-          "Account created! Please check your email to confirm, then sign in.",
-        );
+        setSuccess("Account created! Please check your email to confirm, then sign in.");
         setLoading(false);
-        setTimeout(() => navigate("/signin"), 3000);
+        setTimeout(() => navigate("/signin"), 3500);
       } else {
         setSuccess("Account created! Redirecting…");
         setLoading(false);
@@ -141,6 +177,11 @@ const SignUp = () => {
       setLoading(false);
       setError(err.message || "Sign up failed. Please try again.");
     }
+  };
+
+  // Allow Enter key on any field to submit
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !loading) handleSignUp();
   };
 
   return (
@@ -160,6 +201,7 @@ const SignUp = () => {
             className="signUp_Inputs_inp"
             value={signUpField.channelName}
             onChange={(e) => handleInputField(e, "channelName")}
+            onKeyDown={handleKeyDown}
             placeholder="Channel Name * (e.g. My Awesome Channel)"
           />
           <input
@@ -167,6 +209,7 @@ const SignUp = () => {
             className="signUp_Inputs_inp"
             value={signUpField.userName}
             onChange={(e) => handleInputField(e, "userName")}
+            onKeyDown={handleKeyDown}
             placeholder="User Name * (no spaces, e.g. john.doe)"
           />
           <input
@@ -174,6 +217,7 @@ const SignUp = () => {
             className="signUp_Inputs_inp"
             value={signUpField.email}
             onChange={(e) => handleInputField(e, "email")}
+            onKeyDown={handleKeyDown}
             placeholder="Email Address *"
           />
           <input
@@ -181,14 +225,15 @@ const SignUp = () => {
             className="signUp_Inputs_inp"
             value={signUpField.password}
             onChange={(e) => handleInputField(e, "password")}
+            onKeyDown={handleKeyDown}
             placeholder="Password * (min 6 chars)"
-            onKeyDown={(e) => e.key === "Enter" && handleSignUp()}
           />
           <input
             type="text"
             className="signUp_Inputs_inp"
             value={signUpField.about}
             onChange={(e) => handleInputField(e, "about")}
+            onKeyDown={handleKeyDown}
             placeholder="About Your Channel (optional)"
           />
 
@@ -200,52 +245,27 @@ const SignUp = () => {
                 className="image_default_signup"
                 src={uploadedImageUrl}
                 alt="Profile Preview"
-                onError={(e) => {
-                  e.target.src = DEFAULT_PIC;
-                }}
+                onError={(e) => { e.target.src = DEFAULT_PIC; }}
               />
             </div>
           </div>
 
           {/* Error / Success Messages */}
           {error && (
-            <div style={{
-              background: "#ff444422",
-              border: "1px solid #ff4444",
-              color: "#ff4444",
-              padding: "10px 16px",
-              borderRadius: "8px",
-              fontSize: "14px",
-              width: "60%",
-              textAlign: "center",
-            }}>
+            <div className="signup_message signup_message--error">
               ❌ {error}
             </div>
           )}
           {success && (
-            <div style={{
-              background: "#4caf5022",
-              border: "1px solid #4caf50",
-              color: "#4caf50",
-              padding: "10px 16px",
-              borderRadius: "8px",
-              fontSize: "14px",
-              width: "60%",
-              textAlign: "center",
-            }}>
+            <div className="signup_message signup_message--success">
               ✅ {success}
             </div>
           )}
 
           <div className="signUpBtns">
             <div
-              className="signUpBtn"
+              className={`signUpBtn${loading ? " signUpBtn--loading" : ""}`}
               onClick={!loading ? handleSignUp : undefined}
-              style={{
-                background: loading ? "#e9e3ff" : "transparent",
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.7 : 1,
-              }}
             >
               {loading ? "Creating Account..." : "Sign Up"}
             </div>

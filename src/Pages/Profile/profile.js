@@ -51,7 +51,6 @@ const getUserGradient = (name = "") => {
 };
 
 // ─── Lightbox ─────────────────────────────────────────────────────────────────
-// Supports both single src and multi-image array with prev/next navigation.
 const Lightbox = ({ images, startIndex = 0, onClose }) => {
   const [index, setIndex] = useState(startIndex);
 
@@ -82,7 +81,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         justifyContent: "center", cursor: "zoom-out",
       }}
     >
-      {/* Close button */}
       <button
         onClick={onClose}
         style={{
@@ -94,7 +92,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         }}
       >✕</button>
 
-      {/* Prev button */}
       {images.length > 1 && (
         <button
           onClick={prev}
@@ -108,7 +105,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         >‹</button>
       )}
 
-      {/* Next button */}
       {images.length > 1 && (
         <button
           onClick={next}
@@ -122,7 +118,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         >›</button>
       )}
 
-      {/* Image */}
       <img
         src={images[index]}
         alt={`Image ${index + 1}`}
@@ -133,7 +128,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         }}
       />
 
-      {/* Dot indicators */}
       {images.length > 1 && (
         <div
           onClick={(e) => e.stopPropagation()}
@@ -157,7 +151,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         </div>
       )}
 
-      {/* Counter */}
       {images.length > 1 && (
         <div
           style={{
@@ -176,11 +169,10 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
 
 // ─── Profile Post Card ────────────────────────────────────────────────────────
 const ProfilePostCard = ({ post, isOwner, onDelete }) => {
-  const [lightboxData, setLightboxData] = useState(null); // { images: [], startIndex: 0 }
+  const [lightboxData, setLightboxData] = useState(null);
   const [showComments, setShowComments] = useState(false);
   const totalReactions = Object.values(post.reactionCounts || {}).reduce((a, b) => a + b, 0);
 
-  // Normalise to an array — prefer image_urls (multi), fall back to image_url (single)
   const images =
     post.image_urls?.length > 0
       ? post.image_urls
@@ -188,7 +180,6 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
         ? [post.image_url]
         : [];
 
-  // Grid layout helpers
   const gridStyle = (count) => {
     if (count === 1) return { gridTemplateColumns: "1fr", height: "auto" };
     if (count === 2) return { gridTemplateColumns: "1fr 1fr", height: "260px" };
@@ -198,9 +189,7 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
 
   const itemStyle = (idx, count) => {
     const base = { position: "relative", overflow: "hidden", cursor: "zoom-in" };
-    // For 3-image layout: first item spans 2 rows
     if (count === 3 && idx === 0) return { ...base, gridRow: "1 / 3" };
-    // Single image: natural height up to 400px
     if (count === 1) return { ...base, cursor: "zoom-in" };
     return base;
   };
@@ -219,7 +208,6 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
         background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "12px",
         padding: "16px", marginBottom: "14px", position: "relative",
       }}>
-        {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
           <div style={{
             width: "38px", height: "38px", borderRadius: "50%",
@@ -260,14 +248,12 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
           )}
         </div>
 
-        {/* Text */}
         {post.text && (
           <p style={{ color: "#e0e0e0", fontSize: "14px", lineHeight: "1.6", margin: "0 0 12px", wordBreak: "break-word" }}>
             {post.text}
           </p>
         )}
 
-        {/* ── Images — multi-image grid with lightbox ── */}
         {images.length > 0 && (
           <div
             style={{
@@ -294,11 +280,10 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
                     width: "100%",
                     height: images.length === 1 ? "auto" : "100%",
                     maxHeight: images.length === 1 ? "400px" : "none",
-                    objectFit: images.length === 1 ? "cover" : "cover",
+                    objectFit: "cover",
                     display: "block",
                   }}
                 />
-                {/* +N overlay on the 4th tile when there are more than 4 images */}
                 {idx === 3 && images.length > 4 && (
                   <div style={{
                     position: "absolute", inset: 0,
@@ -314,7 +299,6 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
           </div>
         )}
 
-        {/* Link preview */}
         {post.link && (
           <a
             href={post.link.url}
@@ -330,7 +314,6 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
           </a>
         )}
 
-        {/* Stats bar */}
         <div style={{
           display: "flex", gap: "16px", alignItems: "center",
           paddingTop: "10px", borderTop: "1px solid #2a2a2a",
@@ -350,7 +333,6 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
           </button>
         </div>
 
-        {/* Comments */}
         {showComments && post.comments?.length > 0 && (
           <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
             {post.comments.map((c) => (
@@ -542,81 +524,184 @@ const Profile = ({ sideNavbar }) => {
   useEffect(() => {
     const loadProfile = async () => {
       setLoading(true);
-      const lsUsername = localStorage.getItem("username");
+      const lsUsername   = localStorage.getItem("username");
       const lsProfilePic = localStorage.getItem("profilePic");
-      const lsAbout = localStorage.getItem("about");
-      const lsEmail = localStorage.getItem("email");
+      const lsAbout      = localStorage.getItem("about");
+      const lsEmail      = localStorage.getItem("email");
+      const lsUserId     = localStorage.getItem("userId");
 
+      // ── PATH 1: Owner via localStorage ──────────────────────────────────────
       if (lsUsername && matchesKey(lsUsername, key)) {
         const { data: ownerProfile } = await supabase
           .from("profiles")
-          .select("banner_pic, profile_pic, about")
+          .select("id, banner_pic, profile_pic, about, channel_name") // ← added channel_name
           .eq("username", lsUsername)
           .maybeSingle();
-        const bannerPic = ownerProfile?.banner_pic || null;
-        const profilePic = ownerProfile?.profile_pic || lsProfilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=ff0000&color=fff&size=120&length=2`;
-        const about = ownerProfile?.about || lsAbout || `${lsUsername}'s channel`;
-        if (profilePic) localStorage.setItem("profilePic", profilePic);
-        if (about) localStorage.setItem("about", about);
-        setUser({ name: lsUsername, handle: `@${lsUsername}`, profilePic, about, email: lsEmail, isOwner: true, bannerPic });
+
+        const bannerPic   = ownerProfile?.banner_pic || null;
+        const profilePic  = ownerProfile?.profile_pic || lsProfilePic
+          || `https://ui-avatars.com/api/?name=${encodeURIComponent(lsUsername)}&background=7c3aed&color=fff&size=120&length=2`;
+        const about       = ownerProfile?.about || lsAbout || `${lsUsername}'s channel`;
+        // FIX: use channel_name from DB, fall back to localStorage, then username
+        const channelName = ownerProfile?.channel_name
+          || localStorage.getItem("channelName")
+          || lsUsername;
+
+        // Keep localStorage fresh
+        if (profilePic)  localStorage.setItem("profilePic",  profilePic);
+        if (about)       localStorage.setItem("about",       about);
+        if (channelName) localStorage.setItem("channelName", channelName);
+
+        setUser({
+          id:         ownerProfile?.id || lsUserId,
+          name:       channelName,      // ← display channel name, not raw username
+          username:   lsUsername,       // ← keep for @handle and DB queries
+          handle:     `@${lsUsername}`,
+          profilePic,
+          about,
+          email:      lsEmail,
+          isOwner:    true,
+          bannerPic,
+        });
+
+      // ── PATH 2: Owner via Supabase auth session ──────────────────────────────
       } else {
         const { data: authData } = await supabase.auth.getUser();
-        const authUser = authData?.user;
-        const authUsername = authUser?.user_metadata?.channelName || authUser?.user_metadata?.username;
+        const authUser     = authData?.user;
+        const authUsername = authUser?.user_metadata?.username
+          || authUser?.user_metadata?.channelName;
+
         if (authUsername && matchesKey(authUsername, key)) {
           const { data: ownerProfile } = await supabase
             .from("profiles")
-            .select("banner_pic, profile_pic, about")
+            .select("id, banner_pic, profile_pic, about, channel_name") // ← added channel_name
             .eq("username", authUsername)
             .maybeSingle();
-          const bannerPic = ownerProfile?.banner_pic || authUser.user_metadata?.bannerPic || null;
-          const profilePic = ownerProfile?.profile_pic || authUser.user_metadata?.profilePic || `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=ff0000&color=fff&size=120`;
-          const about = ownerProfile?.about || authUser.user_metadata?.about || `${authUsername}'s channel`;
-          setUser({ name: authUsername, handle: `@${authUsername}`, profilePic, about, email: authUser.email, isOwner: true, bannerPic });
-          localStorage.setItem("username", authUsername);
+
+          const bannerPic   = ownerProfile?.banner_pic || null;
+          const profilePic  = ownerProfile?.profile_pic || authUser.user_metadata?.profilePic
+            || `https://ui-avatars.com/api/?name=${encodeURIComponent(authUsername)}&background=7c3aed&color=fff&size=120`;
+          const about       = ownerProfile?.about || authUser.user_metadata?.about || `${authUsername}'s channel`;
+          // FIX: channel_name from DB → auth metadata → localStorage → username
+          const channelName = ownerProfile?.channel_name
+            || authUser?.user_metadata?.channel_name
+            || localStorage.getItem("channelName")
+            || authUsername;
+
+          localStorage.setItem("username",    authUsername);
+          localStorage.setItem("channelName", channelName);
           if (profilePic) localStorage.setItem("profilePic", profilePic);
-          if (about) localStorage.setItem("about", about);
+          if (about)      localStorage.setItem("about",      about);
+
+          setUser({
+            id:         ownerProfile?.id || authUser.id,
+            name:       channelName,      // ← display channel name
+            username:   authUsername,     // ← keep for @handle
+            handle:     `@${authUsername}`,
+            profilePic,
+            about,
+            email:      authUser.email,
+            isOwner:    true,
+            bannerPic,
+          });
+
+        // ── PATH 3: Visitor viewing someone else's profile ──────────────────
         } else {
           let foundUser = null;
+
+          // Check profiles table first (most reliable)
           const { data: profileRow } = await supabase
             .from("profiles")
-            .select("username, banner_pic, profile_pic, about")
+            .select("id, username, channel_name, banner_pic, profile_pic, about") // ← added channel_name
             .eq("username", key)
             .maybeSingle();
+
           if (profileRow) {
             foundUser = {
-              name: profileRow.username,
-              handle: `@${profileRow.username}`,
-              profilePic: profileRow.profile_pic || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileRow.username)}&background=ff0000&color=fff&size=120`,
-              about: profileRow.about || `${profileRow.username}'s channel`,
-              bannerPic: profileRow.banner_pic || null,
-              isOwner: false,
+              id:         profileRow.id,
+              name:       profileRow.channel_name || profileRow.username, // ← channel_name first
+              username:   profileRow.username,
+              handle:     `@${profileRow.username}`,
+              profilePic: profileRow.profile_pic
+                || `https://ui-avatars.com/api/?name=${encodeURIComponent(profileRow.username)}&background=7c3aed&color=fff&size=120`,
+              about:      profileRow.about || `${profileRow.username}'s channel`,
+              bannerPic:  profileRow.banner_pic || null,
+              isOwner:    false,
             };
           }
+
+          // Fallback: search videos table
           if (!foundUser) {
-            const { data: videoUserData } = await supabase.from("videos").select("channel, username").limit(200);
+            const { data: videoUserData } = await supabase
+              .from("videos")
+              .select("channel, username")
+              .limit(200);
             if (videoUserData) {
-              const match = videoUserData.find((v) => matchesKey(v.username, key) || matchesKey(v.channel, key));
-              if (match) foundUser = { name: match.channel || match.username, handle: `@${match.username || match.channel}`, profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.channel || match.username)}&background=ff0000&color=fff&size=120`, about: `${match.channel || match.username}'s channel`, bannerPic: null, isOwner: false };
+              const match = videoUserData.find(
+                (v) => matchesKey(v.username, key) || matchesKey(v.channel, key)
+              );
+              if (match) {
+                foundUser = {
+                  name:       match.channel || match.username,
+                  username:   match.username || match.channel,
+                  handle:     `@${match.username || match.channel}`,
+                  profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.channel || match.username)}&background=7c3aed&color=fff&size=120`,
+                  about:      `${match.channel || match.username}'s channel`,
+                  bannerPic:  null,
+                  isOwner:    false,
+                };
+              }
             }
           }
+
+          // Fallback: search reels table
           if (!foundUser) {
-            const { data: reelUserData } = await supabase.from("reels").select("username, user").limit(200);
+            const { data: reelUserData } = await supabase
+              .from("reels")
+              .select("username, user")
+              .limit(200);
             if (reelUserData) {
               const match = reelUserData.find((r) => matchesKey(r.username, key));
-              if (match) foundUser = { name: match.user || match.username, handle: `@${match.username}`, profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.user || match.username)}&background=ff0000&color=fff&size=120`, about: `${match.user || match.username}'s channel`, bannerPic: null, isOwner: false };
+              if (match) {
+                foundUser = {
+                  name:       match.user || match.username,
+                  username:   match.username,
+                  handle:     `@${match.username}`,
+                  profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(match.user || match.username)}&background=7c3aed&color=fff&size=120`,
+                  about:      `${match.user || match.username}'s channel`,
+                  bannerPic:  null,
+                  isOwner:    false,
+                };
+              }
             }
           }
+
+          // Fallback: hardcoded reels data
           if (!foundUser) {
             const reelUser = reelsData.find((r) => matchesKey(r.username, key));
-            if (reelUser) foundUser = { name: reelUser.user, handle: `@${reelUser.username}`, profilePic: reelUser.profilePic || `https://api.dicebear.com/7.x/initials/svg?seed=${reelUser.user}`, about: `${reelUser.user}'s channel`, bannerPic: null, isOwner: false };
+            if (reelUser) {
+              foundUser = {
+                name:       reelUser.user,
+                username:   reelUser.username,
+                handle:     `@${reelUser.username}`,
+                profilePic: reelUser.profilePic
+                  || `https://api.dicebear.com/7.x/initials/svg?seed=${reelUser.user}`,
+                about:      `${reelUser.user}'s channel`,
+                bannerPic:  null,
+                isOwner:    false,
+              };
+            }
           }
+
           setUser(foundUser || null);
         }
       }
 
-      // Fetch videos
-      const { data: vData } = await supabase.from("videos").select("*").order("created_at", { ascending: false });
+      // ── Fetch videos ────────────────────────────────────────────────────────
+      const { data: vData } = await supabase
+        .from("videos")
+        .select("*")
+        .order("created_at", { ascending: false });
       if (vData) {
         setDbVideos(
           vData
@@ -641,8 +726,11 @@ const Profile = ({ sideNavbar }) => {
         setVideoCounts(counts);
       }
 
-      // Fetch reels
-      const { data: rData } = await supabase.from("reels").select("*").order("created_at", { ascending: false });
+      // ── Fetch reels ─────────────────────────────────────────────────────────
+      const { data: rData } = await supabase
+        .from("reels")
+        .select("*")
+        .order("created_at", { ascending: false });
       if (rData) {
         setDbReels(
           rData
@@ -672,7 +760,7 @@ const Profile = ({ sideNavbar }) => {
         setReelCounts(counts);
       }
 
-      // Fetch posts
+      // ── Fetch posts ─────────────────────────────────────────────────────────
       const { data: postsData } = await supabase
         .from("posts")
         .select(`*, post_reactions ( type, username ), post_comments ( id, text, username, created_at )`)
@@ -688,18 +776,20 @@ const Profile = ({ sideNavbar }) => {
               acc[r.type] = (acc[r.type] || 0) + 1;
               return acc;
             }, {}),
-            comments: (p.post_comments || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
+            comments: (p.post_comments || []).sort(
+              (a, b) => new Date(a.created_at) - new Date(b.created_at)
+            ),
           }))
         );
       }
 
-      // Fetch subscriber count & subscription status
+      // ── Subscriber count & subscription status ───────────────────────────────
       const { count: subCount } = await supabase
         .from("subscriptions")
         .select("*", { count: "exact", head: true })
         .eq("subscribed_to", key);
 
-      const currentUser = localStorage.getItem("username") || "";
+      const currentUser   = localStorage.getItem("username") || "";
       const currentUserId = localStorage.getItem("userId") || "";
       let alreadySubscribed = false;
       if (currentUser && currentUser.toLowerCase() !== key) {
@@ -724,16 +814,17 @@ const Profile = ({ sideNavbar }) => {
 
       setLoading(false);
     };
+
     loadProfile();
   }, [key]);
 
-  const hardcodedReels = reelsData.filter((r) => r.username?.toLowerCase() === key);
+  const hardcodedReels  = reelsData.filter((r) => r.username?.toLowerCase() === key);
   const hardcodedVideos = allVideos.filter((v) => v.channel?.toLowerCase() === key);
-  const allUserVideos = [...dbVideos, ...hardcodedVideos];
-  const allUserReels = [...dbReels, ...hardcodedReels];
+  const allUserVideos   = [...dbVideos, ...hardcodedVideos];
+  const allUserReels    = [...dbReels, ...hardcodedReels];
 
   const handleSubscribe = async () => {
-    const currentUser = localStorage.getItem("username") || "";
+    const currentUser   = localStorage.getItem("username") || "";
     const currentUserId = localStorage.getItem("userId") || "";
     if (!currentUser || !currentUserId) { alert("Please log in to subscribe."); return; }
     if (currentUser.toLowerCase() === key) return;
@@ -752,20 +843,50 @@ const Profile = ({ sideNavbar }) => {
     setSubLoading(false);
   };
 
+  // FIX: upsert on `id` (primary key), save channel_name, keep @handle unchanged
   const handleSaveProfile = async () => {
-    const newName = editName.trim() || user.name;
-    const newAbout = editAbout.trim() || user.about;
-    const newPic = editPic.trim() || user.profilePic;
-    localStorage.setItem("username", newName);
-    localStorage.setItem("about", newAbout);
-    localStorage.setItem("profilePic", newPic);
+    const newChannelName = editName.trim() || user.name;
+    const newAbout       = editAbout.trim() || user.about;
+    const newPic         = editPic.trim() || user.profilePic;
+    const userId         = user.id || localStorage.getItem("userId");
+    const rawUsername    = user.username || localStorage.getItem("username");
+
+    // Update localStorage
+    localStorage.setItem("channelName", newChannelName);
+    localStorage.setItem("about",       newAbout);
+    localStorage.setItem("profilePic",  newPic);
+
+    // FIX: onConflict "id" instead of "username"
     await supabase.from("profiles").upsert(
-      { username: newName, profile_pic: newPic, about: newAbout, banner_pic: user.bannerPic || null },
-      { onConflict: "username" }
+      {
+        id:           userId,
+        username:     rawUsername,
+        channel_name: newChannelName,   // ← persist channel name to DB
+        profile_pic:  newPic,
+        about:        newAbout,
+        banner_pic:   user.bannerPic || null,
+      },
+      { onConflict: "id" }             // ← was "username", fixed
     );
-    await supabase.auth.updateUser({ data: { channelName: newName, about: newAbout, profilePic: newPic } });
-    setUser((prev) => ({ ...prev, name: newName, about: newAbout, profilePic: newPic, handle: `@${newName}` }));
-    setShowEditProfile(false); setEditName(""); setEditAbout(""); setEditPic("");
+
+    await supabase.auth.updateUser({
+      data: {
+        channel_name: newChannelName,
+        about:        newAbout,
+        profilePic:   newPic,
+      },
+    });
+
+    setUser((prev) => ({
+      ...prev,
+      name:       newChannelName,       // ← update display name
+      about:      newAbout,
+      profilePic: newPic,
+      handle:     `@${prev.username}`, // ← @handle stays as username, unchanged
+    }));
+
+    setShowEditProfile(false);
+    setEditName(""); setEditAbout(""); setEditPic("");
   };
 
   const confirmDelete = (type, id, dbId, title) => setDeleteTarget({ type, id, dbId, title });
@@ -790,8 +911,15 @@ const Profile = ({ sideNavbar }) => {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", color: "white", flexDirection: "column", gap: "16px" }}>
-        <div style={{ width: "40px", height: "40px", border: "4px solid #333", borderTop: "4px solid #ff4444", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        height: "60vh", color: "white", flexDirection: "column", gap: "16px",
+      }}>
+        <div style={{
+          width: "40px", height: "40px", border: "4px solid #333",
+          borderTop: "4px solid #7c3aed", borderRadius: "50%",
+          animation: "spin 0.8s linear infinite",
+        }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -803,14 +931,16 @@ const Profile = ({ sideNavbar }) => {
         <div style={{ fontSize: "48px", marginBottom: "16px" }}>👤</div>
         <h2>No profile exists for "@{username}"</h2>
         <p style={{ color: "#aaa" }}>This user hasn't signed up yet.</p>
-        <Link to="/" style={{ color: "#3ea6ff", textDecoration: "none", fontSize: "14px" }}>← Go Home</Link>
+        <Link to="/" style={{ color: "#3ea6ff", textDecoration: "none", fontSize: "14px" }}>
+          ← Go Home
+        </Link>
       </div>
     );
   }
 
   const tabStyle = (tab) => ({
     padding: "10px 20px", background: "none", border: "none",
-    borderBottom: activeTab === tab ? "2px solid #ff0000" : "2px solid transparent",
+    borderBottom: activeTab === tab ? "2px solid #7c3aed" : "2px solid transparent",
     color: activeTab === tab ? "white" : "#aaa",
     fontWeight: activeTab === tab ? "700" : "400",
     fontSize: "14px", cursor: "pointer", transition: "all 0.2s", letterSpacing: "0.3px",
@@ -821,13 +951,21 @@ const Profile = ({ sideNavbar }) => {
       <SideNavbar sideNavbar={sideNavbar} />
       <div className={sideNavbar ? "profile_page" : "profile_page_inactive"}>
 
-        {/* Banner */}
+        {/* ── Banner ── */}
         <div
-          style={{ width: "100%", height: "180px", borderRadius: "12px", marginBottom: "20px", position: "relative", overflow: "hidden", background: "#111", cursor: user.isOwner ? "pointer" : "default" }}
+          style={{
+            width: "100%", height: "180px", borderRadius: "12px",
+            marginBottom: "20px", position: "relative", overflow: "hidden",
+            background: "#111", cursor: user.isOwner ? "pointer" : "default",
+          }}
           onClick={() => user.isOwner && document.getElementById("bannerInput").click()}
         >
           {user.bannerPic ? (
-            <img src={user.bannerPic} alt="channel banner" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            <img
+              src={user.bannerPic}
+              alt="channel banner"
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
           ) : (
             <>
               <div style={{ position: "absolute", inset: 0, background: getUserGradient(user.name) }} />
@@ -835,7 +973,12 @@ const Profile = ({ sideNavbar }) => {
             </>
           )}
           {user.isOwner && (
-            <div style={{ position: "absolute", bottom: "10px", right: "14px", background: "rgba(0,0,0,0.6)", color: "white", fontSize: "12px", padding: "5px 12px", borderRadius: "20px", display: "flex", alignItems: "center", gap: "6px" }}>
+            <div style={{
+              position: "absolute", bottom: "10px", right: "14px",
+              background: "rgba(0,0,0,0.6)", color: "white", fontSize: "12px",
+              padding: "5px 12px", borderRadius: "20px",
+              display: "flex", alignItems: "center", gap: "6px",
+            }}>
               🖼️ {user.bannerPic ? "Change Banner" : "Add Banner"}
             </div>
           )}
@@ -844,32 +987,48 @@ const Profile = ({ sideNavbar }) => {
             onChange={async (e) => {
               const file = e.target.files[0]; if (!file) return;
               const formData = new FormData();
-              formData.append("file", file); formData.append("upload_preset", "youtube-clone");
+              formData.append("file", file);
+              formData.append("upload_preset", "youtube-clone");
               try {
-                const res = await fetch("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", { method: "POST", body: formData });
-                const data = await res.json(); const url = data.secure_url;
+                const res  = await fetch("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", { method: "POST", body: formData });
+                const data = await res.json();
+                const url  = data.secure_url;
+
                 await supabase.auth.updateUser({ data: { bannerPic: url } });
+
+                // FIX: onConflict "id" + include id field
                 await supabase.from("profiles").upsert(
-                  { username: localStorage.getItem("username"), banner_pic: url, profile_pic: localStorage.getItem("profilePic") || user.profilePic, about: localStorage.getItem("about") || user.about },
-                  { onConflict: "username" }
+                  {
+                    id:          user.id || localStorage.getItem("userId"),
+                    username:    user.username || localStorage.getItem("username"),
+                    banner_pic:  url,
+                    profile_pic: localStorage.getItem("profilePic") || user.profilePic,
+                    about:       localStorage.getItem("about") || user.about,
+                  },
+                  { onConflict: "id" }   // ← was "username", fixed
                 );
                 setUser((prev) => ({ ...prev, bannerPic: url }));
-              } catch { alert("Banner upload failed. Try again."); }
+              } catch {
+                alert("Banner upload failed. Try again.");
+              }
             }}
           />
         </div>
 
-        {/* Top Section */}
+        {/* ── Profile Top Section ── */}
         <div className="profile_top_section">
           <div className="profile_top_section_profile">
             <img
               className="profile_top_section_img"
               src={user.profilePic}
               alt={user.name}
-              onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=ff0000&color=fff&size=120&length=2`; }}
+              onError={(e) => {
+                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=7c3aed&color=fff&size=120&length=2`;
+              }}
             />
           </div>
           <div className="profile_top_section_About">
+            {/* FIX: shows channelName (e.g. "My Awesome Channel"), not raw username */}
             <div className="profile_top_section_About_Name">{user.name}</div>
 
             <div className="profile_top_section_info">
@@ -897,7 +1056,7 @@ const Profile = ({ sideNavbar }) => {
                   <Link
                     to="/763/upload"
                     style={{
-                      background: "#ff0000", color: "white", border: "none",
+                      background: "#7c3aed", color: "white", border: "none",
                       borderRadius: "20px", padding: "8px 20px", fontSize: "14px",
                       fontWeight: "600", cursor: "pointer", textDecoration: "none", display: "inline-block",
                     }}
@@ -905,9 +1064,15 @@ const Profile = ({ sideNavbar }) => {
                     + Upload Video / Reel
                   </Link>
                   <button
-                    onClick={() => { setEditName(user.name); setEditAbout(user.about); setEditPic(user.profilePic); setShowEditProfile(true); }}
+                    onClick={() => {
+                      setEditName(user.name);
+                      setEditAbout(user.about);
+                      setEditPic(user.profilePic);
+                      setShowEditProfile(true);
+                    }}
                     style={{
-                      background: "#272727", color: "white", border: "1px solid #555",
+                      background: "#f0f4ff", color: "#1e1b4b",
+                      border: "2px solid #e0d4ff",
                       borderRadius: "20px", padding: "8px 20px", fontSize: "14px",
                       fontWeight: "600", cursor: "pointer",
                     }}
@@ -917,7 +1082,8 @@ const Profile = ({ sideNavbar }) => {
                   <button
                     onClick={() => setShowSubscribersModal(true)}
                     style={{
-                      background: "#272727", color: "white", border: "1px solid #555",
+                      background: "#f0f4ff", color: "#1e1b4b",
+                      border: "2px solid #e0d4ff",
                       borderRadius: "20px", padding: "8px 20px", fontSize: "14px",
                       fontWeight: "600", cursor: "pointer",
                     }}
@@ -930,46 +1096,71 @@ const Profile = ({ sideNavbar }) => {
                   onClick={handleSubscribe}
                   disabled={subLoading}
                   style={{
-                    background: isSubscribed ? "#272727" : "#ff0000",
-                    color: "white",
-                    border: isSubscribed ? "1px solid #555" : "none",
+                    background: isSubscribed ? "#f0f4ff" : "#7c3aed",
+                    color: isSubscribed ? "#1e1b4b" : "white",
+                    border: isSubscribed ? "2px solid #e0d4ff" : "none",
                     borderRadius: "20px", padding: "8px 24px", fontSize: "14px",
                     fontWeight: "600", cursor: subLoading ? "not-allowed" : "pointer",
                     transition: "all 0.2s", opacity: subLoading ? 0.7 : 1,
                     display: "flex", alignItems: "center", gap: "6px",
                   }}
                 >
-                  {subLoading
-                    ? <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <span style={{ width: "14px", height: "14px", border: "2px solid rgba(255,255,255,0.4)", borderTop: "2px solid white", borderRadius: "50%", animation: "spin 0.7s linear infinite", display: "inline-block" }} />
-                        {isSubscribed ? "Unsubscribing..." : "Subscribing..."}
-                      </span>
-                    : isSubscribed ? "✓ Subscribed" : "Subscribe"
-                  }
+                  {subLoading ? (
+                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{
+                        width: "14px", height: "14px",
+                        border: "2px solid rgba(255,255,255,0.4)",
+                        borderTop: "2px solid white", borderRadius: "50%",
+                        animation: "spin 0.7s linear infinite", display: "inline-block",
+                      }} />
+                      {isSubscribed ? "Unsubscribing..." : "Subscribing..."}
+                    </span>
+                  ) : isSubscribed ? "✓ Subscribed" : "Subscribe"}
                 </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* Tab Switcher */}
-        <div style={{ display: "flex", borderBottom: "1px solid #2a2a2a", marginBottom: "24px", marginTop: "8px", gap: "4px" }}>
-          <button style={tabStyle("videos")} onClick={() => setActiveTab("videos")}>🎬 Videos ({allUserVideos.length})</button>
-          <button style={tabStyle("reels")} onClick={() => setActiveTab("reels")}>📱 Reels ({allUserReels.length})</button>
-          <button style={tabStyle("posts")} onClick={() => setActiveTab("posts")}>📝 Posts ({userPosts.length})</button>
+        {/* ── Tab Switcher ── */}
+        <div style={{
+          display: "flex", borderBottom: "1px solid var(--zx-border)",
+          marginBottom: "24px", marginTop: "8px", gap: "4px",
+        }}>
+          <button style={tabStyle("videos")} onClick={() => setActiveTab("videos")}>
+            🎬 Videos ({allUserVideos.length})
+          </button>
+          <button style={tabStyle("reels")} onClick={() => setActiveTab("reels")}>
+            📱 Reels ({allUserReels.length})
+          </button>
+          <button style={tabStyle("posts")} onClick={() => setActiveTab("posts")}>
+            📝 Posts ({userPosts.length})
+          </button>
         </div>
 
-        {/* Videos Tab */}
+        {/* ── Videos Tab ── */}
         {activeTab === "videos" && (
           allUserVideos.length === 0
-            ? <div style={{ color: "#aaa", textAlign: "center", marginTop: "40px" }}>No videos uploaded yet.</div>
+            ? <div style={{ color: "#aaa", textAlign: "center", marginTop: "40px" }}>
+                No videos uploaded yet.
+              </div>
             : <div className="profileVideos">
                 {allUserVideos.map((video) => (
                   <div key={video.id} style={{ position: "relative" }}>
                     <Link to={`/video/${video.id}`} className="profileVideo_block">
                       <div className="profileVideo_block_thumbnail reel-thumb" style={{ position: "relative" }}>
-                        <img className="profileVideo_block_thumbnail_img" src={video.thumbnail} alt={video.title} />
-                        <span style={{ position: "absolute", bottom: "6px", right: "6px", background: "rgba(0,0,0,0.75)", color: "white", fontSize: "11px", padding: "2px 5px", borderRadius: "4px" }}>{video.duration}</span>
+                        <img
+                          className="profileVideo_block_thumbnail_img"
+                          src={video.thumbnail}
+                          alt={video.title}
+                        />
+                        <span style={{
+                          position: "absolute", bottom: "6px", right: "6px",
+                          background: "rgba(0,0,0,0.75)", color: "white",
+                          fontSize: "11px", padding: "2px 5px", borderRadius: "4px",
+                        }}>
+                          {video.duration}
+                        </span>
                       </div>
                       <div className="profileVideo_block_detail">
                         <div className="profileVideo_block_detai_name">{video.title}</div>
@@ -981,29 +1172,65 @@ const Profile = ({ sideNavbar }) => {
                       </div>
                     </Link>
                     {user.isOwner && !String(video.id).startsWith("hard_") && typeof video.id === "number" && (
-                      <button onClick={() => confirmDelete("video", video.id, null, video.title)} title="Delete video" style={deleteBtn}>🗑️</button>
+                      <button
+                        onClick={() => confirmDelete("video", video.id, null, video.title)}
+                        title="Delete video"
+                        style={deleteBtn}
+                      >
+                        🗑️
+                      </button>
                     )}
                   </div>
                 ))}
               </div>
         )}
 
-        {/* Reels Tab */}
+        {/* ── Reels Tab ── */}
         {activeTab === "reels" && (
           allUserReels.length === 0
-            ? <div style={{ color: "#aaa", textAlign: "center", marginTop: "40px" }}>No reels uploaded yet.</div>
+            ? <div style={{ color: "#aaa", textAlign: "center", marginTop: "40px" }}>
+                No reels uploaded yet.
+              </div>
             : <div className="profileVideos">
                 {allUserReels.map((reel) => (
                   <div key={reel.id} style={{ position: "relative" }}>
                     <div
                       className="profileVideo_block"
                       style={{ cursor: "pointer" }}
-                      onClick={() => navigate("/reels", { state: { clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 } } })}
+                      onClick={() =>
+                        navigate("/reels", {
+                          state: {
+                            clickedReel: {
+                              ...reel,
+                              user:       reel.user || user.name,
+                              username:   reel.username || key,
+                              profilePic: reel.profilePic || user.profilePic,
+                              likes:      reel.likes || 0,
+                            },
+                          },
+                        })
+                      }
                     >
                       <div className="profileVideo_block_thumbnail" style={{ position: "relative" }}>
-                        <img className="profileVideo_block_thumbnail_img" src={reel.thumbnail} alt={reel.title} />
-                        <span style={{ position: "absolute", top: "6px", left: "6px", background: "rgba(0,0,0,0.7)", color: "white", fontSize: "10px", padding: "2px 6px", borderRadius: "4px", fontWeight: "600" }}>🎬 Reel</span>
-                        <span style={{ position: "absolute", bottom: "6px", right: "6px", background: "rgba(0,0,0,0.7)", color: "white", fontSize: "11px", padding: "2px 5px", borderRadius: "4px" }}>{reel.duration}</span>
+                        <img
+                          className="profileVideo_block_thumbnail_img"
+                          src={reel.thumbnail}
+                          alt={reel.title}
+                        />
+                        <span style={{
+                          position: "absolute", top: "6px", left: "6px",
+                          background: "rgba(0,0,0,0.7)", color: "white",
+                          fontSize: "10px", padding: "2px 6px", borderRadius: "4px", fontWeight: "600",
+                        }}>
+                          🎬 Reel
+                        </span>
+                        <span style={{
+                          position: "absolute", bottom: "6px", right: "6px",
+                          background: "rgba(0,0,0,0.7)", color: "white",
+                          fontSize: "11px", padding: "2px 5px", borderRadius: "4px",
+                        }}>
+                          {reel.duration}
+                        </span>
                       </div>
                       <div className="profileVideo_block_detail">
                         <div className="profileVideo_block_detai_name">{reel.title}</div>
@@ -1015,110 +1242,250 @@ const Profile = ({ sideNavbar }) => {
                       </div>
                     </div>
                     {user.isOwner && reel.id.startsWith("db_") && (
-                      <button onClick={() => confirmDelete("reel", reel.id, reel.dbId, reel.title)} title="Delete reel" style={deleteBtn}>🗑️</button>
+                      <button
+                        onClick={() => confirmDelete("reel", reel.id, reel.dbId, reel.title)}
+                        title="Delete reel"
+                        style={deleteBtn}
+                      >
+                        🗑️
+                      </button>
                     )}
                   </div>
                 ))}
               </div>
         )}
 
-        {/* Posts Tab */}
+        {/* ── Posts Tab ── */}
         {activeTab === "posts" && (
           <div style={{ maxWidth: "680px", margin: "0 auto" }}>
-            {userPosts.length === 0
-              ? <div style={{ color: "#aaa", textAlign: "center", marginTop: "40px" }}>
-                  <div style={{ fontSize: "40px", marginBottom: "12px" }}>📭</div>
-                  <p>No posts yet.</p>
-                </div>
-              : userPosts.map((post) => (
-                  <ProfilePostCard key={post.id} post={post} isOwner={user.isOwner} onDelete={handleDeletePost} />
-                ))
-            }
+            {userPosts.length === 0 ? (
+              <div style={{ color: "#aaa", textAlign: "center", marginTop: "40px" }}>
+                <div style={{ fontSize: "40px", marginBottom: "12px" }}>📭</div>
+                <p>No posts yet.</p>
+              </div>
+            ) : (
+              userPosts.map((post) => (
+                <ProfilePostCard
+                  key={post.id}
+                  post={post}
+                  isOwner={user.isOwner}
+                  onDelete={handleDeletePost}
+                />
+              ))
+            )}
           </div>
         )}
       </div>
 
-      {/* Subscribers Modal */}
+      {/* ── Subscribers Modal ── */}
       {showSubscribersModal && (
-        <SubscribersModal channelUsername={key} onClose={() => setShowSubscribersModal(false)} />
+        <SubscribersModal
+          channelUsername={key}
+          onClose={() => setShowSubscribersModal(false)}
+        />
       )}
 
-      {/* Edit Profile Modal */}
+      {/* ── Edit Profile Modal ── */}
       {showEditProfile && (
         <div
-          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center" }}
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.85)", zIndex: 999999,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
           onClick={(e) => e.target === e.currentTarget && setShowEditProfile(false)}
         >
-          <div style={{ background: "#212121", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "440px", border: "1px solid #333", display: "flex", flexDirection: "column", gap: "16px" }}>
-            <h2 style={{ color: "white", margin: 0, fontSize: "20px" }}>✏️ Edit Profile</h2>
+          <div style={{
+            background: "#ffffff", borderRadius: "16px", padding: "32px",
+            width: "100%", maxWidth: "440px",
+            border: "2px solid var(--zx-border)",
+            display: "flex", flexDirection: "column", gap: "16px",
+            boxShadow: "0 8px 40px rgba(124,58,237,0.15)",
+          }}>
+            <h2 style={{ color: "var(--zx-text)", margin: 0, fontSize: "20px", fontFamily: "Nunito, sans-serif", fontWeight: 900 }}>
+              ✏️ Edit Profile
+            </h2>
+
+            {/* Profile pic preview + URL input */}
             <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
               <img
-                src={editPic || user.profilePic} alt="preview"
-                style={{ width: "72px", height: "72px", borderRadius: "50%", objectFit: "cover", border: "2px solid #ff0000" }}
-                onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(editName || user.name)}&background=ff0000&color=fff&size=72`; }}
+                src={editPic || user.profilePic}
+                alt="preview"
+                style={{
+                  width: "72px", height: "72px", borderRadius: "50%",
+                  objectFit: "cover", border: "3px solid var(--zx-primary)",
+                  boxShadow: "0 0 0 3px rgba(124,58,237,0.12)",
+                }}
+                onError={(e) => {
+                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(editName || user.name)}&background=7c3aed&color=fff&size=72`;
+                }}
               />
               <div style={{ flex: 1 }}>
-                <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>Paste Image URL</p>
-                <input value={editPic} onChange={(e) => setEditPic(e.target.value)} placeholder="https://..." style={{ width: "100%", background: "#2a2a2a", border: "1px solid #444", borderRadius: "8px", color: "white", padding: "8px 12px", fontSize: "13px", outline: "none", boxSizing: "border-box" }} />
+                <p style={{ color: "var(--zx-text3)", fontSize: "13px", margin: "0 0 6px" }}>Paste Image URL</p>
+                <input
+                  value={editPic}
+                  onChange={(e) => setEditPic(e.target.value)}
+                  placeholder="https://..."
+                  style={{
+                    width: "100%", background: "var(--zx-bg)",
+                    border: "2px solid var(--zx-border)", borderRadius: "8px",
+                    color: "var(--zx-text)", padding: "8px 12px",
+                    fontSize: "13px", outline: "none", boxSizing: "border-box",
+                  }}
+                />
               </div>
             </div>
+
+            {/* File upload */}
             <div>
-              <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>Or upload a new photo:</p>
+              <p style={{ color: "var(--zx-text3)", fontSize: "13px", margin: "0 0 6px" }}>
+                Or upload a new photo:
+              </p>
               <input
                 type="file" accept="image/*"
                 onChange={async (e) => {
                   const file = e.target.files[0]; if (!file) return;
                   setEditLoading(true);
-                  const formData = new FormData(); formData.append("file", file); formData.append("upload_preset", "youtube-clone");
+                  const formData = new FormData();
+                  formData.append("file", file);
+                  formData.append("upload_preset", "youtube-clone");
                   try {
-                    const res = await fetch("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", { method: "POST", body: formData });
-                    const data = await res.json(); setEditPic(data.secure_url);
-                  } catch { alert("Upload failed. Try again."); }
+                    const res  = await fetch("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", { method: "POST", body: formData });
+                    const data = await res.json();
+                    setEditPic(data.secure_url);
+                  } catch {
+                    alert("Upload failed. Try again.");
+                  }
                   setEditLoading(false);
                 }}
-                style={{ color: "#aaa", fontSize: "13px" }}
+                style={{ color: "var(--zx-text2)", fontSize: "13px" }}
               />
-              {editLoading && <p style={{ color: "#ff9800", fontSize: "12px", margin: "4px 0 0" }}>Uploading photo...</p>}
+              {editLoading && (
+                <p style={{ color: "var(--zx-primary)", fontSize: "12px", margin: "4px 0 0" }}>
+                  Uploading photo...
+                </p>
+              )}
             </div>
+
+            {/* Channel Name field — editing display name, not @username */}
             <div>
-              <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>Channel Name</p>
-              <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder={user.name} style={{ width: "100%", background: "#2a2a2a", border: "1px solid #444", borderRadius: "8px", color: "white", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box" }} />
+              <p style={{ color: "var(--zx-text3)", fontSize: "13px", margin: "0 0 6px" }}>
+                Channel Name <span style={{ color: "var(--zx-text3)", fontWeight: 400 }}>(display name)</span>
+              </p>
+              <input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder={user.name}
+                style={{
+                  width: "100%", background: "var(--zx-bg)",
+                  border: "2px solid var(--zx-border)", borderRadius: "8px",
+                  color: "var(--zx-text)", padding: "10px 12px",
+                  fontSize: "14px", outline: "none", boxSizing: "border-box",
+                  fontFamily: "Outfit, sans-serif",
+                }}
+              />
+              <p style={{ color: "var(--zx-text3)", fontSize: "11px", margin: "4px 0 0" }}>
+                Your @username ({user.handle}) cannot be changed here.
+              </p>
             </div>
+
+            {/* About field */}
             <div>
-              <p style={{ color: "#aaa", fontSize: "13px", margin: "0 0 6px" }}>About</p>
-              <input value={editAbout} onChange={(e) => setEditAbout(e.target.value)} placeholder={user.about} style={{ width: "100%", background: "#2a2a2a", border: "1px solid #444", borderRadius: "8px", color: "white", padding: "10px 12px", fontSize: "14px", outline: "none", boxSizing: "border-box" }} />
+              <p style={{ color: "var(--zx-text3)", fontSize: "13px", margin: "0 0 6px" }}>About</p>
+              <input
+                value={editAbout}
+                onChange={(e) => setEditAbout(e.target.value)}
+                placeholder={user.about}
+                style={{
+                  width: "100%", background: "var(--zx-bg)",
+                  border: "2px solid var(--zx-border)", borderRadius: "8px",
+                  color: "var(--zx-text)", padding: "10px 12px",
+                  fontSize: "14px", outline: "none", boxSizing: "border-box",
+                  fontFamily: "Outfit, sans-serif",
+                }}
+              />
             </div>
+
+            {/* Action buttons */}
             <div style={{ display: "flex", gap: "10px" }}>
               <button
-                onClick={handleSaveProfile} disabled={editLoading}
-                style={{ flex: 1, background: editLoading ? "#555" : "#ff0000", color: "white", border: "none", borderRadius: "8px", padding: "12px", fontSize: "15px", fontWeight: "700", cursor: editLoading ? "not-allowed" : "pointer" }}
+                onClick={handleSaveProfile}
+                disabled={editLoading}
+                style={{
+                  flex: 1,
+                  background: editLoading ? "#c4b5fd" : "var(--zx-primary)",
+                  color: "white", border: "none", borderRadius: "10px",
+                  padding: "12px", fontSize: "15px", fontWeight: "700",
+                  cursor: editLoading ? "not-allowed" : "pointer",
+                  fontFamily: "Nunito, sans-serif",
+                  transition: "background 0.2s",
+                }}
               >
                 {editLoading ? "Uploading..." : "Save Changes"}
               </button>
               <button
-                onClick={() => { setShowEditProfile(false); setEditName(""); setEditAbout(""); setEditPic(""); }}
-                style={{ flex: 1, background: "none", border: "1px solid #555", color: "#aaa", borderRadius: "8px", padding: "12px", fontSize: "14px", cursor: "pointer" }}
-              >Cancel</button>
+                onClick={() => {
+                  setShowEditProfile(false);
+                  setEditName(""); setEditAbout(""); setEditPic("");
+                }}
+                style={{
+                  flex: 1, background: "none",
+                  border: "2px solid var(--zx-border)",
+                  color: "var(--zx-text2)", borderRadius: "10px",
+                  padding: "12px", fontSize: "14px", cursor: "pointer",
+                  fontFamily: "Nunito, sans-serif",
+                }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Confirm Delete Modal */}
+      {/* ── Confirm Delete Modal ── */}
       {deleteTarget && (
         <div
-          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 999999, display: "flex", alignItems: "center", justifyContent: "center" }}
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.85)", zIndex: 999999,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
           onClick={(e) => e.target === e.currentTarget && setDeleteTarget(null)}
         >
-          <div style={{ background: "#212121", borderRadius: "16px", padding: "32px", width: "100%", maxWidth: "380px", border: "1px solid #555", display: "flex", flexDirection: "column", gap: "16px", textAlign: "center" }}>
+          <div style={{
+            background: "#212121", borderRadius: "16px", padding: "32px",
+            width: "100%", maxWidth: "380px", border: "1px solid #555",
+            display: "flex", flexDirection: "column", gap: "16px", textAlign: "center",
+          }}>
             <div style={{ fontSize: "40px" }}>🗑️</div>
-            <h2 style={{ color: "white", margin: 0, fontSize: "18px" }}>Delete {deleteTarget.type}?</h2>
+            <h2 style={{ color: "white", margin: 0, fontSize: "18px" }}>
+              Delete {deleteTarget.type}?
+            </h2>
             <p style={{ color: "#aaa", fontSize: "14px", margin: 0 }}>
               "<strong style={{ color: "white" }}>{deleteTarget.title}</strong>" will be permanently removed.
             </p>
             <div style={{ display: "flex", gap: "10px" }}>
-              <button onClick={handleDelete} style={{ flex: 1, background: "#cc0000", color: "white", border: "none", borderRadius: "8px", padding: "12px", fontSize: "15px", fontWeight: "700", cursor: "pointer" }}>Yes, Delete</button>
-              <button onClick={() => setDeleteTarget(null)} style={{ flex: 1, background: "none", border: "1px solid #555", color: "#aaa", borderRadius: "8px", padding: "12px", fontSize: "14px", cursor: "pointer" }}>Cancel</button>
+              <button
+                onClick={handleDelete}
+                style={{
+                  flex: 1, background: "#cc0000", color: "white",
+                  border: "none", borderRadius: "8px", padding: "12px",
+                  fontSize: "15px", fontWeight: "700", cursor: "pointer",
+                }}
+              >
+                Yes, Delete
+              </button>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                style={{
+                  flex: 1, background: "none", border: "1px solid #555",
+                  color: "#aaa", borderRadius: "8px", padding: "12px",
+                  fontSize: "14px", cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

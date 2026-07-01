@@ -39,6 +39,7 @@ import SubscriptionFeed from "./Pages/SubscriptionFeed/SubscriptionFeed";
 import Playlist         from "./Pages/Playlist/Playlist";
 import YourClips        from "./Pages/YourClips/YourClips";
 import SideNavbar       from "./Component/SideNavbar/sideNavbar";
+import LoginOptionsModal from "./Component/LoginOptionsModal/LoginOptionsModal";
 
 // ── Loading Screen ────────────────────────────────────────────────────────────
 const LoadingScreen = ({ onFinish }) => {
@@ -175,6 +176,10 @@ function App() {
     localStorage.getItem("username") || null,
   );
 
+  // ── Auto-login-detect: session check + login options modal ──
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
   // ── Exit-on-back state ──
   const [showExitToast, setShowExitToast] = useState(false);
   const exitToastTimer = useRef(null);
@@ -270,10 +275,17 @@ function App() {
       if (session?.user) {
         const name = await resolveUsername(session.user);
         setCurrentUser(name);
+        setShowLoginModal(false);
         if (window.location.hash?.includes("access_token")) {
           window.history.replaceState({}, document.title, "/");
         }
+      } else {
+        // No active session — auto-show login options,
+        // unless the user already dismissed it this browser session
+        const dismissed = sessionStorage.getItem("zixplon_login_dismissed") === "1";
+        setShowLoginModal(!dismissed);
       }
+      setSessionChecked(true);
     });
 
     // Listen for login/logout
@@ -292,6 +304,7 @@ function App() {
         }
         resolveUsername(session.user).then((name) => {
           setCurrentUser(name);
+          setShowLoginModal(false);
         });
       }
     );
@@ -361,6 +374,19 @@ function App() {
     location.pathname.startsWith("/reels") ||
     location.pathname.endsWith("/upload");
 
+  // Don't stack the auto-login modal on top of the dedicated signup/login page
+  const suppressAutoModalRoutes = ["/signup"];
+  const shouldShowLoginModal =
+    sessionChecked &&
+    showLoginModal &&
+    !currentUser &&
+    !suppressAutoModalRoutes.includes(location.pathname);
+
+  const handleDismissLoginModal = () => {
+    sessionStorage.setItem("zixplon_login_dismissed", "1");
+    setShowLoginModal(false);
+  };
+
   // ── FIX: render LoadingScreen BEFORE the main App div so it is a direct
   // child of <body> via the React root — this bypasses any height/overflow
   // constraints on #root that confuse TV browser fixed positioning ──
@@ -383,6 +409,12 @@ function App() {
 
       {/* Mobile exit toast */}
       <ExitToast visible={showExitToast} />
+
+      {/* Auto login detect: silently restored above if a session existed;
+          otherwise this shows login options once, per browser session */}
+      {shouldShowLoginModal && (
+        <LoginOptionsModal onDismiss={handleDismissLoginModal} />
+      )}
 
       <Navbar
         currentUser={currentUser}

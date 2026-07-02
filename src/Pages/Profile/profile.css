@@ -131,6 +131,9 @@
 /* ── Individual card ── */
 .profileVideo_block {
   width: 100%;
+  min-width: 0; /* FIX: prevents grid item content (e.g. absolutely-positioned
+                   thumbnail) from forcing the column wider than its track,
+                   which was breaking the 2-column mobile layout */
   text-decoration: none;
   color: var(--zx-text);
   cursor: pointer;
@@ -229,8 +232,29 @@
   .profile_top_section_About { align-items: center; padding: 0; }
   .profile_top_section_About_Name { font-size: 22px; }
   .profile_top_section_info { font-size: 11px; }
-  .profileVideos { grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 10px 0; }
-  .profileVideo_block { width: 100%; min-width: 0; border-radius: 10px; }
+
+  .profileVideos {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 10px 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .profileVideo_block {
+    width: 100%;
+    min-width: 0;
+    border-radius: 10px;
+  }
+
+  /* FIX: cap the reel thumbnail height on mobile so a portrait (9:16) card
+     can never grow to fill the full viewport height like in the screenshot */
+  .profileVideo_block_thumbnail {
+    max-height: 260px;
+  }
+  .profileVideo_block_thumbnail.reel-thumb {
+    max-height: 260px;
+  }
+
   .profileVideo_block_detai_name { font-size: 11px; }
   .profileVideo_block_detai_about { font-size: 9px; }
   .profile_videos_title { font-size: 11px; }

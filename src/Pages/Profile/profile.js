@@ -68,7 +68,7 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
   }, [onClose, images.length]);
 
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.93)", zIndex:999999, display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }}>
+    <div onClick={onClose} style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.93)", zIndex:999999, display:"flex", alignItems:"center", justifyContent:"center", cursor:"zoom-out" }}>
       <button onClick={onClose} style={{ position:"absolute", top:"16px", right:"20px", background:"rgba(255,255,255,0.1)", border:"none", color:"white", fontSize:"22px", width:"40px", height:"40px", borderRadius:"50%", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2 }}>✕</button>
       {images.length > 1 && <button onClick={prev} style={{ position:"absolute", left:"16px", top:"50%", transform:"translateY(-50%)", background:"rgba(255,255,255,0.1)", border:"none", color:"white", fontSize:"28px", width:"44px", height:"44px", borderRadius:"50%", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2 }}>‹</button>}
       {images.length > 1 && <button onClick={next} style={{ position:"absolute", right:"16px", top:"50%", transform:"translateY(-50%)", background:"rgba(255,255,255,0.1)", border:"none", color:"white", fontSize:"28px", width:"44px", height:"44px", borderRadius:"50%", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", zIndex:2 }}>›</button>}
@@ -135,7 +135,7 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
             {images.slice(0, 4).map((url, idx) => (
               <div key={idx} style={itemStyle(idx, Math.min(images.length, 4))} onClick={() => setLightboxData({ images, startIndex: idx })}>
                 <img src={url} alt={`Post image ${idx + 1}`} loading="lazy" style={{ width:"100%", height: images.length === 1 ? "auto" : "100%", maxHeight: images.length === 1 ? "400px" : "none", objectFit:"cover", display:"block" }} />
-                {idx === 3 && images.length > 4 && <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.6)", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontSize:"26px", fontWeight:"800" }}>+{images.length - 4}</div>}
+                {idx === 3 && images.length > 4 && <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.6)", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontSize:"26px", fontWeight:"800" }}>+{images.length - 4}</div>}
               </div>
             ))}
           </div>
@@ -210,7 +210,7 @@ const SubscribersModal = ({ channelUsername, onClose }) => {
   }, [channelUsername]);
 
   return (
-    <div onClick={(e) => e.target === e.currentTarget && onClose()} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:999999, display:"flex", alignItems:"center", justifyContent:"center" }}>
+    <div onClick={(e) => e.target === e.currentTarget && onClose()} style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.88)", zIndex:999999, display:"flex", alignItems:"center", justifyContent:"center" }}>
       <div style={{ background:"#ffffff", borderRadius:"16px", width:"100%", maxWidth:"420px", maxHeight:"75vh", display:"flex", flexDirection:"column", border:"2px solid var(--zx-border)", overflow:"hidden", boxShadow:"0 8px 40px rgba(124,58,237,0.2)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"20px 24px 16px", borderBottom:"1px solid var(--zx-border)" }}>
           <div>
@@ -564,8 +564,8 @@ const Profile = ({ sideNavbar }) => {
             <img src={user.bannerPic} alt="channel banner" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
           ) : (
             <>
-              <div style={{ position:"absolute", inset:0, background:getUserGradient(user.name) }} />
-              <div style={{ position:"absolute", inset:0, background:"radial-gradient(circle at 30% 50%, rgba(255,255,255,0.05), transparent 60%)" }} />
+              <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, background:getUserGradient(user.name) }} />
+              <div style={{ position:"absolute", top:0, left:0, right:0, bottom:0, background:"radial-gradient(circle at 30% 50%, rgba(255,255,255,0.05), transparent 60%)" }} />
             </>
           )}
           {user.isOwner && (
@@ -648,7 +648,7 @@ const Profile = ({ sideNavbar }) => {
             ? <div style={{ color:"var(--zx-text3)", textAlign:"center", marginTop:"40px" }}>No videos uploaded yet.</div>
             : <div className="profileVideos">
                 {allUserVideos.map((video) => (
-                  <div key={video.id} style={{ position:"relative" }}>
+                  <div key={video.id} style={{ position:"relative", minWidth:0 }}>
                     <Link to={`/video/${video.id}`} className="profileVideo_block">
                       <div className="profileVideo_block_thumbnail reel-thumb" style={{ position:"relative" }}>
                         <img className="profileVideo_block_thumbnail_img" src={video.thumbnail} alt={video.title} />
@@ -677,21 +677,27 @@ const Profile = ({ sideNavbar }) => {
             ? <div style={{ color:"var(--zx-text3)", textAlign:"center", marginTop:"40px" }}>No reels uploaded yet.</div>
             : <div className="profileVideos">
                 {allUserReels.map((reel) => (
-                  <div key={reel.id} style={{ position:"relative" }}>
+                  <div key={reel.id} style={{ position:"relative", minWidth:0 }}>
                     <div className="profileVideo_block" style={{ cursor:"pointer" }}
                       onClick={() => navigate("/reels", { state: { clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 } } })}>
 
                       {/*
-                        FIX 1: Force portrait aspect ratio (9:16) on ALL reel thumbnails.
-                        A horizontal video no longer stretches the card.
-                        The img uses position:absolute + object-fit:cover to fill the box cleanly.
+                        FIX: Use the padding-top percentage hack instead of the CSS
+                        `aspect-ratio` property. Some embedded/older WebViews (TV
+                        boxes, low-end Android browsers) do not support `aspect-ratio`.
+                        When unsupported, the container collapses to height:0, and the
+                        absolutely-positioned image inside falls back to its natural
+                        intrinsic size — which is what caused the oversized, screen-
+                        overflowing reel thumbnail. padding-top:% is supported
+                        everywhere and reliably reserves a 9:16 portrait box based on
+                        the element's own width, with no dependency on aspect-ratio.
                       */}
                       <div
                         className="profileVideo_block_thumbnail"
                         style={{
                           position:    "relative",
-                          aspectRatio: "9 / 16",   // ← portrait regardless of video orientation
                           width:       "100%",
+                          paddingTop:  "177.78%", // 16/9 * 100 → reserves a 9:16 portrait box
                           overflow:    "hidden",
                           background:  "#1e1b4b",  // dark fallback while image loads
                         }}
@@ -701,7 +707,8 @@ const Profile = ({ sideNavbar }) => {
                           alt={reel.title}
                           style={{
                             position:   "absolute",
-                            inset:       0,
+                            top:         0,
+                            left:        0,
                             width:       "100%",
                             height:      "100%",
                             objectFit:  "cover",   // ← crops/fits without stretching
@@ -722,9 +729,7 @@ const Profile = ({ sideNavbar }) => {
                         <div className="profileVideo_block_detai_about">{reel.description}</div>
                         <div style={{ color:"var(--zx-text3)", fontSize:"12px", marginTop:"4px", display:"flex", gap:"10px" }}>
                           {/*
-                            FIX 2: Both views AND likes now use the SAME key: `db_${reel.dbId}`
-                            Previously likes used String(reel.dbId) which is just the raw number,
-                            but the counts object is keyed as `db_${r.id}` — so likes always showed 0.
+                            Both views AND likes use the SAME key: `db_${reel.dbId}`
                           */}
                           <span>👁 {reelCounts[`db_${reel.dbId}`]?.views ?? 0}</span>
                           <span>👍 {reelCounts[`db_${reel.dbId}`]?.likes ?? 0}</span>

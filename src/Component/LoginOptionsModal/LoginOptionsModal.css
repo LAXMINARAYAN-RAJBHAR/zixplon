@@ -1,6 +1,20 @@
 .login-modal-backdrop {
   position: fixed;
-  inset: 0;
+  /* FIX: explicit longhand instead of the `inset: 0` shorthand.
+     Some older/embedded TV WebViews (e.g. this BPL smart TV's Chromium)
+     silently drop unsupported shorthand properties instead of falling
+     back gracefully. When `inset` was dropped, this backdrop collapsed
+     to 0×0 at top:0/left:0, so the flex centering below had nothing to
+     center within — the modal rendered pinned top-left with no dim
+     behind it. top/left/right/bottom + width/height is identical in
+     every modern browser (no visual change on mobile/desktop) but is
+     understood everywhere, including old WebViews. */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
   background: rgba(10, 5, 20, 0.75);
   backdrop-filter: blur(4px);
   display: flex;

@@ -277,6 +277,14 @@ const Profile = ({ sideNavbar }) => {
   const [editLoading, setEditLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
+  // ── Edit Video/Reel content state ──
+  const [editContentTarget, setEditContentTarget]           = useState(null); // { type: 'video' | 'reel', id, dbId }
+  const [editContentTitle, setEditContentTitle]             = useState("");
+  const [editContentDescription, setEditContentDescription] = useState("");
+  const [editContentThumbnail, setEditContentThumbnail]     = useState("");
+  const [editContentLoading, setEditContentLoading]         = useState(false);
+  const [editContentSaving, setEditContentSaving]           = useState(false);
+
   useEffect(() => {
     const loadProfile = async () => {
       setLoading(true);
@@ -521,6 +529,72 @@ const Profile = ({ sideNavbar }) => {
     setUserPosts((prev) => prev.filter((p) => p.id !== postId));
   };
 
+  // ── Edit Video/Reel content handlers ──
+  const openEditContent = (type, item) => {
+    setEditContentTarget({ type, id: item.id, dbId: item.dbId || null });
+    setEditContentTitle(item.title || "");
+    setEditContentDescription(item.description || "");
+    setEditContentThumbnail(item.thumbnail || "");
+  };
+
+  const closeEditContent = () => {
+    setEditContentTarget(null);
+    setEditContentTitle("");
+    setEditContentDescription("");
+    setEditContentThumbnail("");
+  };
+
+  const handleSaveContentEdit = async () => {
+    if (!editContentTarget) return;
+    const { type, id, dbId } = editContentTarget;
+    const newTitle = editContentTitle.trim();
+    const newThumb = editContentThumbnail.trim();
+
+    setEditContentSaving(true);
+    try {
+      if (type === "video") {
+        const { error } = await supabase.from("videos").update({ title: newTitle, thumbnail_url: newThumb }).eq("id", id);
+        if (!error) {
+          setDbVideos((prev) => prev.map((v) => (v.id === id ? { ...v, title: newTitle, thumbnail: newThumb } : v)));
+        } else {
+          alert("Failed to save changes. Try again.");
+          setEditContentSaving(false);
+          return;
+        }
+      } else if (type === "reel") {
+        const newDescription = editContentDescription.trim();
+        const { error } = await supabase.from("reels").update({ title: newTitle, description: newDescription, thumbnail: newThumb }).eq("id", dbId);
+        if (!error) {
+          setDbReels((prev) => prev.map((r) => (r.dbId === dbId ? { ...r, title: newTitle, description: newDescription, thumbnail: newThumb } : r)));
+        } else {
+          alert("Failed to save changes. Try again.");
+          setEditContentSaving(false);
+          return;
+        }
+      }
+      closeEditContent();
+    } finally {
+      setEditContentSaving(false);
+    }
+  };
+
+  const handleEditContentThumbnailUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setEditContentLoading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", "youtube-clone");
+    try {
+      const res  = await fetch("https://api.cloudinary.com/v1_1/dwoqk0yue/image/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      setEditContentThumbnail(data.secure_url);
+    } catch {
+      alert("Thumbnail upload failed. Try again.");
+    }
+    setEditContentLoading(false);
+  };
+
   if (loading) {
     return (
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"60vh", color:"var(--zx-text)", flexDirection:"column", gap:"16px" }}>
@@ -647,27 +721,33 @@ const Profile = ({ sideNavbar }) => {
           allUserVideos.length === 0
             ? <div style={{ color:"var(--zx-text3)", textAlign:"center", marginTop:"40px" }}>No videos uploaded yet.</div>
             : <div className="profileVideos">
-                {allUserVideos.map((video) => (
-                  <div key={video.id} style={{ position:"relative", minWidth:0 }}>
-                    <Link to={`/video/${video.id}`} className="profileVideo_block">
-                      <div className="profileVideo_block_thumbnail reel-thumb" style={{ position:"relative" }}>
-                        <img className="profileVideo_block_thumbnail_img" src={video.thumbnail} alt={video.title} />
-                        <span style={{ position:"absolute", bottom:"6px", right:"6px", background:"rgba(0,0,0,0.75)", color:"white", fontSize:"11px", padding:"2px 5px", borderRadius:"4px" }}>{video.duration}</span>
-                      </div>
-                      <div className="profileVideo_block_detail">
-                        <div className="profileVideo_block_detai_name">{video.title}</div>
-                        <div className="profileVideo_block_detai_about">{video.channel}</div>
-                        <div style={{ color:"var(--zx-text3)", fontSize:"12px", marginTop:"4px", display:"flex", gap:"10px" }}>
-                          <span>👁 {videoCounts[String(video.id)]?.views ?? 0}</span>
-                          <span>👍 {videoCounts[String(video.id)]?.likes ?? 0}</span>
+                {allUserVideos.map((video) => {
+                  const isEditableVideo = user.isOwner && !String(video.id).startsWith("hard_") && typeof video.id === "number";
+                  return (
+                    <div key={video.id} style={{ position:"relative", minWidth:0 }}>
+                      <Link to={`/video/${video.id}`} className="profileVideo_block">
+                        <div className="profileVideo_block_thumbnail reel-thumb" style={{ position:"relative" }}>
+                          <img className="profileVideo_block_thumbnail_img" src={video.thumbnail} alt={video.title} />
+                          <span style={{ position:"absolute", bottom:"6px", right:"6px", background:"rgba(0,0,0,0.75)", color:"white", fontSize:"11px", padding:"2px 5px", borderRadius:"4px" }}>{video.duration}</span>
                         </div>
-                      </div>
-                    </Link>
-                    {user.isOwner && !String(video.id).startsWith("hard_") && typeof video.id === "number" && (
-                      <button onClick={() => confirmDelete("video", video.id, null, video.title)} title="Delete video" style={deleteBtn}>🗑️</button>
-                    )}
-                  </div>
-                ))}
+                        <div className="profileVideo_block_detail">
+                          <div className="profileVideo_block_detai_name">{video.title}</div>
+                          <div className="profileVideo_block_detai_about">{video.channel}</div>
+                          <div style={{ color:"var(--zx-text3)", fontSize:"12px", marginTop:"4px", display:"flex", gap:"10px" }}>
+                            <span>👁 {videoCounts[String(video.id)]?.views ?? 0}</span>
+                            <span>👍 {videoCounts[String(video.id)]?.likes ?? 0}</span>
+                          </div>
+                        </div>
+                      </Link>
+                      {isEditableVideo && (
+                        <>
+                          <button onClick={(e) => { e.preventDefault(); openEditContent("video", video); }} title="Edit video" style={editBtn}>✏️</button>
+                          <button onClick={(e) => { e.preventDefault(); confirmDelete("video", video.id, null, video.title); }} title="Delete video" style={deleteBtn}>🗑️</button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
         )}
 
@@ -676,71 +756,77 @@ const Profile = ({ sideNavbar }) => {
           allUserReels.length === 0
             ? <div style={{ color:"var(--zx-text3)", textAlign:"center", marginTop:"40px" }}>No reels uploaded yet.</div>
             : <div className="profileVideos">
-                {allUserReels.map((reel) => (
-                  <div key={reel.id} style={{ position:"relative", minWidth:0 }}>
-                    <div className="profileVideo_block" style={{ cursor:"pointer" }}
-                      onClick={() => navigate("/reels", { state: { clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 } } })}>
+                {allUserReels.map((reel) => {
+                  const isEditableReel = user.isOwner && reel.id.startsWith("db_");
+                  return (
+                    <div key={reel.id} style={{ position:"relative", minWidth:0 }}>
+                      <div className="profileVideo_block" style={{ cursor:"pointer" }}
+                        onClick={() => navigate("/reels", { state: { clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 } } })}>
 
-                      {/*
-                        FIX: Use the padding-top percentage hack instead of the CSS
-                        `aspect-ratio` property. Some embedded/older WebViews (TV
-                        boxes, low-end Android browsers) do not support `aspect-ratio`.
-                        When unsupported, the container collapses to height:0, and the
-                        absolutely-positioned image inside falls back to its natural
-                        intrinsic size — which is what caused the oversized, screen-
-                        overflowing reel thumbnail. padding-top:% is supported
-                        everywhere and reliably reserves a 9:16 portrait box based on
-                        the element's own width, with no dependency on aspect-ratio.
-                      */}
-                      <div
-                        className="profileVideo_block_thumbnail"
-                        style={{
-                          position:    "relative",
-                          width:       "100%",
-                          paddingTop:  "177.78%", // 16/9 * 100 → reserves a 9:16 portrait box
-                          overflow:    "hidden",
-                          background:  "#1e1b4b",  // dark fallback while image loads
-                        }}
-                      >
-                        <img
-                          src={reel.thumbnail}
-                          alt={reel.title}
+                        {/*
+                          FIX: Use the padding-top percentage hack instead of the CSS
+                          `aspect-ratio` property. Some embedded/older WebViews (TV
+                          boxes, low-end Android browsers) do not support `aspect-ratio`.
+                          When unsupported, the container collapses to height:0, and the
+                          absolutely-positioned image inside falls back to its natural
+                          intrinsic size — which is what caused the oversized, screen-
+                          overflowing reel thumbnail. padding-top:% is supported
+                          everywhere and reliably reserves a 9:16 portrait box based on
+                          the element's own width, with no dependency on aspect-ratio.
+                        */}
+                        <div
+                          className="profileVideo_block_thumbnail"
                           style={{
-                            position:   "absolute",
-                            top:         0,
-                            left:        0,
+                            position:    "relative",
                             width:       "100%",
-                            height:      "100%",
-                            objectFit:  "cover",   // ← crops/fits without stretching
-                            display:    "block",
-                            transition: "transform 0.25s",
+                            paddingTop:  "177.78%", // 16/9 * 100 → reserves a 9:16 portrait box
+                            overflow:    "hidden",
+                            background:  "#1e1b4b",  // dark fallback while image loads
                           }}
-                          onError={(e) => {
-                            // Fallback to a portrait placeholder if thumbnail fails
-                            e.target.src = `https://picsum.photos/seed/${reel.dbId || reel.id}/200/350`;
-                          }}
-                        />
-                        <span style={{ position:"absolute", top:"6px", left:"6px", background:"rgba(0,0,0,0.7)", color:"white", fontSize:"10px", padding:"2px 6px", borderRadius:"4px", fontWeight:"600", zIndex:1 }}>🎬 Reel</span>
-                        <span style={{ position:"absolute", bottom:"6px", right:"6px", background:"rgba(0,0,0,0.7)", color:"white", fontSize:"11px", padding:"2px 5px", borderRadius:"4px", zIndex:1 }}>{reel.duration}</span>
-                      </div>
+                        >
+                          <img
+                            src={reel.thumbnail}
+                            alt={reel.title}
+                            style={{
+                              position:   "absolute",
+                              top:         0,
+                              left:        0,
+                              width:       "100%",
+                              height:      "100%",
+                              objectFit:  "cover",   // ← crops/fits without stretching
+                              display:    "block",
+                              transition: "transform 0.25s",
+                            }}
+                            onError={(e) => {
+                              // Fallback to a portrait placeholder if thumbnail fails
+                              e.target.src = `https://picsum.photos/seed/${reel.dbId || reel.id}/200/350`;
+                            }}
+                          />
+                          <span style={{ position:"absolute", top:"6px", left:"6px", background:"rgba(0,0,0,0.7)", color:"white", fontSize:"10px", padding:"2px 6px", borderRadius:"4px", fontWeight:"600", zIndex:1 }}>🎬 Reel</span>
+                          <span style={{ position:"absolute", bottom:"6px", right:"6px", background:"rgba(0,0,0,0.7)", color:"white", fontSize:"11px", padding:"2px 5px", borderRadius:"4px", zIndex:1 }}>{reel.duration}</span>
+                        </div>
 
-                      <div className="profileVideo_block_detail">
-                        <div className="profileVideo_block_detai_name">{reel.title}</div>
-                        <div className="profileVideo_block_detai_about">{reel.description}</div>
-                        <div style={{ color:"var(--zx-text3)", fontSize:"12px", marginTop:"4px", display:"flex", gap:"10px" }}>
-                          {/*
-                            Both views AND likes use the SAME key: `db_${reel.dbId}`
-                          */}
-                          <span>👁 {reelCounts[`db_${reel.dbId}`]?.views ?? 0}</span>
-                          <span>👍 {reelCounts[`db_${reel.dbId}`]?.likes ?? 0}</span>
+                        <div className="profileVideo_block_detail">
+                          <div className="profileVideo_block_detai_name">{reel.title}</div>
+                          <div className="profileVideo_block_detai_about">{reel.description}</div>
+                          <div style={{ color:"var(--zx-text3)", fontSize:"12px", marginTop:"4px", display:"flex", gap:"10px" }}>
+                            {/*
+                              Both views AND likes use the SAME key: `db_${reel.dbId}`
+                            */}
+                            <span>👁 {reelCounts[`db_${reel.dbId}`]?.views ?? 0}</span>
+                            <span>👍 {reelCounts[`db_${reel.dbId}`]?.likes ?? 0}</span>
+                          </div>
                         </div>
                       </div>
+                      {isEditableReel && (
+                        <>
+                          <button onClick={(e) => { e.stopPropagation(); openEditContent("reel", reel); }} title="Edit reel" style={editBtn}>✏️</button>
+                          <button onClick={(e) => { e.stopPropagation(); confirmDelete("reel", reel.id, reel.dbId, reel.title); }} title="Delete reel" style={deleteBtn}>🗑️</button>
+                        </>
+                      )}
                     </div>
-                    {user.isOwner && reel.id.startsWith("db_") && (
-                      <button onClick={() => confirmDelete("reel", reel.id, reel.dbId, reel.title)} title="Delete reel" style={deleteBtn}>🗑️</button>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
         )}
 
@@ -815,6 +901,60 @@ const Profile = ({ sideNavbar }) => {
         </div>
       )}
 
+      {/* ── Edit Video / Reel Content Modal ── */}
+      {editContentTarget && (
+        <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.85)", zIndex:999999, display:"flex", alignItems:"center", justifyContent:"center" }}
+          onClick={(e) => e.target === e.currentTarget && closeEditContent()}>
+          <div style={{ background:"#ffffff", borderRadius:"16px", padding:"32px", width:"100%", maxWidth:"440px", border:"2px solid var(--zx-border)", display:"flex", flexDirection:"column", gap:"16px", boxShadow:"0 8px 40px rgba(124,58,237,0.15)" }}>
+            <h2 style={{ color:"var(--zx-text)", margin:0, fontSize:"20px", fontFamily:"Nunito, sans-serif", fontWeight:900 }}>
+              ✏️ Edit {editContentTarget.type === "video" ? "Video" : "Reel"}
+            </h2>
+
+            <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+              <img src={editContentThumbnail} alt="thumbnail preview"
+                style={{ width:"64px", height: editContentTarget.type === "reel" ? "96px" : "42px", objectFit:"cover", borderRadius:"8px", border:"2px solid var(--zx-primary)", flexShrink:0, background:"#1e1b4b" }}
+                onError={(e) => { e.target.style.opacity = 0.3; }} />
+              <div style={{ flex:1 }}>
+                <p style={{ color:"var(--zx-text3)", fontSize:"13px", margin:"0 0 6px" }}>Paste Thumbnail URL</p>
+                <input value={editContentThumbnail} onChange={(e) => setEditContentThumbnail(e.target.value)} placeholder="https://..."
+                  style={{ width:"100%", background:"var(--zx-bg)", border:"2px solid var(--zx-border)", borderRadius:"8px", color:"var(--zx-text)", padding:"8px 12px", fontSize:"13px", outline:"none", boxSizing:"border-box" }} />
+              </div>
+            </div>
+
+            <div>
+              <p style={{ color:"var(--zx-text3)", fontSize:"13px", margin:"0 0 6px" }}>Or upload a new thumbnail:</p>
+              <input type="file" accept="image/*" onChange={handleEditContentThumbnailUpload} style={{ color:"var(--zx-text2)", fontSize:"13px" }} />
+              {editContentLoading && <p style={{ color:"var(--zx-primary)", fontSize:"12px", margin:"4px 0 0" }}>Uploading thumbnail...</p>}
+            </div>
+
+            <div>
+              <p style={{ color:"var(--zx-text3)", fontSize:"13px", margin:"0 0 6px" }}>Title</p>
+              <input value={editContentTitle} onChange={(e) => setEditContentTitle(e.target.value)} placeholder="Title"
+                style={{ width:"100%", background:"var(--zx-bg)", border:"2px solid var(--zx-border)", borderRadius:"8px", color:"var(--zx-text)", padding:"10px 12px", fontSize:"14px", outline:"none", boxSizing:"border-box", fontFamily:"Outfit, sans-serif" }} />
+            </div>
+
+            {editContentTarget.type === "reel" && (
+              <div>
+                <p style={{ color:"var(--zx-text3)", fontSize:"13px", margin:"0 0 6px" }}>Description</p>
+                <input value={editContentDescription} onChange={(e) => setEditContentDescription(e.target.value)} placeholder="Description"
+                  style={{ width:"100%", background:"var(--zx-bg)", border:"2px solid var(--zx-border)", borderRadius:"8px", color:"var(--zx-text)", padding:"10px 12px", fontSize:"14px", outline:"none", boxSizing:"border-box", fontFamily:"Outfit, sans-serif" }} />
+              </div>
+            )}
+
+            <div style={{ display:"flex", gap:"10px" }}>
+              <button onClick={handleSaveContentEdit} disabled={editContentSaving}
+                style={{ flex:1, background: editContentSaving ? "#c4b5fd" : "var(--zx-primary)", color:"white", border:"none", borderRadius:"10px", padding:"12px", fontSize:"15px", fontWeight:"700", cursor: editContentSaving ? "not-allowed" : "pointer", fontFamily:"Nunito, sans-serif", transition:"background 0.2s" }}>
+                {editContentSaving ? "Saving..." : "Save Changes"}
+              </button>
+              <button onClick={closeEditContent}
+                style={{ flex:1, background:"none", border:"2px solid var(--zx-border)", color:"var(--zx-text2)", borderRadius:"10px", padding:"12px", fontSize:"14px", cursor:"pointer", fontFamily:"Nunito, sans-serif" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Confirm Delete Modal ── */}
       {deleteTarget && (
         <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.85)", zIndex:999999, display:"flex", alignItems:"center", justifyContent:"center" }}
@@ -839,6 +979,13 @@ const Profile = ({ sideNavbar }) => {
 const deleteBtn = {
   position:"absolute", top:"6px", right:"6px",
   background:"rgba(200,0,0,0.85)", border:"none", borderRadius:"6px",
+  color:"white", fontSize:"14px", padding:"4px 7px",
+  cursor:"pointer", zIndex:10, lineHeight:1,
+};
+
+const editBtn = {
+  position:"absolute", top:"6px", right:"38px",
+  background:"rgba(124,58,237,0.85)", border:"none", borderRadius:"6px",
   color:"white", fontSize:"14px", padding:"4px 7px",
   cursor:"pointer", zIndex:10, lineHeight:1,
 };

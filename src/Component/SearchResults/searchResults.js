@@ -578,6 +578,16 @@ const SearchResults = () => {
 
   const autoplayRef = useRef(autoplay);
   const playerRef = useRef(null);
+  // NEW: dedicated ref for the actual DOM node the YT.Player mounts into.
+  // React renders this element exactly once and never touches its
+  // children again — the previous code manually cleared/rebuilt this
+  // node with innerHTML + createElement, which fought with React's own
+  // reconciliation of the same JSX node and caused the player to get
+  // torn down and rebuilt (i.e. "restart") on unrelated re-renders.
+  const playerContainerRef = useRef(null);
+  // NEW: tracks whether the underlying YT.Player instance has fired
+  // onReady, so we know it's safe to call methods like loadVideoById.
+  const playerReadyRef = useRef(false);
   const resultsRef = useRef(youtubeResults);
   const indexRef = useRef(selectedVideoIndex);
   const lastSearchedQueryRef = useRef(null);
@@ -602,42 +612,38 @@ const SearchResults = () => {
     }
   }, []);
 
-  // Init/reinit YT Player whenever selectedVideo changes
+  // Init/reinit YT Player whenever selectedVideo changes.
+  //
+  // FIX: instead of destroying the player and rebuilding the DOM node by
+  // hand every time selectedVideo changes (which caused the video to
+  // visibly "refresh"/restart, especially when unrelated state like
+  // comments/likes/showFullDesc changed and triggered a re-render), we:
+  //   1. Mount the YT.Player exactly once into a ref'd div that React
+  //      renders once and never re-touches.
+  //   2. On subsequent video changes, reuse the existing player instance
+  //      via loadVideoById() instead of destroying/recreating it.
   useEffect(() => {
     if (!selectedVideo) {
       initializedVideoIdRef.current = null;
       return;
     }
 
-    // Guard: if a player already exists and is already showing this exact
-    // video, don't tear it down and rebuild it — that's what causes the
-    // "video restarts from 0:00" symptom.
-    if (initializedVideoIdRef.current === selectedVideo && playerRef.current) {
+    // If a ready player instance already exists, just swap the video in
+    // place — no teardown, no DOM rebuild, no restart flicker.
+    if (playerRef.current && playerReadyRef.current) {
+      if (initializedVideoIdRef.current !== selectedVideo) {
+        playerRef.current.loadVideoById(selectedVideo);
+        initializedVideoIdRef.current = selectedVideo;
+      }
       return;
     }
 
-    let pollInterval = null;
     let cancelled = false;
 
     const initPlayer = () => {
-      if (cancelled) return;
+      if (cancelled || !playerContainerRef.current) return;
 
-      if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch (e) {}
-        playerRef.current = null;
-      }
-
-      const container = document.getElementById("yt-player-container");
-      if (container) {
-        container.innerHTML = "";
-        const div = document.createElement("div");
-        div.id = "yt-player";
-        container.appendChild(div);
-      }
-
-      playerRef.current = new window.YT.Player("yt-player", {
+      playerRef.current = new window.YT.Player(playerContainerRef.current, {
         height: window.innerWidth < 768 ? "220" : "500",
         width: "100%",
         videoId: selectedVideo,
@@ -649,6 +655,7 @@ const SearchResults = () => {
         },
         events: {
           onReady: () => {
+            playerReadyRef.current = true;
             initializedVideoIdRef.current = selectedVideo;
           },
           // Rely solely on onStateChange for "ended" detection. Running a
@@ -675,9 +682,22 @@ const SearchResults = () => {
 
     return () => {
       cancelled = true;
-      clearInterval(pollInterval);
     };
   }, [selectedVideo]);
+
+  // Destroy the player only when the component actually unmounts (e.g.
+  // user navigates away entirely), not on every selectedVideo change.
+  useEffect(() => {
+    return () => {
+      if (playerRef.current) {
+        try {
+          playerRef.current.destroy();
+        } catch (e) {}
+        playerRef.current = null;
+        playerReadyRef.current = false;
+      }
+    };
+  }, []);
 
   // Re-run only when the actual search query text changes — not on every
   // location.key change. Previously this reset selectedVideo to null (and
@@ -990,6 +1010,13 @@ const SearchResults = () => {
                     background: "#000",
                   }}
                 >
+                  {/*
+                    FIX: This container and its child are now rendered
+                    ONCE by React and never manually cleared/replaced.
+                    The YT.Player is mounted into playerContainerRef and
+                    reused via loadVideoById() on subsequent video
+                    changes, instead of being torn down and rebuilt.
+                  */}
                   <div
                     id="yt-player-container"
                     style={{
@@ -997,7 +1024,10 @@ const SearchResults = () => {
                       height: isMobile ? "220px" : "500px",
                     }}
                   >
-                    <div id="yt-player" />
+                    <div
+                      ref={playerContainerRef}
+                      style={{ width: "100%", height: "100%" }}
+                    />
                   </div>
                 </div>
 

@@ -49,6 +49,18 @@ const getUserGradient = (name = "") => {
   return `linear-gradient(${angle}deg, ${pair[0]}, ${pair[1]})`;
 };
 
+// ── Feelings list — matches PostComposer.jsx so edited posts can pick the same set ──
+const FEELINGS = [
+  "Happy 😊", "Excited 🤩", "Grateful 🙏", "Blessed ✨",
+  "Motivated 💪", "Tired 😴", "Loved ❤️", "Proud 🎉",
+];
+
+const PRIVACY_OPTIONS = [
+  { value: "public", label: "Public", icon: "🌐" },
+  { value: "friends", label: "Friends", icon: "👥" },
+  { value: "only_me", label: "Only me", icon: "🔒" },
+];
+
 // ─── Lightbox ─────────────────────────────────────────────────────────────────
 const Lightbox = ({ images, startIndex = 0, onClose }) => {
   const [index, setIndex] = useState(startIndex);
@@ -84,7 +96,9 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
 };
 
 // ─── Profile Post Card ────────────────────────────────────────────────────────
-const ProfilePostCard = ({ post, isOwner, onDelete }) => {
+// FIX: added `onEdit` prop + an "✏️ Edit" button (owner-only, next to Delete)
+// so posts can now be edited from the profile page, not just deleted.
+const ProfilePostCard = ({ post, isOwner, onDelete, onEdit }) => {
   const [lightboxData, setLightboxData] = useState(null);
   const [showComments, setShowComments] = useState(false);
   const totalReactions = Object.values(post.reactionCounts || {}).reduce((a, b) => a + b, 0);
@@ -124,9 +138,14 @@ const ProfilePostCard = ({ post, isOwner, onDelete }) => {
             </div>
           </div>
           {isOwner && (
-            <button onClick={() => onDelete(post.id)} title="Delete post" style={{ marginLeft:"auto", background:"rgba(200,0,0,0.15)", border:"1px solid rgba(200,0,0,0.3)", color:"#ff6666", borderRadius:"8px", padding:"4px 10px", fontSize:"12px", cursor:"pointer" }}>
-              🗑️ Delete
-            </button>
+            <div style={{ marginLeft:"auto", display:"flex", gap:"8px" }}>
+              <button onClick={() => onEdit(post)} title="Edit post" style={{ background:"rgba(124,58,237,0.15)", border:"1px solid rgba(124,58,237,0.35)", color:"#a78bfa", borderRadius:"8px", padding:"4px 10px", fontSize:"12px", cursor:"pointer" }}>
+                ✏️ Edit
+              </button>
+              <button onClick={() => onDelete(post.id)} title="Delete post" style={{ background:"rgba(200,0,0,0.15)", border:"1px solid rgba(200,0,0,0.3)", color:"#ff6666", borderRadius:"8px", padding:"4px 10px", fontSize:"12px", cursor:"pointer" }}>
+                🗑️ Delete
+              </button>
+            </div>
           )}
         </div>
         {post.text && <p style={{ color:"#e0e0e0", fontSize:"14px", lineHeight:"1.6", margin:"0 0 12px", wordBreak:"break-word" }}>{post.text}</p>}
@@ -284,6 +303,16 @@ const Profile = ({ sideNavbar }) => {
   const [editContentThumbnail, setEditContentThumbnail]     = useState("");
   const [editContentLoading, setEditContentLoading]         = useState(false);
   const [editContentSaving, setEditContentSaving]           = useState(false);
+
+  // ── NEW: Edit Post state ──
+  // editPostTarget holds the full post object being edited so we can
+  // read its id + pre-fill the modal fields.
+  const [editPostTarget, setEditPostTarget]   = useState(null);
+  const [editPostText, setEditPostText]       = useState("");
+  const [editPostFeeling, setEditPostFeeling] = useState("");
+  const [editPostPrivacy, setEditPostPrivacy] = useState("public");
+  const [editPostSaving, setEditPostSaving]   = useState(false);
+  const [editPostError, setEditPostError]     = useState("");
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -527,6 +556,70 @@ const Profile = ({ sideNavbar }) => {
   const handleDeletePost = async (postId) => {
     await supabase.from("posts").delete().eq("id", postId).eq("username", key);
     setUserPosts((prev) => prev.filter((p) => p.id !== postId));
+  };
+
+  // ── NEW: Edit Post handlers ──
+  // openEditPost pre-fills the modal from the post being edited.
+  const openEditPost = (post) => {
+    setEditPostTarget(post);
+    setEditPostText(post.text || "");
+    setEditPostFeeling(post.feeling || "");
+    setEditPostPrivacy(post.privacy || "public");
+    setEditPostError("");
+  };
+
+  const closeEditPost = () => {
+    setEditPostTarget(null);
+    setEditPostText("");
+    setEditPostFeeling("");
+    setEditPostPrivacy("public");
+    setEditPostError("");
+  };
+
+  // Saves text/feeling/privacy changes to Supabase, then updates local state
+  // so the card re-renders immediately without a full refetch. Images and
+  // links are left as-is here — editing those would need re-running the
+  // Cloudinary upload flow from PostComposer, which is out of scope for a
+  // quick text/feeling/privacy edit.
+  const handleSaveEditPost = async () => {
+    if (!editPostTarget) return;
+    const newText = editPostText.trim();
+
+    // A post needs at least text, an image, or a link — mirror PostComposer's canPost check
+    const hasImages = editPostTarget.image_urls?.length > 0 || editPostTarget.image_url;
+    if (!newText && !hasImages && !editPostTarget.link) {
+      setEditPostError("Post can't be empty.");
+      return;
+    }
+
+    setEditPostSaving(true);
+    setEditPostError("");
+    try {
+      const { error } = await supabase
+        .from("posts")
+        .update({
+          text: newText || null,
+          feeling: editPostFeeling || null,
+          privacy: editPostPrivacy,
+        })
+        .eq("id", editPostTarget.id)
+        .eq("username", key); // ensures only the owner's own post row can be updated
+
+      if (error) throw error;
+
+      setUserPosts((prev) =>
+        prev.map((p) =>
+          p.id === editPostTarget.id
+            ? { ...p, text: newText || null, feeling: editPostFeeling || null, privacy: editPostPrivacy }
+            : p
+        )
+      );
+      closeEditPost();
+    } catch (err) {
+      setEditPostError(err.message || "Failed to save changes. Try again.");
+    } finally {
+      setEditPostSaving(false);
+    }
   };
 
   // ── Edit Video/Reel content handlers ──
@@ -839,7 +932,15 @@ const Profile = ({ sideNavbar }) => {
                 <p>No posts yet.</p>
               </div>
             ) : (
-              userPosts.map((post) => <ProfilePostCard key={post.id} post={post} isOwner={user.isOwner} onDelete={handleDeletePost} />)
+              userPosts.map((post) => (
+                <ProfilePostCard
+                  key={post.id}
+                  post={post}
+                  isOwner={user.isOwner}
+                  onDelete={handleDeletePost}
+                  onEdit={openEditPost}
+                />
+              ))
             )}
           </div>
         )}
@@ -947,6 +1048,99 @@ const Profile = ({ sideNavbar }) => {
                 {editContentSaving ? "Saving..." : "Save Changes"}
               </button>
               <button onClick={closeEditContent}
+                style={{ flex:1, background:"none", border:"2px solid var(--zx-border)", color:"var(--zx-text2)", borderRadius:"10px", padding:"12px", fontSize:"14px", cursor:"pointer", fontFamily:"Nunito, sans-serif" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── NEW: Edit Post Modal ── */}
+      {editPostTarget && (
+        <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.85)", zIndex:999999, display:"flex", alignItems:"center", justifyContent:"center" }}
+          onClick={(e) => e.target === e.currentTarget && closeEditPost()}>
+          <div style={{ background:"#ffffff", borderRadius:"16px", padding:"32px", width:"100%", maxWidth:"440px", border:"2px solid var(--zx-border)", display:"flex", flexDirection:"column", gap:"16px", boxShadow:"0 8px 40px rgba(124,58,237,0.15)" }}>
+            <h2 style={{ color:"var(--zx-text)", margin:0, fontSize:"20px", fontFamily:"Nunito, sans-serif", fontWeight:900 }}>
+              ✏️ Edit Post
+            </h2>
+
+            {/* Existing images/link stay as-is — shown as a read-only preview so
+                the user knows what's still attached to the post. */}
+            {(editPostTarget.image_urls?.length > 0 || editPostTarget.image_url) && (
+              <div style={{ display:"flex", gap:"6px", overflowX:"auto" }}>
+                {(editPostTarget.image_urls?.length > 0 ? editPostTarget.image_urls : [editPostTarget.image_url]).map((url, i) => (
+                  <img key={i} src={url} alt={`attached ${i + 1}`} style={{ width:"64px", height:"64px", objectFit:"cover", borderRadius:"8px", border:"2px solid var(--zx-border)", flexShrink:0 }} />
+                ))}
+              </div>
+            )}
+            {(editPostTarget.image_urls?.length > 0 || editPostTarget.image_url) && (
+              <p style={{ color:"var(--zx-text3)", fontSize:"11px", margin:"-10px 0 0" }}>Images can't be changed here — delete and repost to swap them.</p>
+            )}
+
+            <div>
+              <p style={{ color:"var(--zx-text3)", fontSize:"13px", margin:"0 0 6px" }}>Text</p>
+              <textarea
+                value={editPostText}
+                onChange={(e) => setEditPostText(e.target.value)}
+                placeholder="What's on your mind?"
+                rows={4}
+                style={{ width:"100%", background:"var(--zx-bg)", border:"2px solid var(--zx-border)", borderRadius:"8px", color:"var(--zx-text)", padding:"10px 12px", fontSize:"14px", outline:"none", boxSizing:"border-box", fontFamily:"Outfit, sans-serif", resize:"vertical" }}
+              />
+            </div>
+
+            <div>
+              <p style={{ color:"var(--zx-text3)", fontSize:"13px", margin:"0 0 6px" }}>Feeling <span style={{ fontWeight:400 }}>(optional)</span></p>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
+                <button
+                  onClick={() => setEditPostFeeling("")}
+                  style={{
+                    background: editPostFeeling === "" ? "rgba(124,58,237,0.1)" : "var(--zx-bg)",
+                    border: editPostFeeling === "" ? "2px solid var(--zx-primary)" : "2px solid var(--zx-border)",
+                    color: editPostFeeling === "" ? "var(--zx-primary)" : "var(--zx-text3)",
+                    borderRadius:"20px", padding:"5px 12px", fontSize:"12px", fontWeight:"700", cursor:"pointer",
+                  }}
+                >
+                  None
+                </button>
+                {FEELINGS.map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setEditPostFeeling(editPostFeeling === f ? "" : f)}
+                    style={{
+                      background: editPostFeeling === f ? "rgba(124,58,237,0.1)" : "var(--zx-bg)",
+                      border: editPostFeeling === f ? "2px solid var(--zx-primary)" : "2px solid var(--zx-border)",
+                      color: editPostFeeling === f ? "var(--zx-primary)" : "var(--zx-text3)",
+                      borderRadius:"20px", padding:"5px 12px", fontSize:"12px", fontWeight:"700", cursor:"pointer",
+                    }}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p style={{ color:"var(--zx-text3)", fontSize:"13px", margin:"0 0 6px" }}>Privacy</p>
+              <select
+                value={editPostPrivacy}
+                onChange={(e) => setEditPostPrivacy(e.target.value)}
+                style={{ width:"100%", background:"var(--zx-bg)", border:"2px solid var(--zx-border)", borderRadius:"8px", color:"var(--zx-text)", padding:"10px 12px", fontSize:"14px", outline:"none", boxSizing:"border-box", fontFamily:"Outfit, sans-serif", cursor:"pointer" }}
+              >
+                {PRIVACY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.icon} {o.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {editPostError && <p style={{ color:"#e11d48", fontSize:"13px", margin:0, fontWeight:600 }}>{editPostError}</p>}
+
+            <div style={{ display:"flex", gap:"10px" }}>
+              <button onClick={handleSaveEditPost} disabled={editPostSaving}
+                style={{ flex:1, background: editPostSaving ? "#c4b5fd" : "var(--zx-primary)", color:"white", border:"none", borderRadius:"10px", padding:"12px", fontSize:"15px", fontWeight:"700", cursor: editPostSaving ? "not-allowed" : "pointer", fontFamily:"Nunito, sans-serif", transition:"background 0.2s" }}>
+                {editPostSaving ? "Saving..." : "Save Changes"}
+              </button>
+              <button onClick={closeEditPost}
                 style={{ flex:1, background:"none", border:"2px solid var(--zx-border)", color:"var(--zx-text2)", borderRadius:"10px", padding:"12px", fontSize:"14px", cursor:"pointer", fontFamily:"Nunito, sans-serif" }}>
                 Cancel
               </button>

@@ -725,6 +725,7 @@ body.reels-open .reel_item   { height: 100dvh; }
 ══════════════════════════════════════ */
 
 .reels_back_btn {
+  display: none;
   position: fixed;
   top: 18px;
   left: 18px;

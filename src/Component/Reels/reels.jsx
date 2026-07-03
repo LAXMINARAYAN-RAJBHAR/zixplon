@@ -15,6 +15,7 @@ import { Link, useLocation, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import useViewTracker from "./useViewTracker";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
+import ReportModal from "../Moderation/ReportModal";
 
 export const reelsData = [
   { id: "rc_1", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Jyoti", username: "jyoti", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
@@ -153,9 +154,9 @@ const isNewReel = (reel) => {
 };
 
 // ─────────────────────────────────────────────────────────
-// More dropdown — 5 creator actions in a floating menu
+// More dropdown — 6 creator/moderation actions in a floating menu
 // ─────────────────────────────────────────────────────────
-const MoreDropdown = ({ onRemix, onSound, onCollab, onGreenScreen, onCut, onClose }) => {
+const MoreDropdown = ({ onRemix, onSound, onCollab, onGreenScreen, onCut, onReport, onClose }) => {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -172,6 +173,7 @@ const MoreDropdown = ({ onRemix, onSound, onCollab, onGreenScreen, onCut, onClos
     { icon: <PeopleAltOutlinedIcon style={{ fontSize: 18 }} />,  label: "Collab",       color: "#06b6d4", onClick: onCollab },
     { icon: <GrassOutlinedIcon style={{ fontSize: 18 }} />,      label: "Green Screen", color: "#22c55e", onClick: onGreenScreen },
     { icon: <ContentCutOutlinedIcon style={{ fontSize: 18 }} />, label: "Cut Video",    color: "#f43f5e", onClick: onCut },
+    { icon: <span style={{ fontSize: 18 }}>🚩</span>,            label: "Report",       color: "#f43f5e", onClick: onReport },
   ];
 
   return (
@@ -226,6 +228,7 @@ const ReelItem = ({ reel, allReels }) => {
   const [showHeartBurst, setShowHeartBurst]     = useState(false);
   const [showMuteBtn, setShowMuteBtn]           = useState(true);
   const [showNewBadge, setShowNewBadge]         = useState(false); // "New" badge
+  const [showReportModal, setShowReportModal]   = useState(false);
 
   // ✅ Re-evaluate New badge whenever reel object changes (e.g. after realtime insert)
   useEffect(() => {
@@ -432,6 +435,12 @@ const ReelItem = ({ reel, allReels }) => {
         cut_video_url:      reel.src,
       },
     });
+  };
+
+  // ── Report handler ───────────────────────────────────────
+  const handleReport = () => {
+    if (!localStorage.getItem("username")) { alert("Please login"); return; }
+    setShowReportModal(true);
   };
 
   // ── Video / playback helpers ─────────────────────────────
@@ -687,6 +696,7 @@ const ReelItem = ({ reel, allReels }) => {
                 onCollab={handleCollab}
                 onGreenScreen={handleGreenScreen}
                 onCut={handleCut}
+                onReport={handleReport}
                 onClose={() => setShowMoreMenu(false)}
               />
             )}
@@ -731,6 +741,17 @@ const ReelItem = ({ reel, allReels }) => {
           <div className={`reel_share_toast reel_action_toast reel_action_toast--${actionToast.type}`}>
             {actionToast.msg}
           </div>
+        )}
+
+        {/* Report modal */}
+        {showReportModal && (
+          <ReportModal
+            contentType="reel"
+            contentId={reel.id}
+            contentTitle={reel.title}
+            contentOwner={reel.username}
+            onClose={() => setShowReportModal(false)}
+          />
         )}
 
         {/* Bottom user info */}

@@ -106,7 +106,7 @@
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  z-index: 10;
+  z-index: 15;
   animation: floatInRight 0.3s ease both;
 }
 
@@ -766,3 +766,6 @@ body.reels-open .reel_item   { height: 100dvh; }
     height: 38px;
   }
 }
+
+.reel_report_btn { background: rgba(244,63,94,0.18) !important; border-color: rgba(244,63,94,0.45) !important; }
+.reel_report_btn:hover { background: rgba(244,63,94,0.55) !important; box-shadow: 0 8px 26px rgba(244,63,94,0.45) !important; }

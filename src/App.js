@@ -40,6 +40,7 @@ import Playlist         from "./Pages/Playlist/Playlist";
 import YourClips        from "./Pages/YourClips/YourClips";
 import SideNavbar       from "./Component/SideNavbar/sideNavbar";
 import LoginOptionsModal from "./Component/LoginOptionsModal/LoginOptionsModal";
+import AdminPanel       from "./Pages/AdminPanel/AdminPanel";
 
 // ── Loading Screen ────────────────────────────────────────────────────────────
 const LoadingScreen = ({ onFinish }) => {
@@ -460,6 +461,7 @@ function App() {
           <Route path="/community-guidelines"  element={<CommunityGuidelinesPage />} />
           <Route path="/advertise"             element={<AdvertisePage />} />
           <Route path="/feed"                  element={<PostFeed sideNavbar={sideNavbar} />} />
+          <Route path="/admin"                 element={<AdminPanel />} />
         </Routes>
       </div>
 

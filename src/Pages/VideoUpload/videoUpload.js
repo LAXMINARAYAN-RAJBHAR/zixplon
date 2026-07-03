@@ -8,6 +8,7 @@ import Box from "@mui/material/Box";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { supabase } from "../../config/supabase";
 import RecordModal from "../RecordModal/RecordModal";
+import { checkContent } from "../../Component/Moderation/useModerationFilter";
 
 const INITIAL_FIELDS = {
   title: "",
@@ -17,110 +18,54 @@ const INITIAL_FIELDS = {
   videoType: "",
 };
 
-// ── Resolve which "feature mode" was passed from Reels ──
-// Returns { mode, data } where mode is one of:
-//   "remix" | "sound" | "collab" | "greenscreen" | "cut" | null
 const resolveFeature = (state) => {
   if (!state) return { mode: null, data: null };
-  if (state.remixData)      return { mode: "remix",       data: state.remixData };
-  if (state.soundData)      return { mode: "sound",       data: state.soundData };
-  if (state.collabData)     return { mode: "collab",      data: state.collabData };
-  if (state.greenScreenData)return { mode: "greenscreen", data: state.greenScreenData };
-  if (state.cutData)        return { mode: "cut",         data: state.cutData };
+  if (state.remixData)       return { mode: "remix",       data: state.remixData };
+  if (state.soundData)       return { mode: "sound",       data: state.soundData };
+  if (state.collabData)      return { mode: "collab",      data: state.collabData };
+  if (state.greenScreenData) return { mode: "greenscreen", data: state.greenScreenData };
+  if (state.cutData)         return { mode: "cut",         data: state.cutData };
   return { mode: null, data: null };
 };
 
-// ── Default title / description for each feature ──
 const featureDefaults = (mode, data) => {
   switch (mode) {
-    case "remix":
-      return {
-        title:       `Remix of "${data.remixed_from_title}"`,
-        description: `🎬 Remixed from @${data.remixed_from_username}`,
-      };
-    case "sound":
-      return {
-        title:       `Using sound from "${data.sound_from_title}"`,
-        description: `🎵 Sound by @${data.sound_from_username}`,
-      };
-    case "collab":
-      return {
-        title:       `Collab with @${data.collab_with_username}`,
-        description: `🤝 Collab response to "${data.collab_with_title}"`,
-      };
-    case "greenscreen":
-      return {
-        title:       `Green Screen — "${data.bg_reel_title}"`,
-        description: `💚 Using background from @${data.bg_reel_username}`,
-      };
-    case "cut":
-      return {
-        title:       `Cut from "${data.cut_from_title}"`,
-        description: `✂️ Cut by @${data.cut_from_username}`,
-      };
-    default:
-      return { title: "", description: "" };
+    case "remix":       return { title: `Remix of "${data.remixed_from_title}"`,        description: `🎬 Remixed from @${data.remixed_from_username}` };
+    case "sound":       return { title: `Using sound from "${data.sound_from_title}"`,  description: `🎵 Sound by @${data.sound_from_username}` };
+    case "collab":      return { title: `Collab with @${data.collab_with_username}`,    description: `🤝 Collab response to "${data.collab_with_title}"` };
+    case "greenscreen": return { title: `Green Screen — "${data.bg_reel_title}"`,       description: `💚 Using background from @${data.bg_reel_username}` };
+    case "cut":         return { title: `Cut from "${data.cut_from_title}"`,            description: `✂️ Cut by @${data.cut_from_username}` };
+    default:            return { title: "", description: "" };
   }
 };
 
-// ── Feature banner config ──
 const featureBanner = (mode, data) => {
   switch (mode) {
-    case "remix":
-      return {
-        emoji: "🎬", label: "Remixing", title: `"${data.remixed_from_title}"`,
-        by: `@${data.remixed_from_username}`, thumb: data.remixed_from_thumbnail,
-        color: "#a855f7", hint: "Upload your own video response. Your remix will credit the original creator.",
-      };
-    case "sound":
-      return {
-        emoji: "🎵", label: "Using Sound From", title: `"${data.sound_from_title}"`,
-        by: `@${data.sound_from_username}`, thumb: data.sound_from_thumbnail,
-        color: "#f97316", hint: "Upload your video. The original sound will be credited automatically.",
-      };
-    case "collab":
-      return {
-        emoji: "🤝", label: "Collabing With", title: `"${data.collab_with_title}"`,
-        by: `@${data.collab_with_username}`, thumb: data.collab_with_thumbnail,
-        color: "#06b6d4", hint: "Upload your side of the collab. Both creators will be credited.",
-      };
-    case "greenscreen":
-      return {
-        emoji: "💚", label: "Green Screen BG", title: `"${data.bg_reel_title}"`,
-        by: `@${data.bg_reel_username}`, thumb: data.bg_reel_thumbnail,
-        color: "#22c55e", hint: "Upload your video recorded against the green screen background.",
-      };
-    case "cut":
-      return {
-        emoji: "✂️", label: "Cutting From", title: `"${data.cut_from_title}"`,
-        by: `@${data.cut_from_username}`, thumb: data.cut_from_thumbnail,
-        color: "#f43f5e", hint: "Upload your edited cut. Original creator will be credited.",
-      };
-    default:
-      return null;
+    case "remix":       return { emoji: "🎬", label: "Remixing",        title: `"${data.remixed_from_title}"`, by: `@${data.remixed_from_username}`, thumb: data.remixed_from_thumbnail, color: "#a855f7", hint: "Upload your own video response. Your remix will credit the original creator." };
+    case "sound":       return { emoji: "🎵", label: "Using Sound From", title: `"${data.sound_from_title}"`,  by: `@${data.sound_from_username}`,    thumb: data.sound_from_thumbnail,    color: "#f97316", hint: "Upload your video. The original sound will be credited automatically." };
+    case "collab":      return { emoji: "🤝", label: "Collabing With",   title: `"${data.collab_with_title}"`, by: `@${data.collab_with_username}`,   thumb: data.collab_with_thumbnail,   color: "#06b6d4", hint: "Upload your side of the collab. Both creators will be credited." };
+    case "greenscreen": return { emoji: "💚", label: "Green Screen BG",  title: `"${data.bg_reel_title}"`,     by: `@${data.bg_reel_username}`,       thumb: data.bg_reel_thumbnail,       color: "#22c55e", hint: "Upload your video recorded against the green screen background." };
+    case "cut":         return { emoji: "✂️", label: "Cutting From",     title: `"${data.cut_from_title}"`,    by: `@${data.cut_from_username}`,      thumb: data.cut_from_thumbnail,      color: "#f43f5e", hint: "Upload your edited cut. Original creator will be credited." };
+    default:            return null;
   }
 };
 
 const VideoUpload = () => {
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  // ── Detect which feature (if any) was activated from Reels ──
   const { mode: featureMode, data: featureData } = resolveFeature(location.state);
   const isFeatureMode = !!featureMode;
   const banner        = featureBanner(featureMode, featureData);
   const defaults      = featureDefaults(featureMode, featureData);
-
-  // Legacy alias so existing remix-specific code still works
-  const remixData = featureMode === "remix" ? featureData : null;
+  const remixData     = featureMode === "remix" ? featureData : null;
 
   useEffect(() => {
     const user = localStorage.getItem("username");
     if (!user) navigate("/signup");
   }, []);
 
-  // Feature modes always default to reel upload
-  const [uploadMode, setUploadMode] = useState(isFeatureMode ? "reel" : "video");
+  const [uploadMode,      setUploadMode]      = useState(isFeatureMode ? "reel" : "video");
   const [showRecordModal, setShowRecordModal] = useState(false);
   const currentUser = localStorage.getItem("username") || "";
 
@@ -130,22 +75,22 @@ const VideoUpload = () => {
     description: defaults.description,
   });
 
-  const [loader, setLoader]               = useState(false);
-  const [thumbLoader, setThumbLoader]     = useState(false);
-  const [videoUploaded, setVideoUploaded] = useState(false);
-  const [imageUploaded, setImageUploaded] = useState(false);
-  const [submitted, setSubmitted]         = useState(false);
-  const [error, setError]                 = useState("");
-  const [saving, setSaving]               = useState(false);
-  const [thumbSource, setThumbSource]     = useState("");
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadSpeed, setUploadSpeed]     = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState("");
+  const [loader,          setLoader]          = useState(false);
+  const [thumbLoader,     setThumbLoader]     = useState(false);
+  const [videoUploaded,   setVideoUploaded]   = useState(false);
+  const [imageUploaded,   setImageUploaded]   = useState(false);
+  const [submitted,       setSubmitted]       = useState(false);
+  const [error,           setError]           = useState("");
+  const [saving,          setSaving]          = useState(false);
+  const [thumbSource,     setThumbSource]     = useState("");
+  const [uploadProgress,  setUploadProgress]  = useState(0);
+  const [uploadSpeed,     setUploadSpeed]     = useState(0);
+  const [timeRemaining,   setTimeRemaining]   = useState("");
 
-  const uploadStartTime    = useRef(null);
-  const uploadedBytesRef   = useRef(0);
-  const durationRef        = useRef("00:00");
-  const wakeLockRef        = useRef(null);
+  const uploadStartTime  = useRef(null);
+  const uploadedBytesRef = useRef(0);
+  const durationRef      = useRef("00:00");
+  const wakeLockRef      = useRef(null);
 
   const requestWakeLock = async () => {
     try {
@@ -159,7 +104,8 @@ const VideoUpload = () => {
 
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === "visible" && loader && wakeLockRef.current === null) await requestWakeLock();
+      if (document.visibilityState === "visible" && loader && wakeLockRef.current === null)
+        await requestWakeLock();
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -183,16 +129,16 @@ const VideoUpload = () => {
 
   const updateSpeedAndETA = (loadedBytes, totalBytes) => {
     if (!uploadStartTime.current) return;
-    const elapsed   = (Date.now() - uploadStartTime.current) / 1000;
+    const elapsed    = (Date.now() - uploadStartTime.current) / 1000;
     if (elapsed < 1) return;
-    const speedBps  = loadedBytes / elapsed;
-    const speedMBps = speedBps / (1024 * 1024);
-    const remaining = totalBytes - loadedBytes;
+    const speedBps   = loadedBytes / elapsed;
+    const speedMBps  = speedBps / (1024 * 1024);
+    const remaining  = totalBytes - loadedBytes;
     const remainSecs = remaining / speedBps;
     setUploadSpeed(speedMBps.toFixed(1));
-    if (remainSecs > 3600)     setTimeRemaining(`~${Math.ceil(remainSecs / 3600)}h remaining`);
-    else if (remainSecs > 60)  setTimeRemaining(`~${Math.ceil(remainSecs / 60)} min remaining`);
-    else                        setTimeRemaining(`~${Math.ceil(remainSecs)} sec remaining`);
+    if (remainSecs > 3600)    setTimeRemaining(`~${Math.ceil(remainSecs / 3600)}h remaining`);
+    else if (remainSecs > 60) setTimeRemaining(`~${Math.ceil(remainSecs / 60)} min remaining`);
+    else                       setTimeRemaining(`~${Math.ceil(remainSecs)} sec remaining`);
   };
 
   const getVideoDuration = (file) => new Promise((resolve) => {
@@ -215,8 +161,8 @@ const VideoUpload = () => {
   const captureThumbnail = (file) => new Promise((resolve, reject) => {
     const video  = document.createElement("video");
     const canvas = document.createElement("canvas");
-    video.preload   = "auto";
-    video.muted     = true;
+    video.preload    = "auto";
+    video.muted      = true;
     video.playsInline = true;
     video.crossOrigin = "anonymous";
     let settled = false;
@@ -267,10 +213,10 @@ const VideoUpload = () => {
   };
 
   const uploadToCloudinary = async (file) => {
-    const CLOUD_NAME   = "dwoqk0yue";
+    const CLOUD_NAME    = "dwoqk0yue";
     const UPLOAD_PRESET = "youtube-clone";
-    const CHUNK_SIZE   = 20 * 1024 * 1024;
-    const totalChunks  = Math.ceil(file.size / CHUNK_SIZE);
+    const CHUNK_SIZE    = 20 * 1024 * 1024;
+    const totalChunks   = Math.ceil(file.size / CHUNK_SIZE);
 
     if (file.size <= CHUNK_SIZE) {
       const videoData = new FormData();
@@ -287,9 +233,9 @@ const VideoUpload = () => {
     const uniqueUploadId = `uq_${Date.now()}`;
     let videoUrl = "", totalUploaded = 0;
     for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-      const start = chunkIndex * CHUNK_SIZE;
-      const end   = Math.min(start + CHUNK_SIZE, file.size);
-      const chunk = file.slice(start, end);
+      const start     = chunkIndex * CHUNK_SIZE;
+      const end       = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk     = file.slice(start, end);
       const chunkData = new FormData();
       chunkData.append("file", chunk);
       chunkData.append("upload_preset", UPLOAD_PRESET);
@@ -366,19 +312,23 @@ const VideoUpload = () => {
   const notifySubscribers = async (title, type) => {
     const uploaderUsername = localStorage.getItem("username");
     if (!uploaderUsername) return;
-    const { data: subUsers } = await supabase.from("subscriptions").select("subscriber_username").eq("subscribed_to", uploaderUsername);
+    const { data: subUsers } = await supabase
+      .from("subscriptions")
+      .select("subscriber_username")
+      .eq("subscribed_to", uploaderUsername);
     if (!subUsers || subUsers.length === 0) return;
-    const notifications = subUsers.filter((s) => s.subscriber_username).map((s) => ({
-      recipient_username: s.subscriber_username,
-      sender_username:    uploaderUsername,
-      type:               "upload",
-      message:            `${uploaderUsername} uploaded a new ${type}: "${title}"`,
-      is_read:            false,
-    }));
+    const notifications = subUsers
+      .filter((s) => s.subscriber_username)
+      .map((s) => ({
+        recipient_username: s.subscriber_username,
+        sender_username:    uploaderUsername,
+        type:               "upload",
+        message:            `${uploaderUsername} uploaded a new ${type}: "${title}"`,
+        is_read:            false,
+      }));
     if (notifications.length > 0) await supabase.from("notifications").insert(notifications);
   };
 
-  // ── Notify original creator for remix ──
   const notifyRemixedCreator = async (title) => {
     if (!remixData) return;
     const remixerUsername = localStorage.getItem("username");
@@ -391,7 +341,6 @@ const VideoUpload = () => {
     });
   };
 
-  // ── Notify original creator for other feature modes ──
   const notifyFeatureCreator = async (title) => {
     const senderUsername = localStorage.getItem("username");
     const notifMap = {
@@ -411,14 +360,35 @@ const VideoUpload = () => {
     });
   };
 
+  // ── handleSubmit — with moderation check INSIDE the function ──────────────
   const handleSubmit = async () => {
+    // ── Validation ──
     if (!inputField.title)       return setError("Please enter a title.");
     if (!inputField.description) return setError("Please enter a description.");
     if (!inputField.videoLink)   return setError("Please upload a video first.");
     if (uploadMode === "video" && !isFeatureMode && !inputField.videoType)
       return setError("Please enter a category.");
 
-    setSaving(true); setError("");
+    setSaving(true);
+    setError("");
+
+    // ── FIX: Moderation check is INSIDE handleSubmit, after validation ──────
+    try {
+      const { isClean, violatingWord } = await checkContent(
+        inputField.title,
+        inputField.description,
+        inputField.videoType || ""
+      );
+      if (!isClean) {
+        setSaving(false);
+        setError(`❌ Content violates community guidelines (contains "${violatingWord}"). Please review our Community Guidelines before uploading.`);
+        return;
+      }
+    } catch (moderationErr) {
+      // If moderation check itself fails, log but allow upload to continue
+      console.warn("Moderation check failed, proceeding:", moderationErr);
+    }
+    // ── End moderation check ─────────────────────────────────────────────────
 
     try {
       if (uploadMode === "video" && !isFeatureMode) {
@@ -448,7 +418,6 @@ const VideoUpload = () => {
           comments:    0,
         };
 
-        // Attach remix columns if this is a remix
         if (featureMode === "remix" && featureData) {
           reelPayload.remixed_from_id       = featureData.remixed_from_id;
           reelPayload.remixed_from_username = featureData.remixed_from_username;
@@ -457,12 +426,14 @@ const VideoUpload = () => {
         const { error: reelError } = await supabase.from("reels").insert([reelPayload]);
         if (reelError) throw new Error(reelError.message);
 
-        // Notify relevant creators
         if (featureMode === "remix") await notifyRemixedCreator(inputField.title);
         else if (featureMode)        await notifyFeatureCreator(inputField.title);
       }
 
-      await notifySubscribers(inputField.title, uploadMode === "reel" || isFeatureMode ? "reel" : "video");
+      await notifySubscribers(
+        inputField.title,
+        uploadMode === "reel" || isFeatureMode ? "reel" : "video"
+      );
       setSaving(false);
       setSubmitted(true);
     } catch (err) {
@@ -472,7 +443,6 @@ const VideoUpload = () => {
     }
   };
 
-  // ── Upload mode label helpers ──
   const uploadLabel = isFeatureMode
     ? (banner?.emoji + " " + banner?.label)
     : uploadMode === "reel" ? "Upload Reel" : "Upload Video";
@@ -525,7 +495,7 @@ const VideoUpload = () => {
           {isFeatureMode ? `${banner?.emoji} ${banner?.label}` : "Upload"}
         </div>
 
-        {/* ── Feature banner (remix / sound / collab / greenscreen / cut) ── */}
+        {/* ── Feature banner ── */}
         {isFeatureMode && banner && (
           <div className="upload_feature_banner" style={{ "--feature-color": banner.color }}>
             <img src={banner.thumb} alt="source" className="upload_feature_thumb" />
@@ -539,13 +509,13 @@ const VideoUpload = () => {
           </div>
         )}
 
-        {/* ── Mode toggle (only shown when no feature mode active) ── */}
+        {/* ── Mode toggle ── */}
         {!isFeatureMode && (
           <div className="upload_mode_toggle">
             <div className={`upload_mode_btn ${uploadMode === "video" ? "active" : ""}`} onClick={() => switchMode("video")}>🎬 Video</div>
             <div className={`upload_mode_btn ${uploadMode === "reel"  ? "active" : ""}`} onClick={() => switchMode("reel")}>📱 Shorts</div>
-            <div className="upload_mode_btn" onClick={() => setShowRecordModal(true)} style={{ position: "relative", cursor: "pointer" }}>
-              <span style={{ position: "absolute", top: "-4px", right: "-4px", width: "8px", height: "8px", borderRadius: "50%", background: "#ff0000", animation: "recordPulse 1.2s infinite" }} />
+            <div className="upload_mode_btn" onClick={() => setShowRecordModal(true)} style={{ position:"relative", cursor:"pointer" }}>
+              <span style={{ position:"absolute", top:"-4px", right:"-4px", width:"8px", height:"8px", borderRadius:"50%", background:"#ff0000", animation:"recordPulse 1.2s infinite" }} />
               🔴 Record / Live
             </div>
           </div>
@@ -561,9 +531,7 @@ const VideoUpload = () => {
         `}</style>
 
         {/* Hint text */}
-        {isFeatureMode && banner?.hint && (
-          <p className="upload_mode_hint">{banner.hint}</p>
-        )}
+        {isFeatureMode && banner?.hint && <p className="upload_mode_hint">{banner.hint}</p>}
         {!isFeatureMode && uploadMode === "reel" && (
           <p className="upload_mode_hint">Reels are short vertical videos — they appear in the Reels / Shorts section.</p>
         )}
@@ -599,7 +567,7 @@ const VideoUpload = () => {
             <span className="upload_file_label">
               {isFeatureMode ? `${banner?.emoji} Your Video` : uploadMode === "reel" ? "Reel Video" : "Video"}
             </span>
-            <input type="file" accept="video/mp4,video/webm,video/*" onChange={uploadVideo} style={{ display: "none" }} id="videoInput" />
+            <input type="file" accept="video/mp4,video/webm,video/*" onChange={uploadVideo} style={{ display:"none" }} id="videoInput" />
             <span className="upload_file_btn" onClick={() => document.getElementById("videoInput").click()}>
               {videoUploaded ? "✅ Change Video" : "🎬 Choose Video"}
             </span>
@@ -609,20 +577,20 @@ const VideoUpload = () => {
           <div className="upload_file_row">
             <span className="upload_file_label">
               Thumbnail
-              <span style={{ color: "#888", fontSize: "0.75rem", marginLeft: "6px" }}>(optional)</span>
+              <span style={{ color:"#888", fontSize:"0.75rem", marginLeft:"6px" }}>(optional)</span>
             </span>
-            <input type="file" accept="image/*" onChange={uploadManualThumbnail} style={{ display: "none" }} id="thumbnailInput" />
+            <input type="file" accept="image/*" onChange={uploadManualThumbnail} style={{ display:"none" }} id="thumbnailInput" />
             <span className="upload_file_btn" onClick={() => document.getElementById("thumbnailInput").click()}>
               {imageUploaded ? "✅ Change Thumbnail" : "📷 Choose Image"}
             </span>
-            {thumbLoader && <CircularProgress size={20} sx={{ color: "orange", ml: 1 }} />}
+            {thumbLoader && <CircularProgress size={20} sx={{ color:"orange", ml:1 }} />}
           </div>
 
           {/* Thumbnail preview */}
           {inputField.thumbnail && (
             <div className="upload_thumb_row">
               <img src={inputField.thumbnail} alt="Thumbnail preview" className="upload_thumb_preview" />
-              <span style={{ color: "#888", fontSize: "0.78rem", marginTop: "4px" }}>
+              <span style={{ color:"#888", fontSize:"0.78rem", marginTop:"4px" }}>
                 {thumbSource === "manual" ? "✏️ Custom thumbnail" : "🎞️ Auto-captured from video"}
               </span>
             </div>
@@ -630,19 +598,19 @@ const VideoUpload = () => {
 
           {/* Upload progress */}
           {loader && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <CircularProgress size={28} sx={{ color: "orange" }} />
-                <span style={{ color: "#aaa", fontSize: "0.9rem" }}>☁️ Uploading to Zixplon...</span>
+            <Box sx={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
+              <Box sx={{ display:"flex", alignItems:"center", gap:"12px" }}>
+                <CircularProgress size={28} sx={{ color:"orange" }} />
+                <span style={{ color:"#aaa", fontSize:"0.9rem" }}>☁️ Uploading to Zixplon...</span>
               </Box>
-              <div style={{ width: "100%", background: "#333", borderRadius: "8px", height: "8px" }}>
-                <div style={{ width: `${uploadProgress}%`, background: "orange", height: "100%", borderRadius: "8px", transition: "width 0.3s" }} />
+              <div style={{ width:"100%", background:"#333", borderRadius:"8px", height:"8px" }}>
+                <div style={{ width:`${uploadProgress}%`, background:"orange", height:"100%", borderRadius:"8px", transition:"width 0.3s" }} />
               </div>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ color: "#666", fontSize: "0.8rem" }}>
+              <Box sx={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span style={{ color:"#666", fontSize:"0.8rem" }}>
                   {uploadProgress}% complete{uploadSpeed > 0 ? ` • ${uploadSpeed} MB/s` : ""}
                 </span>
-                {timeRemaining && <span style={{ color: "orange", fontSize: "0.8rem", fontWeight: 500 }}>⏱ {timeRemaining}</span>}
+                {timeRemaining && <span style={{ color:"orange", fontSize:"0.8rem", fontWeight:500 }}>⏱ {timeRemaining}</span>}
               </Box>
             </Box>
           )}

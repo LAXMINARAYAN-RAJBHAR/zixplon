@@ -7,6 +7,8 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import useViewTracker from "../../Component/Reels/useViewTracker";
 import { logHistory } from "../History/History";
+import useNetworkQuality from "../../hooks/useNetworkQuality";
+import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
 
 // ── Relative time helper ──────────────────────────────────────────────────────
 const timeAgo = (dateStr) => {
@@ -673,6 +675,9 @@ const Video = ({ sideNavbar }) => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [videoMeta, setVideoMeta] = useState(null);
 
+  // ── Adaptive resolution based on real-time network conditions ─────────────
+  const quality = useNetworkQuality();
+
   // ── Mobile: tap video to toggle overlay visibility ────────────────────────
   const [isMobile, setIsMobile] = useState(false);
   const [mobileOverlayVisible, setMobileOverlayVisible] = useState(true);
@@ -998,6 +1003,21 @@ const Video = ({ sideNavbar }) => {
     scrollToTopDeferred();
   }, [id]);
 
+  // ── Reload the player when detected network quality changes, so an
+  //    already-playing video actually steps up/down resolution instead of
+  //    only affecting the next video that loads. Only applies to Cloudinary
+  //    sources — external demo URLs have no alternate resolutions anyway. ──
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid || !video?.src?.includes("cloudinary.com")) return;
+    const wasPlaying = !vid.paused;
+    const resumeTime = vid.currentTime;
+    vid.load();
+    vid.currentTime = resumeTime;
+    if (wasPlaying) vid.play().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quality]);
+
   if (dbLoading) {
     return (
       <div
@@ -1172,13 +1192,17 @@ const Video = ({ sideNavbar }) => {
             preload="metadata"
             poster={video.thumbnail}
           >
-            {/* Force mp4 format for Cloudinary — Chrome 66 needs explicit mp4 */}
+            {/* Force mp4 format for Cloudinary — Chrome 66 needs explicit mp4.
+                getAdaptiveVideoSrc injects a resolution/quality transform for
+                Cloudinary-hosted sources based on live network conditions;
+                non-Cloudinary (hardcoded demo) URLs pass through unchanged. */}
             <source
-              src={
+              src={getAdaptiveVideoSrc(
                 video.src && video.src.includes("cloudinary.com")
                   ? video.src.replace(/\.(webm|mov|avi|mkv)(\?.*)?$/i, ".mp4")
-                  : video.src
-              }
+                  : video.src,
+                quality,
+              )}
               type="video/mp4"
             />
             Your browser does not support the video tag.

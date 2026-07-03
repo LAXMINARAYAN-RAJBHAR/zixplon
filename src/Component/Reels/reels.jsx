@@ -16,6 +16,8 @@ import { supabase } from "../../config/supabase";
 import useViewTracker from "./useViewTracker";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import ReportModal from "../Moderation/ReportModal";
+import useNetworkQuality from "../../hooks/useNetworkQuality";
+import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
 
 export const reelsData = [
   { id: "rc_1", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Jyoti", username: "jyoti", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
@@ -229,6 +231,9 @@ const ReelItem = ({ reel, allReels }) => {
   const [showMuteBtn, setShowMuteBtn]           = useState(true);
   const [showNewBadge, setShowNewBadge]         = useState(false); // "New" badge
   const [showReportModal, setShowReportModal]   = useState(false);
+
+  // ── Adaptive resolution based on real-time network conditions ─────────────
+  const quality = useNetworkQuality();
 
   // ✅ Re-evaluate New badge whenever reel object changes (e.g. after realtime insert)
   useEffect(() => {
@@ -495,6 +500,22 @@ const ReelItem = ({ reel, allReels }) => {
     };
   }, []);
 
+  // ── Reload the player when detected network quality changes, so a reel
+  //    already in view actually steps up/down resolution instead of only
+  //    affecting the next scroll. Only applies to Cloudinary sources —
+  //    hardcoded demo reels have no alternate resolutions anyway. ──────────
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !reel.src?.includes("cloudinary.com")) return;
+    const wasPlaying = !video.paused;
+    const resumeTime = video.currentTime;
+    video.load();
+    video.currentTime = resumeTime;
+    video.muted = globalMuted;
+    if (wasPlaying) video.play().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quality]);
+
   const flashIcon = () => {
     setShowIcon(true);
     clearTimeout(iconTimeoutRef.current);
@@ -605,7 +626,10 @@ const ReelItem = ({ reel, allReels }) => {
           <iframe className="reel_video" src={getEmbedUrl(reel.src)} frameBorder="0" allow="autoplay; fullscreen" allowFullScreen title={reel.title} />
         ) : (
           <video ref={videoRef} className="reel_video" loop muted={muted} playsInline poster={reel.thumbnail} controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} onClick={handleVideoClick}>
-            <source src={reel.src} type={getVideoType(reel.src)} />
+            {/* getAdaptiveVideoSrc injects a resolution/quality transform for
+                Cloudinary-hosted reels based on live network conditions;
+                non-Cloudinary (hardcoded demo) URLs pass through unchanged. */}
+            <source src={getAdaptiveVideoSrc(reel.src, quality)} type={getVideoType(reel.src)} />
             Your browser does not support this video.
           </video>
         )}

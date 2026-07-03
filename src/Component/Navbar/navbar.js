@@ -6,8 +6,6 @@ import SearchIcon from "@mui/icons-material/Search";
 import KeyboardVoiceIcon from "@mui/icons-material/KeyboardVoice";
 import VideoCallIcon from "@mui/icons-material/VideoCall";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
-import WhatshotIcon from "@mui/icons-material/Whatshot";
 import HistoryIcon from "@mui/icons-material/History";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Login from "../Login/login";
@@ -138,17 +136,6 @@ const CATEGORY_SUFFIXES = {
   ],
 };
 
-const TRENDING_GLOBAL = [
-  "minecraft survival series",
-  "ipl highlights today",
-  "lo fi hip hop beats",
-  "iphone 17 review",
-  "one piece episode 2025",
-  "india vs australia",
-  "best coding tips",
-  "viral street food",
-];
-
 const CATEGORY_LABELS = {
   music: "Music",
   gaming: "Gaming",
@@ -191,7 +178,6 @@ const getSuggestions = (q) => {
     return {
       items: [],
       category: null,
-      trending: [],
       history: _searchHistory.slice(0, HISTORY_DISPLAY_LIMIT),
     };
   let category = "default";
@@ -209,13 +195,10 @@ const getSuggestions = (q) => {
     tag,
     type: "suggestion",
   }));
-  const trending = TRENDING_GLOBAL.filter(
-    (t) => !t.toLowerCase().includes(q.toLowerCase()) && t !== q,
-  ).slice(0, 3);
   const historyMatches = _searchHistory
     .filter((h) => h.toLowerCase().includes(q.toLowerCase()) && h !== q)
     .slice(0, 2);
-  return { items, category, trending, history: historyMatches };
+  return { items, category, history: historyMatches };
 };
 
 const addToHistory = (q) => {
@@ -333,7 +316,6 @@ const Navbar = ({
   const [suggestionData, setSuggestionData] = useState({
     items: [],
     category: null,
-    trending: [],
     history: [],
   });
   const [showDropdown, setShowDropdown] = useState(false);
@@ -570,7 +552,6 @@ const Navbar = ({
       setSuggestionData({
         items: [],
         category: null,
-        trending: TRENDING_GLOBAL.slice(0, 4),
         history: _searchHistory.slice(0, HISTORY_DISPLAY_LIMIT),
       });
       setShowDropdown(true);
@@ -591,7 +572,6 @@ const Navbar = ({
   const allNavItems = [
     ...suggestionData.history.map((h) => ({ text: h, type: "history" })),
     ...suggestionData.items,
-    ...suggestionData.trending.map((t) => ({ text: t, type: "trending" })),
   ];
 
   const handleKeyDown = (e) => {
@@ -699,7 +679,6 @@ const Navbar = ({
   };
 
   const historyCount = suggestionData.history.length;
-  const suggCount = suggestionData.items.length;
 
   return (
     <div className="navbar">
@@ -804,7 +783,6 @@ const Navbar = ({
                 setSuggestionData({
                   items: [],
                   category: null,
-                  trending: TRENDING_GLOBAL.slice(0, 4),
                   history: _searchHistory.slice(0, HISTORY_DISPLAY_LIMIT),
                 });
               setShowDropdown(true);
@@ -821,7 +799,6 @@ const Navbar = ({
                 setSuggestionData({
                   items: [],
                   category: null,
-                  trending: TRENDING_GLOBAL.slice(0, 4),
                   history: _searchHistory.slice(0, HISTORY_DISPLAY_LIMIT),
                 });
                 setShowDropdown(true);
@@ -876,8 +853,7 @@ const Navbar = ({
         {/* ── Suggestions Dropdown ── */}
         {showDropdown &&
           (suggestionData.history.length > 0 ||
-            suggestionData.items.length > 0 ||
-            suggestionData.trending.length > 0) && (
+            suggestionData.items.length > 0) && (
             <div
               style={{
                 position: "absolute",
@@ -965,7 +941,7 @@ const Navbar = ({
                       </span>
                     </div>
                   ))}
-                  {(suggestionData.items.length > 0 || suggestionData.trending.length > 0) && (
+                  {suggestionData.items.length > 0 && (
                     <div style={{ height: "0.5px", background: "#2a2a2a", margin: "2px 0" }} />
                   )}
                 </>
@@ -1003,40 +979,6 @@ const Navbar = ({
                           <span style={{ color: "#aaa" }}>{item.displaySuffix}</span>
                         </span>
                         <TagBadge tag={item.tag} />
-                      </div>
-                    );
-                  })}
-                </>
-              )}
-
-              {suggestionData.trending.length > 0 && (
-                <>
-                  <div style={{ height: "0.5px", background: "#2a2a2a", margin: "4px 0" }} />
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px 4px", fontSize: "11px", color: "#555", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                    <WhatshotIcon sx={{ fontSize: "13px", color: "#ff7066" }} />
-                    Trending now
-                  </div>
-                  {suggestionData.trending.map((t, i) => {
-                    const flatIdx = historyCount + suggCount + i;
-                    return (
-                      <div
-                        key={`trend-${i}`}
-                        onMouseDown={() => doSearch(t)}
-                        onMouseEnter={() => setActiveIndex(flatIdx)}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          padding: "9px 14px",
-                          cursor: "pointer",
-                          background: activeIndex === flatIdx ? "#2a2a2a" : "transparent",
-                          transition: "background 0.15s",
-                          color: "#ccc",
-                          fontSize: "14px",
-                        }}
-                      >
-                        <TrendingUpIcon sx={{ fontSize: "17px", color: "#ff7066" }} />
-                        <span>{t}</span>
                       </div>
                     );
                   })}

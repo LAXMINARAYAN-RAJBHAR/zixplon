@@ -580,6 +580,8 @@ const SearchResults = () => {
   const playerRef = useRef(null);
   const resultsRef = useRef(youtubeResults);
   const indexRef = useRef(selectedVideoIndex);
+  const lastSearchedQueryRef = useRef(null);
+  const initializedVideoIdRef = useRef(null);
 
   useEffect(() => {
     autoplayRef.current = autoplay;
@@ -602,11 +604,24 @@ const SearchResults = () => {
 
   // Init/reinit YT Player whenever selectedVideo changes
   useEffect(() => {
-    if (!selectedVideo) return;
+    if (!selectedVideo) {
+      initializedVideoIdRef.current = null;
+      return;
+    }
+
+    // Guard: if a player already exists and is already showing this exact
+    // video, don't tear it down and rebuild it — that's what causes the
+    // "video restarts from 0:00" symptom.
+    if (initializedVideoIdRef.current === selectedVideo && playerRef.current) {
+      return;
+    }
 
     let pollInterval = null;
+    let cancelled = false;
 
     const initPlayer = () => {
+      if (cancelled) return;
+
       if (playerRef.current) {
         try {
           playerRef.current.destroy();
@@ -626,26 +641,22 @@ const SearchResults = () => {
         height: window.innerWidth < 768 ? "220" : "500",
         width: "100%",
         videoId: selectedVideo,
-        playerVars: { autoplay: 1, rel: 0, enablejsapi: 1 },
+        playerVars: {
+          autoplay: 1,
+          rel: 0,
+          enablejsapi: 1,
+          origin: window.location.origin,
+        },
         events: {
           onReady: () => {
-            pollInterval = setInterval(() => {
-              if (!playerRef.current) return;
-              try {
-                const state = playerRef.current.getPlayerState();
-                if (state === 0 && autoplayRef.current) {
-                  clearInterval(pollInterval);
-                  const n = indexRef.current + 1;
-                  if (n < resultsRef.current.length) {
-                    openVideo(resultsRef.current[n], n);
-                  }
-                }
-              } catch (e) {}
-            }, 1000);
+            initializedVideoIdRef.current = selectedVideo;
           },
+          // Rely solely on onStateChange for "ended" detection. Running a
+          // second 1s-poll alongside it created a race where both paths
+          // could fire close together and call openVideo() twice for the
+          // same transition, which is what triggered the visible "restart".
           onStateChange: (event) => {
             if (event.data === 0 && autoplayRef.current) {
-              clearInterval(pollInterval);
               const n = indexRef.current + 1;
               if (n < resultsRef.current.length) {
                 openVideo(resultsRef.current[n], n);
@@ -663,21 +674,21 @@ const SearchResults = () => {
     }
 
     return () => {
+      cancelled = true;
       clearInterval(pollInterval);
-      if (playerRef.current) {
-        try {
-          playerRef.current.destroy();
-        } catch (e) {}
-        playerRef.current = null;
-      }
     };
   }, [selectedVideo]);
 
-  // Re-run on every hash/location change
+  // Re-run only when the actual search query text changes — not on every
+  // location.key change. Previously this reset selectedVideo to null (and
+  // refetched everything) any time location.key changed for any reason,
+  // even while a video was open, which could interrupt/reset playback.
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const q = params.get("q") || "";
     if (!q) return;
+    if (q === lastSearchedQueryRef.current) return;
+    lastSearchedQueryRef.current = q;
     setQuery(q);
     setSelectedVideo(null);
     setSelectedVideoIndex(null);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./profile.css";
 import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
@@ -61,6 +61,108 @@ const PRIVACY_OPTIONS = [
   { value: "only_me", label: "Only me", icon: "🔒" },
 ];
 
+// ─── Action Menu (⋮) ────────────────────────────────────────────────────────
+// Single reusable "three dots" menu that replaces separate Edit / Delete
+// buttons across Videos, Reels, and Posts. variant="dark" is for overlay use
+// on top of thumbnails; variant="light" is for use inside light post cards.
+const ActionMenu = ({ onEdit, onDelete, variant = "dark", extraActions = [] }) => {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false);
+    };
+    const handleKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  const isDark = variant === "dark";
+
+  return (
+    <div ref={menuRef} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen((v) => !v); }}
+        title="More options"
+        aria-label="More options"
+        style={{
+          background: isDark ? "rgba(0,0,0,0.65)" : "rgba(124,58,237,0.12)",
+          border: isDark ? "none" : "1px solid rgba(124,58,237,0.3)",
+          color: isDark ? "white" : "#a78bfa",
+          borderRadius: "8px",
+          width: "28px",
+          height: "28px",
+          cursor: "pointer",
+          fontSize: "18px",
+          lineHeight: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        ⋮
+      </button>
+
+      {open && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            top: "34px",
+            right: 0,
+            background: "#212121",
+            border: "1px solid #444",
+            borderRadius: "10px",
+            overflow: "hidden",
+            zIndex: 50,
+            minWidth: "140px",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.45)",
+          }}
+        >
+          {onEdit && (
+            <button
+              onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(false); onEdit(); }}
+              style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", background: "none", border: "none", color: "#e0e0e0", padding: "10px 14px", fontSize: "13px", cursor: "pointer", textAlign: "left" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              ✏️ Edit
+            </button>
+          )}
+          {extraActions.map((action, i) => (
+            <button
+              key={i}
+              onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(false); action.onClick(); }}
+              style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", background: "none", border: "none", color: "#e0e0e0", padding: "10px 14px", fontSize: "13px", cursor: "pointer", textAlign: "left", borderTop: "1px solid #333" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              {action.icon} {action.label}
+            </button>
+          ))}
+          {onDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(false); onDelete(); }}
+              style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", background: "none", border: "none", color: "#ff6666", padding: "10px 14px", fontSize: "13px", cursor: "pointer", textAlign: "left", borderTop: "1px solid #333" }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#2a2a2a")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              🗑️ Delete
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Lightbox ─────────────────────────────────────────────────────────────────
 const Lightbox = ({ images, startIndex = 0, onClose }) => {
   const [index, setIndex] = useState(startIndex);
@@ -96,8 +198,8 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
 };
 
 // ─── Profile Post Card ────────────────────────────────────────────────────────
-// FIX: added `onEdit` prop + an "✏️ Edit" button (owner-only, next to Delete)
-// so posts can now be edited from the profile page, not just deleted.
+// UPDATED: replaced the separate Edit + Delete buttons with a single
+// three-dot ActionMenu (owner-only), matching Videos and Reels.
 const ProfilePostCard = ({ post, isOwner, onDelete, onEdit }) => {
   const [lightboxData, setLightboxData] = useState(null);
   const [showComments, setShowComments] = useState(false);
@@ -138,13 +240,12 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit }) => {
             </div>
           </div>
           {isOwner && (
-            <div style={{ marginLeft:"auto", display:"flex", gap:"8px" }}>
-              <button onClick={() => onEdit(post)} title="Edit post" style={{ background:"rgba(124,58,237,0.15)", border:"1px solid rgba(124,58,237,0.35)", color:"#a78bfa", borderRadius:"8px", padding:"4px 10px", fontSize:"12px", cursor:"pointer" }}>
-                ✏️ Edit
-              </button>
-              <button onClick={() => onDelete(post.id)} title="Delete post" style={{ background:"rgba(200,0,0,0.15)", border:"1px solid rgba(200,0,0,0.3)", color:"#ff6666", borderRadius:"8px", padding:"4px 10px", fontSize:"12px", cursor:"pointer" }}>
-                🗑️ Delete
-              </button>
+            <div style={{ marginLeft:"auto" }}>
+              <ActionMenu
+                variant="dark"
+                onEdit={() => onEdit(post)}
+                onDelete={() => onDelete(post.id)}
+              />
             </div>
           )}
         </div>
@@ -304,9 +405,7 @@ const Profile = ({ sideNavbar }) => {
   const [editContentLoading, setEditContentLoading]         = useState(false);
   const [editContentSaving, setEditContentSaving]           = useState(false);
 
-  // ── NEW: Edit Post state ──
-  // editPostTarget holds the full post object being edited so we can
-  // read its id + pre-fill the modal fields.
+  // ── Edit Post state ──
   const [editPostTarget, setEditPostTarget]   = useState(null);
   const [editPostText, setEditPostText]       = useState("");
   const [editPostFeeling, setEditPostFeeling] = useState("");
@@ -439,7 +538,6 @@ const Profile = ({ sideNavbar }) => {
             id:          `db_${r.id}`,
             dbId:        r.id,
             src:         r.video_url,
-            // FIX: fallback thumbnail ensures portrait placeholder is always set
             thumbnail:   r.thumbnail || `https://picsum.photos/seed/${r.id}/200/350`,
             title:       r.title       || "Untitled",
             duration:    r.duration    || "00:00",
@@ -451,8 +549,6 @@ const Profile = ({ sideNavbar }) => {
           }))
         );
 
-        // FIX: store counts with the SAME key format used during display: `db_${r.id}`
-        // Previously views used `db_${r.id}` but likes used `String(r.id)` — now both consistent
         const ids = rData.map((r) => `db_${r.id}`);
         const [{ data: rLikes }, { data: rViews }] = await Promise.all([
           supabase.from("likes").select("content_id").eq("content_type", "reel").in("content_id", ids),
@@ -461,7 +557,6 @@ const Profile = ({ sideNavbar }) => {
         const counts = {};
         ids.forEach((id) => {
           counts[id] = {
-            // FIX: both match the `db_${r.id}` key format stored in the likes/views tables
             likes: rLikes?.filter((l) => l.content_id === id).length || 0,
             views: rViews?.filter((v) => v.content_id === id).length || 0,
           };
@@ -558,8 +653,7 @@ const Profile = ({ sideNavbar }) => {
     setUserPosts((prev) => prev.filter((p) => p.id !== postId));
   };
 
-  // ── NEW: Edit Post handlers ──
-  // openEditPost pre-fills the modal from the post being edited.
+  // ── Edit Post handlers ──
   const openEditPost = (post) => {
     setEditPostTarget(post);
     setEditPostText(post.text || "");
@@ -576,16 +670,10 @@ const Profile = ({ sideNavbar }) => {
     setEditPostError("");
   };
 
-  // Saves text/feeling/privacy changes to Supabase, then updates local state
-  // so the card re-renders immediately without a full refetch. Images and
-  // links are left as-is here — editing those would need re-running the
-  // Cloudinary upload flow from PostComposer, which is out of scope for a
-  // quick text/feeling/privacy edit.
   const handleSaveEditPost = async () => {
     if (!editPostTarget) return;
     const newText = editPostText.trim();
 
-    // A post needs at least text, an image, or a link — mirror PostComposer's canPost check
     const hasImages = editPostTarget.image_urls?.length > 0 || editPostTarget.image_url;
     if (!newText && !hasImages && !editPostTarget.link) {
       setEditPostError("Post can't be empty.");
@@ -603,7 +691,7 @@ const Profile = ({ sideNavbar }) => {
           privacy: editPostPrivacy,
         })
         .eq("id", editPostTarget.id)
-        .eq("username", key); // ensures only the owner's own post row can be updated
+        .eq("username", key);
 
       if (error) throw error;
 
@@ -833,10 +921,13 @@ const Profile = ({ sideNavbar }) => {
                         </div>
                       </Link>
                       {isEditableVideo && (
-                        <>
-                          <button onClick={(e) => { e.preventDefault(); openEditContent("video", video); }} title="Edit video" style={editBtn}>✏️</button>
-                          <button onClick={(e) => { e.preventDefault(); confirmDelete("video", video.id, null, video.title); }} title="Delete video" style={deleteBtn}>🗑️</button>
-                        </>
+                        <div style={{ position:"absolute", top:"6px", right:"6px", zIndex:10 }}>
+                          <ActionMenu
+                            variant="dark"
+                            onEdit={() => openEditContent("video", video)}
+                            onDelete={() => confirmDelete("video", video.id, null, video.title)}
+                          />
+                        </div>
                       )}
                     </div>
                   );
@@ -857,15 +948,8 @@ const Profile = ({ sideNavbar }) => {
                         onClick={() => navigate("/reels", { state: { clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 } } })}>
 
                         {/*
-                          FIX: Use the padding-top percentage hack instead of the CSS
-                          `aspect-ratio` property. Some embedded/older WebViews (TV
-                          boxes, low-end Android browsers) do not support `aspect-ratio`.
-                          When unsupported, the container collapses to height:0, and the
-                          absolutely-positioned image inside falls back to its natural
-                          intrinsic size — which is what caused the oversized, screen-
-                          overflowing reel thumbnail. padding-top:% is supported
-                          everywhere and reliably reserves a 9:16 portrait box based on
-                          the element's own width, with no dependency on aspect-ratio.
+                          Use the padding-top percentage hack instead of the CSS
+                          `aspect-ratio` property for older/embedded WebView support.
                         */}
                         <div
                           className="profileVideo_block_thumbnail"
@@ -874,7 +958,7 @@ const Profile = ({ sideNavbar }) => {
                             width:       "100%",
                             paddingTop:  "177.78%", // 16/9 * 100 → reserves a 9:16 portrait box
                             overflow:    "hidden",
-                            background:  "#1e1b4b",  // dark fallback while image loads
+                            background:  "#1e1b4b",
                           }}
                         >
                           <img
@@ -886,12 +970,11 @@ const Profile = ({ sideNavbar }) => {
                               left:        0,
                               width:       "100%",
                               height:      "100%",
-                              objectFit:  "cover",   // ← crops/fits without stretching
+                              objectFit:  "cover",
                               display:    "block",
                               transition: "transform 0.25s",
                             }}
                             onError={(e) => {
-                              // Fallback to a portrait placeholder if thumbnail fails
                               e.target.src = `https://picsum.photos/seed/${reel.dbId || reel.id}/200/350`;
                             }}
                           />
@@ -903,19 +986,19 @@ const Profile = ({ sideNavbar }) => {
                           <div className="profileVideo_block_detai_name">{reel.title}</div>
                           <div className="profileVideo_block_detai_about">{reel.description}</div>
                           <div style={{ color:"var(--zx-text3)", fontSize:"12px", marginTop:"4px", display:"flex", gap:"10px" }}>
-                            {/*
-                              Both views AND likes use the SAME key: `db_${reel.dbId}`
-                            */}
                             <span>👁 {reelCounts[`db_${reel.dbId}`]?.views ?? 0}</span>
                             <span>👍 {reelCounts[`db_${reel.dbId}`]?.likes ?? 0}</span>
                           </div>
                         </div>
                       </div>
                       {isEditableReel && (
-                        <>
-                          <button onClick={(e) => { e.stopPropagation(); openEditContent("reel", reel); }} title="Edit reel" style={editBtn}>✏️</button>
-                          <button onClick={(e) => { e.stopPropagation(); confirmDelete("reel", reel.id, reel.dbId, reel.title); }} title="Delete reel" style={deleteBtn}>🗑️</button>
-                        </>
+                        <div style={{ position:"absolute", top:"6px", right:"6px", zIndex:10 }}>
+                          <ActionMenu
+                            variant="dark"
+                            onEdit={() => openEditContent("reel", reel)}
+                            onDelete={() => confirmDelete("reel", reel.id, reel.dbId, reel.title)}
+                          />
+                        </div>
                       )}
                     </div>
                   );
@@ -1056,7 +1139,7 @@ const Profile = ({ sideNavbar }) => {
         </div>
       )}
 
-      {/* ── NEW: Edit Post Modal ── */}
+      {/* ── Edit Post Modal ── */}
       {editPostTarget && (
         <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.85)", zIndex:999999, display:"flex", alignItems:"center", justifyContent:"center" }}
           onClick={(e) => e.target === e.currentTarget && closeEditPost()}>
@@ -1065,8 +1148,6 @@ const Profile = ({ sideNavbar }) => {
               ✏️ Edit Post
             </h2>
 
-            {/* Existing images/link stay as-is — shown as a read-only preview so
-                the user knows what's still attached to the post. */}
             {(editPostTarget.image_urls?.length > 0 || editPostTarget.image_url) && (
               <div style={{ display:"flex", gap:"6px", overflowX:"auto" }}>
                 {(editPostTarget.image_urls?.length > 0 ? editPostTarget.image_urls : [editPostTarget.image_url]).map((url, i) => (
@@ -1168,20 +1249,6 @@ const Profile = ({ sideNavbar }) => {
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
-};
-
-const deleteBtn = {
-  position:"absolute", top:"6px", right:"6px",
-  background:"rgba(200,0,0,0.85)", border:"none", borderRadius:"6px",
-  color:"white", fontSize:"14px", padding:"4px 7px",
-  cursor:"pointer", zIndex:10, lineHeight:1,
-};
-
-const editBtn = {
-  position:"absolute", top:"6px", right:"38px",
-  background:"rgba(124,58,237,0.85)", border:"none", borderRadius:"6px",
-  color:"white", fontSize:"14px", padding:"4px 7px",
-  cursor:"pointer", zIndex:10, lineHeight:1,
 };
 
 export default Profile;

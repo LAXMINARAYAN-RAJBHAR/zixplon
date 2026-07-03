@@ -94,6 +94,13 @@ const setGlobalMuted = (val) => {
   muteListeners.forEach((fn) => fn(val));
 };
 
+// Human-readable label shown in the corner badge for each quality tier
+const QUALITY_LABELS = {
+  low: "240p",
+  medium: "360p",
+  high: "720p HD",
+};
+
 // ─────────────────────────────────────────────────────────
 // "New" badge helpers
 // A reel is NEW if:
@@ -648,6 +655,34 @@ const ReelItem = ({ reel, allReels }) => {
             {muted ? <VolumeOffIcon sx={{ fontSize: 26 }} /> : <VolumeUpIcon sx={{ fontSize: 26 }} />}
             <span className="reel_mute_btn_label">{muted ? "Tap to unmute" : "Tap to mute"}</span>
           </button>
+        )}
+
+        {/* Resolution badge — only meaningful for Cloudinary sources,
+            since those are the ones that actually adapt to network speed.
+            Fades in/out together with the mute pill so it doesn't clutter
+            the view once the viewer has settled into the reel. */}
+        {!isYouTube(reel.src) && reel.src?.includes("cloudinary.com") && (
+          <div
+            style={{
+              position: "absolute",
+              top: "16px",
+              right: "16px",
+              background: "rgba(0,0,0,0.65)",
+              color: "#fff",
+              fontSize: "12px",
+              fontWeight: 700,
+              padding: "4px 10px",
+              borderRadius: "999px",
+              zIndex: 5,
+              opacity: showMuteBtn ? 1 : 0,
+              transition: "opacity 0.3s ease",
+              pointerEvents: "none",
+              fontFamily: "'Nunito', sans-serif",
+              letterSpacing: "0.3px",
+            }}
+          >
+            {QUALITY_LABELS[quality]}
+          </div>
         )}
 
         {/* ── Remix origin badge ── */}

@@ -55,6 +55,13 @@ const isUnsupportedFormat = (src) => {
   return ["avi", "wmv", "mkv", "flv"].includes(ext);
 };
 
+// Human-readable label shown in the corner badge for each quality tier
+const QUALITY_LABELS = {
+  low: "240p",
+  medium: "360p",
+  high: "720p HD",
+};
+
 const hardcodedVideos = [
   {
     id: "hc_7679",
@@ -1124,6 +1131,32 @@ const Video = ({ sideNavbar }) => {
               Next ⏭
             </button>
           </div>
+
+          {/* Resolution badge — only meaningful for Cloudinary sources,
+              since those are the ones that actually adapt to network speed */}
+          {video.src?.includes("cloudinary.com") && (
+            <div
+              style={{
+                position: "absolute",
+                top: "12px",
+                right: "12px",
+                background: "rgba(0,0,0,0.65)",
+                color: "#fff",
+                fontSize: "12px",
+                fontWeight: 700,
+                padding: "4px 10px",
+                borderRadius: "999px",
+                zIndex: 5,
+                opacity: overlayVisible ? 1 : 0,
+                transition: "opacity 0.3s ease",
+                pointerEvents: "none",
+                fontFamily: "'Nunito', sans-serif",
+                letterSpacing: "0.3px",
+              }}
+            >
+              {QUALITY_LABELS[quality]}
+            </div>
+          )}
 
           {isUnsupportedFormat(video.src) && !videoError && (
             <div

@@ -1080,7 +1080,7 @@ const SaveMenuButton = ({
         e.stopPropagation();
         // ← Use og URL so WhatsApp shows thumbnail preview
         const url = `https://zixplon-tawny.vercel.app/api/og?type=video&id=${videoId}`;
-
+        
         if (navigator.share) {
           navigator
             .share({
@@ -2320,11 +2320,6 @@ const HomePage = ({ sideNavbar }) => {
     };
   }, [loadWatchedIds]);
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // ✅ PERF FIX: incrementView now also bumps a fast counter column
-  // (view_count on videos/reels) via RPC, instead of relying solely on
-  // COUNT()-style aggregation from the raw `views` log at read time.
-  // ─────────────────────────────────────────────────────────────────────────
   const incrementView = async (contentId, contentType) => {
     const storageKey = `lastViewed_${contentType}_${contentId}`;
     const lastViewed = localStorage.getItem(storageKey);
@@ -2348,19 +2343,30 @@ const HomePage = ({ sideNavbar }) => {
         },
         { onConflict: "user_id,content_id,content_type" },
       );
-      // ✅ NEW: bump the fast counter column so future page loads don't
-      // need to re-aggregate the entire `views` table.
-      await supabase.rpc("increment_view_count", {
-        p_table: contentType === "video" ? "videos" : "reels",
-        p_id: String(contentId),
-      });
     } catch (_) {}
   };
 
-  // ✅ REMOVED: fetchViewCounts() that scanned raw `views` rows and
-  // tallied them client-side on every homepage load. View counts now
-  // come straight off the `view_count` column returned with each
-  // videos/reels query — see fetchDbVideos / fetchDbReels below.
+  const fetchViewCounts = async (ids, contentType) => {
+    if (!ids || !ids.length) return;
+    try {
+      const { data, error } = await supabase
+        .from("views")
+        .select("content_id")
+        .eq("content_type", contentType)
+        .in("content_id", ids.map(String));
+      const map = {};
+      ids.forEach((id) => {
+        map[contentType + "_" + id] = 0;
+      });
+      if (!error && data) {
+        data.forEach((r) => {
+          const k = contentType + "_" + r.content_id;
+          map[k] = (map[k] || 0) + 1;
+        });
+      }
+      setViewCounts((prev) => ({ ...prev, ...map }));
+    } catch (_) {}
+  };
 
   const options = [
     "All",
@@ -2406,14 +2412,10 @@ const HomePage = ({ sideNavbar }) => {
   useEffect(() => {
     const fetchDbVideos = async () => {
       setDbLoading(true);
-      // ✅ PERF FIX: added .limit(60) so the homepage doesn't pull the
-      // entire videos table on every load. Bump this or add pagination
-      // later if you need to surface older content.
       const { data, error } = await supabase
         .from("videos")
         .select("*")
-        .order("created_at", { ascending: false })
-        .limit(60);
+        .order("created_at", { ascending: false });
       if (!error && data) {
         const formatted = data.map((v) => ({
           id: v.id,
@@ -2424,29 +2426,33 @@ const HomePage = ({ sideNavbar }) => {
           channel: v.channel,
           username: v.username || v.channel?.toLowerCase() || "unknown",
           tags: [v.category || "All"],
-          // ✅ likes comes straight off the videos.likes column — this is
-          // already kept correct via the increment_likes/decrement_likes
-          // RPCs, so there's no need to re-derive it from the likes table
-          // on every load (that redundant query + client-side tally has
-          // been removed).
           likes: v.likes ?? 0,
-          // ✅ NEW: view_count comes straight off the videos.view_count
-          // column, kept correct via increment_view_count RPC.
-          view_count: v.view_count ?? 0,
           created_at: v.created_at || null,
         }));
-
-        setDbVideos(formatted);
-
-        // ✅ Populate viewCounts directly from the query results instead
-        // of firing a second query against the raw `views` table.
-        setViewCounts((prev) => {
-          const next = { ...prev };
-          formatted.forEach((v) => {
-            next["video_" + v.id] = v.view_count;
+        const videoIds = formatted.map((v) => String(v.id));
+        const { data: likesData } = await supabase
+          .from("likes")
+          .select("content_id")
+          .eq("content_type", "video")
+          .in("content_id", videoIds);
+        if (likesData) {
+          const likesMap = {};
+          likesData.forEach((row) => {
+            likesMap[row.content_id] = (likesMap[row.content_id] || 0) + 1;
           });
-          return next;
-        });
+          setDbVideos(
+            formatted.map((v) => ({
+              ...v,
+              likes: likesMap[String(v.id)] ?? v.likes ?? 0,
+            })),
+          );
+        } else {
+          setDbVideos(formatted);
+        }
+        fetchViewCounts(
+          formatted.map((v) => v.id),
+          "video",
+        );
       }
       setDbLoading(false);
     };
@@ -2469,14 +2475,10 @@ const HomePage = ({ sideNavbar }) => {
             username: v.username || v.channel?.toLowerCase() || "unknown",
             tags: [v.category || "All"],
             likes: v.likes ?? 0,
-            view_count: v.view_count ?? 0,
             created_at: v.created_at || null,
           };
           setDbVideos((prev) => [newVideo, ...prev]);
-          setViewCounts((prev) => ({
-            ...prev,
-            ["video_" + v.id]: v.view_count ?? 0,
-          }));
+          fetchViewCounts([v.id], "video");
           loadWatchedIds();
         },
       )
@@ -2493,12 +2495,10 @@ const HomePage = ({ sideNavbar }) => {
 
   useEffect(() => {
     const fetchDbReels = async () => {
-      // ✅ PERF FIX: added .limit(60), same reasoning as fetchDbVideos.
       const { data, error } = await supabase
         .from("reels")
         .select("*")
-        .order("created_at", { ascending: false })
-        .limit(60);
+        .order("created_at", { ascending: false });
       if (!error && data) {
         const formatted = data.map((r) => ({
           id: "db_" + r.id,
@@ -2514,21 +2514,13 @@ const HomePage = ({ sideNavbar }) => {
             (r.username || "user"),
           description: r.description || "",
           likes: r.likes ?? 0,
-          // ✅ NEW: view_count comes straight off the reels.view_count
-          // column, kept correct via increment_view_count RPC.
-          view_count: r.view_count ?? 0,
           created_at: r.created_at || null,
         }));
         setDbReels(formatted);
-
-        // ✅ Populate viewCounts directly instead of a second raw-row scan.
-        setViewCounts((prev) => {
-          const next = { ...prev };
-          formatted.forEach((r) => {
-            next["reel_" + r.id] = r.view_count;
-          });
-          return next;
-        });
+        fetchViewCounts(
+          formatted.map((r) => r.id),
+          "reel",
+        );
       }
     };
     fetchDbReels();
@@ -2554,14 +2546,10 @@ const HomePage = ({ sideNavbar }) => {
               (r.username || "user"),
             description: r.description || "",
             likes: r.likes || 0,
-            view_count: r.view_count ?? 0,
             created_at: r.created_at || null,
           };
           setDbReels((prev) => [newReel, ...prev]);
-          setViewCounts((prev) => ({
-            ...prev,
-            ["reel_" + newReel.id]: r.view_count ?? 0,
-          }));
+          fetchViewCounts([r.id], "reel");
           loadWatchedIds();
         },
       )

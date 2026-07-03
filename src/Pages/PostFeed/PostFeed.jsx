@@ -202,12 +202,14 @@ const PostFeed = ({ sideNavbar }) => {
     if (recipientUsernames.length === 0) return;
 
     const notifications = recipientUsernames.map((recipient) => ({
-      recipient_username: recipient,
-      sender_username: uploaderUsername,
-      type: "upload",
-      message: `${uploaderUsername} made a new post: "${post.text?.slice(0, 60) || "Check it out"}"`,
-      is_read: false,
-    }));
+  recipient_username: recipient,
+  sender_username: uploaderUsername,
+  type: "upload",
+  message: `${uploaderUsername} made a new post: "${post.text?.slice(0, 60) || "Check it out"}"`,
+  is_read: false,
+  content_id: post.id,
+  content_type: "post",
+}));
 
     await supabase.from("notifications").insert(notifications);
   };

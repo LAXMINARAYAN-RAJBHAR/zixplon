@@ -309,27 +309,76 @@ const VideoUpload = () => {
     } catch (err) { setThumbLoader(false); setError("Thumbnail upload failed. Please try again."); }
   };
 
-  const notifySubscribers = async (title, type) => {
+  // ─────────────────────────────────────────────────────────────────────────
+  // FIXED: notifySubscribers
+  //
+  // Two bugs fixed here:
+  //
+  // 1. The old query selected "subscriber_username" from "subscriptions",
+  //    but that column doesn't exist — the real columns are "subscriber_id"
+  //    and "subscribed_to". "subscriber_id" can hold either a UUID (current
+  //    accounts) or a legacy plain username (older rows), so we resolve
+  //    UUIDs to usernames via the "profiles" table before building
+  //    notification rows, same pattern already used in PostFeed.jsx.
+  //
+  // 2. content_id / content_type were never included on the inserted
+  //    notification rows, so every notification created here had those
+  //    columns as NULL — which is why clicking a notification in the
+  //    navbar/notifications page silently did nothing (handleNotificationClick
+  //    bails out early when contentId/contentType are missing). Both are
+  //    now required params and get written on every notification.
+  // ─────────────────────────────────────────────────────────────────────────
+  const notifySubscribers = async (title, type, contentId) => {
     const uploaderUsername = localStorage.getItem("username");
     if (!uploaderUsername) return;
-    const { data: subUsers } = await supabase
+
+    const { data: subRows } = await supabase
       .from("subscriptions")
-      .select("subscriber_username")
+      .select("subscriber_id")
       .eq("subscribed_to", uploaderUsername);
-    if (!subUsers || subUsers.length === 0) return;
-    const notifications = subUsers
-      .filter((s) => s.subscriber_username)
-      .map((s) => ({
-        recipient_username: s.subscriber_username,
-        sender_username:    uploaderUsername,
-        type:               "upload",
-        message:            `${uploaderUsername} uploaded a new ${type}: "${title}"`,
-        is_read:            false,
-      }));
+
+    if (!subRows || subRows.length === 0) return;
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidIds = [
+      ...new Set(subRows.filter((s) => uuidRegex.test(s.subscriber_id)).map((s) => s.subscriber_id)),
+    ];
+
+    let idToUsername = {};
+    if (uuidIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("id", uuidIds);
+      profilesData?.forEach((p) => {
+        if (p.username && p.username.trim()) idToUsername[p.id] = p.username;
+      });
+    }
+
+    const recipientUsernames = [
+      ...new Set(
+        subRows
+          .map((s) => (uuidRegex.test(s.subscriber_id) ? idToUsername[s.subscriber_id] : s.subscriber_id))
+          .filter(Boolean) // drops UUIDs that still couldn't be resolved
+      ),
+    ];
+
+    if (recipientUsernames.length === 0) return;
+
+    const notifications = recipientUsernames.map((recipient) => ({
+      recipient_username: recipient,
+      sender_username:    uploaderUsername,
+      type:                "upload",
+      message:             `${uploaderUsername} uploaded a new ${type}: "${title}"`,
+      is_read:             false,
+      content_id:          contentId, // ✅ now included
+      content_type:        type,      // ✅ "reel" or "video"
+    }));
+
     if (notifications.length > 0) await supabase.from("notifications").insert(notifications);
   };
 
-  const notifyRemixedCreator = async (title) => {
+  const notifyRemixedCreator = async (title, contentId) => {
     if (!remixData) return;
     const remixerUsername = localStorage.getItem("username");
     await supabase.from("notifications").insert({
@@ -338,10 +387,12 @@ const VideoUpload = () => {
       type:               "upload",
       message:            `@${remixerUsername} remixed your reel "${remixData.remixed_from_title}" with "${title}" 🎬`,
       is_read:            false,
+      content_id:         contentId, // ✅ so this notification is clickable too
+      content_type:       "reel",
     });
   };
 
-  const notifyFeatureCreator = async (title) => {
+  const notifyFeatureCreator = async (title, contentId) => {
     const senderUsername = localStorage.getItem("username");
     const notifMap = {
       sound:       { to: featureData?.sound_from_username,  msg: `@${senderUsername} used your sound in "${title}" 🎵` },
@@ -357,6 +408,8 @@ const VideoUpload = () => {
       type:               "upload",
       message:            notif.msg,
       is_read:            false,
+      content_id:         contentId, // ✅ so this notification is clickable too
+      content_type:       "reel",
     });
   };
 
@@ -393,17 +446,25 @@ const VideoUpload = () => {
     try {
       if (uploadMode === "video" && !isFeatureMode) {
         // ── Plain video upload ──
-        const { error: videoError } = await supabase.from("videos").insert([{
-          title:         inputField.title,
-          description:   inputField.description,
-          video_url:     inputField.videoLink,
-          thumbnail_url: inputField.thumbnail,
-          category:      inputField.videoType,
-          channel:       localStorage.getItem("username") || "Anonymous",
-          username:      localStorage.getItem("username") || "anonymous",
-          duration:      durationRef.current,
-        }]);
+        // FIX: added .select().single() so we get the new row's id back —
+        // needed to attach content_id to the upload notification below.
+        const { data: newVideo, error: videoError } = await supabase
+          .from("videos")
+          .insert([{
+            title:         inputField.title,
+            description:   inputField.description,
+            video_url:     inputField.videoLink,
+            thumbnail_url: inputField.thumbnail,
+            category:      inputField.videoType,
+            channel:       localStorage.getItem("username") || "Anonymous",
+            username:      localStorage.getItem("username") || "anonymous",
+            duration:      durationRef.current,
+          }])
+          .select()
+          .single();
         if (videoError) throw new Error(videoError.message);
+
+        await notifySubscribers(inputField.title, "video", newVideo.id);
       } else {
         // ── Reel / feature upload ──
         const reelPayload = {
@@ -423,17 +484,22 @@ const VideoUpload = () => {
           reelPayload.remixed_from_username = featureData.remixed_from_username;
         }
 
-        const { error: reelError } = await supabase.from("reels").insert([reelPayload]);
+        // FIX: added .select().single() so we get the new reel's id back —
+        // needed to attach content_id to the upload / remix / feature
+        // notifications below.
+        const { data: newReel, error: reelError } = await supabase
+          .from("reels")
+          .insert([reelPayload])
+          .select()
+          .single();
         if (reelError) throw new Error(reelError.message);
 
-        if (featureMode === "remix") await notifyRemixedCreator(inputField.title);
-        else if (featureMode)        await notifyFeatureCreator(inputField.title);
+        if (featureMode === "remix") await notifyRemixedCreator(inputField.title, newReel.id);
+        else if (featureMode)        await notifyFeatureCreator(inputField.title, newReel.id);
+
+        await notifySubscribers(inputField.title, "reel", newReel.id);
       }
 
-      await notifySubscribers(
-        inputField.title,
-        uploadMode === "reel" || isFeatureMode ? "reel" : "video"
-      );
       setSaving(false);
       setSubmitted(true);
     } catch (err) {

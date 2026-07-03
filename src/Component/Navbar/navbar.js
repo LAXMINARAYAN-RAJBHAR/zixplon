@@ -161,7 +161,30 @@ const CATEGORY_LABELS = {
   default: null,
 };
 
-let _searchHistory = [];
+// ─── Search history (persisted to localStorage, per-device) ───────────────────
+const HISTORY_KEY = "zx_search_history";
+const HISTORY_MAX_STORED = 20; // how many we keep in storage
+const HISTORY_DISPLAY_LIMIT = 10; // how many we show when the bar is clicked empty
+
+const loadHistory = () => {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveHistory = (arr) => {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
+  } catch {
+    // localStorage unavailable (private mode, quota, etc.) — fail silently
+  }
+};
+
+let _searchHistory = loadHistory();
 
 const getSuggestions = (q) => {
   if (!q.trim())
@@ -169,7 +192,7 @@ const getSuggestions = (q) => {
       items: [],
       category: null,
       trending: [],
-      history: _searchHistory.slice(0, 3),
+      history: _searchHistory.slice(0, HISTORY_DISPLAY_LIMIT),
     };
   let category = "default";
   for (const [cat, pattern] of Object.entries(CATEGORY_PATTERNS)) {
@@ -197,7 +220,21 @@ const getSuggestions = (q) => {
 
 const addToHistory = (q) => {
   if (!q.trim()) return;
-  _searchHistory = [q, ..._searchHistory.filter((h) => h !== q)].slice(0, 10);
+  _searchHistory = [q, ..._searchHistory.filter((h) => h !== q)].slice(
+    0,
+    HISTORY_MAX_STORED,
+  );
+  saveHistory(_searchHistory);
+};
+
+const removeFromHistory = (q) => {
+  _searchHistory = _searchHistory.filter((x) => x !== q);
+  saveHistory(_searchHistory);
+};
+
+const clearHistory = () => {
+  _searchHistory = [];
+  saveHistory(_searchHistory);
 };
 
 // ─── Tag badge ─────────────────────────────────────────────────────────────────
@@ -534,7 +571,7 @@ const Navbar = ({
         items: [],
         category: null,
         trending: TRENDING_GLOBAL.slice(0, 4),
-        history: _searchHistory.slice(0, 3),
+        history: _searchHistory.slice(0, HISTORY_DISPLAY_LIMIT),
       });
       setShowDropdown(true);
     }
@@ -768,7 +805,7 @@ const Navbar = ({
                   items: [],
                   category: null,
                   trending: TRENDING_GLOBAL.slice(0, 4),
-                  history: _searchHistory.slice(0, 3),
+                  history: _searchHistory.slice(0, HISTORY_DISPLAY_LIMIT),
                 });
               setShowDropdown(true);
             }}
@@ -785,7 +822,7 @@ const Navbar = ({
                   items: [],
                   category: null,
                   trending: TRENDING_GLOBAL.slice(0, 4),
-                  history: _searchHistory.slice(0, 3),
+                  history: _searchHistory.slice(0, HISTORY_DISPLAY_LIMIT),
                 });
                 setShowDropdown(true);
                 inputRef.current?.focus();
@@ -878,8 +915,23 @@ const Navbar = ({
 
               {suggestionData.history.length > 0 && (
                 <>
-                  <div style={{ fontSize: "11px", color: "#555", padding: "8px 14px 4px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                    Recent
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px 4px" }}>
+                    <span style={{ fontSize: "11px", color: "#555", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                      Recent
+                    </span>
+                    {!searchQuery.trim() && suggestionData.history.length > 0 && (
+                      <span
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          clearHistory();
+                          setSuggestionData((prev) => ({ ...prev, history: [] }));
+                        }}
+                        style={{ fontSize: "11px", color: "#3ea6ff", cursor: "pointer" }}
+                        title="Clear all recent searches"
+                      >
+                        Clear all
+                      </span>
+                    )}
                   </div>
                   {suggestionData.history.map((h, i) => (
                     <div
@@ -903,7 +955,7 @@ const Navbar = ({
                       <span
                         onMouseDown={(e) => {
                           e.stopPropagation();
-                          _searchHistory = _searchHistory.filter((x) => x !== h);
+                          removeFromHistory(h);
                           setSuggestionData(getSuggestions(searchQuery));
                         }}
                         style={{ marginLeft: "auto", color: "#444", fontSize: "16px", lineHeight: 1, cursor: "pointer", padding: "0 4px" }}

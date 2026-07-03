@@ -666,7 +666,7 @@ const ReelItem = ({ reel, allReels }) => {
             style={{
               position: "absolute",
               top: "16px",
-              right: "16px",
+              left: "16px",
               background: "rgba(0,0,0,0.65)",
               color: "#fff",
               fontSize: "12px",

@@ -803,3 +803,33 @@
     height: 14px !important;
   }
 }
+
+.video_frame_more_wrap {
+  position: relative;
+}
+
+.video_more_dropdown {
+  position: absolute;
+  top: 110%;
+  right: 0;
+  background: #1e1b4b;
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  border-radius: 10px;
+  min-width: 140px;
+  overflow: hidden;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.video_more_dropdown_item {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.video_more_dropdown_item:hover {
+  background: rgba(124, 58, 237, 0.25);
+}

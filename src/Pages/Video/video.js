@@ -3,12 +3,14 @@ import "./video.css";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbDownAltOutlinedIcon from "@mui/icons-material/ThumbDownAltOutlined";
 import ReplyIcon from "@mui/icons-material/Reply";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import useViewTracker from "../../Component/Reels/useViewTracker";
 import { logHistory } from "../History/History";
 import useNetworkQuality from "../../hooks/useNetworkQuality";
 import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
+import ReportModal from "../../Component/Moderation/ReportModal";
 
 // ── Relative time helper ──────────────────────────────────────────────────────
 const timeAgo = (dateStr) => {
@@ -682,6 +684,11 @@ const Video = ({ sideNavbar }) => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [videoMeta, setVideoMeta] = useState(null);
 
+  // ── More menu / Report ──────────────────────────────────────────────────
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const moreMenuRef = useRef(null);
+
   // ── Adaptive resolution based on real-time network conditions ─────────────
   const quality = useNetworkQuality();
 
@@ -727,6 +734,17 @@ const Video = ({ sideNavbar }) => {
     contentType: "video",
     isPlaying: isVideoPlaying,
   });
+
+  // ── Close the 3-dot "More" menu on outside click ───────────────────────
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const fetchDbVideos = async () => {
@@ -1007,6 +1025,7 @@ const Video = ({ sideNavbar }) => {
     setDisliked(false);
     setVideoError(false);
     setIsVideoPlaying(false);
+    setShowMoreMenu(false);
     scrollToTopDeferred();
   }, [id]);
 
@@ -1215,7 +1234,7 @@ const Video = ({ sideNavbar }) => {
             muted={false}
             playsInline
             crossOrigin="anonymous"
-            controlsList="nodownload"
+            controlsList="nodownload noplaybackrate"
             onContextMenu={(e) => e.preventDefault()}
             className="video_youtube_video"
             onPlay={() => setIsVideoPlaying(true)}
@@ -1241,7 +1260,7 @@ const Video = ({ sideNavbar }) => {
             Your browser does not support the video tag.
           </video>
 
-          {/* FLOATING LIKE / DISLIKE / SHARE
+          {/* FLOATING LIKE / DISLIKE / SHARE / MORE
               Desktop: fades in on hover via CSS
               Mobile:  .mobile-visible class keeps them always visible      */}
           <div
@@ -1277,6 +1296,35 @@ const Video = ({ sideNavbar }) => {
             >
               <ReplyIcon fontSize="small" style={{ transform: "scaleX(-1)" }} />
               <span>Share</span>
+            </div>
+
+            {/* ── 3-dot "More" menu → Report ── */}
+            <div
+              className="video_frame_more_wrap"
+              ref={moreMenuRef}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="video_frame_btn"
+                onClick={() => setShowMoreMenu((v) => !v)}
+                title="More"
+              >
+                <MoreVertIcon fontSize="small" />
+              </div>
+
+              {showMoreMenu && (
+                <div className="video_more_dropdown">
+                  <div
+                    className="video_more_dropdown_item"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      setShowReportModal(true);
+                    }}
+                  >
+                    🚩 Report
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1552,6 +1600,17 @@ const Video = ({ sideNavbar }) => {
           </Link>
         ))}
       </div>
+
+      {/* ── Report modal ── */}
+      {showReportModal && (
+        <ReportModal
+          contentType="video"
+          contentId={id}
+          contentTitle={video.title}
+          contentOwner={channelUsername}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
     </div>
   );
 };

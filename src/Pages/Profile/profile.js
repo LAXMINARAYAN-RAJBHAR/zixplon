@@ -4,7 +4,6 @@ import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { reelsData } from "../../Component/Reels/reels";
 import { supabase } from "../../config/supabase";
 
 const allVideos = [
@@ -62,9 +61,6 @@ const PRIVACY_OPTIONS = [
 ];
 
 // ─── Action Menu (⋮) ────────────────────────────────────────────────────────
-// Single reusable "three dots" menu that replaces separate Edit / Delete
-// buttons across Videos, Reels, and Posts. variant="dark" is for overlay use
-// on top of thumbnails; variant="light" is for use inside light post cards.
 const ActionMenu = ({ onEdit, onDelete, variant = "dark", extraActions = [] }) => {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
@@ -198,8 +194,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
 };
 
 // ─── Profile Post Card ────────────────────────────────────────────────────────
-// UPDATED: replaced the separate Edit + Delete buttons with a single
-// three-dot ActionMenu (owner-only), matching Videos and Reels.
 const ProfilePostCard = ({ post, isOwner, onDelete, onEdit }) => {
   const [lightboxData, setLightboxData] = useState(null);
   const [showComments, setShowComments] = useState(false);
@@ -507,11 +501,6 @@ const Profile = ({ sideNavbar }) => {
             }
           }
 
-          if (!foundUser) {
-            const reelUser = reelsData.find((r) => matchesKey(r.username, key));
-            if (reelUser) foundUser = { name: reelUser.user, username: reelUser.username, handle: `@${reelUser.username}`, profilePic: reelUser.profilePic || `https://api.dicebear.com/7.x/initials/svg?seed=${reelUser.user}`, about: `${reelUser.user}'s channel`, bannerPic: null, isOwner: false };
-          }
-
           setUser(foundUser || null);
         }
       }
@@ -596,10 +585,9 @@ const Profile = ({ sideNavbar }) => {
     loadProfile();
   }, [key]);
 
-  const hardcodedReels  = reelsData.filter((r) => r.username?.toLowerCase() === key);
   const hardcodedVideos = allVideos.filter((v) => v.channel?.toLowerCase() === key);
   const allUserVideos   = [...dbVideos, ...hardcodedVideos];
-  const allUserReels    = [...dbReels, ...hardcodedReels];
+  const allUserReels    = dbReels;
 
   const handleSubscribe = async () => {
     const currentUser   = localStorage.getItem("username") || "";
@@ -947,10 +935,6 @@ const Profile = ({ sideNavbar }) => {
                       <div className="profileVideo_block" style={{ cursor:"pointer" }}
                         onClick={() => navigate("/reels", { state: { clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 } } })}>
 
-                        {/*
-                          Use the padding-top percentage hack instead of the CSS
-                          `aspect-ratio` property for older/embedded WebView support.
-                        */}
                         <div
                           className="profileVideo_block_thumbnail"
                           style={{

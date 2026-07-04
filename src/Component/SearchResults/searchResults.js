@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
-import { reelsData } from "../Reels/reels"; // adjust path if needed
+import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
 
 // Local videos data (copy from HomePage or import from a shared file)
@@ -726,8 +726,28 @@ const SearchResults = () => {
 
     const lowerQ = q.toLowerCase();
 
+    // Fetch reels from Supabase (the hardcoded reelsData array no longer exists)
+    const { data: dbReelsRaw } = await supabase
+      .from("reels")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(300);
+
+    const allReelsData = (dbReelsRaw || []).map((r) => ({
+      id: `db_${r.id}`,
+      video: r.video_url,
+      thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99",
+      caption: r.title || r.description || "Untitled",
+      description: r.description || "",
+      tags: r.tags || [],
+      song: r.song || "",
+      user: r.user || r.username || "Unknown",
+      username: r.username || "unknown",
+      profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
+    }));
+
     // Search profiles
-    const matchedProfiles = reelsData.filter(
+    const matchedProfiles = allReelsData.filter(
       (r) =>
         r?.user?.toLowerCase().includes(lowerQ) ||
         r?.username?.toLowerCase().includes(lowerQ),
@@ -738,7 +758,7 @@ const SearchResults = () => {
     setProfileResults(uniqueProfiles);
 
     // Search reels
-    const matchedReels = reelsData.filter(
+    const matchedReels = allReelsData.filter(
       (r) =>
         r.caption?.toLowerCase().includes(lowerQ) ||
         r.tags?.some((tag) => tag.toLowerCase().includes(lowerQ)) ||

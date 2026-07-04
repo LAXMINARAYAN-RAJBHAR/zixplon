@@ -19,53 +19,9 @@ import ReportModal from "../Moderation/ReportModal";
 import useNetworkQuality from "../../hooks/useNetworkQuality";
 import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
 
-export const reelsData = [
-  { id: "rc_1", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Jyoti", username: "jyoti", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
-  { id: "rc_2", src: "https://www.w3schools.com/html/movie.mp4", user: "Laxminarayan", username: "laxminarayan", profilePic: "https://randomuser.me/api/portraits/women/2.jpg", thumbnail: "https://picsum.photos/200/350?random=2", title: "My Favourite Movie", duration: "0:53", description: "Another awesome reel 🎬", likes: 0 },
-  { id: "rc_3", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Anuradha", username: "anuradha", profilePic: "https://randomuser.me/api/portraits/men/3.jpg", thumbnail: "https://picsum.photos/200/350?random=3", title: "Funny Moments", duration: "0:32", description: "Beautiful Flower 🌸", likes: 0 },
-  { id: "rc_4", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Karthik", username: "karthik", profilePic: "https://randomuser.me/api/portraits/women/4.jpg", thumbnail: "https://picsum.photos/200/350?random=4", title: "Travel Vlog", duration: "0:53", description: "Friday Vibes 🎉", likes: 0 },
-  { id: "rc_5", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Shyamnarayan", username: "shyamnarayan", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_6", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Jaynarayan", username: "jaynarayan", profilePic: "https://randomuser.me/api/portraits/women/6.jpg", thumbnail: "https://picsum.photos/200/350?random=6", title: "Evening Vibes", duration: "0:53", description: "Sample Reel 🎥", likes: 0 },
-  { id: "rc_7", src: "https://www.w3schools.com/html/movie.mp4", user: "Gangeshwary", username: "gangeshwary", profilePic: "https://randomuser.me/api/portraits/men/7.jpg", thumbnail: "https://picsum.photos/200/350?random=7", title: "Morning Routine", duration: "0:32", description: "Cool Reel 🔥", likes: 0 },
-  { id: "rc_8", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Papa", username: "papa", profilePic: "https://randomuser.me/api/portraits/men/8.jpg", thumbnail: "https://picsum.photos/200/350?random=8", title: "Weekend Fun", duration: "0:53", description: "This is a cool reel 🔥", likes: 0 },
-  { id: "rc_9", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Mummy", username: "mummy", profilePic: "https://randomuser.me/api/portraits/women/9.jpg", thumbnail: "https://picsum.photos/200/350?random=9", title: "Kitchen Special", duration: "0:32", description: "Another awesome reel 🎬", likes: 0 },
-  { id: "rc_10", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Sandeep", username: "sandeep", profilePic: "https://randomuser.me/api/portraits/men/10.jpg", thumbnail: "https://picsum.photos/200/350?random=10", title: "City Life", duration: "0:53", description: "Beautiful Bulb", likes: 0 },
-  { id: "rc_11", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Mandeep", username: "mandeep", profilePic: "https://randomuser.me/api/portraits/men/10.jpg", thumbnail: "https://picsum.photos/200/350?random=10", title: "City Life", duration: "0:53", description: "Beautiful Bulb", likes: 0 },
-  { id: "rc_12", src: "https://www.w3schools.com/html/movie.mp4", user: "Tillu", username: "tillu", profilePic: "https://randomuser.me/api/portraits/men/10.jpg", thumbnail: "https://picsum.photos/200/350?random=10", title: "City Life", duration: "0:53", description: "Beautiful Bulb", likes: 0 },
-  { id: "rc_13", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Moti", username: "moti", profilePic: "https://randomuser.me/api/portraits/men/10.jpg", thumbnail: "https://picsum.photos/200/350?random=10", title: "City Life", duration: "0:53", description: "Beautiful Bulb", likes: 0 },
-  { id: "rc_14", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Reena", username: "reena", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
-  { id: "rc_15", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Seema", username: "seema", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
-  { id: "rc_16", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Bipin", username: "bipin", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
-  { id: "rc_17", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Vivek", username: "vivek", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
-  { id: "rc_18", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Sheru", username: "sheru", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
-  { id: "rc_19", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Jiyalal", username: "jiyalal", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
-  { id: "rc_20", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Hiralal", username: "hiralal", profilePic: "https://randomuser.me/api/portraits/men/1.jpg", thumbnail: "https://picsum.photos/200/350?random=1", title: "Big Buck Bunny", duration: "0:32", description: "This is a cool reel 🔥", likes: 0 },
-  { id: "rc_21", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Ramnayan", username: "ramnayan", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_22", src: "https://www.w3schools.com/html/movie.mp4", user: "Sunil", username: "sunil", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_23", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Kuneel", username: "kuneel", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_24", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Sonu", username: "sonu", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_25", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Monu", username: "monu", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_26", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Algu", username: "algu", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_27", src: "https://www.w3schools.com/html/movie.mp4", user: "Gyandeep", username: "gyandeep", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_28", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Sharmila", username: "sharmila", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_29", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Urmila", username: "urmila", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_30", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Ghanshyam", username: "ghanshyam", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_31", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Kapil", username: "kapil", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_32", src: "https://www.w3schools.com/html/movie.mp4", user: "Chandresh", username: "chandresh", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_33", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Kuldeep", username: "kuldeep", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_34", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Reela", username: "reela", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_35", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Sunita", username: "sunita", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_36", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Anita", username: "anita", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_37", src: "https://www.w3schools.com/html/movie.mp4", user: "Guddu", username: "guddu", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_38", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Kripal", username: "kripal", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_39", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Suresh", username: "suresh", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_40", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Dinanath", username: "dinanath", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_41", src: "https://www.w3schools.com/html/mov_bbb.mp4", user: "Gorakhnath", username: "gorakhnath", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_42", src: "https://www.w3schools.com/html/movie.mp4", user: "Shambhu", username: "shambhu", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_43", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", user: "Diwakar", username: "diwakar", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_44", src: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4", user: "Sudhakar", username: "sudhakar", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-  { id: "rc_45", src: "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4", user: "Prabhakar", username: "prabhakar", profilePic: "https://randomuser.me/api/portraits/men/5.jpg", thumbnail: "https://picsum.photos/200/350?random=5", title: "Nature Walk", duration: "0:32", description: "Unique Tea Making Procedure", likes: 0 },
-];
+// ── Only uploaded reels (from Supabase) are used anywhere in this file now.
+//    The hardcoded demo `reelsData` array has been removed — reels shown in
+//    the app come exclusively from the `reels` table via fetchDbReels below.
 
 const getVideoType = (src) => {
   if (!src) return "video/mp4";
@@ -104,7 +60,7 @@ const QUALITY_LABELS = {
 // ─────────────────────────────────────────────────────────
 // "New" badge helpers
 // A reel is NEW if:
-//   1. It's a db_ reel (not hardcoded)
+//   1. It's a db_ reel (i.e. an uploaded reel from Supabase)
 //   2. Not yet viewed (tracked in localStorage)
 //   3. Uploaded within last 7 days OR just arrived via realtime
 //
@@ -148,7 +104,7 @@ const markReelViewed = (id) => {
 
 const isNewReel = (reel) => {
   const id = String(reel.id);
-  // Static/hardcoded reels (rc_*) are never "new"
+  // Only uploaded reels (db_*) can ever be "new"
   if (!id.startsWith("db_")) return false;
   // Already viewed → not new
   if (getViewedReels().includes(id)) return false;
@@ -509,8 +465,7 @@ const ReelItem = ({ reel, allReels }) => {
 
   // ── Reload the player when detected network quality changes, so a reel
   //    already in view actually steps up/down resolution instead of only
-  //    affecting the next scroll. Only applies to Cloudinary sources —
-  //    hardcoded demo reels have no alternate resolutions anyway. ──────────
+  //    affecting the next scroll. Only applies to Cloudinary sources. ──────
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !reel.src?.includes("cloudinary.com")) return;
@@ -634,8 +589,7 @@ const ReelItem = ({ reel, allReels }) => {
         ) : (
           <video ref={videoRef} className="reel_video" loop muted={muted} playsInline poster={reel.thumbnail} controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} onClick={handleVideoClick}>
             {/* getAdaptiveVideoSrc injects a resolution/quality transform for
-                Cloudinary-hosted reels based on live network conditions;
-                non-Cloudinary (hardcoded demo) URLs pass through unchanged. */}
+                Cloudinary-hosted reels based on live network conditions. */}
             <source src={getAdaptiveVideoSrc(reel.src, quality)} type={getVideoType(reel.src)} />
             Your browser does not support this video.
           </video>
@@ -911,16 +865,8 @@ const Reels = () => {
     return () => supabase.removeChannel(reelsSub);
   }, []);
 
-  const baseReels = React.useMemo(() => {
-    const merged = [...dbReels, ...reelsData];
-    const seen   = new Set();
-    return merged.filter((r) => {
-      const key = String(r.id);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [dbReels]);
+  // ── Only uploaded reels — no hardcoded/static data merged in anymore.
+  const baseReels = React.useMemo(() => dbReels, [dbReels]);
 
   const allReels = React.useMemo(() => {
     if (id) {
@@ -965,6 +911,30 @@ const Reels = () => {
         <p style={{ color: "#aaa", fontSize: "14px" }}>Loading reels...</p>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
+    );
+  }
+
+  if (allReels.length === 0) {
+    return (
+      <>
+        <button className="reels_back_btn" onClick={handleBack} aria-label="Go back">
+          <ArrowBackIosNewIcon style={{ fontSize: 18 }} />
+        </button>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "60vh",
+            color: "#8b84c4",
+            flexDirection: "column",
+            gap: "10px",
+          }}
+        >
+          <div style={{ fontSize: "40px" }}>📱</div>
+          <p style={{ fontSize: "15px", fontWeight: "600" }}>No reels uploaded yet</p>
+        </div>
+      </>
     );
   }
 

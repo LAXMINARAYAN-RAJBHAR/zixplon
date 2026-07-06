@@ -41,6 +41,7 @@ import YourClips        from "./Pages/YourClips/YourClips";
 import SideNavbar       from "./Component/SideNavbar/sideNavbar";
 import LoginOptionsModal from "./Component/LoginOptionsModal/LoginOptionsModal";
 import AdminPanel       from "./Pages/AdminPanel/AdminPanel";
+import LiveBrowser from "./Component/Live/LiveViewer";
 
 // ── Loading Screen ────────────────────────────────────────────────────────────
 const LoadingScreen = ({ onFinish }) => {
@@ -462,6 +463,7 @@ function App() {
           <Route path="/advertise"             element={<AdvertisePage />} />
           <Route path="/feed"                  element={<PostFeed sideNavbar={sideNavbar} />} />
           <Route path="/admin"                 element={<AdminPanel />} />
+          <Route path="/live"                  element={<LiveBrowser currentUser={currentUser} />} />
         </Routes>
       </div>
 

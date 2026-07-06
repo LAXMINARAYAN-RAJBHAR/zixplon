@@ -15,7 +15,7 @@ import { createPortal } from "react-dom";
 // ✅ ADDED: LiveBrowser shows currently-live LiveKit streams (reads the
 // "live_streams" Supabase table). Adjust the path below if your
 // LiveBrowser component lives in a different folder.
-import LiveBrowser from "../LiveBrowser/LiveBrowser";
+import LiveBrowser from "../Live/LiveViewer";
 
 const API_KEYS = [
   process.env.REACT_APP_YOUTUBE_KEY_1,
@@ -1737,6 +1737,10 @@ const HomePage = ({ sideNavbar }) => {
   const [selectedOption, setSelectedOption] = useState("All");
   const [mobileTab, setMobileTab] = useState("shorts");
 
+  // ✅ ADDED: ref for the desktop LiveBrowser section, so the dedicated
+  // "Live" pill in the category strip can smooth-scroll straight to it.
+  const liveBrowserRef = useRef(null);
+
   const TAB_IDS = MOBILE_TABS.map((t) => t.id);
   const goNextTab = () => {
     setMobileTab((cur) => {
@@ -1862,6 +1866,10 @@ const HomePage = ({ sideNavbar }) => {
     } catch (_) {}
   };
 
+  // ✅ CHANGED: "Live" removed from this filterable options array — it now
+  // has its own dedicated pill (rendered separately below) that scrolls to
+  // / switches to the real LiveKit LiveBrowser section instead of filtering
+  // uploaded videos tagged "Live".
   const options = [
     "All",
     "DD News",
@@ -1872,7 +1880,6 @@ const HomePage = ({ sideNavbar }) => {
     "Film Criticisms",
     "Twenty20 Cricket",
     "Music",
-    "Live",
     "Mixes",
     "Gaming",
     "Debates",
@@ -2824,10 +2831,10 @@ const HomePage = ({ sideNavbar }) => {
           </div>
         );
       case "live":
-        // ✅ CHANGED: this tab now renders the real LiveKit LiveBrowser
-        // (reads is_live rows from Supabase "live_streams" table) instead
-        // of the old "videos tagged Live" filter, which had nothing to do
-        // with actual live streaming.
+        // ✅ CHANGED: this tab renders the real LiveKit LiveBrowser (reads
+        // is_live rows from Supabase "live_streams" table) instead of the
+        // old "videos tagged Live" filter, which had nothing to do with
+        // actual live streaming.
         return (
           <div className="mobile-tab-content" {...swipeHandlers}>
             <LiveBrowser currentUser={loggedInUsername} />
@@ -2878,6 +2885,37 @@ const HomePage = ({ sideNavbar }) => {
           }}
           style={{ cursor: "grab", userSelect: "none" }}
         >
+          {/* ✅ ADDED: dedicated Live pill — separate from the filterable
+              options list. Scrolls to the desktop LiveBrowser section, or
+              switches to the mobile Live tab, instead of filtering videos
+              tagged "Live". */}
+          <div
+            className="homePage_option"
+            onClick={() => {
+              if (isMobile) {
+                setMobileTab("live");
+              } else {
+                liveBrowserRef.current?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                });
+              }
+            }}
+            style={{
+              cursor: "pointer",
+              color: "#ef4444",
+              padding: "6px 14px",
+              fontWeight: "800",
+              whiteSpace: "nowrap",
+              userSelect: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+            }}
+          >
+            🔴 Live
+          </div>
+
           {options.map((item) => (
             <div
               key={item}
@@ -2929,9 +2967,10 @@ const HomePage = ({ sideNavbar }) => {
             everything except .mobile-trending-strip / .mobile-tab-bar /
             .mobile-tab-content / .search-results-panel — so on mobile this
             block simply won't render; the "live" mobile tab above handles
-            phones instead). */}
+            phones instead). The ref lets the dedicated Live pill above
+            smooth-scroll straight here on desktop. */}
         {!searchActive && !isMobile && (
-          <div style={{ marginBottom: "28px" }}>
+          <div ref={liveBrowserRef} style={{ marginBottom: "28px" }}>
             <LiveBrowser currentUser={loggedInUsername} />
           </div>
         )}

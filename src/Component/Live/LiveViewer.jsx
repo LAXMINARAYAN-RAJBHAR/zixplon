@@ -157,16 +157,18 @@ const LiveWatch = ({ roomName, currentUser, onLeave }) => {
       )}
 
       <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        style={{
-          width: "100%",
-          maxWidth: "800px",
-          background: "#000",
-          borderRadius: "10px",
-        }}
-      />
+  ref={videoRef}
+  autoPlay
+  playsInline
+  style={{
+    width: "100%",
+    aspectRatio: "9 / 9",
+    background: "#000",
+    borderRadius: "10px",
+    objectFit: "cover",
+    display: "block",
+  }}
+/>
     </div>
   );
 };

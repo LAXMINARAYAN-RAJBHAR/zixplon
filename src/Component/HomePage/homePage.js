@@ -12,6 +12,10 @@ import CheckIcon from "@mui/icons-material/Check";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import { createPortal } from "react-dom";
+// ✅ ADDED: LiveBrowser shows currently-live LiveKit streams (reads the
+// "live_streams" Supabase table). Adjust the path below if your
+// LiveBrowser component lives in a different folder.
+import LiveBrowser from "../LiveBrowser/LiveBrowser";
 
 const API_KEYS = [
   process.env.REACT_APP_YOUTUBE_KEY_1,
@@ -570,7 +574,7 @@ const SaveMenuButton = ({
         e.stopPropagation();
         // ← Use og URL so WhatsApp shows thumbnail preview
         const url = `https://zixplon-tawny.vercel.app/api/og?type=video&id=${videoId}`;
-        
+
         if (navigator.share) {
           navigator
             .share({
@@ -2820,37 +2824,13 @@ const HomePage = ({ sideNavbar }) => {
           </div>
         );
       case "live":
+        // ✅ CHANGED: this tab now renders the real LiveKit LiveBrowser
+        // (reads is_live rows from Supabase "live_streams" table) instead
+        // of the old "videos tagged Live" filter, which had nothing to do
+        // with actual live streaming.
         return (
           <div className="mobile-tab-content" {...swipeHandlers}>
-            <div className="mobile-live-badge">
-              <span className="mobile-live-dot" />
-              LIVE NOW
-            </div>
-            {liveVideos.length > 0 ? (
-              <>
-                <div className="mobile-tab-section-head">
-                  Live Videos ({liveVideos.length})
-                </div>
-                <div className="youtube_VideoGrid">
-                  {liveVideos.map((v) => (
-                    <VideoCard key={v.id} video={v} isUploaded={true} />
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "40px 0",
-                  color: "#8b84c4",
-                }}
-              >
-                <div style={{ fontSize: "36px", marginBottom: "10px" }}>🔴</div>
-                <p style={{ margin: 0, fontWeight: "600" }}>
-                  No live videos right now
-                </p>
-              </div>
-            )}
+            <LiveBrowser currentUser={loggedInUsername} />
           </div>
         );
       default:
@@ -2940,6 +2920,20 @@ const HomePage = ({ sideNavbar }) => {
               navigate("/reels/" + r.id, { state: { clickedReel: r } })
             }
           />
+        )}
+
+        {/* ✅ ADDED: desktop-visible Live section — shows real LiveKit
+            streams from the "live_streams" table. Sits above the mobile
+            tab bar / category grid, hidden automatically on mobile since
+            it's inside the desktop-only render path (mobile CSS hides
+            everything except .mobile-trending-strip / .mobile-tab-bar /
+            .mobile-tab-content / .search-results-panel — so on mobile this
+            block simply won't render; the "live" mobile tab above handles
+            phones instead). */}
+        {!searchActive && !isMobile && (
+          <div style={{ marginBottom: "28px" }}>
+            <LiveBrowser currentUser={loggedInUsername} />
+          </div>
         )}
 
         {!searchActive && (

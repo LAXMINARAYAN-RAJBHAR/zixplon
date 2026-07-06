@@ -708,7 +708,7 @@ const Video = ({ sideNavbar }) => {
               <span className="video_like_inner">
                 <ThumbUpOutlinedIcon
                   fontSize="small"
-                  style={{ color: liked ? "#c4b5fd" : "white" }}
+                  style={{ color: liked ? "#ff0000" : "white" }}
                 />
                 <span>{likeCount}</span>
               </span>
@@ -764,7 +764,7 @@ const Video = ({ sideNavbar }) => {
         </div>
 
         {/* ── Up Next ── */}
-        <Link
+        {/* <Link
           to={`/video/${nextVideo.id}`}
           className="next_video_preview"
           style={{ textDecoration: "none" }}
@@ -783,7 +783,7 @@ const Video = ({ sideNavbar }) => {
             </div>
             <div className="next_video_duration">{nextVideo.duration}</div>
           </div>
-        </Link>
+        </Link> */}
 
         {/* ── Video info ── */}
         <div className="video_youtubeAbout">

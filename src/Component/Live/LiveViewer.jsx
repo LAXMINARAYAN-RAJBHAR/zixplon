@@ -32,7 +32,7 @@ const LiveBrowser = ({ currentUser }) => {
   }
 
   return (
-    <div style={{ padding: "20px", maxWidth: "720px", margin: "0 auto" }}>
+    <div style={{ padding: "20px" }}>
       <h2 style={{ color: "white", marginBottom: "16px" }}>🔴 Live Now</h2>
       {streams.length === 0 && (
         <p style={{ color: "#888" }}>No one is live right now.</p>
@@ -128,7 +128,7 @@ const LiveWatch = ({ roomName, currentUser, onLeave }) => {
   }, [roomName, currentUser]);
 
   return (
-    <div style={{ padding: "20px", maxWidth: "720px", margin: "0 auto" }}>
+    <div style={{ padding: "20px" }}>
       <button
         onClick={onLeave}
         style={{
@@ -162,11 +162,9 @@ const LiveWatch = ({ roomName, currentUser, onLeave }) => {
         playsInline
         style={{
           width: "100%",
-          aspectRatio: "16 / 9",
+          maxWidth: "800px",
           background: "#000",
           borderRadius: "10px",
-          objectFit: "cover",
-          display: "block",
         }}
       />
     </div>

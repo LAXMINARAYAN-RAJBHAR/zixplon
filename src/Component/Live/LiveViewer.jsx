@@ -162,7 +162,7 @@ const LiveWatch = ({ roomName, currentUser, onLeave }) => {
         playsInline
         style={{
           width: "100%",
-          aspectRatio: "16 / 9",
+          aspectRatio: "9 / 16",
           background: "#000",
           borderRadius: "10px",
           objectFit: "cover",

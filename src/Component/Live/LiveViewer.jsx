@@ -32,11 +32,52 @@ const LiveBrowser = ({ currentUser }) => {
   }
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h2 style={{ color: "white", marginBottom: "16px" }}>🔴 Live Now</h2>
+    <div style={{ padding: "0" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          marginBottom: "14px",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "24px",
+            height: "24px",
+            background: "linear-gradient(135deg,#e53935,#f97316)",
+            color: "white",
+            fontWeight: "900",
+            fontSize: "15px",
+            fontFamily: "Arial Black, sans-serif",
+            borderRadius: "6px",
+            flexShrink: 0,
+          }}
+        >
+          Z
+        </span>
+        <span
+          style={{
+            fontSize: "15px",
+            fontWeight: "900",
+            fontFamily: "Nunito, sans-serif",
+            letterSpacing: "0.5px",
+            color: "#1e1b4b",
+          }}
+        >
+          Live Now
+        </span>
+      </div>
+
       {streams.length === 0 && (
-        <p style={{ color: "#888" }}>No one is live right now.</p>
+        <p style={{ color: "#8b84c4", fontSize: "13px" }}>
+          No one is live right now.
+        </p>
       )}
+
       <div style={{ display: "flex", flexWrap: "wrap", gap: "16px" }}>
         {streams.map((s) => (
           <div
@@ -128,7 +169,7 @@ const LiveWatch = ({ roomName, currentUser, onLeave }) => {
   }, [roomName, currentUser]);
 
   return (
-    <div style={{ padding: "20px" }}>
+    <div style={{ padding: "20px", maxWidth: "720px", margin: "0 auto" }}>
       <button
         onClick={onLeave}
         style={{
@@ -157,18 +198,18 @@ const LiveWatch = ({ roomName, currentUser, onLeave }) => {
       )}
 
       <video
-  ref={videoRef}
-  autoPlay
-  playsInline
-  style={{
-    width: "100%",
-    aspectRatio: "9 / 9",
-    background: "#000",
-    borderRadius: "10px",
-    objectFit: "cover",
-    display: "block",
-  }}
-/>
+        ref={videoRef}
+        autoPlay
+        playsInline
+        style={{
+          width: "100%",
+          aspectRatio: "16 / 9",
+          background: "#000",
+          borderRadius: "10px",
+          objectFit: "cover",
+          display: "block",
+        }}
+      />
     </div>
   );
 };

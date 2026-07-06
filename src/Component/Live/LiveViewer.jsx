@@ -84,30 +84,73 @@ const LiveBrowser = ({ currentUser }) => {
             key={s.id}
             onClick={() => setActiveRoom(s.room_name)}
             style={{
-              background: "#1a1a1a",
+              background: s.thumbnail_url
+                ? `#000 url(${s.thumbnail_url}) center / cover no-repeat`
+                : "linear-gradient(135deg,#3b2f63,#1a1a1a)",
               border: "1px solid #333",
               borderRadius: "10px",
               padding: "16px",
               width: "220px",
+              height: "140px",
+              boxSizing: "border-box",
               cursor: "pointer",
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "flex-end",
+              overflow: "hidden",
             }}
           >
+            {/* Dark gradient so text stays readable over any thumbnail */}
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background:
+                  "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0) 100%)",
+              }}
+            />
+
             <span
               style={{
+                position: "absolute",
+                top: "10px",
+                left: "10px",
                 background: "#ff0000",
                 color: "white",
                 fontSize: "10px",
                 fontWeight: 700,
                 padding: "2px 6px",
                 borderRadius: "4px",
+                zIndex: 1,
               }}
             >
               ● LIVE
             </span>
-            <p style={{ color: "white", fontWeight: 600, marginTop: "8px" }}>
+
+            <p
+              style={{
+                color: "white",
+                fontWeight: 600,
+                marginTop: "8px",
+                marginBottom: "2px",
+                position: "relative",
+                zIndex: 1,
+              }}
+            >
               {s.title}
             </p>
-            <p style={{ color: "#aaa", fontSize: "12px" }}>
+            <p
+              style={{
+                color: "#ddd",
+                fontSize: "12px",
+                position: "relative",
+                zIndex: 1,
+              }}
+            >
               {s.broadcaster_name}
             </p>
           </div>

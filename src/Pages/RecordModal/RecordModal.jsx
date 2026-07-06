@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { supabase } from "../../config/supabase";
+import { Room, LocalVideoTrack, LocalAudioTrack } from "livekit-client";
 
 const RecordModal = ({ onClose, currentUser }) => {
   const [mode, setMode] = useState(null);
@@ -15,21 +16,40 @@ const RecordModal = ({ onClose, currentUser }) => {
   const [category, setCategory] = useState("All");
   const [cameraFacing, setCameraFacing] = useState("user");
   const [micOn, setMicOn] = useState(true);
-  const [liveViewers] = useState(() => Math.floor(Math.random() * 80) + 5);
+  const [liveViewers, setLiveViewers] = useState(0);
+  const [liveError, setLiveError] = useState(null);
+  const [connectingLive, setConnectingLive] = useState(false);
 
   const videoRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const streamRef = useRef(null);
   const timerRef = useRef(null);
+  const liveRoomRef = useRef(null);
+  const liveRoomNameRef = useRef(null);
+  const viewerPollRef = useRef(null);
 
   const CLOUDINARY_CLOUD_NAME = "dwoqk0yue";
   const CLOUDINARY_UPLOAD_PRESET = "youtube-clone";
 
   const categories = [
-    "All","Music","Gaming","Sports","Tech","News","Comedy",
-    "Cooking","Travel","AI","Web Development","Astronomy",
-    "History","Live","Mixes","Indian Music","DD News",
+    "All",
+    "Music",
+    "Gaming",
+    "Sports",
+    "Tech",
+    "News",
+    "Comedy",
+    "Cooking",
+    "Travel",
+    "AI",
+    "Web Development",
+    "Astronomy",
+    "History",
+    "Live",
+    "Mixes",
+    "Indian Music",
+    "DD News",
   ];
 
   const startCamera = async (facing = cameraFacing, mic = micOn) => {
@@ -38,7 +58,11 @@ const RecordModal = ({ onClose, currentUser }) => {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: {
+          facingMode: facing,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
         audio: mic,
       });
       streamRef.current = stream;
@@ -75,12 +99,25 @@ const RecordModal = ({ onClose, currentUser }) => {
     return () => clearInterval(timerRef.current);
   }, [recording, paused]);
 
+  // Clean up live room + polling if the modal unmounts mid-stream
+  useEffect(() => {
+    return () => {
+      clearInterval(viewerPollRef.current);
+      if (liveRoomRef.current) {
+        liveRoomRef.current.disconnect();
+      }
+    };
+  }, []);
+
   const formatTime = (s) => {
-    const m = Math.floor(s / 60).toString().padStart(2, "0");
+    const m = Math.floor(s / 60)
+      .toString()
+      .padStart(2, "0");
     const sec = (s % 60).toString().padStart(2, "0");
     return `${m}:${sec}`;
   };
 
+  // ── Regular recording (unchanged) ──
   const startRecording = () => {
     if (!streamRef.current) return;
     chunksRef.current = [];
@@ -127,6 +164,97 @@ const RecordModal = ({ onClose, currentUser }) => {
     setPaused(false);
   };
 
+  // ── Real live streaming via LiveKit ──
+  const goLive = async () => {
+    if (!streamRef.current) return;
+    if (!currentUser) {
+      alert("Please login to go live.");
+      return;
+    }
+
+    setConnectingLive(true);
+    setLiveError(null);
+
+    try {
+      const roomName = `live_${currentUser}_${Date.now()}`;
+      const identity = currentUser;
+
+      const res = await fetch(
+        `/api/livekit-token?room=${encodeURIComponent(
+          roomName,
+        )}&identity=${encodeURIComponent(identity)}&canPublish=true`,
+      );
+      if (!res.ok) throw new Error("Failed to fetch live token");
+      const { token, url } = await res.json();
+
+      const room = new Room();
+      await room.connect(url, token);
+
+      const videoTrack = streamRef.current.getVideoTracks()[0];
+      const audioTrack = streamRef.current.getAudioTracks()[0];
+
+      if (videoTrack) {
+        await room.localParticipant.publishTrack(
+          new LocalVideoTrack(videoTrack),
+        );
+      }
+      if (audioTrack && micOn) {
+        await room.localParticipant.publishTrack(
+          new LocalAudioTrack(audioTrack),
+        );
+      }
+
+      liveRoomRef.current = room;
+      liveRoomNameRef.current = roomName;
+
+      const { error } = await supabase.from("live_streams").insert({
+        room_name: roomName,
+        broadcaster_id: currentUser,
+        broadcaster_name: currentUser,
+        title: title.trim() || "Untitled Live Stream",
+        is_live: true,
+      });
+      if (error) throw error;
+
+      setRecording(true);
+      setTimer(0);
+
+      // Poll participant count from the room every 5s to show real viewer count
+      viewerPollRef.current = setInterval(() => {
+        if (liveRoomRef.current) {
+          setLiveViewers(liveRoomRef.current.numParticipants - 1);
+        }
+      }, 5000);
+    } catch (err) {
+      setLiveError(err.message);
+      alert("Failed to go live: " + err.message);
+    } finally {
+      setConnectingLive(false);
+    }
+  };
+
+  const endLive = async () => {
+    clearInterval(viewerPollRef.current);
+
+    if (liveRoomRef.current) {
+      await liveRoomRef.current.disconnect();
+      liveRoomRef.current = null;
+    }
+
+    if (liveRoomNameRef.current) {
+      await supabase
+        .from("live_streams")
+        .update({ is_live: false, ended_at: new Date().toISOString() })
+        .eq("room_name", liveRoomNameRef.current);
+      liveRoomNameRef.current = null;
+    }
+
+    stopCamera();
+    setRecording(false);
+    setLiveViewers(0);
+    onClose();
+  };
+
   const retake = () => {
     setPreview(null);
     setRecordedBlob(null);
@@ -166,7 +294,7 @@ const RecordModal = ({ onClose, currentUser }) => {
 
       const res = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`,
-        { method: "POST", body: formData }
+        { method: "POST", body: formData },
       );
 
       const data = await res.json();
@@ -183,14 +311,14 @@ const RecordModal = ({ onClose, currentUser }) => {
         .replace(".webm", ".jpg");
 
       const { error } = await supabase.from("videos").insert({
-  title: title.trim(),
-  video_url: videoUrl,
-  thumbnail_url: thumbnailUrl,
-  channel: currentUser,
-  category: category,
-  duration: formatTime(timer),
-  created_at: new Date().toISOString(),
-});
+        title: title.trim(),
+        video_url: videoUrl,
+        thumbnail_url: thumbnailUrl,
+        channel: currentUser,
+        category: category,
+        duration: formatTime(timer),
+        created_at: new Date().toISOString(),
+      });
 
       if (error) throw error;
 
@@ -223,10 +351,14 @@ const RecordModal = ({ onClose, currentUser }) => {
       <div style={overlayStyle}>
         <div style={{ ...modalStyle, maxWidth: "420px" }}>
           <div style={headerStyle}>
-            <span style={{ color: "white", fontWeight: "700", fontSize: "18px" }}>
+            <span
+              style={{ color: "white", fontWeight: "700", fontSize: "18px" }}
+            >
               🎥 Create Video
             </span>
-            <button onClick={onClose} style={closeBtnStyle}>✕</button>
+            <button onClick={onClose} style={closeBtnStyle}>
+              ✕
+            </button>
           </div>
           <div style={{ display: "flex", gap: "16px", padding: "24px" }}>
             <ModeCard
@@ -247,16 +379,20 @@ const RecordModal = ({ onClose, currentUser }) => {
     );
   }
 
-  // ── Preview screen ──
+  // ── Preview screen (record mode only) ──
   if (preview) {
     return (
       <div style={overlayStyle}>
         <div style={{ ...modalStyle, maxWidth: "640px" }}>
           <div style={headerStyle}>
-            <span style={{ color: "white", fontWeight: "700", fontSize: "16px" }}>
+            <span
+              style={{ color: "white", fontWeight: "700", fontSize: "16px" }}
+            >
               📽 Preview — {formatTime(timer)}
             </span>
-            <button onClick={onClose} style={closeBtnStyle}>✕</button>
+            <button onClick={onClose} style={closeBtnStyle}>
+              ✕
+            </button>
           </div>
           <div style={{ padding: "16px 20px" }}>
             <video
@@ -285,15 +421,19 @@ const RecordModal = ({ onClose, currentUser }) => {
                   style={{ ...inputStyle, marginTop: "10px" }}
                 >
                   {categories.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
                   ))}
                 </select>
-                <div style={{
-                  display: "flex",
-                  gap: "10px",
-                  marginTop: "16px",
-                  flexWrap: "wrap",
-                }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    marginTop: "16px",
+                    flexWrap: "wrap",
+                  }}
+                >
                   <ActionBtn onClick={retake} bg="#272727" color="white">
                     🔄 Retake
                   </ActionBtn>
@@ -312,30 +452,36 @@ const RecordModal = ({ onClose, currentUser }) => {
                   </ActionBtn>
                 </div>
                 {uploading && (
-                  <div style={{
-                    marginTop: "12px",
-                    background: "#222",
-                    borderRadius: "8px",
-                    overflow: "hidden",
-                  }}>
-                    <div style={{
-                      height: "6px",
-                      background: "#ff0000",
-                      width: `${uploadProgress}%`,
-                      transition: "width 0.4s",
-                    }} />
+                  <div
+                    style={{
+                      marginTop: "12px",
+                      background: "#222",
+                      borderRadius: "8px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "6px",
+                        background: "#ff0000",
+                        width: `${uploadProgress}%`,
+                        transition: "width 0.4s",
+                      }}
+                    />
                   </div>
                 )}
               </>
             ) : (
               <div style={{ textAlign: "center", padding: "20px 0" }}>
                 <div style={{ fontSize: "40px" }}>✅</div>
-                <p style={{
-                  color: "white",
-                  fontWeight: "600",
-                  fontSize: "16px",
-                  marginTop: "10px",
-                }}>
+                <p
+                  style={{
+                    color: "white",
+                    fontWeight: "600",
+                    fontSize: "16px",
+                    marginTop: "10px",
+                  }}
+                >
                   Uploaded successfully!
                 </p>
                 <p style={{ color: "#aaa", fontSize: "13px" }}>
@@ -364,33 +510,66 @@ const RecordModal = ({ onClose, currentUser }) => {
         <div style={headerStyle}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             {mode === "live" && (
-              <span style={{
-                background: "#ff0000",
-                color: "white",
-                fontSize: "11px",
-                fontWeight: "700",
-                padding: "2px 8px",
-                borderRadius: "4px",
-                animation: "pulse 1.2s infinite",
-              }}>
+              <span
+                style={{
+                  background: "#ff0000",
+                  color: "white",
+                  fontSize: "11px",
+                  fontWeight: "700",
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                  animation: "pulse 1.2s infinite",
+                }}
+              >
                 ● LIVE
               </span>
             )}
-            <span style={{ color: "white", fontWeight: "700", fontSize: "16px" }}>
+            <span
+              style={{ color: "white", fontWeight: "700", fontSize: "16px" }}
+            >
               {mode === "live"
-                ? `📡 Live Stream · ${liveViewers} watching`
+                ? recording
+                  ? `📡 Live Stream · ${liveViewers} watching`
+                  : "📡 Go Live"
                 : "🎥 Record Video"}
             </span>
             {recording && (
-              <span style={{ color: "#ff4444", fontWeight: "700", fontSize: "14px" }}>
+              <span
+                style={{
+                  color: "#ff4444",
+                  fontWeight: "700",
+                  fontSize: "14px",
+                }}
+              >
                 {formatTime(timer)}
               </span>
             )}
           </div>
-          <button onClick={() => { stopCamera(); onClose(); }} style={closeBtnStyle}>
+          <button
+            onClick={() => {
+              if (mode === "live" && recording) {
+                endLive();
+              } else {
+                stopCamera();
+                onClose();
+              }
+            }}
+            style={closeBtnStyle}
+          >
             ✕
           </button>
         </div>
+
+        {mode === "live" && !recording && (
+          <div style={{ padding: "0 20px" }}>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Give your live stream a title *"
+              style={inputStyle}
+            />
+          </div>
+        )}
 
         <div style={{ position: "relative", background: "#000" }}>
           <video
@@ -406,43 +585,54 @@ const RecordModal = ({ onClose, currentUser }) => {
             }}
           />
           {recording && (
-            <div style={{
-              position: "absolute",
-              top: "12px",
-              left: "12px",
-              background: paused ? "#ff9800" : "#ff0000",
-              color: "white",
-              fontSize: "11px",
-              fontWeight: "700",
-              padding: "3px 10px",
-              borderRadius: "4px",
-              animation: paused ? "none" : "pulse 1s infinite",
-            }}>
+            <div
+              style={{
+                position: "absolute",
+                top: "12px",
+                left: "12px",
+                background: paused ? "#ff9800" : "#ff0000",
+                color: "white",
+                fontSize: "11px",
+                fontWeight: "700",
+                padding: "3px 10px",
+                borderRadius: "4px",
+                animation: paused ? "none" : "pulse 1s infinite",
+              }}
+            >
               {paused ? "⏸ PAUSED" : "● REC"}
             </div>
           )}
-          <div style={{
-            position: "absolute",
-            top: "12px",
-            right: "12px",
-            display: "flex",
-            gap: "8px",
-          }}>
-            <IconBtn onClick={flipCamera} title="Flip camera">🔄</IconBtn>
-            <IconBtn onClick={toggleMic} title={micOn ? "Mute mic" : "Unmute mic"}>
+          <div
+            style={{
+              position: "absolute",
+              top: "12px",
+              right: "12px",
+              display: "flex",
+              gap: "8px",
+            }}
+          >
+            <IconBtn onClick={flipCamera} title="Flip camera">
+              🔄
+            </IconBtn>
+            <IconBtn
+              onClick={toggleMic}
+              title={micOn ? "Mute mic" : "Unmute mic"}
+            >
               {micOn ? "🎤" : "🔇"}
             </IconBtn>
           </div>
         </div>
 
-        <div style={{
-          padding: "16px 20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "12px",
-          flexWrap: "wrap",
-        }}>
+        <div
+          style={{
+            padding: "16px 20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
           {mode === "record" && (
             <>
               {!recording ? (
@@ -452,11 +642,19 @@ const RecordModal = ({ onClose, currentUser }) => {
               ) : (
                 <>
                   {!paused ? (
-                    <ActionBtn onClick={pauseRecording} bg="#ff9800" color="white">
+                    <ActionBtn
+                      onClick={pauseRecording}
+                      bg="#ff9800"
+                      color="white"
+                    >
                       ⏸ Pause
                     </ActionBtn>
                   ) : (
-                    <ActionBtn onClick={resumeRecording} bg="#4caf50" color="white">
+                    <ActionBtn
+                      onClick={resumeRecording}
+                      bg="#4caf50"
+                      color="white"
+                    >
                       ▶ Resume
                     </ActionBtn>
                   )}
@@ -471,17 +669,35 @@ const RecordModal = ({ onClose, currentUser }) => {
           {mode === "live" && (
             <>
               {!recording ? (
-                <ActionBtn onClick={startRecording} bg="#ff0000" color="white">
-                  📡 Go Live
+                <ActionBtn
+                  onClick={goLive}
+                  bg="#ff0000"
+                  color="white"
+                  disabled={connectingLive || !title.trim()}
+                >
+                  {connectingLive ? "Connecting..." : "📡 Go Live"}
                 </ActionBtn>
               ) : (
-                <ActionBtn onClick={stopRecording} bg="#272727" color="white">
-                  ⏹ End Stream & Preview
+                <ActionBtn onClick={endLive} bg="#272727" color="white">
+                  ⏹ End Stream
                 </ActionBtn>
               )}
             </>
           )}
         </div>
+
+        {liveError && (
+          <p
+            style={{
+              color: "#ff6666",
+              fontSize: "12px",
+              textAlign: "center",
+              padding: "0 20px 12px",
+            }}
+          >
+            {liveError}
+          </p>
+        )}
       </div>
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
     </div>
@@ -512,15 +728,19 @@ const ModeCard = ({ icon, title, desc, onClick }) => (
     }}
   >
     <div style={{ fontSize: "32px", marginBottom: "10px" }}>{icon}</div>
-    <div style={{
-      color: "white",
-      fontWeight: "700",
-      fontSize: "15px",
-      marginBottom: "6px",
-    }}>
+    <div
+      style={{
+        color: "white",
+        fontWeight: "700",
+        fontSize: "15px",
+        marginBottom: "6px",
+      }}
+    >
       {title}
     </div>
-    <div style={{ color: "#aaa", fontSize: "12px", lineHeight: "1.5" }}>{desc}</div>
+    <div style={{ color: "#aaa", fontSize: "12px", lineHeight: "1.5" }}>
+      {desc}
+    </div>
   </div>
 );
 
@@ -540,8 +760,12 @@ const ActionBtn = ({ onClick, bg, color, children, disabled, style }) => (
       transition: "opacity 0.2s",
       ...style,
     }}
-    onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.opacity = "0.85"; }}
-    onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+    onMouseEnter={(e) => {
+      if (!disabled) e.currentTarget.style.opacity = "0.85";
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.opacity = "1";
+    }}
   >
     {children}
   </button>
@@ -567,7 +791,10 @@ const IconBtn = ({ onClick, title, children }) => (
 // ── Styles ──
 const overlayStyle = {
   position: "fixed",
-  top: 0, left: 0, right: 0, bottom: 0,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
   background: "rgba(0,0,0,0.85)",
   zIndex: 999999,
   display: "flex",

@@ -1,7 +1,7 @@
 import "./App.css";
 import Navbar from "./Component/Navbar/navbar";
 import Home from "./Pages/Home/home";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import Video from "./Pages/Video/video";
 import Profile from "./Pages/Profile/profile";
@@ -42,6 +42,28 @@ import SideNavbar       from "./Component/SideNavbar/sideNavbar";
 import LoginOptionsModal from "./Component/LoginOptionsModal/LoginOptionsModal";
 import AdminPanel       from "./Pages/AdminPanel/AdminPanel";
 import LiveBrowser from "./Component/Live/LiveViewer";
+
+// ── Google Identity Services (One Tap) config ──────────────────────────────
+// TODO: replace with the SAME OAuth Client ID configured under
+// Supabase → Authentication → Providers → Google → "Client ID".
+// Also add your ZIXPLON origin(s) (e.g. https://zixplon-tawny.vercel.app)
+// to "Authorized JavaScript origins" in the Google Cloud Console for this
+// Client ID, or One Tap will silently refuse to display.
+const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com";
+
+// Generates a nonce pair for the OIDC sign-in, as recommended by Supabase
+// when using signInWithIdToken — protects against token replay.
+async function generateNonce() {
+  const rawNonce =
+    (crypto.randomUUID && crypto.randomUUID()) ||
+    `${Date.now()}-${Math.random()}`;
+  const encoder = new TextEncoder();
+  const encodedNonce = encoder.encode(rawNonce);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", encodedNonce);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashedNonce = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  return { rawNonce, hashedNonce };
+}
 
 // ── Loading Screen ────────────────────────────────────────────────────────────
 const LoadingScreen = ({ onFinish }) => {
@@ -182,6 +204,10 @@ function App() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
+  // ── Google One Tap state ──
+  const [oneTapAttempted, setOneTapAttempted] = useState(false);
+  const oneTapCancelledRef = useRef(false);
+
   // ── Exit-on-back state ──
   const [showExitToast, setShowExitToast] = useState(false);
   const exitToastTimer = useRef(null);
@@ -192,119 +218,118 @@ function App() {
     supabase.from("videos").select("id").limit(1).then(() => {});
   }, []);
 
-  // ── Single auth effect — profiles table is always source of truth ──
-  useEffect(() => {
-    const resolveUsername = async (u) => {
-      try {
-        const { data: profileRow } = await supabase
-          .from("profiles")
-          .select("username, profile_pic, about")
-          .eq("id", u.id)
-          .maybeSingle();
+  // ── Shared: resolve/create the profile row for a Supabase auth user ──
+  // Used by both the session-restore effect and the Google One Tap callback.
+  const resolveUsername = useCallback(async (u) => {
+    try {
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("username, profile_pic, about")
+        .eq("id", u.id)
+        .maybeSingle();
 
-        // ── Auto-create profile for Google OAuth users who have none ──
-        if (!profileRow) {
-          const autoName =
-            u.user_metadata?.name ||
-            u.user_metadata?.full_name ||
-            u.user_metadata?.channelName ||
-            u.user_metadata?.username ||
-            u.email?.split("@")[0];
-
-          const autoPic =
-            u.user_metadata?.avatar_url ||
-            u.user_metadata?.picture ||
-            "";
-
-          await supabase.from("profiles").upsert(
-            [{
-              id: u.id,
-              username: autoName,
-              profile_pic: autoPic,
-              about: "",
-              banner_pic: "",
-            }],
-            { onConflict: "id" }
-          );
-
-          localStorage.setItem("username", autoName);
-          localStorage.setItem("userId", u.id);
-          localStorage.setItem("email", u.email || "");
-          if (autoPic) localStorage.setItem("profilePic", autoPic);
-          return autoName;
-        }
-
-        const name =
-          profileRow?.username ||
-          localStorage.getItem("username") ||
+      // ── Auto-create profile for Google OAuth / One Tap users who have none ──
+      if (!profileRow) {
+        const autoName =
+          u.user_metadata?.name ||
+          u.user_metadata?.full_name ||
           u.user_metadata?.channelName ||
           u.user_metadata?.username ||
-          u.user_metadata?.full_name ||
           u.email?.split("@")[0];
 
-        const pic =
-          profileRow?.profile_pic ||
-          localStorage.getItem("profilePic") ||
-          u.user_metadata?.profilePic ||
+        const autoPic =
           u.user_metadata?.avatar_url ||
           u.user_metadata?.picture ||
           "";
 
-        const about =
-          profileRow?.about ||
-          localStorage.getItem("about") ||
-          u.user_metadata?.about ||
-          "";
+        await supabase.from("profiles").upsert(
+          [{
+            id: u.id,
+            username: autoName,
+            profile_pic: autoPic,
+            about: "",
+            banner_pic: "",
+          }],
+          { onConflict: "id" }
+        );
 
-        localStorage.setItem("username", name);
+        localStorage.setItem("username", autoName);
         localStorage.setItem("userId", u.id);
         localStorage.setItem("email", u.email || "");
-        if (pic) localStorage.setItem("profilePic", pic);
-        if (about) localStorage.setItem("about", about);
-
-        return name;
-      } catch (e) {
-        return (
-          localStorage.getItem("username") ||
-          u.user_metadata?.channelName ||
-          u.email?.split("@")[0]
-        );
+        if (autoPic) localStorage.setItem("profilePic", autoPic);
+        return autoName;
       }
-    };
 
+      const name =
+        profileRow?.username ||
+        localStorage.getItem("username") ||
+        u.user_metadata?.channelName ||
+        u.user_metadata?.username ||
+        u.user_metadata?.full_name ||
+        u.email?.split("@")[0];
+
+      const pic =
+        profileRow?.profile_pic ||
+        localStorage.getItem("profilePic") ||
+        u.user_metadata?.profilePic ||
+        u.user_metadata?.avatar_url ||
+        u.user_metadata?.picture ||
+        "";
+
+      const about =
+        profileRow?.about ||
+        localStorage.getItem("about") ||
+        u.user_metadata?.about ||
+        "";
+
+      localStorage.setItem("username", name);
+      localStorage.setItem("userId", u.id);
+      localStorage.setItem("email", u.email || "");
+      if (pic) localStorage.setItem("profilePic", pic);
+      if (about) localStorage.setItem("about", about);
+
+      return name;
+    } catch (e) {
+      return (
+        localStorage.getItem("username") ||
+        u.user_metadata?.channelName ||
+        u.email?.split("@")[0]
+      );
+    }
+  }, []);
+
+  // ── Single auth effect — profiles table is always source of truth ──
+  useEffect(() => {
     // Restore session on mount
-supabase.auth.getSession().then(async ({ data: { session }, error }) => {
-  if (error) {
-    alert(`getSession error: ${error.message}`);
-  }
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (error) {
+        alert(`getSession error: ${error.message}`);
+      }
 
-  // ── Check for OAuth error returned in the URL (hash or query) ──
-  const hashParams = new URLSearchParams(window.location.hash.replace("#", "?"));
-  const queryParams = new URLSearchParams(window.location.search);
-  const oauthError =
-    hashParams.get("error_description") || queryParams.get("error_description");
-  if (oauthError) {
-    alert(`OAuth redirect error: ${decodeURIComponent(oauthError)}`);
-  }
+      // ── Check for OAuth error returned in the URL (hash or query) ──
+      const hashParams = new URLSearchParams(window.location.hash.replace("#", "?"));
+      const queryParams = new URLSearchParams(window.location.search);
+      const oauthError =
+        hashParams.get("error_description") || queryParams.get("error_description");
+      if (oauthError) {
+        alert(`OAuth redirect error: ${decodeURIComponent(oauthError)}`);
+      }
 
-  if (session?.user) {
-    const name = await resolveUsername(session.user);
-    setCurrentUser(name);
-    setShowLoginModal(false);
-    if (window.location.hash?.includes("access_token")) {
-      window.history.replaceState({}, document.title, "/");
-    }
-  } else {
-    if (!oauthError && !error) {
-      // Genuinely no session — first visit or logged out, not a failure
-    } else {
-      alert("No session was created after Google redirect.");
-    }
-    const dismissed = sessionStorage.getItem("zixplon_login_dismissed") === "1";
-    setShowLoginModal(!dismissed);
-  }
-  setSessionChecked(true);
-});
+      if (session?.user) {
+        const name = await resolveUsername(session.user);
+        setCurrentUser(name);
+        setShowLoginModal(false);
+        if (window.location.hash?.includes("access_token")) {
+          window.history.replaceState({}, document.title, "/");
+        }
+      } else if (oauthError && !error) {
+        alert("No session was created after Google redirect.");
+      }
+      // NOTE: we no longer decide showLoginModal here. When there's no
+      // session, the Google One Tap effect below runs next and only falls
+      // back to the manual LoginOptionsModal if One Tap can't be shown.
+      setSessionChecked(true);
+    });
 
     // Listen for login/logout
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -328,7 +353,119 @@ supabase.auth.getSession().then(async ({ data: { session }, error }) => {
     );
 
     return () => subscription.unsubscribe();
+  }, [resolveUsername]);
+
+  // ── Load the Google Identity Services script once ──
+  useEffect(() => {
+    if (document.getElementById("google-identity-script")) return;
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.id = "google-identity-script";
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
   }, []);
+
+  // ── Google One Tap: silently detect a Google account already signed
+  // into the browser and log the user straight in. Falls back to the
+  // existing LoginOptionsModal if One Tap can't be displayed (no Google
+  // session in the browser, user opted out, FedCM blocked, etc). ──
+  const suppressAutoModalRoutes = ["/signup"];
+
+  useEffect(() => {
+    if (!sessionChecked || currentUser) return;
+    if (oneTapAttempted) return;
+    if (suppressAutoModalRoutes.includes(location.pathname)) return;
+
+    // Don't race with an in-flight OAuth redirect that's still resolving
+    // its own #access_token hash (this is the exact race you're chasing
+    // on mobile PWA — One Tap must not touch it).
+    const hasAuthPayload =
+      window.location.hash.includes("access_token") ||
+      window.location.hash.includes("error") ||
+      new URLSearchParams(window.location.search).has("code");
+    if (hasAuthPayload) return;
+
+    oneTapCancelledRef.current = false;
+
+    const fallbackToModal = () => {
+      const dismissed = sessionStorage.getItem("zixplon_login_dismissed") === "1";
+      setShowLoginModal(!dismissed);
+    };
+
+    const tryOneTap = async () => {
+      // GIS script loads async — wait up to ~4s for it to be ready.
+      let attempts = 0;
+      while (!window.google?.accounts?.id && attempts < 40) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, 100));
+        attempts++;
+      }
+
+      if (oneTapCancelledRef.current) return;
+
+      if (!window.google?.accounts?.id) {
+        setOneTapAttempted(true);
+        fallbackToModal();
+        return;
+      }
+
+      const { rawNonce, hashedNonce } = await generateNonce();
+
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (response) => {
+          try {
+            const { data, error } = await supabase.auth.signInWithIdToken({
+              provider: "google",
+              token: response.credential,
+              nonce: rawNonce,
+            });
+            if (error) {
+              console.error("One Tap sign-in error:", error.message);
+              fallbackToModal();
+              return;
+            }
+            if (data?.user) {
+              const name = await resolveUsername(data.user);
+              setCurrentUser(name);
+              setShowLoginModal(false);
+            }
+          } catch (e) {
+            console.error("One Tap sign-in exception:", e);
+            fallbackToModal();
+          }
+        },
+        nonce: hashedNonce,
+        auto_select: true,
+        cancel_on_tap_outside: false,
+        use_fedcm_for_prompt: true,
+      });
+
+      window.google.accounts.id.prompt((notification) => {
+        setOneTapAttempted(true);
+        const wasShown =
+          typeof notification.isDisplayed === "function"
+            ? notification.isDisplayed()
+            : false;
+        if (!wasShown) {
+          // No Google session in this browser, user previously dismissed
+          // One Tap too many times, FedCM disabled, etc — use our modal.
+          fallbackToModal();
+        }
+      });
+    };
+
+    tryOneTap();
+
+    return () => {
+      oneTapCancelledRef.current = true;
+      if (window.google?.accounts?.id?.cancel) {
+        window.google.accounts.id.cancel();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionChecked, currentUser, location.pathname]);
 
   // ── Mobile back-button exit logic ─────────────────────────────────────────
   useEffect(() => {
@@ -399,7 +536,6 @@ supabase.auth.getSession().then(async ({ data: { session }, error }) => {
     location.pathname.endsWith("/upload");
 
   // Don't stack the auto-login modal on top of the dedicated signup/login page
-  const suppressAutoModalRoutes = ["/signup"];
   const shouldShowLoginModal =
     sessionChecked &&
     showLoginModal &&
@@ -434,8 +570,8 @@ supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       {/* Mobile exit toast */}
       <ExitToast visible={showExitToast} />
 
-      {/* Auto login detect: silently restored above if a session existed;
-          otherwise this shows login options once, per browser session */}
+      {/* Auto login detect: Google One Tap tries first (silent, no click
+          needed); if it can't be shown, this modal is the fallback */}
       {shouldShowLoginModal && (
         <LoginOptionsModal onDismiss={handleDismissLoginModal} />
       )}

@@ -234,8 +234,9 @@ const MobileTrendingStrip = ({
                 key={`trending_${v._type}_${v.id}_${i}`}
                 className="mobile-trending-card"
                 onClick={() => {
-                  if (v._type === "reel") onReelClick && onReelClick(v);
-                  else onVideoClick && onVideoClick(v);
+                  if (v._type === "reel")
+                    onReelClick && onReelClick(v, trendingVideos);
+                  else onVideoClick && onVideoClick(v, trendingVideos);
                 }}
               >
                 <span className="mobile-trending-rank">#{i + 1}</span>
@@ -2953,10 +2954,26 @@ const HomePage = ({ sideNavbar }) => {
           <MobileTrendingStrip
             dbVideos={allVideos}
             dbReels={allReels}
-            onVideoClick={(v) => navigate(`/video/${v.id}`)}
-            onReelClick={(r) =>
-              navigate("/reels/" + r.id, { state: { clickedReel: r } })
-            }
+            onVideoClick={(v, trendingList) => {
+              const trendingVideoIds = trendingList
+                .filter((t) => t._type !== "reel")
+                .map((t) => String(t.id));
+              navigate(`/video/${v.id}`, {
+                state: { trendingIds: trendingVideoIds, fromTrending: true },
+              });
+            }}
+            onReelClick={(r, trendingList) => {
+              const trendingReelIds = trendingList
+                .filter((t) => t._type === "reel")
+                .map((t) => String(t.id));
+              navigate("/reels/" + r.id, {
+                state: {
+                  clickedReel: r,
+                  trendingIds: trendingReelIds,
+                  fromTrending: true,
+                },
+              });
+            }}
           />
         )}
 

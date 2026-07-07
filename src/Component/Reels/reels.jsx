@@ -868,18 +868,39 @@ const Reels = () => {
   // ── Only uploaded reels — no hardcoded/static data merged in anymore.
   const baseReels = React.useMemo(() => dbReels, [dbReels]);
 
+  // ── Trending mode: if we arrived here via the homepage "Trending Now"
+  //    strip, location.state carries { fromTrending: true, trendingIds: [...] }
+  //    — a whitelist of reel IDs that were shown in the trending strip.
+  //    When present, we restrict the whole vertical scroll feed to just
+  //    those reels (always keeping the actually-clicked reel included, so
+  //    it can never be excluded by a stale/partial ID list).
+  const fromTrending = location.state?.fromTrending || false;
+  const trendingIds = location.state?.trendingIds || null;
+
   const allReels = React.useMemo(() => {
+    let pool = baseReels;
+
+    if (fromTrending && trendingIds) {
+      const clickedId = location.state?.clickedReel?.id;
+      pool = baseReels.filter(
+        (r) =>
+          trendingIds.includes(String(r.id)) ||
+          String(r.id) === String(id) ||
+          String(r.id) === String(clickedId),
+      );
+    }
+
     if (id) {
-      const target = baseReels.find((r) => String(r.id) === String(id));
-      if (target) return [target, ...baseReels.filter((r) => String(r.id) !== String(id))];
+      const target = pool.find((r) => String(r.id) === String(id));
+      if (target) return [target, ...pool.filter((r) => String(r.id) !== String(id))];
     }
     const clickedReel = location.state?.clickedReel;
     if (clickedReel) {
-      const rest = baseReels.filter((r) => String(r.id) !== String(clickedReel.id));
+      const rest = pool.filter((r) => String(r.id) !== String(clickedReel.id));
       return [clickedReel, ...rest];
     }
-    return baseReels;
-  }, [baseReels, id, location.state]);
+    return pool;
+  }, [baseReels, id, location.state, fromTrending, trendingIds]);
 
   useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, [id]);
 

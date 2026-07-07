@@ -4,7 +4,7 @@ import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbDownAltOutlinedIcon from "@mui/icons-material/ThumbDownAltOutlined";
 import ReplyIcon from "@mui/icons-material/Reply";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import useViewTracker from "../../Component/Reels/useViewTracker";
 import { logHistory } from "../History/History";
@@ -12,12 +12,6 @@ import useNetworkQuality from "../../hooks/useNetworkQuality";
 import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
 import ReportModal from "../../Component/Moderation/ReportModal";
 
-// ── Only uploaded videos (from Supabase) are used anywhere in this file now.
-//    The hardcoded demo `hardcodedVideos` array has been removed — videos
-//    shown in the app come exclusively from the `videos` table via
-//    fetchDbVideos below.
-
-// ── Relative time helper ──────────────────────────────────────────────────────
 const timeAgo = (dateStr) => {
   if (!dateStr) return "";
   const date = new Date(dateStr);
@@ -62,7 +56,6 @@ const isUnsupportedFormat = (src) => {
   return ["avi", "wmv", "mkv", "flv"].includes(ext);
 };
 
-// Human-readable label shown in the corner badge for each quality tier
 const QUALITY_LABELS = {
   low: "240p",
   medium: "360p",
@@ -89,7 +82,6 @@ const scrollToTopDeferred = () => {
   });
 };
 
-// ── Detect touch/mobile device ────────────────────────────────────────────────
 const isMobileDevice = () =>
   typeof window !== "undefined" &&
   (window.matchMedia("(max-width: 768px)").matches ||
@@ -99,6 +91,15 @@ const isMobileDevice = () =>
 const Video = ({ sideNavbar }) => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // ── Trending mode: if we arrived here via the homepage "Trending Now"
+  //    strip, location.state carries the ID whitelist of trending items.
+  //    We keep re-passing this same state on every Prev/Next/suggestion
+  //    navigation so trending mode stays "sticky" while browsing.
+  const fromTrending = location.state?.fromTrending || false;
+  const trendingIds = location.state?.trendingIds || null;
+  const navState = fromTrending ? { trendingIds, fromTrending: true } : undefined;
 
   const [dbVideos, setDbVideos] = useState([]);
   const [dbLoading, setDbLoading] = useState(true);
@@ -117,15 +118,12 @@ const Video = ({ sideNavbar }) => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [videoMeta, setVideoMeta] = useState(null);
 
-  // ── More menu / Report ──────────────────────────────────────────────────
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const moreMenuRef = useRef(null);
 
-  // ── Adaptive resolution based on real-time network conditions ─────────────
   const quality = useNetworkQuality();
 
-  // ── Mobile: tap video to toggle overlay visibility ────────────────────────
   const [isMobile, setIsMobile] = useState(false);
   const [mobileOverlayVisible, setMobileOverlayVisible] = useState(true);
   const mobileOverlayTimer = useRef(null);
@@ -137,7 +135,6 @@ const Video = ({ sideNavbar }) => {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Auto-hide overlay on mobile after 3.5 s of inactivity
   const resetMobileOverlayTimer = () => {
     setMobileOverlayVisible(true);
     clearTimeout(mobileOverlayTimer.current);
@@ -152,7 +149,6 @@ const Video = ({ sideNavbar }) => {
     resetMobileOverlayTimer();
   };
 
-  // Start the timer as soon as mobile is detected
   useEffect(() => {
     if (isMobile) resetMobileOverlayTimer();
     return () => clearTimeout(mobileOverlayTimer.current);
@@ -168,7 +164,6 @@ const Video = ({ sideNavbar }) => {
     isPlaying: isVideoPlaying,
   });
 
-  // ── Close the 3-dot "More" menu on outside click ───────────────────────
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) {
@@ -219,8 +214,19 @@ const Video = ({ sideNavbar }) => {
     loadViewCount();
   }, [id]);
 
-  // ── Only uploaded videos — no hardcoded/static demo videos merged in.
-  const allVideos = dbVideos;
+  // ── If we came from "Trending Now", restrict the working pool to only
+  //    the trending IDs (always keeping the current video included so it
+  //    never 404s if it somehow fell outside the whitelist). Otherwise the
+  //    full uploaded catalogue is used, same as before.
+  const allVideos = React.useMemo(() => {
+    if (fromTrending && trendingIds) {
+      return dbVideos.filter(
+        (v) => trendingIds.includes(String(v.id)) || String(v.id) === String(id),
+      );
+    }
+    return dbVideos;
+  }, [dbVideos, fromTrending, trendingIds, id]);
+
   const currentIndex = allVideos.findIndex((v) => String(v.id) === String(id));
   const video = allVideos[currentIndex];
   const nextVideo = allVideos[currentIndex + 1] || allVideos[0];
@@ -286,7 +292,6 @@ const Video = ({ sideNavbar }) => {
     }
   };
 
-  // Desktop mouse-move handler (controls bar show/hide)
   const handleMouseMove = () => {
     if (isMobile) return;
     setShowControls(true);
@@ -295,7 +300,7 @@ const Video = ({ sideNavbar }) => {
   };
 
   const handleVideoEnd = () => {
-    if (autoPlay) navigate(`/video/${nextVideo.id}`);
+    if (autoPlay) navigate(`/video/${nextVideo.id}`, { state: navState });
   };
   const handleVideoError = () => setVideoError(true);
 
@@ -463,10 +468,6 @@ const Video = ({ sideNavbar }) => {
     scrollToTopDeferred();
   }, [id]);
 
-  // ── Reload the player when detected network quality changes, so an
-  //    already-playing video actually steps up/down resolution instead of
-  //    only affecting the next video that loads. Only applies to Cloudinary
-  //    sources. ────────────────────────────────────────────────────────────
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid || !video?.src?.includes("cloudinary.com")) return;
@@ -541,9 +542,6 @@ const Video = ({ sideNavbar }) => {
   const description = videoMeta?.description || video.description || "";
   const channelUsername = video.username || video.channel?.toLowerCase();
 
-  // ── Derive overlay visibility ─────────────────────────────────────────────
-  // Desktop: driven by mouse-move timer (showControls)
-  // Mobile:  driven by tap timer (mobileOverlayVisible), always starts visible
   const overlayVisible = isMobile ? mobileOverlayVisible : showControls;
 
   return (
@@ -552,20 +550,18 @@ const Video = ({ sideNavbar }) => {
       style={{ paddingLeft: sideNavbar ? "275px" : "0px" }}
     >
       <div className="videoPostSection">
-        {/* ── Video player ── */}
         <div
           className="video_player_wrapper"
           onMouseMove={handleMouseMove}
           onMouseEnter={handleMouseMove}
-          onTouchStart={handleVideoAreaTap} /* mobile tap wakes overlay */
+          onTouchStart={handleVideoAreaTap}
         >
-          {/* FLOATING CONTROLS BAR — centred pill */}
           <div
             className={`video_controls_bar ${overlayVisible ? "visible" : "hidden"}`}
           >
             <button
               className="video_nav_btn"
-              onClick={() => navigate(`/video/${prevVideo.id}`)}
+              onClick={() => navigate(`/video/${prevVideo.id}`, { state: navState })}
             >
               ⏮ Prev
             </button>
@@ -580,14 +576,12 @@ const Video = ({ sideNavbar }) => {
             </div>
             <button
               className="video_nav_btn"
-              onClick={() => navigate(`/video/${nextVideo.id}`)}
+              onClick={() => navigate(`/video/${nextVideo.id}`, { state: navState })}
             >
               Next ⏭
             </button>
           </div>
 
-          {/* Resolution badge — only meaningful for Cloudinary sources,
-              since those are the ones that actually adapt to network speed */}
           {video.src?.includes("cloudinary.com") && (
             <div
               style={{
@@ -679,9 +673,6 @@ const Video = ({ sideNavbar }) => {
             preload="metadata"
             poster={video.thumbnail}
           >
-            {/* Force mp4 format for Cloudinary — Chrome 66 needs explicit mp4.
-                getAdaptiveVideoSrc injects a resolution/quality transform for
-                Cloudinary-hosted sources based on live network conditions. */}
             <source
               src={getAdaptiveVideoSrc(
                 video.src && video.src.includes("cloudinary.com")
@@ -694,9 +685,6 @@ const Video = ({ sideNavbar }) => {
             Your browser does not support the video tag.
           </video>
 
-          {/* FLOATING LIKE / DISLIKE / SHARE / MORE
-              Desktop: fades in on hover via CSS
-              Mobile:  .mobile-visible class keeps them always visible      */}
           <div
             className={`video_frame_actions${isMobile ? " mobile-visible" : ""}`}
           >
@@ -732,7 +720,6 @@ const Video = ({ sideNavbar }) => {
               <span>Share</span>
             </div>
 
-            {/* ── 3-dot "More" menu → Report ── */}
             <div
               className="video_frame_more_wrap"
               ref={moreMenuRef}
@@ -763,29 +750,6 @@ const Video = ({ sideNavbar }) => {
           </div>
         </div>
 
-        {/* ── Up Next ── */}
-        {/* <Link
-          to={`/video/${nextVideo.id}`}
-          className="next_video_preview"
-          style={{ textDecoration: "none" }}
-          onClick={scrollToTopDeferred}
-        >
-          <span className="next_video_label">▶ Up Next</span>
-          <img
-            src={nextVideo.thumbnail}
-            alt={nextVideo.title}
-            className="next_video_thumb"
-          />
-          <div className="next_video_info">
-            <div className="next_video_title">{nextVideo.title}</div>
-            <div className="next_video_channel">
-              {nextVideo.channel || nextVideo.username}
-            </div>
-            <div className="next_video_duration">{nextVideo.duration}</div>
-          </div>
-        </Link> */}
-
-        {/* ── Video info ── */}
         <div className="video_youtubeAbout">
           <div className="video_uTubeTitle">{video.title}</div>
 
@@ -822,7 +786,6 @@ const Video = ({ sideNavbar }) => {
             )}
           </div>
 
-          {/* Channel row */}
           <div className="youtube_video_ProfileBlock">
             <div className="youtube_video_ProfileBlock_left">
               <Link
@@ -926,7 +889,6 @@ const Video = ({ sideNavbar }) => {
             </div>
           ) : null}
 
-          {/* Comment section */}
           <div className="youtubeCommentSection">
             <div className="youtubeCommentSectionTitle">
               {allComments.length} Comments
@@ -1000,7 +962,6 @@ const Video = ({ sideNavbar }) => {
         </div>
       </div>
 
-      {/* ── Suggestions ── */}
       <div
         className="videoSuggestions"
         style={{ overflowY: "scroll", scrollbarWidth: "none" }}
@@ -1009,6 +970,7 @@ const Video = ({ sideNavbar }) => {
           <Link
             to={`/video/${suggestion.id}`}
             key={suggestion.id}
+            state={navState}
             className="videoSuggestionsBlock"
             style={{ textDecoration: "none", color: "inherit" }}
             onClick={scrollToTopDeferred}
@@ -1035,7 +997,6 @@ const Video = ({ sideNavbar }) => {
         ))}
       </div>
 
-      {/* ── Report modal ── */}
       {showReportModal && (
         <ReportModal
           contentType="video"

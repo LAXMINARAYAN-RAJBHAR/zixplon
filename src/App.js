@@ -273,22 +273,38 @@ function App() {
     };
 
     // Restore session on mount
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const name = await resolveUsername(session.user);
-        setCurrentUser(name);
-        setShowLoginModal(false);
-        if (window.location.hash?.includes("access_token")) {
-          window.history.replaceState({}, document.title, "/");
-        }
-      } else {
-        // No active session — auto-show login options,
-        // unless the user already dismissed it this browser session
-        const dismissed = sessionStorage.getItem("zixplon_login_dismissed") === "1";
-        setShowLoginModal(!dismissed);
-      }
-      setSessionChecked(true);
-    });
+supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+  if (error) {
+    alert(`getSession error: ${error.message}`);
+  }
+
+  // ── Check for OAuth error returned in the URL (hash or query) ──
+  const hashParams = new URLSearchParams(window.location.hash.replace("#", "?"));
+  const queryParams = new URLSearchParams(window.location.search);
+  const oauthError =
+    hashParams.get("error_description") || queryParams.get("error_description");
+  if (oauthError) {
+    alert(`OAuth redirect error: ${decodeURIComponent(oauthError)}`);
+  }
+
+  if (session?.user) {
+    const name = await resolveUsername(session.user);
+    setCurrentUser(name);
+    setShowLoginModal(false);
+    if (window.location.hash?.includes("access_token")) {
+      window.history.replaceState({}, document.title, "/");
+    }
+  } else {
+    if (!oauthError && !error) {
+      // Genuinely no session — first visit or logged out, not a failure
+    } else {
+      alert("No session was created after Google redirect.");
+    }
+    const dismissed = sessionStorage.getItem("zixplon_login_dismissed") === "1";
+    setShowLoginModal(!dismissed);
+  }
+  setSessionChecked(true);
+});
 
     // Listen for login/logout
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

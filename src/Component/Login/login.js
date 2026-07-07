@@ -166,25 +166,27 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
   }, []);
 
   const handleGoogleLogin = useCallback(async () => {
-    setError("");
-    setErrorType("");
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: "https://zixplon-tawny.vercel.app/",
-          queryParams: { access_type: "offline", prompt: "consent" },
-        },
-      });
-      if (error) {
-        setErrorType("generic");
-        setError(error.message);
-      }
-    } catch (e) {
+  setError("");
+  setErrorType("");
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: "https://zixplon-tawny.vercel.app/",
+        queryParams: { access_type: "offline", prompt: "consent" },
+      },
+    });
+    if (error) {
+      alert(`Google OAuth Error: ${error.message}`);
       setErrorType("generic");
-      setError("Google login failed. Please try again.");
+      setError(error.message);
     }
-  }, []);
+  } catch (e) {
+    alert(`Google OAuth Exception: ${e.message || e}`);
+    setErrorType("generic");
+    setError("Google login failed. Please try again.");
+  }
+}, []);
 
   // ── Use onPointerDown on overlay to prevent mobile tap-through ──────────
   const handleOverlayPointerDown = useCallback(

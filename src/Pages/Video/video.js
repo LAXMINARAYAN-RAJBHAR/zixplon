@@ -587,7 +587,7 @@ const Video = ({ sideNavbar }) => {
               style={{
                 position: "absolute",
                 top: "12px",
-                right: "12px",
+                left: "12px",
                 background: "rgba(0,0,0,0.65)",
                 color: "#fff",
                 fontSize: "12px",

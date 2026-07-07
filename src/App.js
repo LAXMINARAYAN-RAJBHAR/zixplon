@@ -332,19 +332,25 @@ supabase.auth.getSession().then(async ({ data: { session }, error }) => {
 
   // ── Mobile back-button exit logic ─────────────────────────────────────────
   useEffect(() => {
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (!isMobile) return;
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (!isMobile) return;
 
-    const isHome = location.pathname === "/";
+  // ── Don't touch history if an OAuth redirect hash/code is still present ──
+  const hasAuthPayload =
+    window.location.hash.includes("access_token") ||
+    window.location.hash.includes("error") ||
+    new URLSearchParams(window.location.search).has("code");
+  if (hasAuthPayload) return;
 
-    if (!isHome) {
-      backPressedOnce.current = false;
-      setShowExitToast(false);
-      clearTimeout(exitToastTimer.current);
-      return;
-    }
+  const isHome = location.pathname === "/";
+  if (!isHome) {
+    backPressedOnce.current = false;
+    setShowExitToast(false);
+    clearTimeout(exitToastTimer.current);
+    return;
+  }
 
-    window.history.pushState({ zixplonExit: true }, "", "/");
+  window.history.pushState({ zixplonExit: true }, "", "/");
 
     const handlePopState = () => {
       if (backPressedOnce.current) {

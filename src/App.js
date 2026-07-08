@@ -521,15 +521,6 @@ function App() {
   }, [location.pathname]);
   // ──────────────────────────────────────────────────────────────────────────
 
-  const [notifications, setNotifications] = useState([
-    { id: 1, type: "upload",     message: "TechWorld uploaded: 'React 19 Features'",      time: "2m ago",  read: false, avatar: "T" },
-    { id: 2, type: "like",       message: "Alex liked your video 'My Portfolio Tour'",    time: "10m ago", read: false, avatar: "A" },
-    { id: 3, type: "comment",    message: "Sara commented: 'Great content!'",             time: "25m ago", read: false, avatar: "S" },
-    { id: 4, type: "subscriber", message: "John subscribed to your channel",              time: "1h ago",  read: false, avatar: "J" },
-    { id: 5, type: "upload",     message: "CodeWithMe uploaded: 'Node.js Crash Course'",  time: "2h ago",  read: true,  avatar: "C" },
-    { id: 6, type: "like",       message: "Priya liked your video 'CSS Animations'",      time: "3h ago",  read: true,  avatar: "P" },
-  ]);
-
   const hideFooter =
     ["/youtube", "/local-player", "/videoUpload"].includes(location.pathname) ||
     location.pathname.startsWith("/reels") ||
@@ -581,8 +572,6 @@ function App() {
         setCurrentUser={setCurrentUser}
         setSideNavbarFunc={setSideNavbar}
         sideNavbar={sideNavbar}
-        notifications={notifications}
-        setNotifications={setNotifications}
       />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#f0f4ff" }}>
         <SideNavbar sideNavbar={sideNavbar} />
@@ -597,7 +586,7 @@ function App() {
           <Route path="/reels/:id"      element={<Reels />} />
           <Route path="/search"         element={<SearchResults />} />
           <Route path="/youtube"        element={<YouTubeSearch />} />
-          <Route path="/notifications"  element={<Notifications notifications={notifications} />} />
+          <Route path="/notifications"  element={<Notifications currentUser={currentUser} />} />
 
           <Route path="/history"        element={<History      currentUser={currentUser} sideNavbar={sideNavbar} />} />
           <Route path="/playlist"       element={<Playlist     currentUser={currentUser} sideNavbar={sideNavbar} />} />

@@ -122,7 +122,7 @@ const Notifications = ({ currentUser }) => {
     if (!n.contentId || !n.contentType) return;
     if (n.contentType === "reel") navigate(`/reels/${n.contentId}`);
     else if (n.contentType === "video") navigate(`/video/${n.contentId}`);
-    else if (n.contentType === "post") navigate(`/post/${n.contentId}`);
+    else if (n.contentType === "post") navigate(`/feed?post=${n.contentId}`);
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;

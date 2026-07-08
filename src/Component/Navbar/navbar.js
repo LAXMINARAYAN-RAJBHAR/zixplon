@@ -282,6 +282,8 @@ const getNotifStyle = (type) => {
       return { color: "#2196f3", icon: "💬" };
     case "subscriber":
       return { color: "#4caf50", icon: "🔔" };
+    case "post":
+      return { color: "#a78bfa", icon: "📝" };
     default:
       return { color: "#aaa", icon: "📢" };
   }
@@ -675,7 +677,7 @@ const Navbar = ({
     if (!n.contentId || !n.contentType) return;
     if (n.contentType === "reel") navigate(`/reels/${n.contentId}`);
     else if (n.contentType === "video") navigate(`/video/${n.contentId}`);
-    else if (n.contentType === "post") navigate(`/post/${n.contentId}`);
+    else if (n.contentType === "post") navigate(`/feed?post=${n.contentId}`);
   };
 
   const historyCount = suggestionData.history.length;

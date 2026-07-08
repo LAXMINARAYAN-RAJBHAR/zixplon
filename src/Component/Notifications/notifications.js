@@ -2,14 +2,27 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 
+// ── ZIXPLON light theme palette (matches PostFeed.css :root) ──
+const THEME = {
+  bg: "#f0f4ff",
+  surface: "#ffffff",
+  surface2: "#f7f0ff",
+  border: "#e0d4ff",
+  primary: "#7c3aed",
+  primary2: "#a855f7",
+  text: "#1e1b4b",
+  text2: "#4c4589",
+  text3: "#8b84c4",
+};
+
 const getNotifStyle = (type) => {
   switch (type) {
-    case "upload":     return { color: "#ff4444", icon: "🎬" };
-    case "like":       return { color: "#ff9800", icon: "❤️" };
-    case "comment":    return { color: "#2196f3", icon: "💬" };
-    case "subscriber": return { color: "#4caf50", icon: "🔔" };
+    case "upload":     return { color: "#ef4444", icon: "🎬" };
+    case "like":       return { color: "#f97316", icon: "❤️" };
+    case "comment":    return { color: "#3b82f6", icon: "💬" };
+    case "subscriber": return { color: "#10b981", icon: "🔔" };
     case "post":       return { color: "#a78bfa", icon: "📝" };
-    default:           return { color: "#aaa",    icon: "📢" };
+    default:           return { color: THEME.text3, icon: "📢" };
   }
 };
 
@@ -128,13 +141,23 @@ const Notifications = ({ currentUser }) => {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <div style={{ paddingTop: "80px", maxWidth: "700px", margin: "0 auto", padding: "80px 24px 24px" }}>
+    <div
+      style={{
+        paddingTop: "80px",
+        maxWidth: "700px",
+        margin: "0 auto",
+        padding: "80px 24px 24px",
+        background: THEME.bg,
+        minHeight: "100vh",
+        fontFamily: "'Outfit', sans-serif",
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-        <h2 style={{ color: "white", margin: 0 }}>All Notifications</h2>
+        <h2 style={{ color: THEME.text, margin: 0 }}>All Notifications</h2>
         {unreadCount > 0 && (
           <span
             onClick={markAllRead}
-            style={{ color: "#3ea6ff", fontSize: "14px", cursor: "pointer", fontWeight: "500" }}
+            style={{ color: THEME.primary, fontSize: "14px", cursor: "pointer", fontWeight: "600" }}
           >
             Mark all as read
           </span>
@@ -142,11 +165,11 @@ const Notifications = ({ currentUser }) => {
       </div>
 
       {!currentUser ? (
-        <p style={{ color: "#aaa" }}>Log in to see your notifications.</p>
+        <p style={{ color: THEME.text3 }}>Log in to see your notifications.</p>
       ) : loading ? (
-        <p style={{ color: "#aaa" }}>Loading...</p>
+        <p style={{ color: THEME.text3 }}>Loading...</p>
       ) : notifications.length === 0 ? (
-        <p style={{ color: "#aaa" }}>No notifications yet.</p>
+        <p style={{ color: THEME.text3 }}>No notifications yet.</p>
       ) : (
         <>
           {notifications.map((n) => {
@@ -158,9 +181,12 @@ const Notifications = ({ currentUser }) => {
                 style={{
                   display: "flex", alignItems: "flex-start", gap: "14px",
                   padding: "14px 16px", marginBottom: "8px",
-                  background: n.read ? "#1a1a1a" : "rgba(255,255,255,0.05)",
-                  borderRadius: "10px", border: "1px solid #2a2a2a",
+                  background: n.read ? THEME.surface : THEME.surface2,
+                  borderRadius: "10px",
+                  border: n.read ? `2px solid ${THEME.border}` : `2px solid ${THEME.primary2}`,
                   cursor: "pointer",
+                  boxShadow: n.read ? "none" : "0 2px 12px rgba(124,58,237,0.08)",
+                  transition: "border-color 0.15s, box-shadow 0.15s",
                 }}
               >
                 <div style={{
@@ -172,14 +198,14 @@ const Notifications = ({ currentUser }) => {
                   {n.avatar}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, color: n.read ? "#aaa" : "white", fontSize: "14px", lineHeight: "1.5" }}>
+                  <p style={{ margin: 0, color: n.read ? THEME.text2 : THEME.text, fontSize: "14px", lineHeight: "1.5", fontWeight: n.read ? 400 : 600 }}>
                     <span style={{ marginRight: "6px" }}>{icon}</span>
                     {n.message}
                   </p>
-                  <span style={{ color: "#555", fontSize: "12px" }}>{n.time}</span>
+                  <span style={{ color: THEME.text3, fontSize: "12px" }}>{n.time}</span>
                 </div>
                 {!n.read && (
-                  <div style={{ width: "9px", height: "9px", borderRadius: "50%", background: "#3ea6ff", flexShrink: 0, marginTop: "6px" }} />
+                  <div style={{ width: "9px", height: "9px", borderRadius: "50%", background: THEME.primary, flexShrink: 0, marginTop: "6px" }} />
                 )}
               </div>
             );
@@ -191,8 +217,9 @@ const Notifications = ({ currentUser }) => {
                 onClick={loadMore}
                 disabled={loadingMore}
                 style={{
-                  padding: "8px 20px", borderRadius: "20px", border: "1px solid #333",
-                  background: "transparent", color: "#3ea6ff", cursor: "pointer", fontSize: "13px",
+                  padding: "8px 20px", borderRadius: "20px", border: `2px solid ${THEME.border}`,
+                  background: THEME.surface, color: THEME.primary, cursor: "pointer", fontSize: "13px",
+                  fontWeight: 700, fontFamily: "'Outfit', sans-serif",
                 }}
               >
                 {loadingMore ? "Loading..." : "Load more"}

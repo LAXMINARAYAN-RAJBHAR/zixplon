@@ -350,9 +350,11 @@
   color: var(--zx-primary);
 }
 
-/* Short thumbnail */
+/* Short thumbnail — CHANGED: fixed height (158px) → aspect-ratio 9:16
+   so shorts render as a proper vertical rectangle instead of near-square,
+   and scale correctly at any card width. */
 .homePage_shortThumbnail {
-  position: relative; width: 100%; height: 158px;
+  position: relative; width: 100%; aspect-ratio: 9 / 16;
   border-radius: var(--zx-radius-sm); overflow: hidden;
   border: 2px solid var(--zx-border);
   background: var(--zx-surface2);
@@ -377,8 +379,10 @@
   background: rgba(124,58,237,0.7);
   transition: background 0.2s, color 0.2s;
 }
+/* CHANGED: bottom offset reduced from 20px → 6px since cards are now taller
+   and the badge no longer needs to clear as much reserved space below it. */
 .homePage_shortDuration {
-  position: absolute; bottom: 20px; right: 5px;
+  position: absolute; bottom: 6px; right: 5px;
   background: rgba(30,27,75,0.85); color: #fff;
   font-family: 'Nunito', sans-serif;
   font-size: 10px; font-weight: 800;
@@ -577,18 +581,25 @@
     width: 100% !important;
   }
 
-  /* FIX: ShortsRow gets 8px side padding inside, full width container */
+  /* CHANGED: 4 → 3 columns so 9:16 vertical thumbnails have enough width
+     to read comfortably instead of looking cramped/skinny. */
   .mobile-tab-content .homePage_shortsRow {
     display: grid !important;
-    grid-template-columns: repeat(4, 1fr) !important;
-    gap: 6px !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
     padding: 0 8px !important;
     box-sizing: border-box !important;
     width: 100% !important;
   }
 
   .mobile-tab-content .youtube_thumbnailBox { border-radius: var(--zx-radius-sm) !important; border: 1.5px solid var(--zx-border) !important; }
-  .mobile-tab-content .homePage_shortThumbnail { height: 125px !important; border-radius: 8px !important; }
+  /* CHANGED: fixed height (125px) → aspect-ratio 9:16 for a true vertical
+     rectangle on mobile shorts thumbnails. */
+  .mobile-tab-content .homePage_shortThumbnail {
+    height: auto !important;
+    aspect-ratio: 9 / 16 !important;
+    border-radius: 8px !important;
+  }
   .mobile-tab-content .youtubeTitleBox { padding: 6px 7px 8px !important; gap: 5px !important; flex-direction: column !important; background: #fff !important; }
   .mobile-tab-content .youtubeBoxProfile { gap: 4px !important; }
   .mobile-tab-content .youtube_thumbnail_Profile { width: 22px !important; height: 22px !important; }
@@ -662,13 +673,18 @@
     gap: 6px !important;
     padding: 0 6px !important;
   }
+  /* CHANGED: 4 → 3 columns to match the vertical (9:16) thumbnail shape */
   .mobile-tab-content .homePage_shortsRow {
     display: grid !important;
-    grid-template-columns: repeat(4, 1fr) !important;
-    gap: 5px !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
     padding: 0 6px !important;
   }
-  .mobile-tab-content .homePage_shortThumbnail { height: 112px !important; }
+  /* CHANGED: fixed height (112px) → aspect-ratio 9:16 */
+  .mobile-tab-content .homePage_shortThumbnail {
+    height: auto !important;
+    aspect-ratio: 9 / 16 !important;
+  }
 
   .mobile-trending-card { width: 145px; }
   .mobile-trending-card-thumb { height: 105px; }
@@ -695,7 +711,11 @@
     gap: 4px !important;
     padding: 0 4px !important;
   }
-  .mobile-tab-content .homePage_shortThumbnail { height: 100px !important; }
+  /* CHANGED: fixed height (100px) → aspect-ratio 9:16 */
+  .mobile-tab-content .homePage_shortThumbnail {
+    height: auto !important;
+    aspect-ratio: 9 / 16 !important;
+  }
 
   .mobile-trending-card { width: 130px; }
   .mobile-trending-card-thumb { height: 90px; }

@@ -49,7 +49,7 @@ import LiveBrowser from "./Component/Live/LiveViewer";
 // Also add your ZIXPLON origin(s) (e.g. https://zixplon-tawny.vercel.app)
 // to "Authorized JavaScript origins" in the Google Cloud Console for this
 // Client ID, or One Tap will silently refuse to display.
-const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = "578212794302-0pbugtvmlfo5k0pq1ph9fki82nnj9srl.apps.googleusercontent.com";
 
 // Generates a nonce pair for the OIDC sign-in, as recommended by Supabase
 // when using signInWithIdToken — protects against token replay.

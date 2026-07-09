@@ -195,7 +195,7 @@ const ExitToast = ({ visible }) => (
 function App() {
   const location = useLocation();
   const [appReady, setAppReady] = useState(false);
-  const [sideNavbar, setSideNavbar] = useState(true);
+  const [sideNavbar, setSideNavbar] = useState(false);
   const [currentUser, setCurrentUser] = useState(
     localStorage.getItem("username") || null,
   );

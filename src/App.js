@@ -575,43 +575,60 @@ function App() {
       />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#f0f4ff" }}>
         <SideNavbar sideNavbar={sideNavbar} />
-        <Routes>
-          <Route path="/"               element={<Home sideNavbar={sideNavbar} />} />
-          <Route path="/video/:id"      element={<Video sideNavbar={sideNavbar} />} />
-          <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} />} />
-          <Route path="/videoUpload"    element={<VideoUpload />} />
-          <Route path="/:id/upload"     element={<VideoUpload />} />
-          <Route path="/signup"         element={<SignUp />} />
-          <Route path="/reels"          element={<Reels />} />
-          <Route path="/reels/:id"      element={<Reels />} />
-          <Route path="/search"         element={<SearchResults />} />
-          <Route path="/youtube"        element={<YouTubeSearch />} />
-          <Route path="/notifications"  element={<Notifications currentUser={currentUser} />} />
 
-          <Route path="/history"        element={<History      currentUser={currentUser} sideNavbar={sideNavbar} />} />
-          <Route path="/playlist"       element={<Playlist     currentUser={currentUser} sideNavbar={sideNavbar} />} />
-          <Route path="/your-videos"    element={<YourVideos   currentUser={currentUser} sideNavbar={sideNavbar} />} />
-          <Route path="/watch-later"    element={<WatchLater   currentUser={currentUser} sideNavbar={sideNavbar} />} />
-          <Route path="/liked-videos"   element={<LikedVideos  currentUser={currentUser} sideNavbar={sideNavbar} />} />
-          <Route path="/your-clips"     element={<YourClips    currentUser={currentUser} sideNavbar={sideNavbar} />} />
-          <Route path="/subscription"   element={<SubscriptionFeed currentUser={currentUser} sideNavbar={sideNavbar} />} />
+        {/* ── FIX: content-shift wrapper ──
+            Reserves left space for the sidebar so page content never
+            renders underneath it. Sidebar is now ALWAYS visible on
+            desktop (275px expanded / 72px collapsed icon-only strip),
+            so this must never be 0 except on mobile, where the sidebar
+            itself is display:none (handled by the .zx-content-shift
+            media query in App.css). */}
+        <div
+          className="zx-content-shift"
+          style={{
+            marginLeft: sideNavbar ? "275px" : "72px",
+            transition: "margin-left 0.2s ease",
+            minHeight: "calc(100vh - 56px)",
+          }}
+        >
+          <Routes>
+            <Route path="/"               element={<Home sideNavbar={sideNavbar} />} />
+            <Route path="/video/:id"      element={<Video sideNavbar={sideNavbar} />} />
+            <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} />} />
+            <Route path="/videoUpload"    element={<VideoUpload />} />
+            <Route path="/:id/upload"     element={<VideoUpload />} />
+            <Route path="/signup"         element={<SignUp />} />
+            <Route path="/reels"          element={<Reels />} />
+            <Route path="/reels/:id"      element={<Reels />} />
+            <Route path="/search"         element={<SearchResults />} />
+            <Route path="/youtube"        element={<YouTubeSearch />} />
+            <Route path="/notifications"  element={<Notifications currentUser={currentUser} />} />
 
-          <Route path="/live-tv"        element={<LiveTVPage sideNavbar={sideNavbar} />} />
-          <Route path="/local-player"   element={<LocalMediaPlayer sideNavbar={sideNavbar} />} />
-          <Route path="/terms-and-conditions"  element={<TermsAndConditions />} />
-          <Route path="/feedback"              element={<Feedback />} />
-          <Route path="/help"                  element={<Help />} />
-          <Route path="/contact"               element={<ContactSupport />} />
-          <Route path="/report"                element={<ReportProblem />} />
-          <Route path="/about"                 element={<AboutPage />} />
-          <Route path="/privacy-policy"        element={<PrivacyPolicyPage />} />
-          <Route path="/dmca"                  element={<DmcaPage />} />
-          <Route path="/community-guidelines"  element={<CommunityGuidelinesPage />} />
-          <Route path="/advertise"             element={<AdvertisePage />} />
-          <Route path="/feed"                  element={<PostFeed sideNavbar={sideNavbar} />} />
-          <Route path="/admin"                 element={<AdminPanel />} />
-          <Route path="/live"                  element={<LiveBrowser currentUser={currentUser} />} />
-        </Routes>
+            <Route path="/history"        element={<History      currentUser={currentUser} sideNavbar={sideNavbar} />} />
+            <Route path="/playlist"       element={<Playlist     currentUser={currentUser} sideNavbar={sideNavbar} />} />
+            <Route path="/your-videos"    element={<YourVideos   currentUser={currentUser} sideNavbar={sideNavbar} />} />
+            <Route path="/watch-later"    element={<WatchLater   currentUser={currentUser} sideNavbar={sideNavbar} />} />
+            <Route path="/liked-videos"   element={<LikedVideos  currentUser={currentUser} sideNavbar={sideNavbar} />} />
+            <Route path="/your-clips"     element={<YourClips    currentUser={currentUser} sideNavbar={sideNavbar} />} />
+            <Route path="/subscription"   element={<SubscriptionFeed currentUser={currentUser} sideNavbar={sideNavbar} />} />
+
+            <Route path="/live-tv"        element={<LiveTVPage sideNavbar={sideNavbar} />} />
+            <Route path="/local-player"   element={<LocalMediaPlayer sideNavbar={sideNavbar} />} />
+            <Route path="/terms-and-conditions"  element={<TermsAndConditions />} />
+            <Route path="/feedback"              element={<Feedback />} />
+            <Route path="/help"                  element={<Help />} />
+            <Route path="/contact"               element={<ContactSupport />} />
+            <Route path="/report"                element={<ReportProblem />} />
+            <Route path="/about"                 element={<AboutPage />} />
+            <Route path="/privacy-policy"        element={<PrivacyPolicyPage />} />
+            <Route path="/dmca"                  element={<DmcaPage />} />
+            <Route path="/community-guidelines"  element={<CommunityGuidelinesPage />} />
+            <Route path="/advertise"             element={<AdvertisePage />} />
+            <Route path="/feed"                  element={<PostFeed sideNavbar={sideNavbar} />} />
+            <Route path="/admin"                 element={<AdminPanel />} />
+            <Route path="/live"                  element={<LiveBrowser currentUser={currentUser} />} />
+          </Routes>
+        </div>
       </div>
 
       <BottomNav currentUser={currentUser} />

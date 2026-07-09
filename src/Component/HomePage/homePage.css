@@ -83,11 +83,16 @@
   background-color: #f0f4ff;
 }
 
-/* ── Options bar ── */
+/* ── Options bar ──
+   NOTE: this is position:fixed, so it is positioned relative to the
+   VIEWPORT, not to any parent's margin-left. That means it must carry
+   its OWN left offset that mirrors the sidebar's current width — it does
+   NOT get this "for free" from the App.js content wrapper's margin-left,
+   because fixed elements ignore ancestor margins entirely. */
 .homePage_options {
   position: fixed;
   top: 56px;
-  left: 0;
+  left: 72px;   /* collapsed sidebar width (icon-only strip) */
   right: 0;
   z-index: 100;
   overflow: hidden;
@@ -147,20 +152,24 @@
   border-radius: 2px 2px 0 0;
 }
 
-/* ── Main content area ── */
+/* ── Main content area ──
+   FIX: this used to ALSO apply margin-left: 275px / width calc when the
+   sidebar was open — but App.js's .zx-content-shift wrapper already
+   shifts this entire block over (275px expanded / 72px collapsed), since
+   .home_mainPage lives in normal document flow, not fixed positioning.
+   Applying a second margin-left here on top of that wrapper's margin was
+   causing the large gap (275px + 275px = 550px when expanded). This
+   element must NOT reposition itself for the sidebar anymore — it just
+   fills whatever space its parent already gives it. */
 .home_mainPage {
   display: block;
   box-sizing: border-box;
-  /* FIX: reduced side padding from 20px → 12px for a tighter desktop layout */
   padding: 56px 12px 32px 12px;
   margin-left: 0;
   width: 100%;
-  transition: margin-left 0.3s ease, width 0.3s ease;
   background: var(--zx-bg);
-    background-color: #f0f4ff !important;
+  background-color: #f0f4ff !important;
 }
-.home_mainPage.sidebar-open  { margin-left: 275px; width: calc(100% - 275px); }
-.home_mainPage.sidebar-closed { margin-left: 0; width: 100%; }
 
 /* ── Video grid ── */
 .youtube_VideoGrid {
@@ -350,9 +359,9 @@
   color: var(--zx-primary);
 }
 
-/* Short thumbnail — CHANGED: fixed height (158px) → aspect-ratio 9:16
-   so shorts render as a proper vertical rectangle instead of near-square,
-   and scale correctly at any card width. */
+/* Short thumbnail — fixed height → aspect-ratio 9:16 so shorts render as a
+   proper vertical rectangle instead of near-square, and scale correctly
+   at any card width. */
 .homePage_shortThumbnail {
   position: relative; width: 100%; aspect-ratio: 9 / 16;
   border-radius: var(--zx-radius-sm); overflow: hidden;
@@ -379,8 +388,6 @@
   background: rgba(124,58,237,0.7);
   transition: background 0.2s, color 0.2s;
 }
-/* CHANGED: bottom offset reduced from 20px → 6px since cards are now taller
-   and the badge no longer needs to clear as much reserved space below it. */
 .homePage_shortDuration {
   position: absolute; bottom: 6px; right: 5px;
   background: rgba(30,27,75,0.85); color: #fff;
@@ -445,9 +452,7 @@
   .homePage_options { display: none !important; }
 
   /* FIX: zero side padding on mobile — content controls its own inner spacing */
-  .home_mainPage,
-  .home_mainPage.sidebar-open,
-  .home_mainPage.sidebar-closed {
+  .home_mainPage {
     margin-left: 0 !important;
     width: 100% !important;
     padding: 0 0 80px 0 !important;
@@ -562,7 +567,6 @@
   /* ── Mobile Tab Content ── */
   .mobile-tab-content {
     display: block !important;
-    /* FIX: NO side padding here — grids/rows handle their own inner padding */
     padding: 12px 0 20px !important;
     animation: slideInFromRight 0.22s ease;
     background: var(--zx-bg);
@@ -572,7 +576,6 @@
     width: 100%;
   }
 
-  /* FIX: VideoGrid gets 8px side padding inside, full width container */
   .mobile-tab-content .youtube_VideoGrid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 8px !important;
@@ -581,8 +584,6 @@
     width: 100% !important;
   }
 
-  /* CHANGED: 4 → 3 columns so 9:16 vertical thumbnails have enough width
-     to read comfortably instead of looking cramped/skinny. */
   .mobile-tab-content .homePage_shortsRow {
     display: grid !important;
     grid-template-columns: repeat(3, 1fr) !important;
@@ -593,8 +594,6 @@
   }
 
   .mobile-tab-content .youtube_thumbnailBox { border-radius: var(--zx-radius-sm) !important; border: 1.5px solid var(--zx-border) !important; }
-  /* CHANGED: fixed height (125px) → aspect-ratio 9:16 for a true vertical
-     rectangle on mobile shorts thumbnails. */
   .mobile-tab-content .homePage_shortThumbnail {
     height: auto !important;
     aspect-ratio: 9 / 16 !important;
@@ -609,7 +608,6 @@
   .mobile-tab-content .youtube_ChannelName { font-size: 10px !important; margin-top: 0 !important; max-width: 75px !important; }
   .mobile-tab-content .youtube_timingThumbnail { font-size: 9px !important; padding: 2px 5px !important; }
 
-  /* FIX: section heads also need side padding */
   .mobile-tab-section-head {
     padding-left: 8px !important;
     padding-right: 8px !important;
@@ -664,23 +662,19 @@
    MOBILE PHONE — max 480px
 ══════════════════════════════════════ */
 @media (max-width: 480px) {
-  .home_mainPage,
-  .home_mainPage.sidebar-open,
-  .home_mainPage.sidebar-closed { padding: 0 0 80px 0 !important; }
+  .home_mainPage { padding: 0 0 80px 0 !important; }
 
   .mobile-tab-content .youtube_VideoGrid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 6px !important;
     padding: 0 6px !important;
   }
-  /* CHANGED: 4 → 3 columns to match the vertical (9:16) thumbnail shape */
   .mobile-tab-content .homePage_shortsRow {
     display: grid !important;
     grid-template-columns: repeat(3, 1fr) !important;
     gap: 6px !important;
     padding: 0 6px !important;
   }
-  /* CHANGED: fixed height (112px) → aspect-ratio 9:16 */
   .mobile-tab-content .homePage_shortThumbnail {
     height: auto !important;
     aspect-ratio: 9 / 16 !important;
@@ -696,9 +690,7 @@
    VERY SMALL — max 360px
 ══════════════════════════════════════ */
 @media (max-width: 360px) {
-  .home_mainPage,
-  .home_mainPage.sidebar-open,
-  .home_mainPage.sidebar-closed { padding: 0 0 80px 0 !important; }
+  .home_mainPage { padding: 0 0 80px 0 !important; }
 
   .mobile-tab-content .youtube_VideoGrid {
     grid-template-columns: repeat(2, 1fr) !important;
@@ -711,7 +703,6 @@
     gap: 4px !important;
     padding: 0 4px !important;
   }
-  /* CHANGED: fixed height (100px) → aspect-ratio 9:16 */
   .mobile-tab-content .homePage_shortThumbnail {
     height: auto !important;
     aspect-ratio: 9 / 16 !important;
@@ -744,20 +735,8 @@
   100% { background-position: 400px 0; }
 }
 
-/* Hide three-dot save menu on mobile */
-/* @media (max-width: 768px) {
-  .save-menu-wrapper {
-    display: none !important;
-  }
-} */
-
 /* ══════════════════════════════════════
    TV BROWSER ONLY — aspect-ratio fix
-   TV browsers ignore aspect-ratio so
-   thumbnail stretches and breaks cards.
-   Fixed height restores correct layout.
-   Desktop uses aspect-ratio fine → untouched.
-   Mobile has its own rules → untouched.
 ══════════════════════════════════════ */
 @media (min-width: 769px) and (max-width: 1400px) {
 

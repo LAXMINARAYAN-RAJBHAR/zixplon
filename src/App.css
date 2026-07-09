@@ -7,3 +7,8 @@
   background-color: #f0f4ff;
   overflow-x: hidden;
 }
+@media (max-width: 768px) {
+  .zx-content-shift {
+    margin-left: 0 !important;
+  }
+}

@@ -11,27 +11,34 @@
   --zx-text3:   #8b84c4;
 }
 
-.homeSideNavbarHide {
-  display: none;
-}
-
 .home-sideNavbar {
   display: flex;
   flex-direction: column;
-  flex: 0.16 1;
   box-sizing: border-box;
   height: 92vh;
   overflow-y: auto;
+  overflow-x: hidden;
   position: fixed;
   top: 55px;
   left: 0px;
-  width: 275px;
-  padding: 14px;
   background-color: #ffffff;
   border-right: 2px solid var(--zx-border);
   color: var(--zx-text);
   box-shadow: 2px 0 16px rgba(124, 58, 237, 0.06);
-  z-index: 100;   /* ← ADD THIS */
+  z-index: 100;
+  transition: width 0.2s ease, padding 0.2s ease;
+}
+
+/* Expanded: icons + labels */
+.home-sideNavbar.expanded {
+  width: 275px;
+  padding: 14px;
+}
+
+/* Collapsed: icons only, still fully visible */
+.home-sideNavbar.collapsed {
+  width: 72px;
+  padding: 14px 8px;
 }
 
 .home-sideNavbar::-webkit-scrollbar {
@@ -69,6 +76,13 @@
   text-decoration: none;
 }
 
+/* Collapsed: center icons, no label, tighter padding */
+.home-sideNavbar.collapsed .home_sideNavbarTopOption {
+  justify-content: center;
+  padding: 10px 0;
+  gap: 0;
+}
+
 .home_sideNavbarTopOption:hover {
   background-color: rgba(124, 58, 237, 0.08);
   color: var(--zx-primary);
@@ -94,6 +108,7 @@
   font-weight: 600;
   font-family: 'Outfit', sans-serif;
   color: inherit;
+  white-space: nowrap;
 }
 
 .home_sideNavbarMiddle {
@@ -119,6 +134,7 @@
   border-radius: 50%;
   border: 2px solid var(--zx-border);
   object-fit: cover;
+  flex-shrink: 0;
 }
 
 .home_sideNavbar_link {
@@ -135,11 +151,10 @@
 }
 
 /* ══════════════════════════════════════
-   MOBILE — sidebar hidden on mobile
+   MOBILE — sidebar fully hidden (bottom nav handles it)
 ══════════════════════════════════════ */
 @media (max-width: 768px) {
-  .home-sideNavbar,
-  .homeSideNavbarHide {
+  .home-sideNavbar {
     display: none !important;
   }
 }

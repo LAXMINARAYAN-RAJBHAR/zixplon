@@ -8,6 +8,7 @@ const ic = {
   height: 24,
   display: "inline-block",
   verticalAlign: "middle",
+  flexShrink: 0,
 };
 const s = {
   stroke: "#534AB7",
@@ -39,7 +40,6 @@ const ShortsIcon = () => (
   </svg>
 );
 
-// ✅ SubsIcon added back with matching purple color
 const SubsIcon = () => (
   <svg viewBox="0 0 24 24" style={ic}>
     <rect x="2" y="7" width="20" height="13" rx="2" {...s} />
@@ -111,9 +111,12 @@ const ClipsIcon = () => (
 );
 // ────────────────────────────────────────────────────────────────────────────
 
+// sideNavbar === true  -> expanded (icons + labels)
+// sideNavbar === false -> collapsed (icons only, still visible)
 const SideNavbar = ({ sideNavbar }) => {
   const location = useLocation();
   const loggedInUsername = localStorage.getItem("username") || "";
+  const expanded = sideNavbar;
 
   const hiddenRoutes = ["/videoUpload", "/signup", "/reels"];
   if (hiddenRoutes.some((route) => location.pathname.startsWith(route)))
@@ -126,41 +129,53 @@ const SideNavbar = ({ sideNavbar }) => {
     borderRadius: "10px",
   };
 
+  const Title = ({ children }) =>
+    expanded ? (
+      <div className="home_sideNavbarTopOptionTitle">{children}</div>
+    ) : null;
+
   return (
-    <div className={sideNavbar ? "home-sideNavbar" : "homeSideNavbarHide"}>
+    <div
+      className={`home-sideNavbar ${expanded ? "expanded" : "collapsed"}`}
+      title={!expanded ? "" : undefined}
+    >
       {/* ── TOP SECTION ── */}
       <div className="home_sideNavbarTop">
-        <Link to="/" className="home_sideNavbar_link">
+        <Link to="/" className="home_sideNavbar_link" title={!expanded ? "Home" : undefined}>
           <div
             className="home_sideNavbarTopOption"
             style={isActive("/") ? activeStyle : {}}
           >
             <HomeIcon />
-            <div className="home_sideNavbarTopOptionTitle">Home</div>
+            <Title>Home</Title>
           </div>
         </Link>
 
-        <Link to="/feed" className="home_sideNavbar_link">
+        <Link to="/feed" className="home_sideNavbar_link" title={!expanded ? "Posts" : undefined}>
           <div
             className="home_sideNavbarTopOption"
             style={isActive("/feed") ? activeStyle : {}}
           >
             <PostsIcon />
-            <div className="home_sideNavbarTopOptionTitle">Posts</div>
+            <Title>Posts</Title>
           </div>
         </Link>
 
-        <Link to="/reels" className="home_sideNavbar_link">
+        <Link to="/reels" className="home_sideNavbar_link" title={!expanded ? "Shorts" : undefined}>
           <div
             className="home_sideNavbarTopOption"
             style={isActive("/reels") ? activeStyle : {}}
           >
             <ShortsIcon />
-            <div className="home_sideNavbarTopOptionTitle">Shorts</div>
+            <Title>Shorts</Title>
           </div>
         </Link>
 
-        <Link to="/subscription" className="home_sideNavbar_link">
+        <Link
+          to="/subscription"
+          className="home_sideNavbar_link"
+          title={!expanded ? "Subscription" : undefined}
+        >
           <div
             className="home_sideNavbarTopOption"
             style={isActive("/subscription") ? activeStyle : {}}
@@ -168,157 +183,163 @@ const SideNavbar = ({ sideNavbar }) => {
             <img
               src="/mylogo1.png"
               alt="Zixplon"
-              style={{ width: 24, height: 24, objectFit: "contain" }}
+              style={{ width: 24, height: 24, objectFit: "contain", flexShrink: 0 }}
             />
-            <div className="home_sideNavbarTopOptionTitle">Subscription</div>
+            <Title>Subscription</Title>
           </div>
         </Link>
       </div>
 
       {/* ── MIDDLE SECTION ── */}
       <div className="home_sideNavbarMiddle">
-        <div className="home_sideNavbarTopOption">
-          <div className="home_sideNavbarTopOptionTitle">You</div>
-          <ChevronRight />
-        </div>
+        {expanded && (
+          <div className="home_sideNavbarTopOption">
+            <div className="home_sideNavbarTopOptionTitle">You</div>
+            <ChevronRight />
+          </div>
+        )}
 
         {loggedInUsername ? (
           <Link
             to={`/user/${loggedInUsername}`}
             className="home_sideNavbar_link"
+            title={!expanded ? "Your Channel" : undefined}
           >
             <div
               className="home_sideNavbarTopOption"
               style={isActive(`/user/${loggedInUsername}`) ? activeStyle : {}}
             >
               <ChannelIcon />
-              <div className="home_sideNavbarTopOptionTitle">Your Channel</div>
+              <Title>Your Channel</Title>
             </div>
           </Link>
         ) : (
           <div
             className="home_sideNavbar_link"
             style={{ cursor: "pointer" }}
+            title={!expanded ? "Your Channel" : undefined}
             onClick={() => window.dispatchEvent(new Event("openLogin"))}
           >
             <div className="home_sideNavbarTopOption">
               <ChannelIcon />
-              <div className="home_sideNavbarTopOptionTitle">Your Channel</div>
+              <Title>Your Channel</Title>
             </div>
           </div>
         )}
 
-        <Link to="/history" className="home_sideNavbar_link">
+        <Link to="/history" className="home_sideNavbar_link" title={!expanded ? "History" : undefined}>
           <div
             className="home_sideNavbarTopOption"
             style={isActive("/history") ? activeStyle : {}}
           >
             <HistoryIcon />
-            <div className="home_sideNavbarTopOptionTitle">History</div>
+            <Title>History</Title>
           </div>
         </Link>
 
-        <Link to="/playlist" className="home_sideNavbar_link">
+        <Link to="/playlist" className="home_sideNavbar_link" title={!expanded ? "Playlist" : undefined}>
           <div
             className="home_sideNavbarTopOption"
             style={isActive("/playlist") ? activeStyle : {}}
           >
             <PlaylistIcon />
-            <div className="home_sideNavbarTopOptionTitle">Playlist</div>
+            <Title>Playlist</Title>
           </div>
         </Link>
 
-        <Link to="/your-videos" className="home_sideNavbar_link">
+        <Link to="/your-videos" className="home_sideNavbar_link" title={!expanded ? "Your videos" : undefined}>
           <div
             className="home_sideNavbarTopOption"
             style={isActive("/your-videos") ? activeStyle : {}}
           >
             <YourVideosIcon />
-            <div className="home_sideNavbarTopOptionTitle">Your videos</div>
+            <Title>Your videos</Title>
           </div>
         </Link>
 
-        <Link to="/watch-later" className="home_sideNavbar_link">
+        <Link to="/watch-later" className="home_sideNavbar_link" title={!expanded ? "Watch later" : undefined}>
           <div
             className="home_sideNavbarTopOption"
             style={isActive("/watch-later") ? activeStyle : {}}
           >
             <WatchLaterIcon />
-            <div className="home_sideNavbarTopOptionTitle">Watch later</div>
+            <Title>Watch later</Title>
           </div>
         </Link>
 
-        <Link to="/liked-videos" className="home_sideNavbar_link">
+        <Link to="/liked-videos" className="home_sideNavbar_link" title={!expanded ? "Liked videos" : undefined}>
           <div
             className="home_sideNavbarTopOption"
             style={isActive("/liked-videos") ? activeStyle : {}}
           >
             <ThumbUpIcon />
-            <div className="home_sideNavbarTopOptionTitle">Liked videos</div>
+            <Title>Liked videos</Title>
           </div>
         </Link>
 
-        <Link to="/your-clips" className="home_sideNavbar_link">
+        <Link to="/your-clips" className="home_sideNavbar_link" title={!expanded ? "Your clips" : undefined}>
           <div
             className="home_sideNavbarTopOption"
             style={isActive("/your-clips") ? activeStyle : {}}
           >
             <ClipsIcon />
-            <div className="home_sideNavbarTopOptionTitle">Your clips</div>
+            <Title>Your clips</Title>
           </div>
         </Link>
       </div>
 
       {/* ── SUBSCRIPTIONS SECTION ── */}
-      <div className="home_sideNavbarMiddle">
-        <div className="home_sideNavbarTopOption">
-          <div className="home_sideNavbarTopOptionTitleHeader">
-            Subscription
+      {expanded && (
+        <div className="home_sideNavbarMiddle">
+          <div className="home_sideNavbarTopOption">
+            <div className="home_sideNavbarTopOptionTitleHeader">
+              Subscription
+            </div>
           </div>
+
+          <Link to="/user/aajtak" className="home_sideNavbar_link">
+            <div
+              className="home_sideNavbarTopOption"
+              style={isActive("/user/aajtak") ? activeStyle : {}}
+            >
+              <img
+                className="home_sideNavbar_ImgLogo"
+                src="https://tse4.mm.bing.net/th/id/OIP.Auy5e_yPpkpidVF_ZRz7aQAAAA?w=404&h=316&rs=1&pid=ImgDetMain&o=7&rm=3"
+                alt="Aaj Tak"
+              />
+              <div className="home_sideNavbarTopOptionTitle">Aaj Tak</div>
+            </div>
+          </Link>
+
+          <Link to="/user/lallantop" className="home_sideNavbar_link">
+            <div
+              className="home_sideNavbarTopOption"
+              style={isActive("/user/lallantop") ? activeStyle : {}}
+            >
+              <img
+                className="home_sideNavbar_ImgLogo"
+                src="https://tse1.mm.bing.net/th/id/OIP.At5eXfjQ0jLiO7tRFBjI_QAAAA?rs=1&pid=ImgDetMain&o=7&rm=3"
+                alt="The LallanTop"
+              />
+              <div className="home_sideNavbarTopOptionTitle">The LallanTop</div>
+            </div>
+          </Link>
+
+          <Link to="/user/ndtvindia" className="home_sideNavbar_link">
+            <div
+              className="home_sideNavbarTopOption"
+              style={isActive("/user/ndtvindia") ? activeStyle : {}}
+            >
+              <img
+                className="home_sideNavbar_ImgLogo"
+                src="https://logodix.com/logo/2131933.jpg"
+                alt="NDTV India"
+              />
+              <div className="home_sideNavbarTopOptionTitle">NDTV India</div>
+            </div>
+          </Link>
         </div>
-
-        <Link to="/user/aajtak" className="home_sideNavbar_link">
-          <div
-            className="home_sideNavbarTopOption"
-            style={isActive("/user/aajtak") ? activeStyle : {}}
-          >
-            <img
-              className="home_sideNavbar_ImgLogo"
-              src="https://tse4.mm.bing.net/th/id/OIP.Auy5e_yPpkpidVF_ZRz7aQAAAA?w=404&h=316&rs=1&pid=ImgDetMain&o=7&rm=3"
-              alt="Aaj Tak"
-            />
-            <div className="home_sideNavbarTopOptionTitle">Aaj Tak</div>
-          </div>
-        </Link>
-
-        <Link to="/user/lallantop" className="home_sideNavbar_link">
-          <div
-            className="home_sideNavbarTopOption"
-            style={isActive("/user/lallantop") ? activeStyle : {}}
-          >
-            <img
-              className="home_sideNavbar_ImgLogo"
-              src="https://tse1.mm.bing.net/th/id/OIP.At5eXfjQ0jLiO7tRFBjI_QAAAA?rs=1&pid=ImgDetMain&o=7&rm=3"
-              alt="The LallanTop"
-            />
-            <div className="home_sideNavbarTopOptionTitle">The LallanTop</div>
-          </div>
-        </Link>
-
-        <Link to="/user/ndtvindia" className="home_sideNavbar_link">
-          <div
-            className="home_sideNavbarTopOption"
-            style={isActive("/user/ndtvindia") ? activeStyle : {}}
-          >
-            <img
-              className="home_sideNavbar_ImgLogo"
-              src="https://logodix.com/logo/2131933.jpg"
-              alt="NDTV India"
-            />
-            <div className="home_sideNavbarTopOptionTitle">NDTV India</div>
-          </div>
-        </Link>
-      </div>
+      )}
     </div>
   );
 };

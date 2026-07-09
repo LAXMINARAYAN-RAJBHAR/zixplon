@@ -39,7 +39,7 @@
   display: flex;
   color: var(--zx-text);
   padding-bottom: 24px;
-  justify-content: center;
+  justify-content: flex-start;   /* was: center */
   font-family: 'Outfit', sans-serif;
   min-height: calc(100vh - 56px);
   transition: padding-left 0.3s ease;
@@ -56,7 +56,7 @@
   max-width: 875px;
   display: flex;
   flex-direction: column;
-  padding: 0 16px;
+  padding: 0 10px;
 }
 
 /* ══════════════════════════════════════

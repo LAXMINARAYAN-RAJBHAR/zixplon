@@ -545,10 +545,7 @@ const Video = ({ sideNavbar }) => {
   const overlayVisible = isMobile ? mobileOverlayVisible : showControls;
 
   return (
-    <div
-      className="video"
-      style={{ paddingLeft: sideNavbar ? "275px" : "0px" }}
-    >
+    <div className="video">
       <div className="videoPostSection">
         <div
           className="video_player_wrapper"

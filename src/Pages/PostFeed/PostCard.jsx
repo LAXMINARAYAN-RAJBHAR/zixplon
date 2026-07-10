@@ -307,7 +307,7 @@ const ImageCarousel = ({ images, onOpenLightbox }) => {
   const startXRef = useRef(0);
   const dragXRef = useRef(0);
   const isDraggingRef = useRef(false);
-  
+
 
   const goTo = (i) => {
     const next = (i + images.length) % images.length;
@@ -599,45 +599,45 @@ const PostCard = ({
           </div>
 
           {!isEditing && (
-  <div className="pf-menu-wrap" ref={menuRef}>
-    <button
-      className="pf-icon-btn"
-      onClick={() => setShowMenu((v) => !v)}
-      aria-label="Post options"
-    >
-      ⋯
-    </button>
+            <div className="pf-menu-wrap" ref={menuRef}>
+              <button
+                className="pf-icon-btn"
+                onClick={() => setShowMenu((v) => !v)}
+                aria-label="Post options"
+              >
+                ⋯
+              </button>
               {showMenu && (
-  <div className="pf-dropdown">
-    {post.username !== currentUser && (
-      <button
-        className="pf-dropdown-item"
-        onClick={() => {
-          navigate(`/messages/${post.username}`);
-          setShowMenu(false);
-        }}
-      >
-        ✉️ Message {post.username}
-      </button>
-    )}
-    {post.username === currentUser && (
-      <button className="pf-dropdown-item" onClick={startEdit}>
-        ✏️ Edit post
-      </button>
-    )}
-    {post.username === currentUser && (
-      <button
-        className="pf-dropdown-item pf-dropdown-danger"
-        onClick={() => {
-          onDelete(post.id);
-          setShowMenu(false);
-        }}
-      >
-        🗑️ Delete post
-      </button>
-    )}
-  </div>
-)}
+                <div className="pf-dropdown">
+                  {post.username !== currentUser && (
+                    <button
+                      className="pf-dropdown-item"
+                      onClick={() => {
+                        navigate(`/messages/${post.username}`);
+                        setShowMenu(false);
+                      }}
+                    >
+                      ✉️ Message {post.username}
+                    </button>
+                  )}
+                  {post.username === currentUser && (
+                    <button className="pf-dropdown-item" onClick={startEdit}>
+                      ✏️ Edit post
+                    </button>
+                  )}
+                  {post.username === currentUser && (
+                    <button
+                      className="pf-dropdown-item pf-dropdown-danger"
+                      onClick={() => {
+                        onDelete(post.id);
+                        setShowMenu(false);
+                      }}
+                    >
+                      🗑️ Delete post
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -724,33 +724,33 @@ const PostCard = ({
             {post.text && <p className="pf-card-text">{post.text}</p>}
 
             {post.image_urls && post.image_urls.length > 0 ? (
-  <ImageCarousel
-    images={post.image_urls}
-    onOpenLightbox={(startIndex) =>
-      setLightboxData({ images: post.image_urls, startIndex })
-    }
-  />
-) : post.image_url ? (
-  <img
-    src={post.image_url}
-    alt="Post"
-    className="pf-card-image"
-    loading="lazy"
-    onClick={() =>
-      setLightboxData({ images: [post.image_url], startIndex: 0 })
-    }
-    style={{ cursor: "zoom-in" }}
-  />
-) : (
-  post.video_url && (
-    <video
-      src={post.video_url}
-      controls
-      playsInline
-      className="pf-card-video"
-    />
-  )
-)}
+              <ImageCarousel
+                images={post.image_urls}
+                onOpenLightbox={(startIndex) =>
+                  setLightboxData({ images: post.image_urls, startIndex })
+                }
+              />
+            ) : post.image_url ? (
+              <img
+                src={post.image_url}
+                alt="Post"
+                className="pf-card-image"
+                loading="lazy"
+                onClick={() =>
+                  setLightboxData({ images: [post.image_url], startIndex: 0 })
+                }
+                style={{ cursor: "zoom-in" }}
+              />
+            ) : (
+              post.video_url && (
+                <video
+                  src={post.video_url}
+                  controls
+                  playsInline
+                  className="pf-card-video"
+                />
+              )
+            )}
 
             {post.link && (
               <a
@@ -797,6 +797,7 @@ const PostCard = ({
         {/* ── Action bar ── */}
         {!isEditing && (
           <div className="pf-action-bar">
+            {/* Like */}
             <div className="pf-action-wrap" ref={pickerRef}>
               <button
                 className={`pf-action-btn ${post.myReaction ? "pf-action-active" : ""}`}
@@ -839,6 +840,7 @@ const PostCard = ({
               )}
             </div>
 
+            {/* Comment */}
             <button
               className="pf-action-btn"
               onClick={() => {
@@ -849,12 +851,10 @@ const PostCard = ({
                 onToggleComments(post.id);
               }}
             >
-              {!isEditing && showLiveChat && (
-  <PostLiveChat postId={post.id} currentUser={currentUser} />
-)}
               💬 <span>Comment</span>
             </button>
 
+            {/* Share */}
             <div className="pf-action-wrap" ref={shareRef}>
               <button
                 className="pf-action-btn"
@@ -862,12 +862,6 @@ const PostCard = ({
               >
                 🔁 <span>Share</span>
               </button>
-              <button
-  className={`pf-action-btn ${showLiveChat ? "pf-action-active" : ""}`}
-  onClick={() => setShowLiveChat((v) => !v)}
->
-  🟢 <span>Live Chat</span>
-</button>
               {showShareMenu && (
                 <div className="pf-dropdown pf-dropdown-up">
                   <button
@@ -885,7 +879,20 @@ const PostCard = ({
                 </div>
               )}
             </div>
+
+            {/* Live Chat — now a direct sibling, sits beside Share */}
+            <button
+              className={`pf-action-btn ${showLiveChat ? "pf-action-active" : ""}`}
+              onClick={() => setShowLiveChat((v) => !v)}
+            >
+              🟢 <span>Live Chat</span>
+            </button>
           </div>
+        )}
+
+        {/* ── Live Chat panel ── */}
+        {!isEditing && showLiveChat && (
+          <PostLiveChat postId={post.id} currentUser={currentUser} />
         )}
 
         {/* ── Comments ── */}

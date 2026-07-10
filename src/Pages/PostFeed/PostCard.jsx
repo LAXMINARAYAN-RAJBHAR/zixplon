@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import EmojiPicker from "./EmojiPicker";
+import PostLiveChat from "./PostLiveChat";
 
 const REACTIONS = [
   { key: "like", emoji: "👍", label: "Like", color: "#1877f2" },
@@ -306,6 +307,7 @@ const ImageCarousel = ({ images, onOpenLightbox }) => {
   const startXRef = useRef(0);
   const dragXRef = useRef(0);
   const isDraggingRef = useRef(false);
+  
 
   const goTo = (i) => {
     const next = (i + images.length) % images.length;
@@ -473,6 +475,9 @@ const PostCard = ({
   const shareRef = useRef();
   const menuRef = useRef();
 
+  const navigate = useNavigate();
+  const [showLiveChat, setShowLiveChat] = useState(false);
+
   const initials = (post.username || "?").slice(0, 2).toUpperCase();
   const totalReactions = Object.values(post.reactionCounts || {}).reduce(
     (a, b) => a + b,
@@ -593,31 +598,46 @@ const PostCard = ({
             </p>
           </div>
 
-          {post.username === currentUser && !isEditing && (
-            <div className="pf-menu-wrap" ref={menuRef}>
-              <button
-                className="pf-icon-btn"
-                onClick={() => setShowMenu((v) => !v)}
-                aria-label="Post options"
-              >
-                ⋯
-              </button>
+          {!isEditing && (
+  <div className="pf-menu-wrap" ref={menuRef}>
+    <button
+      className="pf-icon-btn"
+      onClick={() => setShowMenu((v) => !v)}
+      aria-label="Post options"
+    >
+      ⋯
+    </button>
               {showMenu && (
-                <div className="pf-dropdown">
-                  <button className="pf-dropdown-item" onClick={startEdit}>
-                    ✏️ Edit post
-                  </button>
-                  <button
-                    className="pf-dropdown-item pf-dropdown-danger"
-                    onClick={() => {
-                      onDelete(post.id);
-                      setShowMenu(false);
-                    }}
-                  >
-                    🗑️ Delete post
-                  </button>
-                </div>
-              )}
+  <div className="pf-dropdown">
+    {post.username !== currentUser && (
+      <button
+        className="pf-dropdown-item"
+        onClick={() => {
+          navigate(`/messages/${post.username}`);
+          setShowMenu(false);
+        }}
+      >
+        ✉️ Message {post.username}
+      </button>
+    )}
+    {post.username === currentUser && (
+      <button className="pf-dropdown-item" onClick={startEdit}>
+        ✏️ Edit post
+      </button>
+    )}
+    {post.username === currentUser && (
+      <button
+        className="pf-dropdown-item pf-dropdown-danger"
+        onClick={() => {
+          onDelete(post.id);
+          setShowMenu(false);
+        }}
+      >
+        🗑️ Delete post
+      </button>
+    )}
+  </div>
+)}
             </div>
           )}
         </div>
@@ -829,6 +849,9 @@ const PostCard = ({
                 onToggleComments(post.id);
               }}
             >
+              {!isEditing && showLiveChat && (
+  <PostLiveChat postId={post.id} currentUser={currentUser} />
+)}
               💬 <span>Comment</span>
             </button>
 
@@ -839,6 +862,12 @@ const PostCard = ({
               >
                 🔁 <span>Share</span>
               </button>
+              <button
+  className={`pf-action-btn ${showLiveChat ? "pf-action-active" : ""}`}
+  onClick={() => setShowLiveChat((v) => !v)}
+>
+  🟢 <span>Live Chat</span>
+</button>
               {showShareMenu && (
                 <div className="pf-dropdown pf-dropdown-up">
                   <button

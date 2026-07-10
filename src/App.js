@@ -41,7 +41,8 @@ import YourClips        from "./Pages/YourClips/YourClips";
 import SideNavbar       from "./Component/SideNavbar/sideNavbar";
 import LoginOptionsModal from "./Component/LoginOptionsModal/LoginOptionsModal";
 import AdminPanel       from "./Pages/AdminPanel/AdminPanel";
-import LiveBrowser from "./Component/Live/LiveViewer";
+import LiveBrowser      from "./Component/Live/LiveViewer";
+import Messages         from "./Pages/Messages/Messages";
 
 // ── Google Identity Services (One Tap) config ──────────────────────────────
 // TODO: replace with the SAME OAuth Client ID configured under
@@ -627,6 +628,8 @@ function App() {
             <Route path="/feed"                  element={<PostFeed sideNavbar={sideNavbar} />} />
             <Route path="/admin"                 element={<AdminPanel />} />
             <Route path="/live"                  element={<LiveBrowser currentUser={currentUser} />} />
+            <Route path="/messages"              element={<Messages />} />
+            <Route path="/messages/:username"    element={<Messages />} />
           </Routes>
         </div>
       </div>

@@ -970,7 +970,7 @@
 
 .pf-emoji-picker {
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);   /* changed from bottom to top */
   left: 0;
   background: var(--zx-surface);
   border: 2px solid var(--zx-border);

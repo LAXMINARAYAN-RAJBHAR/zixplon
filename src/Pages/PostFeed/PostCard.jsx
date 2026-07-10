@@ -308,7 +308,6 @@ const ImageCarousel = ({ images, onOpenLightbox }) => {
   const dragXRef = useRef(0);
   const isDraggingRef = useRef(false);
 
-
   const goTo = (i) => {
     const next = (i + images.length) % images.length;
     setIdx(next);
@@ -880,7 +879,7 @@ const PostCard = ({
               )}
             </div>
 
-            {/* Live Chat — now a direct sibling, sits beside Share */}
+            {/* Live Chat */}
             <button
               className={`pf-action-btn ${showLiveChat ? "pf-action-active" : ""}`}
               onClick={() => setShowLiveChat((v) => !v)}

@@ -983,6 +983,14 @@
   overflow-y: auto;
 }
 
+@media (max-width: 480px) {
+  .pf-emoji-picker {
+    left: auto;
+    right: 0;
+    width: 220px;
+  }
+}
+
 .pf-emoji-picker-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);

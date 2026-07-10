@@ -1,11 +1,13 @@
 import React, { useState, useRef } from "react";
 import { supabase } from "../../config/supabase";
 import axios from "axios";
+import EmojiPicker from "./EmojiPicker";
 
 const CLOUDINARY_CLOUD = "dwoqk0yue";
 const CLOUDINARY_PRESET = "youtube-clone";
 
 const MAX_IMAGES = 6;
+const MAX_VIDEO_MB = 100; // adjust to your Cloudinary plan's limit
 
 const PRIVACY_OPTIONS = [
   { value: "public", label: "Public", icon: "🌐" },
@@ -20,26 +22,35 @@ const FEELINGS = [
 
 const PostComposer = ({ currentUser, onPost }) => {
   const [text, setText] = useState("");
-  const [imageFiles, setImageFiles] = useState([]); // [{ file, preview }]
+  const [imageFiles, setImageFiles] = useState([]);
+  const [videoFile, setVideoFile] = useState(null); // ← NEW: { file, preview }
   const [linkUrl, setLinkUrl] = useState("");
   const [linkPreview, setLinkPreview] = useState(null);
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [showFeelings, setShowFeelings] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [feeling, setFeeling] = useState("");
   const [privacy, setPrivacy] = useState("public");
   const [posting, setPosting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState("");
   const fileRef = useRef();
+  const videoRef = useRef(); // ← NEW
 
   const initials = currentUser.slice(0, 2).toUpperCase();
-  const canPost = text.trim() || imageFiles.length > 0 || linkUrl;
+  const canPost = text.trim() || imageFiles.length > 0 || videoFile || linkUrl;
 
   const handleImageSelect = (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
     setError("");
+
+    if (videoFile) {
+      setError("A post can have images or a video, not both. Remove the video first.");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
 
     const remainingSlots = MAX_IMAGES - imageFiles.length;
     if (remainingSlots <= 0) {
@@ -62,6 +73,41 @@ const PostComposer = ({ currentUser, onPost }) => {
     });
 
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  // ── NEW: video select ──
+  const handleVideoSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setError("");
+
+    if (imageFiles.length > 0) {
+      setError("A post can have images or a video, not both. Remove the images first.");
+      if (videoRef.current) videoRef.current.value = "";
+      return;
+    }
+
+    if (!file.type.startsWith("video/")) {
+      setError("Please select a valid video file.");
+      if (videoRef.current) videoRef.current.value = "";
+      return;
+    }
+
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > MAX_VIDEO_MB) {
+      setError(`Video is too large. Max size is ${MAX_VIDEO_MB}MB.`);
+      if (videoRef.current) videoRef.current.value = "";
+      return;
+    }
+
+    setVideoFile({ file, preview: URL.createObjectURL(file) });
+    if (videoRef.current) videoRef.current.value = "";
+  };
+
+  const removeVideo = () => {
+    if (videoFile?.preview) URL.revokeObjectURL(videoFile.preview);
+    setVideoFile(null);
   };
 
   const removeImage = (index) => {
@@ -98,6 +144,22 @@ const PostComposer = ({ currentUser, onPost }) => {
     return res.data.secure_url;
   };
 
+  // ── NEW: video upload uses Cloudinary's /video/upload endpoint ──
+  const uploadVideoToCloudinary = async (file, onProgress) => {
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", CLOUDINARY_PRESET);
+    data.append("resource_type", "video");
+    const res = await axios.post(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`,
+      data,
+      {
+        onUploadProgress: (e) => onProgress(Math.round((e.loaded * 100) / e.total)),
+      }
+    );
+    return res.data.secure_url;
+  };
+
   const handleSubmit = async () => {
     if (!canPost || posting) return;
     setPosting(true);
@@ -106,6 +168,8 @@ const PostComposer = ({ currentUser, onPost }) => {
 
     try {
       let imageUrls = [];
+      let videoUrl = null;
+
       if (imageFiles.length > 0) {
         const total = imageFiles.length;
         for (let i = 0; i < total; i++) {
@@ -115,13 +179,18 @@ const PostComposer = ({ currentUser, onPost }) => {
           });
           imageUrls.push(url);
         }
+      } else if (videoFile) {
+        videoUrl = await uploadVideoToCloudinary(videoFile.file, (pct) => {
+          setUploadProgress(pct);
+        });
       }
 
       const payload = {
         username: currentUser,
         text: text.trim() || null,
-        image_url: imageUrls[0] || null, // backward compatibility
+        image_url: imageUrls[0] || null,
         image_urls: imageUrls.length > 0 ? imageUrls : null,
+        video_url: videoUrl, // ← NEW
         link: linkPreview || null,
         feeling: feeling || null,
         privacy,
@@ -143,9 +212,9 @@ const PostComposer = ({ currentUser, onPost }) => {
         showComments: false,
       });
 
-      // Reset
       setText("");
       clearAllImages();
+      removeVideo();
       setLinkUrl("");
       setLinkPreview(null);
       setShowLinkInput(false);
@@ -190,6 +259,24 @@ const PostComposer = ({ currentUser, onPost }) => {
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* ── NEW: video preview ── */}
+          {videoFile && (
+            <div className="pf-video-preview-wrap">
+              <video
+                src={videoFile.preview}
+                controls
+                className="pf-video-preview"
+              />
+              <button
+                className="pf-img-clear"
+                onClick={removeVideo}
+                aria-label="Remove video"
+              >
+                ✕
+              </button>
             </div>
           )}
 
@@ -243,7 +330,11 @@ const PostComposer = ({ currentUser, onPost }) => {
 
       <div className="pf-composer-footer">
         <div className="pf-attach-row">
-          <label className="pf-attach-btn" title="Photo">
+          <label
+            className="pf-attach-btn"
+            title="Photo"
+            style={videoFile ? { opacity: 0.4, cursor: "not-allowed" } : {}}
+          >
             📷
             <input
               ref={fileRef}
@@ -252,9 +343,27 @@ const PostComposer = ({ currentUser, onPost }) => {
               multiple
               style={{ display: "none" }}
               onChange={handleImageSelect}
-              disabled={imageFiles.length >= MAX_IMAGES}
+              disabled={imageFiles.length >= MAX_IMAGES || !!videoFile}
             />
           </label>
+
+          {/* ── NEW: video attach button ── */}
+          <label
+            className="pf-attach-btn"
+            title="Video"
+            style={imageFiles.length > 0 ? { opacity: 0.4, cursor: "not-allowed" } : {}}
+          >
+            🎥
+            <input
+              ref={videoRef}
+              type="file"
+              accept="video/*"
+              style={{ display: "none" }}
+              onChange={handleVideoSelect}
+              disabled={imageFiles.length > 0 || !!videoFile}
+            />
+          </label>
+
           <button
             className="pf-attach-btn"
             title="Link"
@@ -265,6 +374,24 @@ const PostComposer = ({ currentUser, onPost }) => {
             title="Feeling"
             onClick={() => setShowFeelings((v) => !v)}
           >😊</button>
+
+          <div className="pf-attach-wrap">
+            <button
+              className="pf-attach-btn"
+              title="Emoji"
+              type="button"
+              onClick={() => setShowEmojiPicker((v) => !v)}
+            >
+              🙂
+            </button>
+            {showEmojiPicker && (
+              <EmojiPicker
+                onSelect={(emoji) => setText((t) => t + emoji)}
+                onClose={() => setShowEmojiPicker(false)}
+              />
+            )}
+          </div>
+
           {imageFiles.length > 0 && (
             <span className="pf-image-count">{imageFiles.length}/{MAX_IMAGES}</span>
           )}

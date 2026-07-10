@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
+import EmojiPicker from "./EmojiPicker";
 
 const REACTIONS = [
   { key: "like", emoji: "👍", label: "Like", color: "#1877f2" },
@@ -11,6 +12,11 @@ const REACTIONS = [
 ];
 
 const PRIVACY_ICON = { public: "🌐", friends: "👥", only_me: "🔒" };
+const PRIVACY_OPTIONS = [
+  { value: "public", label: "Public", icon: "🌐" },
+  { value: "friends", label: "Friends", icon: "👥" },
+  { value: "only_me", label: "Only me", icon: "🔒" },
+];
 
 const timeAgo = (dateStr) => {
   const diff = (Date.now() - new Date(dateStr)) / 1000;
@@ -21,11 +27,15 @@ const timeAgo = (dateStr) => {
 };
 
 /* ─────────────────────────────────────────
-   LIGHTBOX
+   LIGHTBOX — click-to-zoom + touch swipe
 ───────────────────────────────────────── */
 const Lightbox = ({ images, startIndex = 0, onClose }) => {
   const [index, setIndex] = useState(startIndex);
   const [autoPlay, setAutoPlay] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
+
+  const startXRef = useRef(0);
+  const dragXRef = useRef(0);
 
   const next = (e) => {
     e?.stopPropagation();
@@ -36,6 +46,10 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
     e?.stopPropagation();
     setIndex((i) => (i - 1 + images.length) % images.length);
   };
+
+  useEffect(() => {
+    setZoomed(false);
+  }, [index]);
 
   useEffect(() => {
     if (!autoPlay) return;
@@ -64,9 +78,28 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose, images.length]);
 
+  const handleTouchStart = (e) => {
+    startXRef.current = e.touches[0].clientX;
+    dragXRef.current = 0;
+  };
+  const handleTouchMove = (e) => {
+    if (zoomed) return;
+    dragXRef.current = e.touches[0].clientX - startXRef.current;
+  };
+  const handleTouchEnd = () => {
+    if (zoomed) return;
+    const dx = dragXRef.current;
+    if (dx < -50) next();
+    else if (dx > 50) prev();
+    dragXRef.current = 0;
+  };
+
   return (
     <div
       onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       style={{
         position: "fixed",
         inset: 0,
@@ -76,6 +109,7 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         alignItems: "center",
         justifyContent: "center",
         cursor: "zoom-out",
+        overflow: "hidden",
       }}
     >
       <button
@@ -133,7 +167,7 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
         </button>
       )}
 
-      {images.length > 1 && (
+      {images.length > 1 && !zoomed && (
         <>
           <button
             onClick={prev}
@@ -192,18 +226,23 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
       <img
         src={images[index]}
         alt={`Image ${index + 1}`}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          setZoomed((z) => !z);
+        }}
         style={{
-          maxWidth: "92vw",
-          maxHeight: "90vh",
+          maxWidth: zoomed ? "none" : "92vw",
+          maxHeight: zoomed ? "none" : "90vh",
           objectFit: "contain",
           borderRadius: "8px",
           boxShadow: "0 8px 48px rgba(0,0,0,0.8)",
-          cursor: "default",
+          cursor: zoomed ? "zoom-out" : "zoom-in",
+          transform: zoomed ? "scale(1.8)" : "scale(1)",
+          transition: "transform 0.25s ease",
         }}
       />
 
-      {images.length > 1 && (
+      {images.length > 1 && !zoomed && (
         <div
           onClick={(e) => e.stopPropagation()}
           style={{
@@ -260,8 +299,6 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
 
 /* ─────────────────────────────────────────
    IMAGE CAROUSEL
-   Swipe / drag to slide between images.
-   Tap (drag < 8px) opens the lightbox.
 ───────────────────────────────────────── */
 const ImageCarousel = ({ images, onOpenLightbox }) => {
   const [idx, setIdx] = useState(0);
@@ -325,7 +362,6 @@ const ImageCarousel = ({ images, onOpenLightbox }) => {
   };
 
   const handleClick = () => {
-    // Only open lightbox if it wasn't a drag
     if (Math.abs(dragXRef.current) < 8) {
       onOpenLightbox(idx);
     }
@@ -413,6 +449,7 @@ const PostCard = ({
   onToggleComments,
   onShare,
   onDelete,
+  onEdit,
 }) => {
   const [commentText, setCommentText] = useState("");
   const [showPicker, setShowPicker] = useState(false);
@@ -420,6 +457,18 @@ const PostCard = ({
   const [showMenu, setShowMenu] = useState(false);
   const [copied, setCopied] = useState(false);
   const [lightboxData, setLightboxData] = useState(null);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(post.text || "");
+  const [editPrivacy, setEditPrivacy] = useState(post.privacy || "public");
+  const [editImages, setEditImages] = useState(
+    post.image_urls || (post.image_url ? [post.image_url] : [])
+  );
+  const [showEditEmoji, setShowEditEmoji] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const [showCommentEmoji, setShowCommentEmoji] = useState(false);
+
   const pickerRef = useRef();
   const shareRef = useRef();
   const menuRef = useRef();
@@ -460,6 +509,39 @@ const PostCard = ({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     setShowShareMenu(false);
+  };
+
+  const startEdit = () => {
+    setEditText(post.text || "");
+    setEditPrivacy(post.privacy || "public");
+    setEditImages(post.image_urls || (post.image_url ? [post.image_url] : []));
+    setIsEditing(true);
+    setShowMenu(false);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setShowEditEmoji(false);
+  };
+
+  const removeEditImage = (idx) => {
+    setEditImages((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const saveEdit = async () => {
+    if (!editText.trim() && editImages.length === 0) return;
+    setSavingEdit(true);
+    try {
+      await onEdit(post.id, {
+        text: editText.trim() || null,
+        privacy: editPrivacy,
+        image_url: editImages[0] || null,
+        image_urls: editImages.length > 0 ? editImages : null,
+      });
+      setIsEditing(false);
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   return (
@@ -505,10 +587,13 @@ const PostCard = ({
                 hour12: true,
               })}
               &nbsp;{PRIVACY_ICON[post.privacy] || "🌐"}
+              {post.updated_at && post.updated_at !== post.created_at && (
+                <span> · Edited</span>
+              )}
             </p>
           </div>
 
-          {post.username === currentUser && (
+          {post.username === currentUser && !isEditing && (
             <div className="pf-menu-wrap" ref={menuRef}>
               <button
                 className="pf-icon-btn"
@@ -519,6 +604,9 @@ const PostCard = ({
               </button>
               {showMenu && (
                 <div className="pf-dropdown">
+                  <button className="pf-dropdown-item" onClick={startEdit}>
+                    ✏️ Edit post
+                  </button>
                   <button
                     className="pf-dropdown-item pf-dropdown-danger"
                     onClick={() => {
@@ -534,52 +622,136 @@ const PostCard = ({
           )}
         </div>
 
-        {/* ── Body ── */}
-        <div className="pf-card-body">
-          {post.text && <p className="pf-card-text">{post.text}</p>}
-
-          {/* Multi-image carousel (swipeable) */}
-          {post.image_urls && post.image_urls.length > 0 ? (
-            <ImageCarousel
-              images={post.image_urls}
-              onOpenLightbox={(startIndex) =>
-                setLightboxData({ images: post.image_urls, startIndex })
-              }
-            />
-          ) : (
-            post.image_url && (
-              <img
-                src={post.image_url}
-                alt="Post"
-                className="pf-card-image"
-                loading="lazy"
-                onClick={() =>
-                  setLightboxData({ images: [post.image_url], startIndex: 0 })
-                }
-                style={{ cursor: "zoom-in" }}
+        {/* ── Body / Edit mode ── */}
+        {isEditing ? (
+          <div className="pf-card-body">
+            <div style={{ position: "relative" }}>
+              <textarea
+                className="pf-composer-input"
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                rows={3}
+                placeholder="Edit your post…"
               />
-            )
-          )}
-
-          {post.link && (
-            <a
-              href={post.link.url}
-              target="_blank"
-              rel="noreferrer"
-              className="pf-link-preview"
-            >
-              <div className="pf-link-bar" />
-              <div className="pf-link-body">
-                <p className="pf-link-domain">{post.link.domain}</p>
-                <p className="pf-link-title">{post.link.title}</p>
-                <p className="pf-link-desc">{post.link.desc}</p>
+              <div className="pf-attach-wrap" style={{ marginTop: "6px" }}>
+                <button
+                  type="button"
+                  className="pf-attach-btn"
+                  title="Emoji"
+                  onClick={() => setShowEditEmoji((v) => !v)}
+                >
+                  🙂
+                </button>
+                {showEditEmoji && (
+                  <EmojiPicker
+                    onSelect={(emoji) => setEditText((t) => t + emoji)}
+                    onClose={() => setShowEditEmoji(false)}
+                  />
+                )}
               </div>
-            </a>
-          )}
-        </div>
+            </div>
+
+            {editImages.length > 0 && (
+              <div className="pf-edit-images-grid">
+                {editImages.map((url, idx) => (
+                  <div className="pf-img-preview-wrap" key={idx}>
+                    <img src={url} alt={`Image ${idx + 1}`} />
+                    <button
+                      className="pf-edit-image-remove"
+                      onClick={() => removeEditImage(idx)}
+                      aria-label="Remove image"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ marginTop: "10px" }}>
+              <select
+                className="pf-privacy-select"
+                value={editPrivacy}
+                onChange={(e) => setEditPrivacy(e.target.value)}
+              >
+                {PRIVACY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.icon} {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="pf-edit-actions">
+              <button
+                className="pf-edit-cancel-btn"
+                onClick={cancelEdit}
+                disabled={savingEdit}
+              >
+                Cancel
+              </button>
+              <button
+                className="pf-post-btn"
+                onClick={saveEdit}
+                disabled={savingEdit || (!editText.trim() && editImages.length === 0)}
+              >
+                {savingEdit ? "Saving…" : "Save changes"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="pf-card-body">
+            {post.text && <p className="pf-card-text">{post.text}</p>}
+
+            {post.image_urls && post.image_urls.length > 0 ? (
+  <ImageCarousel
+    images={post.image_urls}
+    onOpenLightbox={(startIndex) =>
+      setLightboxData({ images: post.image_urls, startIndex })
+    }
+  />
+) : post.image_url ? (
+  <img
+    src={post.image_url}
+    alt="Post"
+    className="pf-card-image"
+    loading="lazy"
+    onClick={() =>
+      setLightboxData({ images: [post.image_url], startIndex: 0 })
+    }
+    style={{ cursor: "zoom-in" }}
+  />
+) : (
+  post.video_url && (
+    <video
+      src={post.video_url}
+      controls
+      playsInline
+      className="pf-card-video"
+    />
+  )
+)}
+
+            {post.link && (
+              <a
+                href={post.link.url}
+                target="_blank"
+                rel="noreferrer"
+                className="pf-link-preview"
+              >
+                <div className="pf-link-bar" />
+                <div className="pf-link-body">
+                  <p className="pf-link-domain">{post.link.domain}</p>
+                  <p className="pf-link-title">{post.link.title}</p>
+                  <p className="pf-link-desc">{post.link.desc}</p>
+                </div>
+              </a>
+            )}
+          </div>
+        )}
 
         {/* ── Reaction summary ── */}
-        {totalReactions > 0 && (
+        {!isEditing && totalReactions > 0 && (
           <div className="pf-reaction-summary">
             <div className="pf-reaction-emojis">
               {Object.entries(post.reactionCounts || {})
@@ -603,90 +775,92 @@ const PostCard = ({
         )}
 
         {/* ── Action bar ── */}
-        <div className="pf-action-bar">
-          <div className="pf-action-wrap" ref={pickerRef}>
+        {!isEditing && (
+          <div className="pf-action-bar">
+            <div className="pf-action-wrap" ref={pickerRef}>
+              <button
+                className={`pf-action-btn ${post.myReaction ? "pf-action-active" : ""}`}
+                style={myReact ? { color: myReact.color } : {}}
+                onClick={() => {
+                  if (!currentUser || currentUser === "anonymous") {
+                    window.dispatchEvent(new CustomEvent("openLogin"));
+                    return;
+                  }
+                  if (post.myReaction) onReaction(post.id, post.myReaction);
+                  else setShowPicker((v) => !v);
+                }}
+                onMouseEnter={() => {
+                  if (currentUser && currentUser !== "anonymous")
+                    setShowPicker(true);
+                }}
+              >
+                {myReact ? myReact.emoji : "👍"}
+                <span>{myReact ? myReact.label : "Like"}</span>
+              </button>
+              {showPicker && (
+                <div
+                  className="pf-reaction-picker"
+                  onMouseLeave={() => setShowPicker(false)}
+                >
+                  {REACTIONS.map((r) => (
+                    <button
+                      key={r.key}
+                      className="pf-reaction-pick-btn"
+                      title={r.label}
+                      onClick={() => {
+                        onReaction(post.id, r.key);
+                        setShowPicker(false);
+                      }}
+                    >
+                      {r.emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
-              className={`pf-action-btn ${post.myReaction ? "pf-action-active" : ""}`}
-              style={myReact ? { color: myReact.color } : {}}
+              className="pf-action-btn"
               onClick={() => {
                 if (!currentUser || currentUser === "anonymous") {
                   window.dispatchEvent(new CustomEvent("openLogin"));
                   return;
                 }
-                if (post.myReaction) onReaction(post.id, post.myReaction);
-                else setShowPicker((v) => !v);
-              }}
-              onMouseEnter={() => {
-                if (currentUser && currentUser !== "anonymous")
-                  setShowPicker(true);
+                onToggleComments(post.id);
               }}
             >
-              {myReact ? myReact.emoji : "👍"}
-              <span>{myReact ? myReact.label : "Like"}</span>
+              💬 <span>Comment</span>
             </button>
-            {showPicker && (
-              <div
-                className="pf-reaction-picker"
-                onMouseLeave={() => setShowPicker(false)}
+
+            <div className="pf-action-wrap" ref={shareRef}>
+              <button
+                className="pf-action-btn"
+                onClick={() => setShowShareMenu((v) => !v)}
               >
-                {REACTIONS.map((r) => (
+                🔁 <span>Share</span>
+              </button>
+              {showShareMenu && (
+                <div className="pf-dropdown pf-dropdown-up">
                   <button
-                    key={r.key}
-                    className="pf-reaction-pick-btn"
-                    title={r.label}
+                    className="pf-dropdown-item"
                     onClick={() => {
-                      onReaction(post.id, r.key);
-                      setShowPicker(false);
+                      onShare(post.id);
+                      setShowShareMenu(false);
                     }}
                   >
-                    {r.emoji}
+                    📢 Share to feed
                   </button>
-                ))}
-              </div>
-            )}
+                  <button className="pf-dropdown-item" onClick={handleCopyLink}>
+                    {copied ? "✅ Copied!" : "🔗 Copy link"}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-
-          <button
-            className="pf-action-btn"
-            onClick={() => {
-              if (!currentUser || currentUser === "anonymous") {
-                window.dispatchEvent(new CustomEvent("openLogin"));
-                return;
-              }
-              onToggleComments(post.id);
-            }}
-          >
-            💬 <span>Comment</span>
-          </button>
-
-          <div className="pf-action-wrap" ref={shareRef}>
-            <button
-              className="pf-action-btn"
-              onClick={() => setShowShareMenu((v) => !v)}
-            >
-              🔁 <span>Share</span>
-            </button>
-            {showShareMenu && (
-              <div className="pf-dropdown pf-dropdown-up">
-                <button
-                  className="pf-dropdown-item"
-                  onClick={() => {
-                    onShare(post.id);
-                    setShowShareMenu(false);
-                  }}
-                >
-                  📢 Share to feed
-                </button>
-                <button className="pf-dropdown-item" onClick={handleCopyLink}>
-                  {copied ? "✅ Copied!" : "🔗 Copy link"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
 
         {/* ── Comments ── */}
-        {post.showComments && (
+        {!isEditing && post.showComments && (
           <div className="pf-comments-section">
             {(post.comments || []).map((c) => (
               <div className="pf-comment" key={c.id}>
@@ -730,6 +904,23 @@ const PostCard = ({
                     : {}
                 }
               />
+              <div className="pf-attach-wrap">
+                <button
+                  type="button"
+                  className="pf-attach-btn"
+                  title="Emoji"
+                  disabled={!currentUser || currentUser === "anonymous"}
+                  onClick={() => setShowCommentEmoji((v) => !v)}
+                >
+                  🙂
+                </button>
+                {showCommentEmoji && (
+                  <EmojiPicker
+                    onSelect={(emoji) => setCommentText((t) => t + emoji)}
+                    onClose={() => setShowCommentEmoji(false)}
+                  />
+                )}
+              </div>
             </div>
           </div>
         )}

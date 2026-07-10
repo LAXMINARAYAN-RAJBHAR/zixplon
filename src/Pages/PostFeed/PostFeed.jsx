@@ -333,6 +333,25 @@ const PostFeed = ({ sideNavbar }) => {
     }
   };
 
+  const handleEditPost = async (postId, updates) => {
+  const { data, error: editErr } = await supabase
+    .from("posts")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", postId)
+    .eq("username", currentUser)
+    .select()
+    .single();
+
+  if (editErr) {
+    setError(editErr.message || "Failed to update post.");
+    return;
+  }
+
+  setPosts((all) =>
+    all.map((p) => (p.id === postId ? { ...p, ...data } : p))
+  );
+};
+
   const loadMore = () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
@@ -414,6 +433,7 @@ const PostFeed = ({ sideNavbar }) => {
               onToggleComments={handleToggleComments}
               onShare={handleShare}
               onDelete={handleDeletePost}
+              onEdit={handleEditPost}
             />
           </div>
         ))}

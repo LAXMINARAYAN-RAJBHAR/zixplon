@@ -961,3 +961,134 @@
   background: #ffffff;
   transform: scale(1.3);
 }
+
+/* ── Emoji picker ── */
+.pf-attach-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.pf-emoji-picker {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  background: var(--zx-surface);
+  border: 2px solid var(--zx-border);
+  border-radius: 14px;
+  padding: 10px;
+  z-index: 200;
+  box-shadow: 0 8px 32px rgba(124,58,237,0.15);
+  width: 260px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.pf-emoji-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.pf-emoji-picker-item {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  transition: background 0.12s, transform 0.12s;
+  line-height: 1;
+}
+
+.pf-emoji-picker-item:hover {
+  background: var(--zx-bg);
+  transform: scale(1.2);
+}
+
+/* ── Edit post mode ── */
+.pf-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.pf-edit-cancel-btn {
+  background: transparent;
+  border: 2px solid var(--zx-border);
+  color: var(--zx-text3);
+  border-radius: 20px;
+  padding: 8px 18px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pf-edit-cancel-btn:hover {
+  border-color: var(--zx-primary);
+  color: var(--zx-primary);
+}
+
+.pf-edit-images-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.pf-edit-images-grid .pf-img-preview-wrap {
+  position: relative;
+  aspect-ratio: 1 / 1;
+}
+
+.pf-edit-images-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.pf-edit-image-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Video preview (composer) ── */
+.pf-video-preview-wrap {
+  position: relative;
+  border: 2px solid var(--zx-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+}
+
+.pf-video-preview {
+  width: 100%;
+  max-height: 320px;
+  display: block;
+}
+
+/* ── Video in post card ── */
+.pf-card-video {
+  width: 100%;
+  max-height: 420px;
+  border-radius: 10px;
+  display: block;
+  margin-bottom: 10px;
+  border: 2px solid var(--zx-border);
+  background: #000;
+}

@@ -199,19 +199,18 @@ const SideNavbar = ({ sideNavbar }) => {
         </Link>
 
         {/* ── NEW: Messages ── */}
-        <Link
-          to="/messages"
-          className="home_sideNavbar_link"
-          title={!expanded ? "Messages" : undefined}
-        >
-          <div
-            className="home_sideNavbarTopOption"
-            style={isMessagesActive ? activeStyle : {}}
-          >
-            <MessagesIcon />
-            <Title>Messages</Title>
-          </div>
-        </Link>
+        {/* ── Messages (opens as floating panel, doesn't navigate) ── */}
+<div
+  className="home_sideNavbar_link"
+  style={{ cursor: "pointer" }}
+  title={!expanded ? "Messages" : undefined}
+  onClick={() => window.dispatchEvent(new CustomEvent("openMessages"))}
+>
+  <div className="home_sideNavbarTopOption">
+    <MessagesIcon />
+    <Title>Messages</Title>
+  </div>
+</div>
       </div>
 
       {/* ── MIDDLE SECTION ── */}

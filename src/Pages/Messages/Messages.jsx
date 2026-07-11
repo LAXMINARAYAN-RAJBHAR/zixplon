@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
-import "./Messages.css";
+import "./MessagesPanel.css";
 
 const timeAgo = (dateStr) => {
   if (!dateStr) return "";
@@ -17,11 +16,10 @@ const timeShort = (dateStr) => {
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 };
 
-const Messages = () => {
-  const { username: activeUsername } = useParams();
-  const navigate = useNavigate();
+const MessagesPanel = ({ initialUsername, onClose }) => {
   const currentUser = localStorage.getItem("username") || "";
 
+  const [activeUsername, setActiveUsername] = useState(initialUsername || null);
   const [conversations, setConversations] = useState([]);
   const [loadingConvos, setLoadingConvos] = useState(true);
 
@@ -36,7 +34,6 @@ const Messages = () => {
   const getOtherUser = (conv) =>
     conv.user_a === currentUser ? conv.user_b : conv.user_a;
 
-  // ── Load conversation list ──
   const fetchConversations = useCallback(async () => {
     if (!currentUser) return;
     const { data } = await supabase
@@ -52,7 +49,7 @@ const Messages = () => {
     fetchConversations();
 
     const channel = supabase
-      .channel("conversations-realtime")
+      .channel("conversations-realtime-panel")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "conversations" },
@@ -63,7 +60,6 @@ const Messages = () => {
     return () => supabase.removeChannel(channel);
   }, [fetchConversations]);
 
-  // ── Get-or-create + load conversation for activeUsername ──
   useEffect(() => {
     if (!activeUsername || !currentUser) {
       setActiveConvo(null);
@@ -115,12 +111,11 @@ const Messages = () => {
     };
   }, [activeUsername, currentUser]);
 
-  // ── Realtime subscribe to messages in the active conversation ──
   useEffect(() => {
     if (!activeConvo) return;
 
     const channel = supabase
-      .channel(`dm-${activeConvo.id}`)
+      .channel(`dm-panel-${activeConvo.id}`)
       .on(
         "postgres_changes",
         {
@@ -172,106 +167,114 @@ const Messages = () => {
     }
   };
 
-  if (!currentUser) {
-    return (
-      <div className="msg-page">
-        <div className="msg-login-prompt">
-          <p>🔒 Please log in to use Messages</p>
-          <button onClick={() => window.dispatchEvent(new CustomEvent("openLogin"))}>
-            Login
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="msg-page">
-      {/* ── Conversation list ── */}
-      <div className={`msg-inbox ${activeUsername ? "msg-inbox-hidden-mobile" : ""}`}>
-        <div className="msg-inbox-header">Messages</div>
-        {loadingConvos ? (
-          <p className="msg-empty">Loading…</p>
-        ) : conversations.length === 0 ? (
-          <p className="msg-empty">No conversations yet.</p>
-        ) : (
-          conversations.map((conv) => {
-            const other = getOtherUser(conv);
-            const isActive = other === activeUsername;
-            return (
-              <div
-                key={conv.id}
-                className={`msg-convo-item ${isActive ? "active" : ""}`}
-                onClick={() => navigate(`/messages/${other}`)}
-              >
-                <div className="msg-convo-avatar">
-                  {other.slice(0, 2).toUpperCase()}
-                </div>
-                <div className="msg-convo-meta">
-                  <div className="msg-convo-name">{other}</div>
-                  <div className="msg-convo-last">
-                    {conv.last_message || "No messages yet"}
-                  </div>
-                </div>
-                <div className="msg-convo-time">{timeAgo(conv.last_message_at)}</div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* ── Chat window ── */}
-      <div className={`msg-chat-window ${!activeUsername ? "msg-chat-hidden-mobile" : ""}`}>
-        {!activeUsername ? (
-          <div className="msg-placeholder">Select a conversation to start chatting</div>
+    <div className="mp-overlay" onClick={onClose}>
+      <div className="mp-panel" onClick={(e) => e.stopPropagation()}>
+        {!currentUser ? (
+          <div className="mp-login-prompt">
+            <p>🔒 Please log in to use Messages</p>
+            <button onClick={() => window.dispatchEvent(new CustomEvent("openLogin"))}>
+              Login
+            </button>
+            <button className="mp-close-btn-alt" onClick={onClose}>Close</button>
+          </div>
         ) : (
           <>
-            <div className="msg-chat-header">
-              <button className="msg-back-btn" onClick={() => navigate("/messages")}>
-                ←
-              </button>
-              <div className="msg-convo-avatar">
-                {activeUsername.slice(0, 2).toUpperCase()}
+            {/* ── Inbox list ── */}
+            <div className={`mp-inbox ${activeUsername ? "mp-inbox-hidden-mobile" : ""}`}>
+              <div className="mp-inbox-header">
+                <span>Messages</span>
+                <button className="mp-close-btn" onClick={onClose} aria-label="Close">✕</button>
               </div>
-              <div className="msg-chat-username">{activeUsername}</div>
-            </div>
-
-            <div className="msg-chat-body">
-              {loadingMessages ? (
-                <p className="msg-empty">Loading messages…</p>
-              ) : messages.length === 0 ? (
-                <p className="msg-empty">No messages yet. Say hello!</p>
+              {loadingConvos ? (
+                <p className="mp-empty">Loading…</p>
+              ) : conversations.length === 0 ? (
+                <p className="mp-empty">No conversations yet.</p>
               ) : (
-                messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`msg-bubble-row ${m.sender_username === currentUser ? "mine" : ""}`}
-                  >
-                    <div className="msg-bubble">
-                      <span>{m.text}</span>
-                      <span className="msg-bubble-time">{timeShort(m.created_at)}</span>
+                conversations.map((conv) => {
+                  const other = getOtherUser(conv);
+                  const isActive = other === activeUsername;
+                  return (
+                    <div
+                      key={conv.id}
+                      className={`mp-convo-item ${isActive ? "active" : ""}`}
+                      onClick={() => setActiveUsername(other)}
+                    >
+                      <div className="mp-convo-avatar">
+                        {other.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="mp-convo-meta">
+                        <div className="mp-convo-name">{other}</div>
+                        <div className="mp-convo-last">
+                          {conv.last_message || "No messages yet"}
+                        </div>
+                      </div>
+                      <div className="mp-convo-time">{timeAgo(conv.last_message_at)}</div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
-              <div ref={bottomRef} />
             </div>
 
-            <div className="msg-chat-input-row">
-              <input
-                className="msg-chat-input"
-                placeholder="Type a message…"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-              <button
-                className="msg-send-btn"
-                onClick={handleSend}
-                disabled={!text.trim() || sending}
-              >
-                ➤
-              </button>
+            {/* ── Chat window ── */}
+            <div className={`mp-chat-window ${!activeUsername ? "mp-chat-hidden-mobile" : ""}`}>
+              {!activeUsername ? (
+                <div className="mp-placeholder">
+                  <span>Select a conversation to start chatting</span>
+                  <button className="mp-close-btn-desktop" onClick={onClose} aria-label="Close">✕</button>
+                </div>
+              ) : (
+                <>
+                  <div className="mp-chat-header">
+                    <button className="mp-back-btn" onClick={() => setActiveUsername(null)}>
+                      ←
+                    </button>
+                    <div className="mp-convo-avatar">
+                      {activeUsername.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="mp-chat-username">{activeUsername}</div>
+                    <button className="mp-close-btn" onClick={onClose} aria-label="Close">✕</button>
+                  </div>
+
+                  <div className="mp-chat-body">
+                    {loadingMessages ? (
+                      <p className="mp-empty">Loading messages…</p>
+                    ) : messages.length === 0 ? (
+                      <p className="mp-empty">No messages yet. Say hello!</p>
+                    ) : (
+                      messages.map((m) => (
+                        <div
+                          key={m.id}
+                          className={`mp-bubble-row ${m.sender_username === currentUser ? "mine" : ""}`}
+                        >
+                          <div className="mp-bubble">
+                            <span>{m.text}</span>
+                            <span className="mp-bubble-time">{timeShort(m.created_at)}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    <div ref={bottomRef} />
+                  </div>
+
+                  <div className="mp-chat-input-row">
+                    <input
+                      className="mp-chat-input"
+                      placeholder="Type a message…"
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                    />
+                    <button
+                      className="mp-send-btn"
+                      onClick={handleSend}
+                      disabled={!text.trim() || sending}
+                    >
+                      ➤
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}
@@ -280,4 +283,4 @@ const Messages = () => {
   );
 };
 
-export default Messages;
+export default MessagesPanel;

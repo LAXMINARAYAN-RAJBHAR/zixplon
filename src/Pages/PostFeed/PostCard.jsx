@@ -613,9 +613,11 @@ const PostCard = ({
                     <button
                       className="pf-dropdown-item"
                       onClick={() => {
-                        navigate(`/messages/${post.username}`);
-                        setShowMenu(false);
-                      }}
+  window.dispatchEvent(
+    new CustomEvent("openMessages", { detail: { username: post.username } })
+  );
+  setShowMenu(false);
+}}
                     >
                       ✉️ Message {post.username}
                     </button>

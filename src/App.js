@@ -42,7 +42,7 @@ import SideNavbar       from "./Component/SideNavbar/sideNavbar";
 import LoginOptionsModal from "./Component/LoginOptionsModal/LoginOptionsModal";
 import AdminPanel       from "./Pages/AdminPanel/AdminPanel";
 import LiveBrowser      from "./Component/Live/LiveViewer";
-import Messages         from "./Pages/Messages/Messages";
+import MessagesPanel    from "./Pages/Messages/MessagesPanel";
 
 // ── Google Identity Services (One Tap) config ──────────────────────────────
 // TODO: replace with the SAME OAuth Client ID configured under
@@ -214,9 +214,25 @@ function App() {
   const exitToastTimer = useRef(null);
   const backPressedOnce = useRef(false);
 
+  // ── Messages floating panel state ──
+  const [showMessagesPanel, setShowMessagesPanel] = useState(false);
+  const [messagesActiveUser, setMessagesActiveUser] = useState(null);
+
   // ── Supabase warmup ──
   useEffect(() => {
     supabase.from("videos").select("id").limit(1).then(() => {});
+  }, []);
+
+  // ── Global listener: opens the Messages panel from anywhere (sidebar,
+  // a post's kebab menu, etc) without navigating/unmounting the current
+  // page. Optional detail.username opens directly into that conversation. ──
+  useEffect(() => {
+    const handler = (e) => {
+      setMessagesActiveUser(e.detail?.username || null);
+      setShowMessagesPanel(true);
+    };
+    window.addEventListener("openMessages", handler);
+    return () => window.removeEventListener("openMessages", handler);
   }, []);
 
   // ── Shared: resolve/create the profile row for a Supabase auth user ──
@@ -568,6 +584,17 @@ function App() {
         <LoginOptionsModal onDismiss={handleDismissLoginModal} />
       )}
 
+      {/* Floating Messages panel — opened via the "openMessages" custom
+          event (sidebar click, a post's "Message" option, etc). Renders
+          on top of whatever page is currently active, without navigating
+          away or unmounting it. */}
+      {showMessagesPanel && (
+        <MessagesPanel
+          initialUsername={messagesActiveUser}
+          onClose={() => setShowMessagesPanel(false)}
+        />
+      )}
+
       <Navbar
         currentUser={currentUser}
         setCurrentUser={setCurrentUser}
@@ -628,8 +655,6 @@ function App() {
             <Route path="/feed"                  element={<PostFeed sideNavbar={sideNavbar} />} />
             <Route path="/admin"                 element={<AdminPanel />} />
             <Route path="/live"                  element={<LiveBrowser currentUser={currentUser} />} />
-            <Route path="/messages"              element={<Messages />} />
-            <Route path="/messages/:username"    element={<Messages />} />
           </Routes>
         </div>
       </div>

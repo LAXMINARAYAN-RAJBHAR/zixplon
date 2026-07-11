@@ -30,6 +30,69 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const [sending, setSending] = useState(false);
 
   const bottomRef = useRef();
+  const panelRef = useRef();
+
+  // ── Drag-to-move state ──
+  const [position, setPosition] = useState(null); // null = default docked position
+  const [dragging, setDragging] = useState(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+
+  const isMobile = () => window.innerWidth <= 768;
+
+  const handleDragStart = (e) => {
+    if (isMobile()) return; // keep full-screen behavior on mobile
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const rect = panel.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    dragOffset.current = {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+
+    // Lock in current rect as explicit left/top so it doesn't jump
+    setPosition({ x: rect.left, y: rect.top });
+    setDragging(true);
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+
+    const handleMove = (e) => {
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+      const panel = panelRef.current;
+      const w = panel?.offsetWidth || 700;
+      const h = panel?.offsetHeight || 560;
+
+      let x = clientX - dragOffset.current.x;
+      let y = clientY - dragOffset.current.y;
+
+      // Keep panel within viewport bounds
+      x = Math.max(8, Math.min(x, window.innerWidth - w - 8));
+      y = Math.max(8, Math.min(y, window.innerHeight - h - 8));
+
+      setPosition({ x, y });
+    };
+
+    const handleUp = () => setDragging(false);
+
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    window.addEventListener("touchmove", handleMove, { passive: false });
+    window.addEventListener("touchend", handleUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+      window.removeEventListener("touchmove", handleMove);
+      window.removeEventListener("touchend", handleUp);
+    };
+  }, [dragging]);
 
   const getOtherUser = (conv) =>
     conv.user_a === currentUser ? conv.user_b : conv.user_a;
@@ -167,9 +230,31 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     }
   };
 
+  const panelStyle = position
+    ? {
+        position: "fixed",
+        left: position.x,
+        top: position.y,
+        right: "auto",
+        bottom: "auto",
+        margin: 0,
+      }
+    : undefined;
+
   return (
-    <div className="mp-overlay" onClick={onClose}>
-      <div className="mp-panel" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="mp-overlay"
+      onClick={(e) => {
+        // Only close if the click is the backdrop itself, not while dragging
+        if (!dragging) onClose();
+      }}
+    >
+      <div
+        ref={panelRef}
+        className={`mp-panel ${dragging ? "mp-dragging" : ""}`}
+        style={panelStyle}
+        onClick={(e) => e.stopPropagation()}
+      >
         {!currentUser ? (
           <div className="mp-login-prompt">
             <p>🔒 Please log in to use Messages</p>
@@ -182,7 +267,11 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           <>
             {/* ── Inbox list ── */}
             <div className={`mp-inbox ${activeUsername ? "mp-inbox-hidden-mobile" : ""}`}>
-              <div className="mp-inbox-header">
+              <div
+                className="mp-inbox-header mp-drag-handle"
+                onMouseDown={handleDragStart}
+                onTouchStart={handleDragStart}
+              >
                 <span>Messages</span>
                 <button className="mp-close-btn" onClick={onClose} aria-label="Close">✕</button>
               </div>
@@ -225,8 +314,18 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                 </div>
               ) : (
                 <>
-                  <div className="mp-chat-header">
-                    <button className="mp-back-btn" onClick={() => setActiveUsername(null)}>
+                  <div
+                    className="mp-chat-header mp-drag-handle"
+                    onMouseDown={handleDragStart}
+                    onTouchStart={handleDragStart}
+                  >
+                    <button
+                      className="mp-back-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveUsername(null);
+                      }}
+                    >
                       ←
                     </button>
                     <div className="mp-convo-avatar">

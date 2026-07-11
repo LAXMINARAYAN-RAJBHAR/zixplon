@@ -14,12 +14,13 @@
 .mp-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.25);
+  background: transparent;
   z-index: 99998;
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
   padding: 24px;
+  pointer-events: none; /* let clicks pass through to the page on desktop */
 }
 
 .mp-panel {
@@ -34,6 +35,19 @@
   overflow: hidden;
   font-family: 'Outfit', sans-serif;
   color: var(--zx-text);
+  pointer-events: auto; /* panel itself is always interactive */
+}
+
+.mp-panel.mp-dragging {
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  user-select: none;
+}
+
+.mp-drag-handle {
+  cursor: grab;
+}
+.mp-panel.mp-dragging .mp-drag-handle {
+  cursor: grabbing;
 }
 
 .mp-login-prompt {
@@ -278,10 +292,23 @@
 
 /* ── Mobile: full screen panel, show only inbox OR chat ── */
 @media (max-width: 768px) {
-  .mp-overlay { padding: 0; }
-  .mp-panel { width: 100vw; height: 100vh; max-height: 100vh; border-radius: 0; }
+  .mp-overlay {
+    padding: 0;
+    background: rgba(0,0,0,0.25);
+    pointer-events: auto; /* restore modal behavior on mobile */
+  }
+  .mp-panel {
+    width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    position: static !important; /* ignore any dragged position on mobile */
+    left: auto !important;
+    top: auto !important;
+  }
   .mp-inbox { width: 100%; }
   .mp-inbox-hidden-mobile { display: none; }
   .mp-chat-hidden-mobile { display: none; }
   .mp-back-btn { display: block; }
+  .mp-drag-handle { cursor: default; }
 }

@@ -38,6 +38,21 @@
   pointer-events: auto; /* panel itself is always interactive */
 }
 
+/* ── Centered login prompt (not logged in) ── */
+.mp-overlay-center {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0,0,0,0.25);
+  pointer-events: auto;
+}
+
+.mp-panel-login {
+  width: 360px;
+  height: auto;
+  max-height: none;
+}
+
 .mp-panel.mp-dragging {
   box-shadow: 0 20px 60px rgba(0,0,0,0.35);
   user-select: none;
@@ -297,7 +312,7 @@
     background: rgba(0,0,0,0.25);
     pointer-events: auto; /* restore modal behavior on mobile */
   }
-  .mp-panel {
+  .mp-panel:not(.mp-panel-login) {
     width: 100vw;
     height: 100vh;
     max-height: 100vh;
@@ -305,6 +320,14 @@
     position: static !important; /* ignore any dragged position on mobile */
     left: auto !important;
     top: auto !important;
+  }
+  .mp-panel-login {
+    width: 90vw;
+    max-width: 360px;
+    border-radius: 16px;
+  }
+  .mp-overlay-center {
+    padding: 16px;
   }
   .mp-inbox { width: 100%; }
   .mp-inbox-hidden-mobile { display: none; }

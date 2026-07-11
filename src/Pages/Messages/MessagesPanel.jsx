@@ -243,7 +243,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
   return (
     <div
-      className="mp-overlay"
+      className={`mp-overlay ${!currentUser ? "mp-overlay-center" : ""}`}
       onClick={(e) => {
         // Only close if the click is the backdrop itself, not while dragging
         if (!dragging) onClose();
@@ -251,8 +251,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     >
       <div
         ref={panelRef}
-        className={`mp-panel ${dragging ? "mp-dragging" : ""}`}
-        style={panelStyle}
+        className={`mp-panel ${dragging ? "mp-dragging" : ""} ${!currentUser ? "mp-panel-login" : ""}`}
+        style={currentUser ? panelStyle : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         {!currentUser ? (

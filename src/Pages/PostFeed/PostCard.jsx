@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import EmojiPicker from "./EmojiPicker";
-import PostLiveChat from "./PostLiveChat";
 import ExpandableText from "../../Component/ExpandableText/ExpandableText";
 
 const REACTIONS = [
@@ -476,7 +475,6 @@ const PostCard = ({
   const menuRef = useRef();
 
   const navigate = useNavigate();
-  const [showLiveChat, setShowLiveChat] = useState(false);
 
   const initials = (post.username || "?").slice(0, 2).toUpperCase();
   const totalReactions = Object.values(post.reactionCounts || {}).reduce(
@@ -885,20 +883,7 @@ const PostCard = ({
                 </div>
               )}
             </div>
-
-            {/* Live Chat */}
-            <button
-              className={`pf-action-btn ${showLiveChat ? "pf-action-active" : ""}`}
-              onClick={() => setShowLiveChat((v) => !v)}
-            >
-              🟢 <span>Live Chat</span>
-            </button>
           </div>
-        )}
-
-        {/* ── Live Chat panel ── */}
-        {!isEditing && showLiveChat && (
-          <PostLiveChat postId={post.id} currentUser={currentUser} />
         )}
 
         {/* ── Comments ── */}

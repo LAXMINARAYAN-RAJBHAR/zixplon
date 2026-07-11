@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import EmojiPicker from "./EmojiPicker";
 import PostLiveChat from "./PostLiveChat";
+import ExpandableText from "../../Component/ExpandableText/ExpandableText";
 
 const REACTIONS = [
   { key: "like", emoji: "👍", label: "Like", color: "#1877f2" },
@@ -720,7 +721,11 @@ const PostCard = ({
           </div>
         ) : (
           <div className="pf-card-body">
-            {post.text && <p className="pf-card-text">{post.text}</p>}
+            {post.text && (
+  <p className="pf-card-text">
+    <ExpandableText text={post.text} maxChars={220} />
+  </p>
+)}
 
             {post.image_urls && post.image_urls.length > 0 ? (
               <ImageCarousel

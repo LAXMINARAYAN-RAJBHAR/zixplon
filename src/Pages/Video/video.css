@@ -841,3 +841,15 @@
 .video_more_dropdown_item:hover {
   background: rgba(124, 58, 237, 0.25);
 }
+
+.expandable-text-toggle {
+  color: var(--zx-primary, #7c3aed);
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: 4px;
+  white-space: nowrap;
+  user-select: none;
+}
+.expandable-text-toggle:hover {
+  text-decoration: underline;
+}

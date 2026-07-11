@@ -1197,3 +1197,15 @@
   flex-shrink: 0;
 }
 .plc-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.expandable-text-toggle {
+  color: var(--zx-primary, #7c3aed);
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: 4px;
+  white-space: nowrap;
+  user-select: none;
+}
+.expandable-text-toggle:hover {
+  text-decoration: underline;
+}

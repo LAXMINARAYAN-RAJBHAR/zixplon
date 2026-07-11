@@ -18,6 +18,7 @@ import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import ReportModal from "../Moderation/ReportModal";
 import useNetworkQuality from "../../hooks/useNetworkQuality";
 import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
+import ExpandableText from "../ExpandableText/ExpandableText";
 
 // ── Only uploaded reels (from Supabase) are used anywhere in this file now.
 //    The hardcoded demo `reelsData` array has been removed — reels shown in
@@ -786,7 +787,13 @@ const ReelItem = ({ reel, allReels }) => {
               </button>
             )}
           </div>
-          <div className="reel_description">{reel.description}</div>
+          <div className="reel_description">
+  <ExpandableText
+    text={reel.description}
+    maxChars={90}
+    toggleClassName="reel_description_toggle"
+  />
+</div>
         </div>
 
       </div>

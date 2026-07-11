@@ -11,6 +11,7 @@ import { logHistory } from "../History/History";
 import useNetworkQuality from "../../hooks/useNetworkQuality";
 import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
 import ReportModal from "../../Component/Moderation/ReportModal";
+import ExpandableText from "../../Component/ExpandableText/ExpandableText";
 
 const timeAgo = (dateStr) => {
   if (!dateStr) return "";
@@ -845,25 +846,9 @@ const Video = ({ sideNavbar }) => {
           )}
 
           {description ? (
-            <div className="youtube_video_About">
-              {uploadedAt && (
-                <div
-                  style={{
-                    fontSize: "12px",
-                    color: "#8b84c4",
-                    fontWeight: "700",
-                    fontFamily: "'Nunito', sans-serif",
-                  }}
-                >
-                  {new Date(uploadedAt).toLocaleDateString("en-IN", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </div>
-              )}
-              <div>{description}</div>
-            </div>
+            <div>
+  <ExpandableText text={description} maxChars={200} />
+</div>
           ) : uploadedAt ? (
             <div className="youtube_video_About">
               <div

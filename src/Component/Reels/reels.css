@@ -770,3 +770,23 @@ body.reels-open .reel_item   { height: 100dvh; }
 
 .reel_report_btn { background: rgba(244,63,94,0.18) !important; border-color: rgba(244,63,94,0.45) !important; }
 .reel_report_btn:hover { background: rgba(244,63,94,0.55) !important; box-shadow: 0 8px 26px rgba(244,63,94,0.45) !important; }
+
+.expandable-text-toggle {
+  color: var(--zx-primary, #7c3aed);
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: 4px;
+  white-space: nowrap;
+  user-select: none;
+}
+.expandable-text-toggle:hover {
+  text-decoration: underline;
+}
+
+.reel_description_toggle {
+  color: #ffffff !important;
+  opacity: 0.85;
+}
+.reel_description_toggle:hover {
+  opacity: 1;
+}

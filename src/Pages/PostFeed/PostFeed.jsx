@@ -377,7 +377,7 @@ const PostFeed = ({ sideNavbar }) => {
 
   return (
     <>
-      <SideNavbar sideNavbar={sideNavbar} />
+      {/* <SideNavbar sideNavbar={sideNavbar} /> */}
 
       <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
         {currentUser && currentUser !== "anonymous" ? (

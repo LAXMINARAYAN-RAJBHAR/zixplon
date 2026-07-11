@@ -6,6 +6,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import KeyboardVoiceIcon from "@mui/icons-material/KeyboardVoice";
 import VideoCallIcon from "@mui/icons-material/VideoCall";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import HistoryIcon from "@mui/icons-material/History";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Login from "../Login/login";
@@ -328,6 +329,7 @@ const Navbar = ({
   const [logoKey, setLogoKey] = useState(0);
   const [searchBarActive, setSearchBarActive] = useState(false);
   const [logoHovered, setLogoHovered] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   const dropdownRef = useRef(null);
   const notifRef = useRef(null);
@@ -466,6 +468,49 @@ const Navbar = ({
             ...prev,
           ]);
         },
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [currentUser]);
+
+  // ── Load + track unread DM count ──
+  useEffect(() => {
+    if (!currentUser) {
+      setUnreadMessages(0);
+      return;
+    }
+
+    const fetchUnreadMessages = async () => {
+      const { data: convos } = await supabase
+        .from("conversations")
+        .select("id")
+        .or(`user_a.eq.${currentUser},user_b.eq.${currentUser}`);
+
+      const ids = (convos || []).map((c) => c.id);
+      if (ids.length === 0) {
+        setUnreadMessages(0);
+        return;
+      }
+
+      const { count } = await supabase
+        .from("direct_messages")
+        .select("id", { count: "exact", head: true })
+        .in("conversation_id", ids)
+        .neq("sender_username", currentUser)
+        .is("seen_at", null);
+
+      setUnreadMessages(count || 0);
+    };
+
+    fetchUnreadMessages();
+
+    const channel = supabase
+      .channel(`navbar-dm-badge-${currentUser}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "direct_messages" },
+        () => fetchUnreadMessages(),
       )
       .subscribe();
 
@@ -1053,6 +1098,42 @@ const Navbar = ({
           title="Upload Video / Short"
         >
           <VideoCallIcon sx={{ fontSize: "30px", color: "white" }} />
+        </span>
+
+        {/* Messages */}
+        <span
+          className="navbar-messages-btn"
+          onClick={() => {
+            if (!currentUser) { setLogin(true); return; }
+            window.dispatchEvent(
+              new CustomEvent("openMessages", { detail: { username: null } })
+            );
+          }}
+          style={{ position: "relative", cursor: "pointer", display: "flex" }}
+          title="Messages"
+        >
+          <ChatBubbleOutlineIcon sx={{ fontSize: "26px", color: "white" }} />
+          {unreadMessages > 0 && (
+            <span style={{
+              position: "absolute",
+              top: "-4px",
+              right: "-4px",
+              background: "red",
+              color: "white",
+              borderRadius: "50%",
+              fontSize: "10px",
+              fontWeight: "700",
+              width: "18px",
+              height: "18px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "2px solid #0f0f0f",
+              animation: "badgePop 0.3s ease",
+            }}>
+              {unreadMessages > 9 ? "9+" : unreadMessages}
+            </span>
+          )}
         </span>
 
         {/* Notifications */}

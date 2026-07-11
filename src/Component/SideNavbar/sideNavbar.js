@@ -48,6 +48,13 @@ const SubsIcon = () => (
   </svg>
 );
 
+// ── NEW: Messages icon (chat bubble) ──
+const MessagesIcon = () => (
+  <svg viewBox="0 0 24 24" style={ic}>
+    <path d="M4 4h16v12H7l-3 3V4z" {...s} />
+  </svg>
+);
+
 const ChevronRight = () => (
   <svg viewBox="0 0 24 24" style={ic}>
     <path d="M9 6l6 6-6 6" {...s} />
@@ -123,6 +130,8 @@ const SideNavbar = ({ sideNavbar }) => {
     return null;
 
   const isActive = (path) => location.pathname === path;
+  // ── NEW: treat any /messages* route as active for the Messages icon ──
+  const isMessagesActive = location.pathname.startsWith("/messages");
 
   const activeStyle = {
     background: "rgba(255,255,255,0.1)",
@@ -186,6 +195,21 @@ const SideNavbar = ({ sideNavbar }) => {
               style={{ width: 24, height: 24, objectFit: "contain", flexShrink: 0 }}
             />
             <Title>Subscription</Title>
+          </div>
+        </Link>
+
+        {/* ── NEW: Messages ── */}
+        <Link
+          to="/messages"
+          className="home_sideNavbar_link"
+          title={!expanded ? "Messages" : undefined}
+        >
+          <div
+            className="home_sideNavbarTopOption"
+            style={isMessagesActive ? activeStyle : {}}
+          >
+            <MessagesIcon />
+            <Title>Messages</Title>
           </div>
         </Link>
       </div>

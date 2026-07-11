@@ -97,6 +97,38 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const getOtherUser = (conv) =>
     conv.user_a === currentUser ? conv.user_b : conv.user_a;
 
+  const getTickStatus = (m) => {
+    if (m.seen_at) return "seen";
+    if (m.delivered_at) return "delivered";
+    return "sent";
+  };
+
+  // ── Global: mark messages "delivered" the instant this client receives them,
+  //    regardless of which conversation (if any) is currently open ──
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const channel = supabase
+      .channel(`dm-global-delivery-${currentUser}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "direct_messages" },
+        async (payload) => {
+          const msg = payload.new;
+          if (msg.sender_username !== currentUser && !msg.delivered_at) {
+            await supabase
+              .from("direct_messages")
+              .update({ delivered_at: new Date().toISOString() })
+              .eq("id", msg.id)
+              .is("delivered_at", null);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [currentUser]);
+
   const fetchConversations = useCallback(async () => {
     if (!currentUser) return;
     const { data } = await supabase
@@ -191,10 +223,52 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           setMessages((prev) => [...prev, payload.new]);
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "direct_messages",
+          filter: `conversation_id=eq.${activeConvo.id}`,
+        },
+        (payload) => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === payload.new.id ? payload.new : m))
+          );
+        }
+      )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
   }, [activeConvo]);
+
+  // ── Mark incoming messages as "seen" while this conversation is open ──
+  useEffect(() => {
+    if (!activeConvo || !currentUser) return;
+
+    const unseen = messages.filter(
+      (m) => m.sender_username !== currentUser && !m.seen_at
+    );
+    if (unseen.length === 0) return;
+
+    const ids = unseen.map((m) => m.id);
+    const nowIso = new Date().toISOString();
+
+    supabase
+      .from("direct_messages")
+      .update({ seen_at: nowIso, delivered_at: nowIso })
+      .in("id", ids)
+      .then(() => {
+        // Reflect locally right away in case the realtime UPDATE event lags
+        setMessages((prev) =>
+          prev.map((m) =>
+            ids.includes(m.id)
+              ? { ...m, seen_at: m.seen_at || nowIso, delivered_at: m.delivered_at || nowIso }
+              : m
+          )
+        );
+      });
+  }, [messages, activeConvo, currentUser]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -348,7 +422,14 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                         >
                           <div className="mp-bubble">
                             <span>{m.text}</span>
-                            <span className="mp-bubble-time">{timeShort(m.created_at)}</span>
+                            <span className="mp-bubble-footer">
+                              <span className="mp-bubble-time">{timeShort(m.created_at)}</span>
+                              {m.sender_username === currentUser && (
+                                <span className={`mp-ticks mp-ticks-${getTickStatus(m)}`}>
+                                  {getTickStatus(m) === "sent" ? "✓" : "✓✓"}
+                                </span>
+                              )}
+                            </span>
                           </div>
                         </div>
                       ))

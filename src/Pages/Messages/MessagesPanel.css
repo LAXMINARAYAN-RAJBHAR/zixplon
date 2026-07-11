@@ -105,6 +105,55 @@
   border-bottom: 2px solid var(--zx-border);
 }
 
+/* ── Inbox search bar ── */
+.mp-inbox-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 2px solid var(--zx-border);
+  background: var(--zx-bg);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.mp-inbox-search-icon {
+  color: var(--zx-text3);
+  flex-shrink: 0;
+}
+
+.mp-inbox-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  color: var(--zx-text);
+}
+
+.mp-inbox-search-input::placeholder {
+  color: var(--zx-text3);
+}
+
+.mp-inbox-search-clear {
+  background: transparent;
+  border: none;
+  color: var(--zx-text3);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 2px 4px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.mp-inbox-search-clear:hover {
+  background: var(--zx-border);
+  color: var(--zx-primary);
+}
+
 .mp-close-btn,
 .mp-close-btn-desktop {
   background: transparent;

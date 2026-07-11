@@ -22,6 +22,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const [activeUsername, setActiveUsername] = useState(initialUsername || null);
   const [conversations, setConversations] = useState([]);
   const [loadingConvos, setLoadingConvos] = useState(true);
+  const [inboxSearch, setInboxSearch] = useState("");
 
   const [activeConvo, setActiveConvo] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -315,6 +316,16 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       }
     : undefined;
 
+  // ── Filter conversations by username OR last message content ──
+  const normalizedSearch = inboxSearch.trim().toLowerCase();
+  const filteredConversations = normalizedSearch
+    ? conversations.filter((conv) => {
+        const other = getOtherUser(conv).toLowerCase();
+        const lastMsg = (conv.last_message || "").toLowerCase();
+        return other.includes(normalizedSearch) || lastMsg.includes(normalizedSearch);
+      })
+    : conversations;
+
   return (
     <div
       className={`mp-overlay ${!currentUser ? "mp-overlay-center" : ""}`}
@@ -349,12 +360,39 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                 <span>Messages</span>
                 <button className="mp-close-btn" onClick={onClose} aria-label="Close">✕</button>
               </div>
+
+              <div className="mp-inbox-search-row">
+                <svg className="mp-inbox-search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none">
+                  <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <input
+                  type="text"
+                  className="mp-inbox-search-input"
+                  placeholder="Search name or message"
+                  value={inboxSearch}
+                  onChange={(e) => setInboxSearch(e.target.value)}
+                />
+                {inboxSearch && (
+                  <button
+                    type="button"
+                    className="mp-inbox-search-clear"
+                    onClick={() => setInboxSearch("")}
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
               {loadingConvos ? (
                 <p className="mp-empty">Loading…</p>
               ) : conversations.length === 0 ? (
                 <p className="mp-empty">No conversations yet.</p>
+              ) : filteredConversations.length === 0 ? (
+                <p className="mp-empty">No matches for "{inboxSearch}"</p>
               ) : (
-                conversations.map((conv) => {
+                filteredConversations.map((conv) => {
                   const other = getOtherUser(conv);
                   const isActive = other === activeUsername;
                   return (

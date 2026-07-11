@@ -23,6 +23,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const [conversations, setConversations] = useState([]);
   const [loadingConvos, setLoadingConvos] = useState(true);
   const [inboxSearch, setInboxSearch] = useState("");
+  const [profileResults, setProfileResults] = useState([]);
+  const [searchingProfiles, setSearchingProfiles] = useState(false);
 
   const [activeConvo, setActiveConvo] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -155,6 +157,32 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
     return () => supabase.removeChannel(channel);
   }, [fetchConversations]);
+
+  // ── Debounced profile search: lets the user find & start a chat with
+  //    anyone on Zixplon, not just people they already have a conversation with ──
+  useEffect(() => {
+    const query = inboxSearch.trim();
+    if (!query || !currentUser) {
+      setProfileResults([]);
+      setSearchingProfiles(false);
+      return;
+    }
+
+    setSearchingProfiles(true);
+    const timer = setTimeout(async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("username")
+        .ilike("username", `%${query}%`)
+        .neq("username", currentUser)
+        .limit(8);
+
+      if (!error) setProfileResults(data || []);
+      setSearchingProfiles(false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [inboxSearch, currentUser]);
 
   useEffect(() => {
     if (!activeUsername || !currentUser) {
@@ -326,6 +354,17 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       })
     : conversations;
 
+  // ── Profiles found by search that don't already have a conversation ──
+  const existingUsernames = new Set(conversations.map((c) => getOtherUser(c)));
+  const newProfileResults = profileResults.filter(
+    (p) => !existingUsernames.has(p.username)
+  );
+
+  const startChatWith = (username) => {
+    setInboxSearch("");
+    setActiveUsername(username);
+  };
+
   return (
     <div
       className={`mp-overlay ${!currentUser ? "mp-overlay-center" : ""}`}
@@ -369,7 +408,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                 <input
                   type="text"
                   className="mp-inbox-search-input"
-                  placeholder="Search name or message"
+                  placeholder="Search people or messages"
                   value={inboxSearch}
                   onChange={(e) => setInboxSearch(e.target.value)}
                 />
@@ -387,33 +426,65 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
               {loadingConvos ? (
                 <p className="mp-empty">Loading…</p>
-              ) : conversations.length === 0 ? (
+              ) : conversations.length === 0 && !normalizedSearch ? (
                 <p className="mp-empty">No conversations yet.</p>
-              ) : filteredConversations.length === 0 ? (
-                <p className="mp-empty">No matches for "{inboxSearch}"</p>
               ) : (
-                filteredConversations.map((conv) => {
-                  const other = getOtherUser(conv);
-                  const isActive = other === activeUsername;
-                  return (
-                    <div
-                      key={conv.id}
-                      className={`mp-convo-item ${isActive ? "active" : ""}`}
-                      onClick={() => setActiveUsername(other)}
-                    >
-                      <div className="mp-convo-avatar">
-                        {other.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="mp-convo-meta">
-                        <div className="mp-convo-name">{other}</div>
-                        <div className="mp-convo-last">
-                          {conv.last_message || "No messages yet"}
+                <>
+                  {filteredConversations.length === 0 &&
+                  newProfileResults.length === 0 &&
+                  !searchingProfiles &&
+                  normalizedSearch ? (
+                    <p className="mp-empty">No matches for "{inboxSearch}"</p>
+                  ) : (
+                    filteredConversations.map((conv) => {
+                      const other = getOtherUser(conv);
+                      const isActive = other === activeUsername;
+                      return (
+                        <div
+                          key={conv.id}
+                          className={`mp-convo-item ${isActive ? "active" : ""}`}
+                          onClick={() => setActiveUsername(other)}
+                        >
+                          <div className="mp-convo-avatar">
+                            {other.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="mp-convo-meta">
+                            <div className="mp-convo-name">{other}</div>
+                            <div className="mp-convo-last">
+                              {conv.last_message || "No messages yet"}
+                            </div>
+                          </div>
+                          <div className="mp-convo-time">{timeAgo(conv.last_message_at)}</div>
                         </div>
-                      </div>
-                      <div className="mp-convo-time">{timeAgo(conv.last_message_at)}</div>
-                    </div>
-                  );
-                })
+                      );
+                    })
+                  )}
+
+                  {normalizedSearch && (searchingProfiles || newProfileResults.length > 0) && (
+                    <>
+                      <div className="mp-inbox-section-label">Start new chat</div>
+                      {searchingProfiles ? (
+                        <p className="mp-empty mp-empty-small">Searching…</p>
+                      ) : (
+                        newProfileResults.map((p) => (
+                          <div
+                            key={p.username}
+                            className="mp-convo-item mp-profile-result"
+                            onClick={() => startChatWith(p.username)}
+                          >
+                            <div className="mp-convo-avatar">
+                              {p.username.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="mp-convo-meta">
+                              <div className="mp-convo-name">{p.username}</div>
+                              <div className="mp-convo-last">Tap to start chatting</div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </>
+                  )}
+                </>
               )}
             </div>
 

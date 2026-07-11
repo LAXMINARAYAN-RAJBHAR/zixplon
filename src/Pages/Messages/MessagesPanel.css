@@ -171,6 +171,25 @@
   color: var(--zx-primary);
 }
 
+.mp-inbox-section-label {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--zx-text3);
+  padding: 12px 14px 4px;
+}
+
+.mp-profile-result .mp-convo-avatar {
+  background: linear-gradient(135deg, var(--zx-accent3, #06b6d4), var(--zx-primary2));
+}
+
+.mp-empty-small {
+  padding: 8px 14px;
+  text-align: left;
+}
+
 .mp-convo-item {
   display: flex;
   align-items: center;

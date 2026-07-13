@@ -32,6 +32,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
+  // ── Presence: who's currently online ──
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
+
   const bottomRef = useRef();
   const panelRef = useRef();
 
@@ -105,6 +108,28 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     if (m.delivered_at) return "delivered";
     return "sent";
   };
+
+  // ── Presence: announce this client & track everyone who's online ──
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const channel = supabase.channel("online-users", {
+      config: { presence: { key: currentUser } },
+    });
+
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        setOnlineUsers(new Set(Object.keys(state)));
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({ online_at: new Date().toISOString() });
+        }
+      });
+
+    return () => supabase.removeChannel(channel);
+  }, [currentUser]);
 
   // ── Global: mark messages "delivered" the instant this client receives them,
   //    regardless of which conversation (if any) is currently open ──
@@ -439,6 +464,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     filteredConversations.map((conv) => {
                       const other = getOtherUser(conv);
                       const isActive = other === activeUsername;
+                      const isOnline = onlineUsers.has(other);
                       return (
                         <div
                           key={conv.id}
@@ -447,6 +473,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                         >
                           <div className="mp-convo-avatar">
                             {other.slice(0, 2).toUpperCase()}
+                            {isOnline && <span className="mp-online-dot" />}
                           </div>
                           <div className="mp-convo-meta">
                             <div className="mp-convo-name">{other}</div>
@@ -474,6 +501,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                           >
                             <div className="mp-convo-avatar">
                               {p.username.slice(0, 2).toUpperCase()}
+                              {onlineUsers.has(p.username) && <span className="mp-online-dot" />}
                             </div>
                             <div className="mp-convo-meta">
                               <div className="mp-convo-name">{p.username}</div>
@@ -513,8 +541,14 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     </button>
                     <div className="mp-convo-avatar">
                       {activeUsername.slice(0, 2).toUpperCase()}
+                      {onlineUsers.has(activeUsername) && <span className="mp-online-dot" />}
                     </div>
-                    <div className="mp-chat-username">{activeUsername}</div>
+                    <div className="mp-chat-username">
+                      <span className="mp-chat-username-text">{activeUsername}</span>
+                      <span className={`mp-chat-status ${onlineUsers.has(activeUsername) ? "online" : ""}`}>
+                        {onlineUsers.has(activeUsername) ? "Online" : "Offline"}
+                      </span>
+                    </div>
                     <button className="mp-close-btn" onClick={onClose} aria-label="Close">✕</button>
                   </div>
 

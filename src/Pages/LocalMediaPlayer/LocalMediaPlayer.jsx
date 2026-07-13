@@ -16,22 +16,22 @@ const formatSize = (bytes) => {
   return (bytes / 1024).toFixed(1) + " KB";
 };
 
-// ── Design tokens ─────────────────────────────────────────────
+// ── Design tokens — red / white theme ──────────────────────────
 const C = {
-  bg:       "#f0f4ff",
+  bg:       "#fff5f5",
   surface:  "#ffffff",
-  surface2: "#f7f0ff",
-  border:   "#e0d4ff",
-  primary:  "#7c3aed",
-  primary2: "#a855f7",
-  accent1:  "#f43f5e",
+  surface2: "#fef2f2",
+  border:   "#fbd5d5",
+  primary:  "#dc2626",
+  primary2: "#ef4444",
+  accent1:  "#b91c1c",
   accent2:  "#f97316",
-  text:     "#1e1b4b",
-  text2:    "#4c4589",
-  text3:    "#8b84c4",
-  playerBg: "#1e1b4b",   // dark bg for the video/player area
-  playerSurface: "#2d2867",
-  playerBorder: "rgba(224,212,255,0.15)",
+  text:     "#1a1414",
+  text2:    "#7a3a3a",
+  text3:    "#b08585",
+  playerBg: "#1a0f0f",          // dark bg for the video/player area
+  playerSurface: "#2d1414",
+  playerBorder: "rgba(251,213,213,0.15)",
 };
 
 const checkMobile = () =>
@@ -58,17 +58,24 @@ export default function LocalMediaPlayer() {
   const [currentObjectURL, setCurrentObjectURL] = useState(null);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [isMobile, setIsMobile] = useState(checkMobile);
+  const [isPiP, setIsPiP] = useState(false);
+  const [seekFlash, setSeekFlash] = useState(null); // "back" | "forward" | null
 
   const mediaRef = useRef(null);
   const containerRef = useRef(null);
   const wrapperRef = useRef(null);
   const hideTimer = useRef(null);
   const fileInputRef = useRef(null);
+  const seekFlashTimer = useRef(null);
+  const lastTapRef = useRef({ time: 0, zone: null });
 
   const currentMedia = playlist[currentIndex];
   const isAudio = currentMedia?.type?.startsWith("audio");
   const isVideo = currentMedia?.type?.startsWith("video");
   const progressPct = duration ? (currentTime / duration) * 100 : 0;
+  const totalPlaylistSize = playlist.reduce((sum, item) => sum + (item.size || 0), 0);
+  const pipSupported =
+    typeof document !== "undefined" && "pictureInPictureEnabled" in document;
 
   useEffect(() => {
     const handler = () => setIsMobile(checkMobile());
@@ -114,17 +121,23 @@ export default function LocalMediaPlayer() {
     };
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
+    const onEnterPiP = () => setIsPiP(true);
+    const onLeavePiP = () => setIsPiP(false);
     m.addEventListener("timeupdate", onTime);
     m.addEventListener("durationchange", onDuration);
     m.addEventListener("ended", onEnded);
     m.addEventListener("play", onPlay);
     m.addEventListener("pause", onPause);
+    m.addEventListener("enterpictureinpicture", onEnterPiP);
+    m.addEventListener("leavepictureinpicture", onLeavePiP);
     return () => {
       m.removeEventListener("timeupdate", onTime);
       m.removeEventListener("durationchange", onDuration);
       m.removeEventListener("ended", onEnded);
       m.removeEventListener("play", onPlay);
       m.removeEventListener("pause", onPause);
+      m.removeEventListener("enterpictureinpicture", onEnterPiP);
+      m.removeEventListener("leavepictureinpicture", onLeavePiP);
     };
   }, [loop, shuffle, currentIndex, playlist.length, seeking]);
 
@@ -144,11 +157,17 @@ export default function LocalMediaPlayer() {
         case "ArrowDown": setVolume((v) => Math.max(0, v - 0.1)); break;
         case "m": case "M": setMuted((m) => !m); break;
         case "f": case "F": toggleFullscreen(); break;
+        case "n": case "N":
+          setCurrentIndex((i) => Math.min(playlist.length - 1, i + 1));
+          break;
+        case "p": case "P":
+          setCurrentIndex((i) => Math.max(0, i - 1));
+          break;
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [playing]);
+  }, [playing, playlist.length]);
 
   const handleFiles = (files) => {
     const mediaFiles = Array.from(files).filter(
@@ -180,6 +199,12 @@ export default function LocalMediaPlayer() {
     mediaRef.current.currentTime = Math.max(0, Math.min(duration, mediaRef.current.currentTime + delta));
   };
 
+  const flashSeek = (dir) => {
+    setSeekFlash(dir);
+    clearTimeout(seekFlashTimer.current);
+    seekFlashTimer.current = setTimeout(() => setSeekFlash(null), 500);
+  };
+
   const handleSeek = (e) => {
     const val = parseFloat(e.target.value);
     setCurrentTime(val);
@@ -196,6 +221,42 @@ export default function LocalMediaPlayer() {
       (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
       setFullscreen(false);
     }
+  };
+
+  const togglePiP = async () => {
+    if (!mediaRef.current || !isVideo) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        await mediaRef.current.requestPictureInPicture();
+      }
+    } catch (_) {}
+  };
+
+  // ── Mobile video tap zones: left third = -10s, right third = +10s,
+  //    middle third = play/pause. Falls back to simple toggle on desktop
+  //    click (handled by onClick further down for non-mobile). ──────────
+  const handleVideoTap = (e) => {
+    if (!isMobile) { togglePlay(); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+    const relX = x - rect.left;
+    const zone = relX < rect.width / 3 ? "left" : relX > (rect.width * 2) / 3 ? "right" : "middle";
+
+    const now = Date.now();
+    const isDoubleTap = now - lastTapRef.current.time < 300 && lastTapRef.current.zone === zone;
+    lastTapRef.current = { time: now, zone };
+
+    if (zone === "middle") {
+      togglePlay();
+      return;
+    }
+    if (isDoubleTap || zone !== "middle") {
+      seek(zone === "left" ? -10 : 10);
+      flashSeek(zone === "left" ? "back" : "forward");
+    }
+    resetHideTimer();
   };
 
   const removeFromPlaylist = (id, e) => {
@@ -270,7 +331,7 @@ export default function LocalMediaPlayer() {
             height: "58vh", zIndex: 100,
             borderTop: `2px solid ${C.border}`,
             borderRadius: "20px 20px 0 0",
-            boxShadow: "0 -8px 40px rgba(124,58,237,0.15)",
+            boxShadow: "0 -8px 40px rgba(220,38,38,0.15)",
           }
         : {
             width: 290,
@@ -289,46 +350,53 @@ export default function LocalMediaPlayer() {
       <div style={{
         padding: "10px 16px 12px",
         borderBottom: `2px solid ${C.border}`,
-        display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0,
+        display: "flex", flexDirection: "column", gap: 6, flexShrink: 0,
       }}>
-        <span style={{ color: C.text, fontWeight: 800, fontSize: 14, fontFamily: "'Nunito', sans-serif" }}>
-          Playlist ({playlist.length})
-        </span>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              background: `linear-gradient(135deg, ${C.primary}, ${C.primary2})`,
-              border: "none", borderRadius: 20, color: "#fff",
-              padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 800,
-              fontFamily: "'Nunito', sans-serif", touchAction: "manipulation",
-              boxShadow: "0 3px 12px rgba(124,58,237,0.28)",
-            }}
-          >
-            + Add Files
-          </button>
-          {playlist.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ color: C.text, fontWeight: 800, fontSize: 14, fontFamily: "'Nunito', sans-serif" }}>
+            Playlist ({playlist.length})
+          </span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button
-              onClick={() => { setPlaylist([]); setCurrentIndex(0); setPlaying(false); }}
+              onClick={() => fileInputRef.current?.click()}
               style={{
-                background: C.bg, border: `2px solid ${C.border}`, borderRadius: 20,
-                color: C.text3, padding: "7px 12px", cursor: "pointer", fontSize: 12,
-                fontWeight: 700, fontFamily: "'Nunito', sans-serif",
+                background: `linear-gradient(135deg, ${C.primary}, ${C.primary2})`,
+                border: "none", borderRadius: 20, color: "#fff",
+                padding: "7px 14px", cursor: "pointer", fontSize: 12, fontWeight: 800,
+                fontFamily: "'Nunito', sans-serif", touchAction: "manipulation",
+                boxShadow: "0 3px 12px rgba(220,38,38,0.28)",
               }}
             >
-              Clear
+              + Add Files
             </button>
-          )}
-          {isMobile && (
-            <button
-              onClick={() => setShowPlaylist(false)}
-              style={{
-                background: "none", border: "none", color: C.text3,
-                fontSize: 26, cursor: "pointer", padding: "0 3px", lineHeight: 1,
-              }}
-            >×</button>
-          )}
+            {playlist.length > 0 && (
+              <button
+                onClick={() => { setPlaylist([]); setCurrentIndex(0); setPlaying(false); }}
+                style={{
+                  background: C.bg, border: `2px solid ${C.border}`, borderRadius: 20,
+                  color: C.text3, padding: "7px 12px", cursor: "pointer", fontSize: 12,
+                  fontWeight: 700, fontFamily: "'Nunito', sans-serif",
+                }}
+              >
+                Clear
+              </button>
+            )}
+            {isMobile && (
+              <button
+                onClick={() => setShowPlaylist(false)}
+                style={{
+                  background: "none", border: "none", color: C.text3,
+                  fontSize: 26, cursor: "pointer", padding: "0 3px", lineHeight: 1,
+                }}
+              >×</button>
+            )}
+          </div>
         </div>
+        {playlist.length > 0 && (
+          <span style={{ color: C.text3, fontSize: 11, fontFamily: "'Nunito', sans-serif", fontWeight: 600 }}>
+            Total size: {formatSize(totalPlaylistSize)}
+          </span>
+        )}
       </div>
 
       {/* list */}
@@ -366,7 +434,15 @@ export default function LocalMediaPlayer() {
                 background: i === currentIndex ? C.border : C.bg,
                 display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                 border: `1.5px solid ${C.border}`,
+                position: "relative",
               }}>
+                {i === currentIndex && playing && (
+                  <span style={{
+                    position: "absolute", inset: -3, borderRadius: 12,
+                    border: `1.5px solid ${C.primary}`,
+                    animation: "ringPulse 1.6s ease-out infinite",
+                  }} />
+                )}
                 {i === currentIndex && playing ? (
                   <div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 16 }}>
                     {[1, 2, 3].map((j) => (
@@ -426,7 +502,7 @@ export default function LocalMediaPlayer() {
           fontFamily: "'Nunito', sans-serif", fontWeight: 600,
         }}>
           <span style={{ color: C.primary, fontWeight: 800 }}>Keys: </span>
-          Space · ←/→ seek · ↑/↓ vol · M mute · F fullscreen
+          Space · ←/→ seek · ↑/↓ vol · M mute · F fullscreen · N/P next/prev
         </div>
       )}
     </div>
@@ -438,12 +514,14 @@ export default function LocalMediaPlayer() {
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Outfit:wght@400;500;600;700&display=swap');
         @keyframes eq { from { transform: scaleY(0.4); } to { transform: scaleY(1.5); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes ringPulse { 0% { opacity: 0.9; transform: scale(1); } 100% { opacity: 0; transform: scale(1.35); } }
+        @keyframes seekFlashFade { 0% { opacity: 0.9; } 100% { opacity: 0; } }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; }
         input[type=range]::-webkit-slider-thumb {
           -webkit-appearance: none; width: 14px; height: 14px;
           border-radius: 50%; background: ${C.primary}; cursor: pointer; margin-top: -5px;
-          box-shadow: 0 0 6px rgba(124,58,237,0.4);
+          box-shadow: 0 0 6px rgba(220,38,38,0.4);
         }
         input[type=range]::-webkit-slider-runnable-track { height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; }
         ::-webkit-scrollbar { width: 5px; }
@@ -471,7 +549,7 @@ export default function LocalMediaPlayer() {
           ref={containerRef}
           style={{
             flex: 1, display: "flex", flexDirection: "column",
-            position: "relative", background: "#0d0b1a", overflow: "hidden", minHeight: 0,
+            position: "relative", background: "#0d0808", overflow: "hidden", minHeight: 0,
           }}
           onMouseMove={resetHideTimer}
         >
@@ -492,7 +570,7 @@ export default function LocalMediaPlayer() {
                 width: isMobile ? 100 : 130, height: isMobile ? 100 : 130,
                 borderRadius: "50%",
                 border: `2px dashed ${dragOver ? C.primary2 : C.playerBorder}`,
-                background: dragOver ? "rgba(124,58,237,0.1)" : "rgba(255,255,255,0.04)",
+                background: dragOver ? "rgba(220,38,38,0.1)" : "rgba(255,255,255,0.04)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 transition: "all 0.2s",
               }}>
@@ -524,7 +602,7 @@ export default function LocalMediaPlayer() {
                   padding: "14px 36px", fontSize: 16, fontWeight: 800,
                   cursor: "pointer", touchAction: "manipulation",
                   fontFamily: "'Nunito', sans-serif",
-                  boxShadow: "0 6px 22px rgba(124,58,237,0.4)",
+                  boxShadow: "0 6px 22px rgba(220,38,38,0.4)",
                 }}>
                   + Add Files
                 </button>
@@ -537,23 +615,23 @@ export default function LocalMediaPlayer() {
             <div style={{
               flex: 1, display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center",
-              background: "linear-gradient(135deg, #0d0b1a, #1a1040)",
+              background: "linear-gradient(135deg, #0d0808, #2a0f0f)",
               minHeight: 0, padding: 20,
             }}>
               <div style={{
                 width: isMobile ? 130 : 170, height: isMobile ? 130 : 170,
                 borderRadius: "50%",
-                background: "rgba(124,58,237,0.1)",
+                background: "rgba(220,38,38,0.1)",
                 border: `3px solid ${C.primary}`,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 marginBottom: 22, position: "relative", overflow: "hidden",
-                boxShadow: `0 0 40px rgba(124,58,237,0.3)`,
+                boxShadow: `0 0 40px rgba(220,38,38,0.3)`,
               }}>
                 {playing && (
                   <div style={{
                     position: "absolute", inset: 0, borderRadius: "50%",
                     animation: "spin 4s linear infinite",
-                    background: `conic-gradient(from 0deg,transparent 0%,rgba(124,58,237,0.25) 50%,transparent 100%)`,
+                    background: `conic-gradient(from 0deg,transparent 0%,rgba(220,38,38,0.25) 50%,transparent 100%)`,
                   }} />
                 )}
                 <svg width={isMobile ? 52 : 68} height={isMobile ? 52 : 68} viewBox="0 0 24 24" fill="none" stroke={C.primary2} strokeWidth="1.2">
@@ -588,17 +666,56 @@ export default function LocalMediaPlayer() {
 
           {/* ── VIDEO ── */}
           {currentMedia && isVideo && (
-            <video
-              ref={mediaRef}
-              onClick={togglePlay}
-              onTouchEnd={(e) => { e.preventDefault(); resetHideTimer(); }}
-              style={{
-                flex: 1, width: "100%", height: "100%",
-                objectFit: "contain", filter: `brightness(${brightness}%)`,
-                display: "block", minHeight: 0,
-              }}
-              playsInline
-            />
+            <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+              <video
+                ref={mediaRef}
+                onClick={!isMobile ? togglePlay : undefined}
+                onTouchEnd={(e) => { e.preventDefault(); handleVideoTap(e); }}
+                style={{
+                  width: "100%", height: "100%",
+                  objectFit: "contain", filter: `brightness(${brightness}%)`,
+                  display: "block",
+                }}
+                playsInline
+              />
+              {/* seek flash indicator (mobile tap-zone feedback) */}
+              {seekFlash && (
+                <div
+                  style={{
+                    position: "absolute", top: "50%", transform: "translateY(-50%)",
+                    [seekFlash === "back" ? "left" : "right"]: "12%",
+                    background: "rgba(0,0,0,0.55)", borderRadius: "50%",
+                    width: 56, height: 56, display: "flex", alignItems: "center",
+                    justifyContent: "center", pointerEvents: "none",
+                    animation: "seekFlashFade 0.5s ease forwards",
+                  }}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
+                    {seekFlash === "back" ? (
+                      <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+                    ) : (
+                      <path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
+                    )}
+                  </svg>
+                </div>
+              )}
+              {/* now-playing title, shown briefly with the controls overlay */}
+              {isMobile && (
+                <div
+                  style={{
+                    position: "absolute", top: 10, left: 10, right: 10,
+                    color: "#fff", fontSize: 13, fontWeight: 700,
+                    fontFamily: "'Nunito', sans-serif",
+                    textShadow: "0 1px 6px rgba(0,0,0,0.6)",
+                    opacity: showControls ? 1 : 0, transition: "opacity 0.3s",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                    pointerEvents: "none",
+                  }}
+                >
+                  {currentMedia.name}
+                </div>
+              )}
+            </div>
           )}
           {currentMedia && isAudio && <audio ref={mediaRef} style={{ display: "none" }} />}
 
@@ -609,8 +726,8 @@ export default function LocalMediaPlayer() {
                 position: isVideo ? "absolute" : "relative",
                 bottom: 0, left: 0, right: 0,
                 background: isVideo
-                  ? "linear-gradient(transparent, rgba(13,11,26,0.97))"
-                  : "rgba(13,11,26,0.95)",
+                  ? "linear-gradient(transparent, rgba(13,8,8,0.97))"
+                  : "rgba(13,8,8,0.95)",
                 padding: isMobile ? "28px 14px 14px" : "40px 18px 16px",
                 opacity: isVideo ? (showControls ? 1 : 0) : 1,
                 transition: "opacity 0.3s",
@@ -619,6 +736,15 @@ export default function LocalMediaPlayer() {
               onClick={(e) => e.stopPropagation()}
               onTouchStart={resetHideTimer}
             >
+              {!isMobile && isVideo && (
+                <p style={{
+                  color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: 700,
+                  margin: "0 0 8px", fontFamily: "'Nunito', sans-serif",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                }}>
+                  {currentMedia.name}
+                </p>
+              )}
               <SeekBar />
               <div style={{ display: "flex", justifyContent: "space-between", margin: "6px 0 10px" }}>
                 <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: "'Nunito', sans-serif", fontWeight: 700 }}>
@@ -662,7 +788,7 @@ export default function LocalMediaPlayer() {
                     cursor: "pointer", color: "#fff", flexShrink: 0,
                     margin: "0 6px", touchAction: "manipulation",
                     WebkitTapHighlightColor: "transparent",
-                    boxShadow: "0 4px 18px rgba(124,58,237,0.5)",
+                    boxShadow: "0 4px 18px rgba(220,38,38,0.5)",
                   }}
                 >
                   {playing ? (
@@ -727,7 +853,7 @@ export default function LocalMediaPlayer() {
                       border: `2px solid ${C.border}`,
                       padding: "12px 10px",
                       display: "flex", flexDirection: "column", alignItems: "center",
-                      gap: 6, zIndex: 60, boxShadow: "0 8px 32px rgba(124,58,237,0.18)",
+                      gap: 6, zIndex: 60, boxShadow: "0 8px 32px rgba(220,38,38,0.18)",
                     }}>
                       <span style={{ color: C.primary, fontSize: 11, fontWeight: 800, fontFamily: "'Nunito', sans-serif" }}>
                         {Math.round((muted ? 0 : volume) * 100)}%
@@ -773,7 +899,7 @@ export default function LocalMediaPlayer() {
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowSpeedMenu((s) => !s); }}
                     style={{
-                      background: speed !== 1 ? `rgba(124,58,237,0.2)` : "rgba(255,255,255,0.08)",
+                      background: speed !== 1 ? `rgba(220,38,38,0.2)` : "rgba(255,255,255,0.08)",
                       border: `1.5px solid ${speed !== 1 ? C.primary : "rgba(255,255,255,0.15)"}`,
                       borderRadius: 8,
                       color: speed !== 1 ? C.primary2 : "rgba(255,255,255,0.7)",
@@ -791,7 +917,7 @@ export default function LocalMediaPlayer() {
                         background: C.surface, border: `2px solid ${C.border}`,
                         borderRadius: 12, overflow: "hidden", marginBottom: 6,
                         zIndex: 70, minWidth: 120,
-                        boxShadow: "0 8px 32px rgba(124,58,237,0.15)",
+                        boxShadow: "0 8px 32px rgba(220,38,38,0.15)",
                       }}
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -829,6 +955,15 @@ export default function LocalMediaPlayer() {
                       style={{ width: 58, accentColor: C.primary, cursor: "pointer" }}
                     />
                   </div>
+                )}
+
+                {/* PICTURE-IN-PICTURE */}
+                {isVideo && pipSupported && (
+                  <Btn onClick={togglePiP} active={isPiP} title="Picture-in-picture">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z" />
+                    </svg>
+                  </Btn>
                 )}
 
                 {/* FULLSCREEN */}
@@ -877,7 +1012,7 @@ export default function LocalMediaPlayer() {
               display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer", color: C.text3, zIndex: 10,
               transition: "right 0.3s, border-color 0.2s",
-              boxShadow: "0 2px 12px rgba(124,58,237,0.1)",
+              boxShadow: "0 2px 12px rgba(220,38,38,0.1)",
             }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = C.primary; e.currentTarget.style.color = C.primary; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.text3; }}
@@ -895,7 +1030,7 @@ export default function LocalMediaPlayer() {
           <>
             <div
               onClick={() => setShowPlaylist(false)}
-              style={{ position: "fixed", inset: 0, background: "rgba(30,27,75,0.5)", zIndex: 90 }}
+              style={{ position: "fixed", inset: 0, background: "rgba(26,15,15,0.5)", zIndex: 90 }}
             />
             <PlaylistPanel />
           </>

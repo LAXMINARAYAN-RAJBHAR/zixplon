@@ -5,7 +5,7 @@ import './footer.css'
 const Footer = ({ sideNavbar }) => {
   return (
     <div className={`footer ${sideNavbar ? 'footer-sidebar-open' : ''}`}>
-      <p>© 2021 - {new Date().getFullYear()} ZIXPLON&reg; All Rights Reserved.</p>
+      <p>©{new Date().getFullYear()} ZIXPLON&reg; All Rights Reserved.</p>
       <p>Origin: <span className="footer_dev">Made in India</span></p>
       <p>Developer & Owner: <span className="footer_dev">Laxminarayan Rajbhar</span></p>
       <div className="footer_links">

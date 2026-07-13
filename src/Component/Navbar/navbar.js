@@ -238,7 +238,7 @@ const TagBadge = ({ tag }) => {
       text: "NEW",
     },
     trend: {
-      bg: "rgba(255,112,102,0.12)",
+      bg: "rgba(230,57,70,0.14)",
       color: "#ff7066",
       border: "none",
       text: "TRENDING",
@@ -276,7 +276,7 @@ const TagBadge = ({ tag }) => {
 const getNotifStyle = (type) => {
   switch (type) {
     case "upload":
-      return { color: "#ff4444", icon: "🎬" };
+      return { color: "#c81e34", icon: "🎬" };
     case "like":
       return { color: "#ff9800", icon: "❤️" };
     case "comment":
@@ -399,7 +399,7 @@ const Navbar = ({
             setUserPic(pic);
           } else {
             setUserPic(
-              `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser)}&background=ff0000&color=fff&size=40`,
+              `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser)}&background=9e1226&color=fff&size=40`,
             );
           }
         }
@@ -747,10 +747,10 @@ const Navbar = ({
             borderRadius: "12px",
             transition: "border-color 0.25s, background 0.25s, box-shadow 0.25s",
             border: logoHovered
-              ? "2px solid rgba(255,0,0,1)"
+              ? "2px solid rgba(255,233,226,0.9)"
               : "1px solid rgba(255, 255, 255, 0.35)",
             background: logoHovered
-              ? "rgba(255,0,0,0.12)"
+              ? "rgba(255,233,226,0.14)"
               : "rgba(255,255,255,0.05)",
           }}
           onMouseEnter={() => setLogoHovered(true)}
@@ -761,12 +761,12 @@ const Navbar = ({
           }}
         >
           <svg width="38" height="38" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="42" height="42" rx="8" fill="#ff0000" />
-            <text x="50%" y="42%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="22" fontWeight="bold" fontFamily="Arial">
+            <rect width="42" height="42" rx="8" fill="#9e1226" />
+            <text x="50%" y="42%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="22" fontWeight="bold" fontFamily="Fraunces, serif">
               Z
               <animate attributeName="opacity" values="1;0.2;1;0.5;1" dur="2s" repeatCount="indefinite" />
             </text>
-            <text x="50%" y="79%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="7.7" fontWeight="700" fontFamily="Arial" letterSpacing="1.2" opacity="1">
+            <text x="50%" y="79%" dominantBaseline="middle" textAnchor="middle" fill="white" fontSize="7.7" fontWeight="700" fontFamily="Inter, sans-serif" letterSpacing="1.2" opacity="1">
               ZIXPLON
             </text>
           </svg>
@@ -785,7 +785,7 @@ const Navbar = ({
                   fontSize: "9px",
                   fontWeight: "800",
                   color: "#ffffff",
-                  background: "#cc0000",
+                  background: "#6e0a18",
                   border: "1.5px solid rgba(255,255,255,0.7)",
                   borderRadius: "3px",
                   padding: "1px 3px",
@@ -810,7 +810,7 @@ const Navbar = ({
           style={{
             position: "relative",
             transition: "box-shadow 0.2s",
-            boxShadow: searchBarActive ? "0 0 0 2px rgba(62,166,255,0.35)" : "none",
+            boxShadow: searchBarActive ? "0 0 0 2px rgba(255,233,226,0.45)" : "none",
             borderRadius: searchBarActive && showDropdown ? "20px 20px 0 0" : "20px",
           }}
         >
@@ -861,7 +861,7 @@ const Navbar = ({
                 width: "22px",
                 height: "22px",
                 borderRadius: "50%",
-                background: "#444",
+                background: "rgba(255,255,255,0.2)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -869,11 +869,11 @@ const Navbar = ({
                 flexShrink: 0,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#666";
+                e.currentTarget.style.background = "rgba(255,255,255,0.35)";
                 e.currentTarget.style.transform = "translateY(-50%) scale(1.15)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#444";
+                e.currentTarget.style.background = "rgba(255,255,255,0.2)";
                 e.currentTarget.style.transform = "translateY(-50%) scale(1)";
               }}
             >
@@ -894,7 +894,7 @@ const Navbar = ({
         </div>
 
         <div className="navbar_mike" onClick={startVoiceSearch} title="Voice Search" style={{ cursor: "pointer" }}>
-          <KeyboardVoiceIcon sx={{ color: isListening ? "red" : "white", transition: "color 0.2s" }} />
+          <KeyboardVoiceIcon sx={{ color: isListening ? "#ffe9e2" : "white", transition: "color 0.2s" }} />
         </div>
 
         {/* ── Suggestions Dropdown ── */}
@@ -949,7 +949,7 @@ const Navbar = ({
                           clearHistory();
                           setSuggestionData((prev) => ({ ...prev, history: [] }));
                         }}
-                        style={{ fontSize: "11px", color: "#3ea6ff", cursor: "pointer" }}
+                        style={{ fontSize: "11px", color: "#ff8a80", cursor: "pointer" }}
                         title="Clear all recent searches"
                       >
                         Clear all
@@ -1043,7 +1043,7 @@ const Navbar = ({
                       gap: "10px",
                       padding: "10px 14px",
                       cursor: "pointer",
-                      color: "#3ea6ff",
+                      color: "#ff8a80",
                       fontSize: "13px",
                       transition: "background 0.15s",
                     }}
@@ -1062,7 +1062,7 @@ const Navbar = ({
       {/* ── RIGHT ── */}
       <div className="navbar-right">
         <span onClick={() => navigate("/local-player")} title="Local Player" className="navbar-local-player" style={{ cursor: "pointer" }}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="var(--zx-text2)">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="#ffffff">
             <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
           </svg>
         </span>
@@ -1076,10 +1076,10 @@ const Navbar = ({
               display: "flex",
               alignItems: "center",
               gap: "4px",
-              background: "#ff0000",
-              color: "white",
+              background: "#ffffff",
+              color: "#9e1226",
               fontSize: "12px",
-              fontWeight: "600",
+              fontWeight: "700",
               padding: "4px 10px",
               borderRadius: "20px",
             }}
@@ -1118,7 +1118,7 @@ const Navbar = ({
               position: "absolute",
               top: "-4px",
               right: "-4px",
-              background: "red",
+              background: "#e63946",
               color: "white",
               borderRadius: "50%",
               fontSize: "10px",
@@ -1128,7 +1128,7 @@ const Navbar = ({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              border: "2px solid #0f0f0f",
+              border: "2px solid #6e0a18",
               animation: "badgePop 0.3s ease",
             }}>
               {unreadMessages > 9 ? "9+" : unreadMessages}
@@ -1142,7 +1142,7 @@ const Navbar = ({
             <NotificationsActiveIcon
               sx={{
                 fontSize: "30px",
-                color: showNotifications ? "#ff4444" : "white",
+                color: showNotifications ? "#ffe9e2" : "white",
                 transition: "color 0.2s",
                 animation: unreadCount > 0 ? "bellShake 1.5s infinite" : "none",
               }}
@@ -1152,7 +1152,7 @@ const Navbar = ({
                 position: "absolute",
                 top: "-4px",
                 right: "-4px",
-                background: "red",
+                background: "#e63946",
                 color: "white",
                 borderRadius: "50%",
                 fontSize: "10px",
@@ -1162,7 +1162,7 @@ const Navbar = ({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                border: "2px solid #0f0f0f",
+                border: "2px solid #6e0a18",
                 animation: "badgePop 0.3s ease",
               }}>
                 {unreadCount > 9 ? "9+" : unreadCount}
@@ -1189,7 +1189,7 @@ const Navbar = ({
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid #333" }}>
                 <span style={{ color: "white", fontWeight: "600", fontSize: "16px" }}>Notifications</span>
                 {unreadCount > 0 && (
-                  <span onClick={markAllRead} style={{ color: "#3ea6ff", fontSize: "13px", cursor: "pointer", fontWeight: "500" }}>
+                  <span onClick={markAllRead} style={{ color: "#ff8a80", fontSize: "13px", cursor: "pointer", fontWeight: "500" }}>
                     Mark all as read
                   </span>
                 )}
@@ -1244,7 +1244,7 @@ const Navbar = ({
                           <span style={{ color: "#666", fontSize: "11px" }}>{n.time}</span>
                         </div>
                         {!n.read && (
-                          <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#3ea6ff", flexShrink: 0, marginTop: "4px" }} />
+                          <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ff8a80", flexShrink: 0, marginTop: "4px" }} />
                         )}
                       </div>
                     );
@@ -1254,7 +1254,7 @@ const Navbar = ({
 
               <div style={{ padding: "12px", textAlign: "center", borderTop: "1px solid #333" }}>
                 <span
-                  style={{ color: "#3ea6ff", fontSize: "13px", cursor: "pointer" }}
+                  style={{ color: "#ff8a80", fontSize: "13px", cursor: "pointer" }}
                   onClick={() => { setShowNotifications(false); navigate("/notifications"); }}
                 >
                   See all notifications
@@ -1285,7 +1285,7 @@ const Navbar = ({
               )}
               <div className="navbar-modal-option" onClick={handleprofile}>Profile</div>
               {currentUser ? (
-                <div className="navbar-modal-option" onClick={handleLogout} style={{ color: "#ff4444" }}>
+                <div className="navbar-modal-option" onClick={handleLogout} style={{ color: "#e63946" }}>
                   Logout
                 </div>
               ) : (
@@ -1320,7 +1320,7 @@ const Navbar = ({
             gap: "20px", boxShadow: "0 8px 32px rgba(0,0,0,0.8)",
           }}>
             <div style={{
-              width: "80px", height: "80px", borderRadius: "50%", background: "red",
+              width: "80px", height: "80px", borderRadius: "50%", background: "#9e1226",
               display: "flex", alignItems: "center", justifyContent: "center",
               animation: "pulse 1.2s infinite",
             }}>

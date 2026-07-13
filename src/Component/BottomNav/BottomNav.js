@@ -11,8 +11,8 @@ const BottomNav = ({ currentUser }) => {
   const location = useLocation();
   const isActive = (path) => location.pathname === path;
 
-  const activeColor = "#7c3aed";
-  const inactiveColor = "#8b84c4";
+  const activeColor = "#dc2626";
+  const inactiveColor = "#b08585";
 
   return (
     <>
@@ -30,8 +30,8 @@ const BottomNav = ({ currentUser }) => {
             right: 0;
             height: 60px;
             background: #ffffff;
-            border-top: 2px solid #e0d4ff;
-            box-shadow: 0 -4px 20px rgba(124, 58, 237, 0.10);
+            border-top: 2px solid #fbd5d5;
+            box-shadow: 0 -4px 20px rgba(220, 38, 38, 0.10);
             z-index: 9999;
             align-items: center;
             justify-content: space-around;
@@ -63,7 +63,7 @@ const BottomNav = ({ currentUser }) => {
             transform: translateX(-50%);
             width: 28px;
             height: 3px;
-            background: linear-gradient(90deg, #7c3aed, #a855f7);
+            background: linear-gradient(90deg, #dc2626, #ef4444);
             border-radius: 0 0 3px 3px;
           }
 
@@ -86,7 +86,7 @@ const BottomNav = ({ currentUser }) => {
           }
 
           .bottom-nav-item.active-item .bottom-nav-icon-wrap {
-            background: rgba(124, 58, 237, 0.12);
+            background: rgba(220, 38, 38, 0.12);
           }
 
           .homePage,

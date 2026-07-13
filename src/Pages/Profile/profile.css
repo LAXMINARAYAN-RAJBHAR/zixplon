@@ -265,3 +265,24 @@
   .profileVideos { gap: 6px; }
   .profileVideo_block_detai_name { font-size: 10px; }
 }
+
+:root {
+  --zx-bg:        #fff5f5;
+  --zx-surface:   #ffffff;
+  --zx-surface2:  #fef2f2;
+  --zx-border:    #fbd5d5;
+  --zx-primary:   #dc2626;
+  --zx-primary2:  #ef4444;
+  --zx-accent1:   #b91c1c;
+  --zx-accent2:   #f97316;
+  --zx-accent3:   #06b6d4;
+  --zx-accent4:   #10b981;
+  --zx-accent5:   #eab308;
+  --zx-text:      #1a1414;
+  --zx-text2:     #7a3a3a;
+  --zx-text3:     #b08585;
+  --zx-shadow:    0 4px 24px rgba(220,38,38,0.10);
+  --zx-shadow2:   0 2px 12px rgba(220,38,38,0.08);
+  --zx-radius:    16px;
+  --zx-radius-sm: 10px;
+}

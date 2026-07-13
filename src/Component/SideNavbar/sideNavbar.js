@@ -11,7 +11,7 @@ const ic = {
   flexShrink: 0,
 };
 const s = {
-  stroke: "#534AB7",
+  stroke: "#dc2626",
   strokeWidth: 2,
   fill: "none",
   strokeLinecap: "round",

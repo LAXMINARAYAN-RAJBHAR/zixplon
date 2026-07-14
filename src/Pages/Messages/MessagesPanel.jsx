@@ -12,6 +12,26 @@ const isEmojiOnlyMessage = (str) => {
   return EMOJI_ONLY_REGEX.test(trimmed) && Array.from(trimmed).length <= 6;
 };
 
+// ── Splits mixed text+emoji so each emoji can get its own contrast halo ──
+const EMOJI_SPLIT_REGEX =
+  /(\p{Extended_Pictographic}(?:\u200d\p{Extended_Pictographic})*\ufe0f?)/gu;
+const EMOJI_TEST_REGEX =
+  /^\p{Extended_Pictographic}(?:\u200d\p{Extended_Pictographic})*\ufe0f?$/u;
+
+const renderMessageText = (str, mine) => {
+  if (!str) return null;
+  const parts = str.split(EMOJI_SPLIT_REGEX).filter((p) => p !== "");
+  return parts.map((part, i) =>
+    EMOJI_TEST_REGEX.test(part) ? (
+      <span key={i} className={mine ? "mp-inline-emoji-halo" : ""}>
+        {part}
+      </span>
+    ) : (
+      <React.Fragment key={i}>{part}</React.Fragment>
+    ),
+  );
+};
+
 const CLOUDINARY_CLOUD_NAME = "dwoqk0yue";
 const CLOUDINARY_UPLOAD_PRESET = "youtube-clone";
 
@@ -841,80 +861,82 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     ) : messages.length === 0 ? (
                       <p className="mp-empty">No messages yet. Say hello!</p>
                     ) : (
-                      messages.map((m) => (
-                        <div
-                          key={m.id}
-                          className={`mp-bubble-row ${m.sender_username === currentUser ? "mine" : ""}`}
-                        >
+                      messages.map((m) => {
+                        const mine = m.sender_username === currentUser;
+                        return (
                           <div
-                            className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""} ${
-                              m.text &&
-                              !m.attachment_url &&
-                              isEmojiOnlyMessage(m.text)
-                                ? "mp-bubble-emoji-only"
-                                : ""
-                            }`}
+                            key={m.id}
+                            className={`mp-bubble-row ${mine ? "mine" : ""}`}
                           >
-                            {m.attachment_url &&
-                              m.attachment_type === "image" && (
-                                <img
-                                  src={m.attachment_url}
-                                  alt="attachment"
-                                  className="mp-bubble-image"
-                                  onClick={() =>
-                                    window.open(m.attachment_url, "_blank")
-                                  }
-                                />
-                              )}
+                            <div
+                              className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""} ${
+                                m.text &&
+                                !m.attachment_url &&
+                                isEmojiOnlyMessage(m.text)
+                                  ? "mp-bubble-emoji-only"
+                                  : ""
+                              }`}
+                            >
+                              {m.attachment_url &&
+                                m.attachment_type === "image" && (
+                                  <img
+                                    src={m.attachment_url}
+                                    alt="attachment"
+                                    className="mp-bubble-image"
+                                    onClick={() =>
+                                      window.open(m.attachment_url, "_blank")
+                                    }
+                                  />
+                                )}
 
-                            {m.attachment_url &&
-                              m.attachment_type === "video" && (
-                                <video
-                                  src={m.attachment_url}
-                                  controls
-                                  className="mp-bubble-video"
-                                />
-                              )}
+                              {m.attachment_url &&
+                                m.attachment_type === "video" && (
+                                  <video
+                                    src={m.attachment_url}
+                                    controls
+                                    className="mp-bubble-video"
+                                  />
+                                )}
 
-                            {m.attachment_url &&
-                              m.attachment_type === "file" && (
-                                <a
-                                  href={m.attachment_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="mp-bubble-file"
-                                >
-                                  📎 {m.attachment_name || "Attachment"}
-                                </a>
-                              )}
+                              {m.attachment_url &&
+                                m.attachment_type === "file" && (
+                                  <a
+                                    href={m.attachment_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mp-bubble-file"
+                                  >
+                                    📎 {m.attachment_name || "Attachment"}
+                                  </a>
+                                )}
 
-                            {m.text && (
-                              <span
-                                className={
-                                  isEmojiOnlyMessage(m.text)
-                                    ? "mp-emoji-only-text"
-                                    : ""
-                                }
-                              >
-                                {m.text}
-                              </span>
-                            )}
+                              {m.text &&
+                                (isEmojiOnlyMessage(m.text) ? (
+                                  <span className="mp-emoji-only-text">
+                                    {m.text}
+                                  </span>
+                                ) : (
+                                  <span>
+                                    {renderMessageText(m.text, mine)}
+                                  </span>
+                                ))}
 
-                            <span className="mp-bubble-footer">
-                              <span className="mp-bubble-time">
-                                {timeShort(m.created_at)}
-                              </span>
-                              {m.sender_username === currentUser && (
-                                <span
-                                  className={`mp-ticks mp-ticks-${getTickStatus(m)}`}
-                                >
-                                  {getTickStatus(m) === "sent" ? "✓" : "✓✓"}
+                              <span className="mp-bubble-footer">
+                                <span className="mp-bubble-time">
+                                  {timeShort(m.created_at)}
                                 </span>
-                              )}
-                            </span>
+                                {mine && (
+                                  <span
+                                    className={`mp-ticks mp-ticks-${getTickStatus(m)}`}
+                                  >
+                                    {getTickStatus(m) === "sent" ? "✓" : "✓✓"}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                     <div ref={bottomRef} />
                   </div>

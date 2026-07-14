@@ -657,3 +657,14 @@
 .mp-bubble-row.mine .mp-bubble-emoji-only .mp-bubble-footer {
   color: var(--zx-text3); /* footer text was white-on-red before; now bubble is transparent so it needs its own readable color */
 }
+
+/* ── Halo behind inline emoji in mixed text+emoji messages, so a
+      red/colored emoji stays visible against the red "mine" bubble ── */
+.mp-inline-emoji-halo {
+  text-shadow:
+    0 0 2px #fff,
+    0 0 2px #fff,
+    0 0 3px #fff,
+    0 0 4px rgba(255,255,255,0.8);
+  filter: drop-shadow(0 0 1.5px #fff);
+}

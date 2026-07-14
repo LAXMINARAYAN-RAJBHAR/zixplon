@@ -16,18 +16,49 @@ const EMOJI_SPLIT_REGEX =
 const EMOJI_TEST_REGEX =
   /^\p{Extended_Pictographic}(?:\u200d\p{Extended_Pictographic})*\ufe0f?$/u;
 
+// ── URL detection ──
+const URL_REGEX = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+const isUrl = (str) => /^(https?:\/\/[^\s]+|www\.[^\s]+)$/i.test(str);
+const truncateUrl = (url, max = 40) => {
+  const clean = url.replace(/^https?:\/\//, "").replace(/^www\./, "");
+  return clean.length > max ? clean.slice(0, max) + "…" : clean;
+};
+
+// Splits text into URL / emoji / plain-text segments and renders each
+// appropriately — URLs become clickable links, emoji get a contrast halo.
 const renderMessageText = (str, mine) => {
   if (!str) return null;
-  const parts = str.split(EMOJI_SPLIT_REGEX).filter((p) => p !== "");
-  return parts.map((part, i) =>
-    EMOJI_TEST_REGEX.test(part) ? (
-      <span key={i} className={mine ? "mp-inline-emoji-halo" : ""}>
-        {part}
-      </span>
-    ) : (
-      <React.Fragment key={i}>{part}</React.Fragment>
-    ),
-  );
+
+  const urlParts = str.split(URL_REGEX).filter((p) => p !== undefined && p !== "");
+
+  return urlParts.map((part, i) => {
+    if (isUrl(part)) {
+      const href = part.startsWith("www.") ? `https://${part}` : part;
+      return (
+        <a
+          key={i}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`mp-inline-link ${mine ? "mine" : ""}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          🔗 {truncateUrl(part)}
+        </a>
+      );
+    }
+
+    const emojiParts = part.split(EMOJI_SPLIT_REGEX).filter((p) => p !== "");
+    return emojiParts.map((sub, j) =>
+      EMOJI_TEST_REGEX.test(sub) ? (
+        <span key={`${i}-${j}`} className={mine ? "mp-inline-emoji-halo" : ""}>
+          {sub}
+        </span>
+      ) : (
+        <React.Fragment key={`${i}-${j}`}>{sub}</React.Fragment>
+      ),
+    );
+  });
 };
 
 // ── Maps a filename's extension to an icon + label + brand color ──

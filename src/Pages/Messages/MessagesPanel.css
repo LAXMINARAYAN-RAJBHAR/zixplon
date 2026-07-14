@@ -211,7 +211,6 @@
   background: var(--zx-bg);
 }
 
-/* ── Unread conversation: bold sender name + preview ── */
 .mp-convo-item.mp-convo-unread .mp-convo-name {
   font-weight: 800;
   color: var(--zx-text);
@@ -236,7 +235,6 @@
   position: relative;
 }
 
-/* ── Online/offline presence dot: green when online, red when offline ── */
 .mp-status-dot {
   position: absolute;
   bottom: -1px;
@@ -248,10 +246,10 @@
   box-sizing: content-box;
 }
 .mp-status-dot.online {
-  background: var(--zx-accent4); /* green */
+  background: var(--zx-accent4);
 }
 .mp-status-dot.offline {
-  background: #ef4444; /* red */
+  background: #ef4444;
 }
 
 .mp-convo-meta { flex: 1; min-width: 0; }
@@ -284,7 +282,6 @@
   font-family: 'Nunito', sans-serif;
 }
 
-/* ── Small red dot marking unread conversations, next to the timestamp ── */
 .mp-unread-dot {
   width: 8px;
   height: 8px;
@@ -497,7 +494,6 @@
   .mp-drag-handle { cursor: default; }
 }
 
-/* ── Icon buttons (attach / emoji) in input row ── */
 .mp-icon-btn {
   background: transparent;
   border: none;
@@ -513,7 +509,6 @@
   background: var(--zx-bg);
 }
 
-/* ── Emoji picker popover ── */
 .mp-emoji-picker {
   position: absolute;
   bottom: 56px;
@@ -545,7 +540,6 @@
   background: var(--zx-bg);
 }
 
-/* ── Attachments inside message bubbles ── */
 .mp-bubble-has-attachment {
   padding: 6px;
   gap: 6px;
@@ -567,7 +561,6 @@
   display: block;
 }
 
-/* ── File attachment card: icon, filename, type label + size, download indicator ── */
 .mp-bubble-file {
   display: flex;
   align-items: center;
@@ -615,7 +608,6 @@
   opacity: 0.7;
 }
 
-/* ── Pending attachment preview, above the input row ── */
 .mp-pending-attachment {
   display: flex;
   align-items: center;
@@ -634,7 +626,6 @@
   border-radius: 8px;
 }
 
-/* ── Pending file attachment preview row ── */
 .mp-pending-file-name {
   display: flex;
   align-items: center;
@@ -665,8 +656,6 @@
   font-weight: 700;
 }
 
-/* ── Emoji-only messages: no colored bubble, so red/colored emoji
-      never blend into the red "mine" bubble background ── */
 .mp-bubble.mp-bubble-emoji-only {
   background: transparent !important;
   border: none !important;
@@ -675,7 +664,7 @@
 }
 
 .mp-bubble-row.mine .mp-bubble.mp-bubble-emoji-only {
-  color: inherit; /* stop forcing white text color on this bubble */
+  color: inherit;
 }
 
 .mp-emoji-only-text {
@@ -688,11 +677,9 @@
   opacity: 0.6;
 }
 .mp-bubble-row.mine .mp-bubble-emoji-only .mp-bubble-footer {
-  color: var(--zx-text3); /* footer text was white-on-red before; now bubble is transparent so it needs its own readable color */
+  color: var(--zx-text3);
 }
 
-/* ── Halo behind inline emoji in mixed text+emoji messages, so a
-      red/colored emoji stays visible against the red "mine" bubble ── */
 .mp-inline-emoji-halo {
   text-shadow:
     0 0 2px #fff,
@@ -700,4 +687,26 @@
     0 0 3px #fff,
     0 0 4px rgba(255,255,255,0.8);
   filter: drop-shadow(0 0 1.5px #fff);
+}
+
+/* ── Clickable links inside message text ── */
+.mp-inline-link {
+  color: var(--zx-primary);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: rgba(220,38,38,0.4);
+  word-break: break-word;
+}
+.mp-inline-link:hover {
+  text-decoration-color: var(--zx-primary);
+}
+
+/* Inside a red "mine" bubble, a red link would vanish — use white + underline instead */
+.mp-inline-link.mine {
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-color: rgba(255,255,255,0.6);
+}
+.mp-inline-link.mine:hover {
+  text-decoration-color: #fff;
 }

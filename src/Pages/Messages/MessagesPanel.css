@@ -631,3 +631,29 @@
   color: var(--zx-primary);
   font-weight: 700;
 }
+
+/* ── Emoji-only messages: no colored bubble, so red/colored emoji
+      never blend into the red "mine" bubble background ── */
+.mp-bubble.mp-bubble-emoji-only {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 2px 2px !important;
+}
+
+.mp-bubble-row.mine .mp-bubble.mp-bubble-emoji-only {
+  color: inherit; /* stop forcing white text color on this bubble */
+}
+
+.mp-emoji-only-text {
+  font-size: 32px;
+  line-height: 1.2;
+}
+
+.mp-bubble-emoji-only .mp-bubble-footer {
+  margin-top: 2px;
+  opacity: 0.6;
+}
+.mp-bubble-row.mine .mp-bubble-emoji-only .mp-bubble-footer {
+  color: var(--zx-text3); /* footer text was white-on-red before; now bubble is transparent so it needs its own readable color */
+}

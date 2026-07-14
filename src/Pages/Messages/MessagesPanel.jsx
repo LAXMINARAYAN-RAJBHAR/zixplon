@@ -2,6 +2,16 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../config/supabase";
 import "./MessagesPanel.css";
 
+const EMOJI_ONLY_REGEX = /^(\p{Extended_Pictographic}|\u200d|\ufe0f|\s)+$/u;
+
+const isEmojiOnlyMessage = (str) => {
+  if (!str) return false;
+  const trimmed = str.trim();
+  if (!trimmed) return false;
+  // Cap at ~6 emoji so long emoji spam doesn't get the giant treatment
+  return EMOJI_ONLY_REGEX.test(trimmed) && Array.from(trimmed).length <= 6;
+};
+
 const CLOUDINARY_CLOUD_NAME = "dwoqk0yue";
 const CLOUDINARY_UPLOAD_PRESET = "youtube-clone";
 
@@ -837,7 +847,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                           className={`mp-bubble-row ${m.sender_username === currentUser ? "mine" : ""}`}
                         >
                           <div
-                            className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""}`}
+                            className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""} ${
+                              m.text &&
+                              !m.attachment_url &&
+                              isEmojiOnlyMessage(m.text)
+                                ? "mp-bubble-emoji-only"
+                                : ""
+                            }`}
                           >
                             {m.attachment_url &&
                               m.attachment_type === "image" && (
@@ -872,7 +888,17 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                 </a>
                               )}
 
-                            {m.text && <span>{m.text}</span>}
+                            {m.text && (
+                              <span
+                                className={
+                                  isEmojiOnlyMessage(m.text)
+                                    ? "mp-emoji-only-text"
+                                    : ""
+                                }
+                              >
+                                {m.text}
+                              </span>
+                            )}
 
                             <span className="mp-bubble-footer">
                               <span className="mp-bubble-time">

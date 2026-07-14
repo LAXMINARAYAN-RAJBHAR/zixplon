@@ -30,7 +30,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  pointer-events: auto; /* dim backdrop + click-outside-to-close, now that it's centered like a modal */
+  pointer-events: auto;
 }
 
 .mp-panel {
@@ -45,10 +45,9 @@
   overflow: hidden;
   font-family: 'Outfit', sans-serif;
   color: var(--zx-text);
-  pointer-events: auto; /* panel itself is always interactive */
+  pointer-events: auto;
 }
 
-/* ── Centered login prompt (not logged in) ── */
 .mp-overlay-center {
   align-items: center;
   justify-content: center;
@@ -95,7 +94,6 @@
   color: var(--zx-text3) !important;
 }
 
-/* ── Inbox list ── */
 .mp-inbox {
   width: 260px;
   flex-shrink: 0;
@@ -115,7 +113,6 @@
   border-bottom: 2px solid var(--zx-border);
 }
 
-/* ── Inbox search bar ── */
 .mp-inbox-search-row {
   display: flex;
   align-items: center;
@@ -214,6 +211,16 @@
   background: var(--zx-bg);
 }
 
+/* ── Unread conversation: bold sender name + preview ── */
+.mp-convo-item.mp-convo-unread .mp-convo-name {
+  font-weight: 800;
+  color: var(--zx-text);
+}
+.mp-convo-item.mp-convo-unread .mp-convo-last {
+  font-weight: 700;
+  color: var(--zx-primary);
+}
+
 .mp-convo-avatar {
   width: 36px; height: 36px;
   border-radius: 50%;
@@ -226,20 +233,25 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  position: relative; /* anchor for the online-status dot */
+  position: relative;
 }
 
-/* ── Online presence dot ── */
-.mp-online-dot {
+/* ── Online/offline presence dot: green when online, red when offline ── */
+.mp-status-dot {
   position: absolute;
   bottom: -1px;
   right: -1px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--zx-accent4);
   border: 2px solid var(--zx-surface);
   box-sizing: content-box;
+}
+.mp-status-dot.online {
+  background: var(--zx-accent4); /* green */
+}
+.mp-status-dot.offline {
+  background: #ef4444; /* red */
 }
 
 .mp-convo-meta { flex: 1; min-width: 0; }
@@ -258,11 +270,27 @@
   text-overflow: ellipsis;
 }
 
+.mp-convo-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .mp-convo-time {
   font-size: 10px;
   color: var(--zx-text3);
   font-family: 'Nunito', sans-serif;
-  flex-shrink: 0;
+}
+
+/* ── Small red dot marking unread conversations, next to the timestamp ── */
+.mp-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--zx-primary);
+  display: inline-block;
 }
 
 .mp-empty {
@@ -272,7 +300,6 @@
   text-align: center;
 }
 
-/* ── Chat window ── */
 .mp-chat-window {
   flex: 1;
   display: flex;
@@ -334,7 +361,6 @@
   text-overflow: ellipsis;
 }
 
-/* ── Online/Offline text under the chat username ── */
 .mp-chat-status {
   font-size: 10px;
   font-weight: 500;
@@ -343,6 +369,9 @@
 }
 .mp-chat-status.online {
   color: var(--zx-accent4);
+}
+.mp-chat-status.offline {
+  color: #ef4444;
 }
 
 .mp-chat-body {
@@ -437,19 +466,18 @@
 }
 .mp-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── Mobile: full screen panel, show only inbox OR chat ── */
 @media (max-width: 768px) {
   .mp-overlay {
     padding: 0;
     background: rgba(0,0,0,0.25);
-    pointer-events: auto; /* restore modal behavior on mobile */
+    pointer-events: auto;
   }
   .mp-panel:not(.mp-panel-login) {
     width: 100vw;
     height: 100vh;
     max-height: 100vh;
     border-radius: 0;
-    position: static !important; /* ignore any dragged position on mobile */
+    position: static !important;
     left: auto !important;
     top: auto !important;
   }

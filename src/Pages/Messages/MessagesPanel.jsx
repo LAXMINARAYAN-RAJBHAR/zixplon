@@ -109,6 +109,16 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     return "sent";
   };
 
+  // ── Unread status: bold the sender in the list if their last message
+  //    hasn't been read by the current user yet ──
+  const isConvoUnread = (conv) => {
+    if (!conv.last_message_at) return false;
+    if (!conv.last_message_sender || conv.last_message_sender === currentUser) return false;
+    const myLastRead = conv.user_a === currentUser ? conv.last_read_a : conv.last_read_b;
+    if (!myLastRead) return true;
+    return new Date(conv.last_message_at) > new Date(myLastRead);
+  };
+
   // ── Presence: announce this client & track everyone who's online ──
   useEffect(() => {
     if (!currentUser) return;
@@ -241,6 +251,19 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       if (!active || !convo) return;
       setActiveConvo(convo);
 
+      // ── Mark this conversation as read for the current user, right away ──
+      const myReadKey = convo.user_a === currentUser ? "last_read_a" : "last_read_b";
+      const nowIso = new Date().toISOString();
+      supabase
+        .from("conversations")
+        .update({ [myReadKey]: nowIso })
+        .eq("id", convo.id)
+        .then(() => {
+          setConversations((prev) =>
+            prev.map((c) => (c.id === convo.id ? { ...c, [myReadKey]: nowIso } : c))
+          );
+        });
+
       const { data: msgs } = await supabase
         .from("direct_messages")
         .select("*")
@@ -343,7 +366,11 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     if (!error) {
       await supabase
         .from("conversations")
-        .update({ last_message: trimmed, last_message_at: new Date().toISOString() })
+        .update({
+          last_message: trimmed,
+          last_message_at: new Date().toISOString(),
+          last_message_sender: currentUser,
+        })
         .eq("id", activeConvo.id);
     } else {
       setText(trimmed);
@@ -465,15 +492,16 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                       const other = getOtherUser(conv);
                       const isActive = other === activeUsername;
                       const isOnline = onlineUsers.has(other);
+                      const unread = isConvoUnread(conv);
                       return (
                         <div
                           key={conv.id}
-                          className={`mp-convo-item ${isActive ? "active" : ""}`}
+                          className={`mp-convo-item ${isActive ? "active" : ""} ${unread ? "mp-convo-unread" : ""}`}
                           onClick={() => setActiveUsername(other)}
                         >
                           <div className="mp-convo-avatar">
                             {other.slice(0, 2).toUpperCase()}
-                            {isOnline && <span className="mp-online-dot" />}
+                            <span className={`mp-status-dot ${isOnline ? "online" : "offline"}`} />
                           </div>
                           <div className="mp-convo-meta">
                             <div className="mp-convo-name">{other}</div>
@@ -481,7 +509,10 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               {conv.last_message || "No messages yet"}
                             </div>
                           </div>
-                          <div className="mp-convo-time">{timeAgo(conv.last_message_at)}</div>
+                          <div className="mp-convo-right">
+                            <div className="mp-convo-time">{timeAgo(conv.last_message_at)}</div>
+                            {unread && <span className="mp-unread-dot" />}
+                          </div>
                         </div>
                       );
                     })
@@ -501,7 +532,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                           >
                             <div className="mp-convo-avatar">
                               {p.username.slice(0, 2).toUpperCase()}
-                              {onlineUsers.has(p.username) && <span className="mp-online-dot" />}
+                              <span className={`mp-status-dot ${onlineUsers.has(p.username) ? "online" : "offline"}`} />
                             </div>
                             <div className="mp-convo-meta">
                               <div className="mp-convo-name">{p.username}</div>
@@ -541,11 +572,11 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     </button>
                     <div className="mp-convo-avatar">
                       {activeUsername.slice(0, 2).toUpperCase()}
-                      {onlineUsers.has(activeUsername) && <span className="mp-online-dot" />}
+                      <span className={`mp-status-dot ${onlineUsers.has(activeUsername) ? "online" : "offline"}`} />
                     </div>
                     <div className="mp-chat-username">
                       <span className="mp-chat-username-text">{activeUsername}</span>
-                      <span className={`mp-chat-status ${onlineUsers.has(activeUsername) ? "online" : ""}`}>
+                      <span className={`mp-chat-status ${onlineUsers.has(activeUsername) ? "online" : "offline"}`}>
                         {onlineUsers.has(activeUsername) ? "Online" : "Offline"}
                       </span>
                     </div>

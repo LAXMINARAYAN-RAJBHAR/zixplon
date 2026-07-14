@@ -43,6 +43,7 @@ import LoginOptionsModal from "./Component/LoginOptionsModal/LoginOptionsModal";
 import AdminPanel       from "./Pages/AdminPanel/AdminPanel";
 import LiveBrowser      from "./Component/Live/LiveViewer";
 import MessagesPanel    from "./Pages/Messages/MessagesPanel";
+import { PresenceProvider } from "./context/PresenceContext";
 
 // ── Google Identity Services (One Tap) config ──────────────────────────────
 // TODO: replace with the SAME OAuth Client ID configured under
@@ -563,105 +564,107 @@ function App() {
   }
 
   return (
-    <div
-      className="App"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        minHeight: "100vh",
-        backgroundColor: "#f0f4ff",
-        width: "100%",
-      }}
-    >
-      <ScrollToTop />
+    <PresenceProvider currentUser={currentUser}>
+      <div
+        className="App"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "100vh",
+          backgroundColor: "#f0f4ff",
+          width: "100%",
+        }}
+      >
+        <ScrollToTop />
 
-      {/* Mobile exit toast */}
-      <ExitToast visible={showExitToast} />
+        {/* Mobile exit toast */}
+        <ExitToast visible={showExitToast} />
 
-      {/* Auto login detect: Google One Tap tries first (silent, no click
-          needed); if it can't be shown, this modal is the fallback */}
-      {shouldShowLoginModal && (
-        <LoginOptionsModal onDismiss={handleDismissLoginModal} />
-      )}
+        {/* Auto login detect: Google One Tap tries first (silent, no click
+            needed); if it can't be shown, this modal is the fallback */}
+        {shouldShowLoginModal && (
+          <LoginOptionsModal onDismiss={handleDismissLoginModal} />
+        )}
 
-      {/* Floating Messages panel — opened via the "openMessages" custom
-          event (sidebar click, a post's "Message" option, etc). Renders
-          on top of whatever page is currently active, without navigating
-          away or unmounting it. */}
-      {showMessagesPanel && (
-        <MessagesPanel
-          initialUsername={messagesActiveUser}
-          onClose={() => setShowMessagesPanel(false)}
+        {/* Floating Messages panel — opened via the "openMessages" custom
+            event (sidebar click, a post's "Message" option, etc). Renders
+            on top of whatever page is currently active, without navigating
+            away or unmounting it. */}
+        {showMessagesPanel && (
+          <MessagesPanel
+            initialUsername={messagesActiveUser}
+            onClose={() => setShowMessagesPanel(false)}
+          />
+        )}
+
+        <Navbar
+          currentUser={currentUser}
+          setCurrentUser={setCurrentUser}
+          setSideNavbarFunc={setSideNavbar}
+          sideNavbar={sideNavbar}
         />
-      )}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#f0f4ff" }}>
+          <SideNavbar sideNavbar={sideNavbar} />
 
-      <Navbar
-        currentUser={currentUser}
-        setCurrentUser={setCurrentUser}
-        setSideNavbarFunc={setSideNavbar}
-        sideNavbar={sideNavbar}
-      />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#f0f4ff" }}>
-        <SideNavbar sideNavbar={sideNavbar} />
+          {/* ── FIX: content-shift wrapper ──
+              Reserves left space for the sidebar so page content never
+              renders underneath it. Sidebar is now ALWAYS visible on
+              desktop (275px expanded / 72px collapsed icon-only strip),
+              so this must never be 0 except on mobile, where the sidebar
+              itself is display:none (handled by the .zx-content-shift
+              media query in App.css). */}
+          <div
+            className="zx-content-shift"
+            style={{
+              marginLeft: sideNavbar ? "275px" : "72px",
+              transition: "margin-left 0.2s ease",
+              minHeight: "calc(100vh - 56px)",
+            }}
+          >
+            <Routes>
+              <Route path="/"               element={<Home sideNavbar={sideNavbar} />} />
+              <Route path="/video/:id"      element={<Video sideNavbar={sideNavbar} />} />
+              <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} />} />
+              <Route path="/videoUpload"    element={<VideoUpload />} />
+              <Route path="/:id/upload"     element={<VideoUpload />} />
+              <Route path="/signup"         element={<SignUp />} />
+              <Route path="/reels"          element={<Reels />} />
+              <Route path="/reels/:id"      element={<Reels />} />
+              <Route path="/search"         element={<SearchResults />} />
+              <Route path="/youtube"        element={<YouTubeSearch />} />
+              <Route path="/notifications"  element={<Notifications currentUser={currentUser} />} />
 
-        {/* ── FIX: content-shift wrapper ──
-            Reserves left space for the sidebar so page content never
-            renders underneath it. Sidebar is now ALWAYS visible on
-            desktop (275px expanded / 72px collapsed icon-only strip),
-            so this must never be 0 except on mobile, where the sidebar
-            itself is display:none (handled by the .zx-content-shift
-            media query in App.css). */}
-        <div
-          className="zx-content-shift"
-          style={{
-            marginLeft: sideNavbar ? "275px" : "72px",
-            transition: "margin-left 0.2s ease",
-            minHeight: "calc(100vh - 56px)",
-          }}
-        >
-          <Routes>
-            <Route path="/"               element={<Home sideNavbar={sideNavbar} />} />
-            <Route path="/video/:id"      element={<Video sideNavbar={sideNavbar} />} />
-            <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} />} />
-            <Route path="/videoUpload"    element={<VideoUpload />} />
-            <Route path="/:id/upload"     element={<VideoUpload />} />
-            <Route path="/signup"         element={<SignUp />} />
-            <Route path="/reels"          element={<Reels />} />
-            <Route path="/reels/:id"      element={<Reels />} />
-            <Route path="/search"         element={<SearchResults />} />
-            <Route path="/youtube"        element={<YouTubeSearch />} />
-            <Route path="/notifications"  element={<Notifications currentUser={currentUser} />} />
+              <Route path="/history"        element={<History      currentUser={currentUser} sideNavbar={sideNavbar} />} />
+              <Route path="/playlist"       element={<Playlist     currentUser={currentUser} sideNavbar={sideNavbar} />} />
+              <Route path="/your-videos"    element={<YourVideos   currentUser={currentUser} sideNavbar={sideNavbar} />} />
+              <Route path="/watch-later"    element={<WatchLater   currentUser={currentUser} sideNavbar={sideNavbar} />} />
+              <Route path="/liked-videos"   element={<LikedVideos  currentUser={currentUser} sideNavbar={sideNavbar} />} />
+              <Route path="/your-clips"     element={<YourClips    currentUser={currentUser} sideNavbar={sideNavbar} />} />
+              <Route path="/subscription"   element={<SubscriptionFeed currentUser={currentUser} sideNavbar={sideNavbar} />} />
 
-            <Route path="/history"        element={<History      currentUser={currentUser} sideNavbar={sideNavbar} />} />
-            <Route path="/playlist"       element={<Playlist     currentUser={currentUser} sideNavbar={sideNavbar} />} />
-            <Route path="/your-videos"    element={<YourVideos   currentUser={currentUser} sideNavbar={sideNavbar} />} />
-            <Route path="/watch-later"    element={<WatchLater   currentUser={currentUser} sideNavbar={sideNavbar} />} />
-            <Route path="/liked-videos"   element={<LikedVideos  currentUser={currentUser} sideNavbar={sideNavbar} />} />
-            <Route path="/your-clips"     element={<YourClips    currentUser={currentUser} sideNavbar={sideNavbar} />} />
-            <Route path="/subscription"   element={<SubscriptionFeed currentUser={currentUser} sideNavbar={sideNavbar} />} />
-
-            <Route path="/live-tv"        element={<LiveTVPage sideNavbar={sideNavbar} />} />
-            <Route path="/local-player"   element={<LocalMediaPlayer sideNavbar={sideNavbar} />} />
-            <Route path="/terms-and-conditions"  element={<TermsAndConditions />} />
-            <Route path="/feedback"              element={<Feedback />} />
-            <Route path="/help"                  element={<Help />} />
-            <Route path="/contact"               element={<ContactSupport />} />
-            <Route path="/report"                element={<ReportProblem />} />
-            <Route path="/about"                 element={<AboutPage />} />
-            <Route path="/privacy-policy"        element={<PrivacyPolicyPage />} />
-            <Route path="/dmca"                  element={<DmcaPage />} />
-            <Route path="/community-guidelines"  element={<CommunityGuidelinesPage />} />
-            <Route path="/advertise"             element={<AdvertisePage />} />
-            <Route path="/feed"                  element={<PostFeed sideNavbar={sideNavbar} />} />
-            <Route path="/admin"                 element={<AdminPanel />} />
-            <Route path="/live"                  element={<LiveBrowser currentUser={currentUser} />} />
-          </Routes>
+              <Route path="/live-tv"        element={<LiveTVPage sideNavbar={sideNavbar} />} />
+              <Route path="/local-player"   element={<LocalMediaPlayer sideNavbar={sideNavbar} />} />
+              <Route path="/terms-and-conditions"  element={<TermsAndConditions />} />
+              <Route path="/feedback"              element={<Feedback />} />
+              <Route path="/help"                  element={<Help />} />
+              <Route path="/contact"               element={<ContactSupport />} />
+              <Route path="/report"                element={<ReportProblem />} />
+              <Route path="/about"                 element={<AboutPage />} />
+              <Route path="/privacy-policy"        element={<PrivacyPolicyPage />} />
+              <Route path="/dmca"                  element={<DmcaPage />} />
+              <Route path="/community-guidelines"  element={<CommunityGuidelinesPage />} />
+              <Route path="/advertise"             element={<AdvertisePage />} />
+              <Route path="/feed"                  element={<PostFeed sideNavbar={sideNavbar} />} />
+              <Route path="/admin"                 element={<AdminPanel />} />
+              <Route path="/live"                  element={<LiveBrowser currentUser={currentUser} />} />
+            </Routes>
+          </div>
         </div>
-      </div>
 
-      <BottomNav currentUser={currentUser} />
-      {!hideFooter && <Footer sideNavbar={sideNavbar} />}
-    </div>
+        <BottomNav currentUser={currentUser} />
+        {!hideFooter && <Footer sideNavbar={sideNavbar} />}
+      </div>
+    </PresenceProvider>
   );
 }
 

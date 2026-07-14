@@ -441,6 +441,7 @@
   padding: 10px 14px;
   border-top: 2px solid var(--zx-border);
   background: var(--zx-surface);
+  position: relative;
 }
 
 .mp-chat-input {
@@ -544,11 +545,6 @@
   background: var(--zx-bg);
 }
 
-/* ── Chat input row needs relative positioning for the emoji popover ── */
-.mp-chat-input-row {
-  position: relative;
-}
-
 /* ── Attachments inside message bubbles ── */
 .mp-bubble-has-attachment {
   padding: 6px;
@@ -571,21 +567,52 @@
   display: block;
 }
 
+/* ── File attachment card: icon, filename, type label + size, download indicator ── */
 .mp-bubble-file {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   padding: 8px 10px;
-  background: rgba(0,0,0,0.05);
+  background: rgba(0,0,0,0.04);
+  border-left: 3px solid var(--file-color, var(--zx-primary));
   border-radius: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  color: inherit;
   text-decoration: none;
-  word-break: break-all;
+  color: inherit;
+  max-width: 220px;
 }
 .mp-bubble-row.mine .mp-bubble-file {
   background: rgba(255,255,255,0.15);
+}
+
+.mp-file-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.mp-file-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.mp-file-name {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mp-file-sub {
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+.mp-file-download {
+  font-size: 13px;
+  flex-shrink: 0;
+  opacity: 0.7;
 }
 
 /* ── Pending attachment preview, above the input row ── */
@@ -607,11 +634,17 @@
   border-radius: 8px;
 }
 
+/* ── Pending file attachment preview row ── */
 .mp-pending-file-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   font-weight: 700;
   color: var(--zx-text2);
   flex: 1;
+  border-left: 3px solid var(--file-color, var(--zx-primary));
+  padding-left: 8px;
 }
 
 .mp-pending-remove {

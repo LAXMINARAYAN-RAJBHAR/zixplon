@@ -2,6 +2,62 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../../config/supabase";
 import "./MessagesPanel.css";
 
+const CLOUDINARY_CLOUD_NAME = "dwoqk0yue";
+const CLOUDINARY_UPLOAD_PRESET = "youtube-clone";
+
+const EMOJI_LIST = [
+  "😀",
+  "😁",
+  "😂",
+  "🤣",
+  "😊",
+  "😍",
+  "😘",
+  "😜",
+  "🤔",
+  "🙄",
+  "😴",
+  "🤗",
+  "🥳",
+  "😎",
+  "🤩",
+  "🥺",
+  "😭",
+  "😡",
+  "🤯",
+  "🤝",
+  "👍",
+  "👎",
+  "👏",
+  "🙏",
+  "💪",
+  "🔥",
+  "✨",
+  "🎉",
+  "❤️",
+  "💔",
+  "💯",
+  "👀",
+  "🙌",
+  "🤷",
+  "😅",
+  "😇",
+  "🤤",
+  "😬",
+  "🥶",
+  "🤒",
+  "🎂",
+  "🎁",
+  "☕",
+  "🍕",
+  "🍔",
+  "🍿",
+  "⚽",
+  "🏀",
+  "🎮",
+  "📸",
+];
+
 const timeAgo = (dateStr) => {
   if (!dateStr) return "";
   const diff = (Date.now() - new Date(dateStr)) / 1000;
@@ -13,7 +69,29 @@ const timeAgo = (dateStr) => {
 
 const timeShort = (dateStr) => {
   const d = new Date(dateStr);
-  return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  return d.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
+const attachmentTypeFromFile = (file) => {
+  if (file.type.startsWith("image/")) return "image";
+  if (file.type.startsWith("video/")) return "video";
+  return "file";
+};
+
+const uploadToCloudinary = async (file, resourceType) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+  const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+  const res = await fetch(endpoint, { method: "POST", body: formData });
+  if (!res.ok) throw new Error("Upload failed");
+  const data = await res.json();
+  return data.secure_url;
 };
 
 const MessagesPanel = ({ initialUsername, onClose }) => {
@@ -32,21 +110,32 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
+  // ── Emoji picker ──
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef();
+  const emojiBtnRef = useRef();
+
+  // ── Attachments ──
+  const fileInputRef = useRef();
+  const [pendingAttachment, setPendingAttachment] = useState(null); // { file, previewUrl, type }
+  const [uploading, setUploading] = useState(false);
+
   // ── Presence: who's currently online ──
   const [onlineUsers, setOnlineUsers] = useState(new Set());
 
   const bottomRef = useRef();
   const panelRef = useRef();
+  const inputRef = useRef();
 
   // ── Drag-to-move state ──
-  const [position, setPosition] = useState(null); // null = default docked position
+  const [position, setPosition] = useState(null);
   const [dragging, setDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
 
   const isMobile = () => window.innerWidth <= 768;
 
   const handleDragStart = (e) => {
-    if (isMobile()) return; // keep full-screen behavior on mobile
+    if (isMobile()) return;
     const panel = panelRef.current;
     if (!panel) return;
 
@@ -59,7 +148,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       y: clientY - rect.top,
     };
 
-    // Lock in current rect as explicit left/top so it doesn't jump
     setPosition({ x: rect.left, y: rect.top });
     setDragging(true);
   };
@@ -78,7 +166,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       let x = clientX - dragOffset.current.x;
       let y = clientY - dragOffset.current.y;
 
-      // Keep panel within viewport bounds
       x = Math.max(8, Math.min(x, window.innerWidth - w - 8));
       y = Math.max(8, Math.min(y, window.innerHeight - h - 8));
 
@@ -100,6 +187,27 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     };
   }, [dragging]);
 
+  // ── Close emoji picker on outside click ──
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handleClickOutside = (e) => {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(e.target) &&
+        !emojiBtnRef.current.contains(e.target)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showEmojiPicker]);
+
+  const insertEmoji = (emoji) => {
+    setText((prev) => prev + emoji);
+    inputRef.current?.focus();
+  };
+
   const getOtherUser = (conv) =>
     conv.user_a === currentUser ? conv.user_b : conv.user_a;
 
@@ -109,17 +217,17 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     return "sent";
   };
 
-  // ── Unread status: bold the sender in the list if their last message
-  //    hasn't been read by the current user yet ──
   const isConvoUnread = (conv) => {
     if (!conv.last_message_at) return false;
-    if (!conv.last_message_sender || conv.last_message_sender === currentUser) return false;
-    const myLastRead = conv.user_a === currentUser ? conv.last_read_a : conv.last_read_b;
+    if (!conv.last_message_sender || conv.last_message_sender === currentUser)
+      return false;
+    const myLastRead =
+      conv.user_a === currentUser ? conv.last_read_a : conv.last_read_b;
     if (!myLastRead) return true;
     return new Date(conv.last_message_at) > new Date(myLastRead);
   };
 
-  // ── Presence: announce this client & track everyone who's online ──
+  // ── Presence ──
   useEffect(() => {
     if (!currentUser) return;
 
@@ -141,8 +249,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     return () => supabase.removeChannel(channel);
   }, [currentUser]);
 
-  // ── Global: mark messages "delivered" the instant this client receives them,
-  //    regardless of which conversation (if any) is currently open ──
+  // ── Global delivery marking ──
   useEffect(() => {
     if (!currentUser) return;
 
@@ -160,7 +267,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
               .eq("id", msg.id)
               .is("delivered_at", null);
           }
-        }
+        },
       )
       .subscribe();
 
@@ -186,15 +293,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "conversations" },
-        () => fetchConversations()
+        () => fetchConversations(),
       )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
   }, [fetchConversations]);
 
-  // ── Debounced profile search: lets the user find & start a chat with
-  //    anyone on Zixplon, not just people they already have a conversation with ──
   useEffect(() => {
     const query = inboxSearch.trim();
     if (!query || !currentUser) {
@@ -251,8 +356,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       if (!active || !convo) return;
       setActiveConvo(convo);
 
-      // ── Mark this conversation as read for the current user, right away ──
-      const myReadKey = convo.user_a === currentUser ? "last_read_a" : "last_read_b";
+      const myReadKey =
+        convo.user_a === currentUser ? "last_read_a" : "last_read_b";
       const nowIso = new Date().toISOString();
       supabase
         .from("conversations")
@@ -260,7 +365,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
         .eq("id", convo.id)
         .then(() => {
           setConversations((prev) =>
-            prev.map((c) => (c.id === convo.id ? { ...c, [myReadKey]: nowIso } : c))
+            prev.map((c) =>
+              c.id === convo.id ? { ...c, [myReadKey]: nowIso } : c,
+            ),
           );
         });
 
@@ -298,7 +405,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
         },
         (payload) => {
           setMessages((prev) => [...prev, payload.new]);
-        }
+        },
       )
       .on(
         "postgres_changes",
@@ -310,21 +417,20 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
         },
         (payload) => {
           setMessages((prev) =>
-            prev.map((m) => (m.id === payload.new.id ? payload.new : m))
+            prev.map((m) => (m.id === payload.new.id ? payload.new : m)),
           );
-        }
+        },
       )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
   }, [activeConvo]);
 
-  // ── Mark incoming messages as "seen" while this conversation is open ──
   useEffect(() => {
     if (!activeConvo || !currentUser) return;
 
     const unseen = messages.filter(
-      (m) => m.sender_username !== currentUser && !m.seen_at
+      (m) => m.sender_username !== currentUser && !m.seen_at,
     );
     if (unseen.length === 0) return;
 
@@ -336,13 +442,16 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       .update({ seen_at: nowIso, delivered_at: nowIso })
       .in("id", ids)
       .then(() => {
-        // Reflect locally right away in case the realtime UPDATE event lags
         setMessages((prev) =>
           prev.map((m) =>
             ids.includes(m.id)
-              ? { ...m, seen_at: m.seen_at || nowIso, delivered_at: m.delivered_at || nowIso }
-              : m
-          )
+              ? {
+                  ...m,
+                  seen_at: m.seen_at || nowIso,
+                  delivered_at: m.delivered_at || nowIso,
+                }
+              : m,
+          ),
         );
       });
   }, [messages, activeConvo, currentUser]);
@@ -351,27 +460,96 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // ── Attachment selection: stash file + local preview, don't upload yet ──
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow selecting the same file again later
+    if (!file) return;
+
+    if (file.size > 25 * 1024 * 1024) {
+      alert("File too large. Max size is 25MB.");
+      return;
+    }
+
+    const type = attachmentTypeFromFile(file);
+    const previewUrl =
+      type === "image" || type === "video" ? URL.createObjectURL(file) : null;
+    setPendingAttachment({ file, previewUrl, type, name: file.name });
+  };
+
+  const clearPendingAttachment = () => {
+    if (pendingAttachment?.previewUrl)
+      URL.revokeObjectURL(pendingAttachment.previewUrl);
+    setPendingAttachment(null);
+  };
+
   const handleSend = async () => {
-    if (!text.trim() || !activeConvo || sending) return;
+    if (
+      (!text.trim() && !pendingAttachment) ||
+      !activeConvo ||
+      sending ||
+      uploading
+    )
+      return;
     setSending(true);
     const trimmed = text.trim();
     setText("");
 
+    let attachment_url = null;
+    let attachment_type = null;
+    let attachment_name = null;
+
+    try {
+      if (pendingAttachment) {
+        setUploading(true);
+        const resourceType =
+          pendingAttachment.type === "image"
+            ? "image"
+            : pendingAttachment.type === "video"
+              ? "video"
+              : "raw";
+        attachment_url = await uploadToCloudinary(
+          pendingAttachment.file,
+          resourceType,
+        );
+        attachment_type = pendingAttachment.type;
+        attachment_name = pendingAttachment.name;
+        setUploading(false);
+      }
+    } catch (err) {
+      setUploading(false);
+      setSending(false);
+      setText(trimmed);
+      alert("Attachment upload failed. Please try again.");
+      return;
+    }
+
     const { error } = await supabase.from("direct_messages").insert({
       conversation_id: activeConvo.id,
       sender_username: currentUser,
-      text: trimmed,
+      text: trimmed || null,
+      attachment_url,
+      attachment_type,
+      attachment_name,
     });
 
     if (!error) {
+      const previewText =
+        trimmed ||
+        (attachment_type === "image"
+          ? "📷 Photo"
+          : attachment_type === "video"
+            ? "🎥 Video"
+            : "📎 Attachment");
       await supabase
         .from("conversations")
         .update({
-          last_message: trimmed,
+          last_message: previewText,
           last_message_at: new Date().toISOString(),
           last_message_sender: currentUser,
         })
         .eq("id", activeConvo.id);
+      clearPendingAttachment();
     } else {
       setText(trimmed);
     }
@@ -396,20 +574,20 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       }
     : undefined;
 
-  // ── Filter conversations by username OR last message content ──
   const normalizedSearch = inboxSearch.trim().toLowerCase();
   const filteredConversations = normalizedSearch
     ? conversations.filter((conv) => {
         const other = getOtherUser(conv).toLowerCase();
         const lastMsg = (conv.last_message || "").toLowerCase();
-        return other.includes(normalizedSearch) || lastMsg.includes(normalizedSearch);
+        return (
+          other.includes(normalizedSearch) || lastMsg.includes(normalizedSearch)
+        );
       })
     : conversations;
 
-  // ── Profiles found by search that don't already have a conversation ──
   const existingUsernames = new Set(conversations.map((c) => getOtherUser(c)));
   const newProfileResults = profileResults.filter(
-    (p) => !existingUsernames.has(p.username)
+    (p) => !existingUsernames.has(p.username),
   );
 
   const startChatWith = (username) => {
@@ -421,7 +599,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     <div
       className={`mp-overlay ${!currentUser ? "mp-overlay-center" : ""}`}
       onClick={(e) => {
-        // Only close if the click is the backdrop itself, not while dragging
         if (!dragging) onClose();
       }}
     >
@@ -434,28 +611,60 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
         {!currentUser ? (
           <div className="mp-login-prompt">
             <p>🔒 Please log in to use Messages</p>
-            <button onClick={() => window.dispatchEvent(new CustomEvent("openLogin"))}>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent("openLogin"))}
+            >
               Login
             </button>
-            <button className="mp-close-btn-alt" onClick={onClose}>Close</button>
+            <button className="mp-close-btn-alt" onClick={onClose}>
+              Close
+            </button>
           </div>
         ) : (
           <>
             {/* ── Inbox list ── */}
-            <div className={`mp-inbox ${activeUsername ? "mp-inbox-hidden-mobile" : ""}`}>
+            <div
+              className={`mp-inbox ${activeUsername ? "mp-inbox-hidden-mobile" : ""}`}
+            >
               <div
                 className="mp-inbox-header mp-drag-handle"
                 onMouseDown={handleDragStart}
                 onTouchStart={handleDragStart}
               >
                 <span>Messages</span>
-                <button className="mp-close-btn" onClick={onClose} aria-label="Close">✕</button>
+                <button
+                  className="mp-close-btn"
+                  onClick={onClose}
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
               </div>
 
               <div className="mp-inbox-search-row">
-                <svg className="mp-inbox-search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none">
-                  <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <svg
+                  className="mp-inbox-search-icon"
+                  viewBox="0 0 24 24"
+                  width="15"
+                  height="15"
+                  fill="none"
+                >
+                  <circle
+                    cx="11"
+                    cy="11"
+                    r="7"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
+                  <line
+                    x1="21"
+                    y1="21"
+                    x2="16.65"
+                    y2="16.65"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
                 </svg>
                 <input
                   type="text"
@@ -501,7 +710,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                         >
                           <div className="mp-convo-avatar">
                             {other.slice(0, 2).toUpperCase()}
-                            <span className={`mp-status-dot ${isOnline ? "online" : "offline"}`} />
+                            <span
+                              className={`mp-status-dot ${isOnline ? "online" : "offline"}`}
+                            />
                           </div>
                           <div className="mp-convo-meta">
                             <div className="mp-convo-name">{other}</div>
@@ -510,7 +721,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                             </div>
                           </div>
                           <div className="mp-convo-right">
-                            <div className="mp-convo-time">{timeAgo(conv.last_message_at)}</div>
+                            <div className="mp-convo-time">
+                              {timeAgo(conv.last_message_at)}
+                            </div>
                             {unread && <span className="mp-unread-dot" />}
                           </div>
                         </div>
@@ -518,41 +731,58 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     })
                   )}
 
-                  {normalizedSearch && (searchingProfiles || newProfileResults.length > 0) && (
-                    <>
-                      <div className="mp-inbox-section-label">Start new chat</div>
-                      {searchingProfiles ? (
-                        <p className="mp-empty mp-empty-small">Searching…</p>
-                      ) : (
-                        newProfileResults.map((p) => (
-                          <div
-                            key={p.username}
-                            className="mp-convo-item mp-profile-result"
-                            onClick={() => startChatWith(p.username)}
-                          >
-                            <div className="mp-convo-avatar">
-                              {p.username.slice(0, 2).toUpperCase()}
-                              <span className={`mp-status-dot ${onlineUsers.has(p.username) ? "online" : "offline"}`} />
+                  {normalizedSearch &&
+                    (searchingProfiles || newProfileResults.length > 0) && (
+                      <>
+                        <div className="mp-inbox-section-label">
+                          Start new chat
+                        </div>
+                        {searchingProfiles ? (
+                          <p className="mp-empty mp-empty-small">Searching…</p>
+                        ) : (
+                          newProfileResults.map((p) => (
+                            <div
+                              key={p.username}
+                              className="mp-convo-item mp-profile-result"
+                              onClick={() => startChatWith(p.username)}
+                            >
+                              <div className="mp-convo-avatar">
+                                {p.username.slice(0, 2).toUpperCase()}
+                                <span
+                                  className={`mp-status-dot ${onlineUsers.has(p.username) ? "online" : "offline"}`}
+                                />
+                              </div>
+                              <div className="mp-convo-meta">
+                                <div className="mp-convo-name">
+                                  {p.username}
+                                </div>
+                                <div className="mp-convo-last">
+                                  Tap to start chatting
+                                </div>
+                              </div>
                             </div>
-                            <div className="mp-convo-meta">
-                              <div className="mp-convo-name">{p.username}</div>
-                              <div className="mp-convo-last">Tap to start chatting</div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </>
-                  )}
+                          ))
+                        )}
+                      </>
+                    )}
                 </>
               )}
             </div>
 
             {/* ── Chat window ── */}
-            <div className={`mp-chat-window ${!activeUsername ? "mp-chat-hidden-mobile" : ""}`}>
+            <div
+              className={`mp-chat-window ${!activeUsername ? "mp-chat-hidden-mobile" : ""}`}
+            >
               {!activeUsername ? (
                 <div className="mp-placeholder">
                   <span>Select a conversation to start chatting</span>
-                  <button className="mp-close-btn-desktop" onClick={onClose} aria-label="Close">✕</button>
+                  <button
+                    className="mp-close-btn-desktop"
+                    onClick={onClose}
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
                 </div>
               ) : (
                 <>
@@ -572,15 +802,27 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     </button>
                     <div className="mp-convo-avatar">
                       {activeUsername.slice(0, 2).toUpperCase()}
-                      <span className={`mp-status-dot ${onlineUsers.has(activeUsername) ? "online" : "offline"}`} />
+                      <span
+                        className={`mp-status-dot ${onlineUsers.has(activeUsername) ? "online" : "offline"}`}
+                      />
                     </div>
                     <div className="mp-chat-username">
-                      <span className="mp-chat-username-text">{activeUsername}</span>
-                      <span className={`mp-chat-status ${onlineUsers.has(activeUsername) ? "online" : "offline"}`}>
+                      <span className="mp-chat-username-text">
+                        {activeUsername}
+                      </span>
+                      <span
+                        className={`mp-chat-status ${onlineUsers.has(activeUsername) ? "online" : "offline"}`}
+                      >
                         {onlineUsers.has(activeUsername) ? "Online" : "Offline"}
                       </span>
                     </div>
-                    <button className="mp-close-btn" onClick={onClose} aria-label="Close">✕</button>
+                    <button
+                      className="mp-close-btn"
+                      onClick={onClose}
+                      aria-label="Close"
+                    >
+                      ✕
+                    </button>
                   </div>
 
                   <div className="mp-chat-body">
@@ -594,12 +836,52 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                           key={m.id}
                           className={`mp-bubble-row ${m.sender_username === currentUser ? "mine" : ""}`}
                         >
-                          <div className="mp-bubble">
-                            <span>{m.text}</span>
+                          <div
+                            className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""}`}
+                          >
+                            {m.attachment_url &&
+                              m.attachment_type === "image" && (
+                                <img
+                                  src={m.attachment_url}
+                                  alt="attachment"
+                                  className="mp-bubble-image"
+                                  onClick={() =>
+                                    window.open(m.attachment_url, "_blank")
+                                  }
+                                />
+                              )}
+
+                            {m.attachment_url &&
+                              m.attachment_type === "video" && (
+                                <video
+                                  src={m.attachment_url}
+                                  controls
+                                  className="mp-bubble-video"
+                                />
+                              )}
+
+                            {m.attachment_url &&
+                              m.attachment_type === "file" && (
+                                <a
+                                  href={m.attachment_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mp-bubble-file"
+                                >
+                                  📎 {m.attachment_name || "Attachment"}
+                                </a>
+                              )}
+
+                            {m.text && <span>{m.text}</span>}
+
                             <span className="mp-bubble-footer">
-                              <span className="mp-bubble-time">{timeShort(m.created_at)}</span>
+                              <span className="mp-bubble-time">
+                                {timeShort(m.created_at)}
+                              </span>
                               {m.sender_username === currentUser && (
-                                <span className={`mp-ticks mp-ticks-${getTickStatus(m)}`}>
+                                <span
+                                  className={`mp-ticks mp-ticks-${getTickStatus(m)}`}
+                                >
                                   {getTickStatus(m) === "sent" ? "✓" : "✓✓"}
                                 </span>
                               )}
@@ -611,8 +893,77 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     <div ref={bottomRef} />
                   </div>
 
+                  {/* ── Pending attachment preview ── */}
+                  {pendingAttachment && (
+                    <div className="mp-pending-attachment">
+                      {pendingAttachment.type === "image" && (
+                        <img src={pendingAttachment.previewUrl} alt="preview" />
+                      )}
+                      {pendingAttachment.type === "video" && (
+                        <video src={pendingAttachment.previewUrl} />
+                      )}
+                      {pendingAttachment.type === "file" && (
+                        <span className="mp-pending-file-name">
+                          📎 {pendingAttachment.name}
+                        </span>
+                      )}
+                      <button
+                        className="mp-pending-remove"
+                        onClick={clearPendingAttachment}
+                        aria-label="Remove attachment"
+                      >
+                        ✕
+                      </button>
+                      {uploading && (
+                        <span className="mp-pending-uploading">Uploading…</span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="mp-chat-input-row">
                     <input
+                      type="file"
+                      ref={fileInputRef}
+                      style={{ display: "none" }}
+                      onChange={handleFileSelect}
+                      accept="image/*,video/*,.pdf,.doc,.docx,.zip"
+                    />
+                    <button
+                      type="button"
+                      className="mp-icon-btn"
+                      onClick={() => fileInputRef.current?.click()}
+                      aria-label="Attach file"
+                    >
+                      📎
+                    </button>
+
+                    <button
+                      type="button"
+                      ref={emojiBtnRef}
+                      className="mp-icon-btn"
+                      onClick={() => setShowEmojiPicker((v) => !v)}
+                      aria-label="Emoji"
+                    >
+                      😀
+                    </button>
+
+                    {showEmojiPicker && (
+                      <div className="mp-emoji-picker" ref={emojiPickerRef}>
+                        {EMOJI_LIST.map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            className="mp-emoji-btn"
+                            onClick={() => insertEmoji(emoji)}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <input
+                      ref={inputRef}
                       className="mp-chat-input"
                       placeholder="Type a message…"
                       value={text}
@@ -622,7 +973,11 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     <button
                       className="mp-send-btn"
                       onClick={handleSend}
-                      disabled={!text.trim() || sending}
+                      disabled={
+                        (!text.trim() && !pendingAttachment) ||
+                        sending ||
+                        uploading
+                      }
                     >
                       ➤
                     </button>

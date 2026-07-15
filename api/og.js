@@ -1,5 +1,25 @@
 export const config = { runtime: "edge" };
 
+function escapeHtml(str = "") {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getVideoThumbnail(videoUrl) {
+  if (!videoUrl) return null;
+  // Cloudinary: grab a frame at 0s and serve it as a jpg
+  if (videoUrl.includes("/upload/")) {
+    return videoUrl
+      .replace("/upload/", "/upload/so_0/")
+      .replace(/\.\w+(\?.*)?$/, ".jpg");
+  }
+  return null;
+}
+
 export default async function handler(req) {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type");
@@ -30,6 +50,7 @@ export default async function handler(req) {
       image =
         item?.image_url ||
         item?.image_urls?.[0] ||
+        getVideoThumbnail(item?.video_url) || // adjust field name if your video column is named differently
         "https://zixplon-tawny.vercel.app/logo192.png";
       url = `https://zixplon-tawny.vercel.app/feed?post=${id}`;
     } else {
@@ -49,38 +70,47 @@ export default async function handler(req) {
 
       title = item?.title || "Watch on ZIXPLON";
       description = item?.description || item?.channel || "Watch videos and reels on ZIXPLON";
-      image = item?.thumbnail_url || item?.thumbnail || "https://zixplon-tawny.vercel.app/logo192.png";
+      image =
+        item?.thumbnail_url ||
+        item?.thumbnail ||
+        getVideoThumbnail(item?.video_url) ||
+        "https://zixplon-tawny.vercel.app/logo192.png";
       url = `https://zixplon-tawny.vercel.app/${type === "reel" ? `reels/db_${id}` : `video/${id}`}`;
     }
+
+    const safeTitle = escapeHtml(title);
+    const safeDescription = escapeHtml(description);
+    const safeImage = escapeHtml(image);
+    const safeUrl = escapeHtml(url);
 
     const html = `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>${title} — ZIXPLON</title>
+    <title>${safeTitle} — ZIXPLON</title>
     <meta property="og:type" content="${type === "post" ? "article" : "video.other"}" />
-    <meta property="og:title" content="${title}" />
-    <meta property="og:description" content="${description}" />
-    <meta property="og:image" content="${image}" />
+    <meta property="og:title" content="${safeTitle}" />
+    <meta property="og:description" content="${safeDescription}" />
+    <meta property="og:image" content="${safeImage}" />
     <meta property="og:image:width" content="1280" />
     <meta property="og:image:height" content="720" />
-    <meta property="og:url" content="${url}" />
+    <meta property="og:url" content="${safeUrl}" />
     <meta property="og:site_name" content="ZIXPLON" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${title}" />
-    <meta name="twitter:description" content="${description}" />
-    <meta name="twitter:image" content="${image}" />
-    <script>window.location.replace("${url}");</script>
+    <meta name="twitter:title" content="${safeTitle}" />
+    <meta name="twitter:description" content="${safeDescription}" />
+    <meta name="twitter:image" content="${safeImage}" />
+    <script>window.location.replace("${safeUrl}");</script>
   </head>
   <body>
-    <p>Redirecting... <a href="${url}">Click here if not redirected</a></p>
+    <p>Redirecting... <a href="${safeUrl}">Click here if not redirected</a></p>
   </body>
 </html>`;
 
     return new Response(html, { headers: { "content-type": "text/html" } });
 
   } catch (err) {
-    return new Response(`<p>Error: ${err.message}</p>`, {
+    return new Response(`<p>Error: ${escapeHtml(err.message)}</p>`, {
       headers: { "content-type": "text/html" },
     });
   }

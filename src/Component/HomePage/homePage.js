@@ -175,12 +175,27 @@ const useSwipeTabs = (
   return { onTouchStart, onTouchEnd };
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MobileTrendingStrip — the horizontal "Trending Now" rail shown at the top
+// of the mobile home page.
+// ✅ CHANGED: now auto-scrolls on its own (same rAF technique used by the
+// desktop category pill strip) while staying fully tappable. The loop
+// pauses the instant the user touches/hovers the strip — a plain tap has
+// no meaningful touch duration, so onClick on each card still fires
+// normally and opens the video/reel exactly as before. Manual swipe still
+// works too, since we only nudge scrollLeft in JS rather than intercepting
+// touch/drag events.
+// ─────────────────────────────────────────────────────────────────────────────
 const MobileTrendingStrip = ({
   dbVideos,
   dbReels = [],
   onVideoClick,
   onReelClick,
 }) => {
+  const trackWrapperRef = useRef(null);
+  const autoScrollRef = useRef(null);
+  const isPausedRef = useRef(false);
+
   const trendingVideos = [
     ...dbVideos.slice(0, 6).map((v) => ({ ...v, _type: "video" })),
     ...dbReels.slice(0, 5).map((r) => ({
@@ -210,6 +225,36 @@ const MobileTrendingStrip = ({
       .map((v) => ({ ...v, _type: "live" })),
   ].slice(0, 16);
 
+  // ✅ ADDED: auto-scroll loop for the trending rail.
+  useEffect(() => {
+    const track = trackWrapperRef.current;
+    if (!track || trendingVideos.length === 0) return;
+    let pos = track.scrollLeft;
+    const speed = 0.5; // px per frame — slow, steady drift
+    const step = () => {
+      if (!isPausedRef.current) {
+        const maxScroll = track.scrollWidth - track.clientWidth;
+        if (maxScroll <= 0) {
+          pos = 0;
+        } else {
+          pos += speed;
+          if (pos >= maxScroll) pos = 0;
+        }
+        track.scrollLeft = pos;
+      } else {
+        // Stay in sync if the user manually scrolled while paused, so
+        // resuming doesn't jump back to wherever auto-scroll last left off.
+        pos = track.scrollLeft;
+      }
+      autoScrollRef.current = requestAnimationFrame(step);
+    };
+    autoScrollRef.current = requestAnimationFrame(step);
+    return () => {
+      if (autoScrollRef.current) cancelAnimationFrame(autoScrollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trendingVideos.length]);
+
   if (trendingVideos.length === 0) return null;
 
   const TYPE_BADGE = {
@@ -225,7 +270,26 @@ const MobileTrendingStrip = ({
         <span>Z</span>
         <span>Trending Now</span>
       </div>
-      <div className="mobile-trending-track-wrapper">
+      <div
+        className="mobile-trending-track-wrapper"
+        ref={trackWrapperRef}
+        onMouseEnter={() => {
+          isPausedRef.current = true;
+        }}
+        onMouseLeave={() => {
+          isPausedRef.current = false;
+        }}
+        onTouchStart={() => {
+          isPausedRef.current = true;
+        }}
+        onTouchEnd={() => {
+          // small grace period so a swipe's momentum scroll isn't fought
+          // by auto-scroll resuming mid-flick
+          setTimeout(() => {
+            isPausedRef.current = false;
+          }, 2000);
+        }}
+      >
         <div className="mobile-trending-track">
           {trendingVideos.map((v, i) => {
             const badge = TYPE_BADGE[v._type] || TYPE_BADGE.video;
@@ -418,6 +482,46 @@ const ShortCard = ({
         <div className="homePage_shortUser">{short.user}</div>
       </Link>
     </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FeaturedHero — replaces the old empty "Live Now" placeholder on the
+// homepage with a single always-populated trending card. Picks the
+// highest-viewed uploaded video and renders it as one large hero card
+// above the Shorts / video rails. Renders nothing if there are no videos
+// yet, and is hidden on mobile (which already has its own trending strip).
+// ─────────────────────────────────────────────────────────────────────────────
+const FeaturedHero = ({ videos, viewCounts, onOpen }) => {
+  if (!videos || videos.length === 0) return null;
+  const top = [...videos].sort((a, b) => {
+    const va = viewCounts["video_" + a.id] ?? 0;
+    const vb = viewCounts["video_" + b.id] ?? 0;
+    return vb - va;
+  })[0];
+  if (!top) return null;
+
+  return (
+    <Link
+      to={"/video/" + top.id}
+      className="homePage_heroCard"
+      onClick={() => onOpen(top.id)}
+    >
+      <div className="homePage_heroThumbWrap">
+        <img
+          src={top.thumbnail}
+          alt={top.title}
+          className="homePage_heroThumb"
+        />
+        <span className="homePage_heroBadge">🔥 Trending</span>
+      </div>
+      <div className="homePage_heroInfo">
+        <p className="homePage_heroTitle">{top.title}</p>
+        <p className="homePage_heroMeta">
+          {formatViews(viewCounts["video_" + top.id] ?? 0)} · {top.channel}
+        </p>
+      </div>
+    </Link>
   );
 };
 
@@ -2917,25 +3021,19 @@ const HomePage = ({ sideNavbar }) => {
             🔴 Live
           </div>
 
+          {/* ✅ CHANGED: category pills now use a plain "active" className
+              instead of a large inline style block recomputed every
+              render — the CSS rule .homePage_option.active carries the
+              same accent so the highlighted pill still reads clearly, but
+              the DOM stays lighter and the selector in homePage.css is no
+              longer the brittle [style*="white"] match. */}
           {options.map((item) => (
             <div
               key={item}
-              className="homePage_option"
+              className={
+                "homePage_option" + (selectedOption === item ? " active" : "")
+              }
               onClick={() => setSelectedOption(item)}
-              style={{
-                cursor: "pointer",
-                background:
-                  selectedOption === item
-                    ? "rgba(124,58,237,0.08)"
-                    : "transparent",
-                color: selectedOption === item ? "#7c3aed" : "#4c4589",
-                borderRadius: selectedOption === item ? "8px" : "0",
-                padding: "6px 14px",
-                fontWeight: selectedOption === item ? "800" : "600",
-                transition: "all 0.2s",
-                whiteSpace: "nowrap",
-                userSelect: "none",
-              }}
             >
               {item}
             </div>
@@ -2990,6 +3088,20 @@ const HomePage = ({ sideNavbar }) => {
           <div ref={liveBrowserRef} style={{ marginBottom: "28px" }}>
             <LiveBrowser currentUser={loggedInUsername} />
           </div>
+        )}
+
+        {/* ✅ ADDED: single always-populated "trending" hero card, above
+            the Shorts / video rails, only on the default "All" category
+            and only on desktop (mobile already has MobileTrendingStrip
+            for this job). Replaces relying solely on the Live section
+            (which can legitimately show "no one is live right now") for
+            the page's top visual anchor. */}
+        {!searchActive && selectedOption === "All" && !isMobile && (
+          <FeaturedHero
+            videos={dbVideos}
+            viewCounts={viewCounts}
+            onOpen={(id) => incrementView(String(id), "video")}
+          />
         )}
 
         {!searchActive && (

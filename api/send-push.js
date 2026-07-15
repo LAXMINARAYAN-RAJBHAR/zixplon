@@ -5,7 +5,7 @@
 //   2. INSERT on notifications   (likes, comments, follows, etc.)
 //
 // Supabase sends a payload shaped like:
-//   { type: "INSERT", table: "direct_messages", record: {...}, schema: "public" }
+//   { type: "INSERT", table: "notifications", record: {...}, schema: "public" }
 //
 // Required Vercel env vars:
 //   VAPID_PUBLIC_KEY
@@ -28,13 +28,25 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY,
 );
 
+// Maps a notifications.content_type value to a route in your app.
+// Adjust these paths if your routes differ.
+function urlForContent(contentType, contentId) {
+  switch (contentType) {
+    case "reel":
+      return `/reels/${contentId}`;
+    case "video":
+      return `/video/${contentId}`;
+    case "post":
+      return `/feed?post=${contentId}`;
+    default:
+      return "/notifications";
+  }
+}
+
 // Builds the { title, body, url, tag } payload for each event type.
-// Adjust field names here if your notifications table uses different
-// column names than assumed (recipient_username, actor_username, type).
 function buildNotificationPayload(table, record) {
   if (table === "direct_messages") {
     return {
-      recipientUsername: record.recipient_username || null, // see note below
       title: `New message from ${record.sender_username}`,
       body: record.text
         ? record.text.slice(0, 120)
@@ -49,17 +61,13 @@ function buildNotificationPayload(table, record) {
   }
 
   if (table === "notifications") {
-    const typeText = {
-      like: "liked your post",
-      comment: "commented on your post",
-      follow: "started following you",
-    };
     return {
-      recipientUsername: record.recipient_username,
       title: "ZIXPLON",
-      body: `${record.actor_username} ${typeText[record.type] || "sent you a notification"}`,
-      url: record.link || "/notifications",
-      tag: `notif-${record.type}-${record.actor_username}`,
+      // Your notifications table already stores a ready-made message —
+      // use it directly instead of reconstructing one.
+      body: record.message || `${record.sender_username} sent you a notification`,
+      url: urlForContent(record.content_type, record.content_id),
+      tag: `notif-${record.type}-${record.sender_username}-${record.content_id || ""}`,
     };
   }
 
@@ -74,13 +82,11 @@ export default async function handler(req, res) {
   try {
     const { table, record } = req.body;
 
-    // ── direct_messages has no recipient_username column in the schema
-    // we've seen (conversations store user_a/user_b instead). Resolve the
-    // recipient by looking up the conversation. Adjust/remove this block
-    // if your schema differs. ──
     let recipientUsername = null;
 
     if (table === "direct_messages") {
+      // direct_messages has no recipient_username column — resolve it
+      // via the conversations table (user_a / user_b).
       const { data: convo } = await supabaseAdmin
         .from("conversations")
         .select("user_a, user_b")
@@ -97,6 +103,15 @@ export default async function handler(req, res) {
 
     if (!recipientUsername) {
       return res.status(200).json({ skipped: "no recipient resolved" });
+    }
+
+    // Don't push a notification to yourself (e.g. liking your own post,
+    // if that ever inserts a row)
+    if (
+      table === "notifications" &&
+      recipientUsername === record.sender_username
+    ) {
+      return res.status(200).json({ skipped: "self-notification" });
     }
 
     const payload = buildNotificationPayload(table, record);
@@ -134,12 +149,18 @@ export default async function handler(req, res) {
     // Clean up subscriptions that are no longer valid (expired/revoked)
     const deadEndpoints = [];
     results.forEach((r, i) => {
-      if (r.status === "rejected" && (r.reason?.statusCode === 404 || r.reason?.statusCode === 410)) {
+      if (
+        r.status === "rejected" &&
+        (r.reason?.statusCode === 404 || r.reason?.statusCode === 410)
+      ) {
         deadEndpoints.push(subs[i].endpoint);
       }
     });
     if (deadEndpoints.length > 0) {
-      await supabaseAdmin.from("push_subscriptions").delete().in("endpoint", deadEndpoints);
+      await supabaseAdmin
+        .from("push_subscriptions")
+        .delete()
+        .in("endpoint", deadEndpoints);
     }
 
     return res.status(200).json({

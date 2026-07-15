@@ -216,21 +216,19 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const { onlineUsers, getLastSeen } = usePresence();
   const [activeUserLastSeen, setActiveUserLastSeen] = useState(null);
 
-  const isActiveUserOnline = onlineUsers.has(activeUsername);
-
-useEffect(() => {
-  if (!activeUsername || isActiveUserOnline) {
-    setActiveUserLastSeen(null);
-    return;
-  }
-  let active = true;
-  getLastSeen(activeUsername).then((val) => {
-    if (active) setActiveUserLastSeen(val);
-  });
-  return () => {
-    active = false;
-  };
-}, [activeUsername, isActiveUserOnline]); // getLastSeen intentionally omitted
+  useEffect(() => {
+    if (!activeUsername || onlineUsers.has(activeUsername)) {
+      setActiveUserLastSeen(null);
+      return;
+    }
+    let active = true;
+    getLastSeen(activeUsername).then((val) => {
+      if (active) setActiveUserLastSeen(val);
+    });
+    return () => {
+      active = false;
+    };
+  }, [activeUsername, onlineUsers, getLastSeen]);
 
   const bottomRef = useRef();
   const panelRef = useRef();

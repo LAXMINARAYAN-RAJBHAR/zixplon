@@ -948,6 +948,748 @@ const SaveMenuButton = ({
   );
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ✅ FIX (video restart bug): the six components below (WP_THEME + VideoPlayer,
+// AutoplayToggle, WatchNavBar, MetaSection, CommentSection, RelatedSidebar)
+// used to be defined INSIDE the WatchPage function body as
+// `const Player = () => (...)`, `const NavBar = () => (...)`, etc., and were
+// rendered as JSX components (`<Player />`, `<NavBar />`...).
+//
+// That's a classic React footgun: because those were re-created as brand-new
+// function references on every single WatchPage re-render (typing a comment,
+// liking, toggling autoplay, the parent's 30s watched-ids poll, etc.), React
+// saw a *different component type* each time and unmounted + remounted the
+// underlying DOM — including the YouTube <iframe> — every time. That's what
+// caused the video to visibly "restart".
+//
+// Moving them out to stable, top-level components (with all needed data
+// passed in as props) fixes this: React now keeps the same component
+// identity across WatchPage re-renders, and the <iframe> is only
+// unmounted/remounted when `videoId` itself actually changes (via its
+// `key={videoId}`), which is the only time we actually want that to happen.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WP_THEME = {
+  bg: "#f0f4ff",
+  surface: "#ffffff",
+  surface2: "#f7f0ff",
+  border: "#e0d4ff",
+  primary: "#7c3aed",
+  primary2: "#a855f7",
+  text: "#1e1b4b",
+  text2: "#4c4589",
+  text3: "#8b84c4",
+  accent: "#f43f5e",
+};
+
+const VideoPlayer = ({ videoId, videoTitle, isMobile }) => (
+  <div
+    style={{
+      width: "100%",
+      position: "relative",
+      paddingBottom: "56.25%",
+      height: 0,
+      overflow: "hidden",
+      background: "#1e1b4b",
+      borderRadius: isMobile ? "0" : "16px",
+      flexShrink: 0,
+    }}
+  >
+    <iframe
+      key={videoId}
+      src={
+        "https://www.youtube.com/embed/" +
+        videoId +
+        "?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1"
+      }
+      title={videoTitle}
+      frameBorder="0"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allowFullScreen
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        border: "none",
+        display: "block",
+      }}
+    />
+  </div>
+);
+
+const AutoplayToggle = ({ autoplay, setAutoplay }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+    <span style={{ color: WP_THEME.text3, fontSize: "13px" }}>Autoplay</span>
+    <div
+      onClick={() => setAutoplay((a) => !a)}
+      style={{
+        width: "44px",
+        height: "24px",
+        background: autoplay ? WP_THEME.primary : "#d1d5db",
+        borderRadius: "12px",
+        cursor: "pointer",
+        position: "relative",
+        transition: "background 0.3s",
+        flexShrink: 0,
+      }}
+    >
+      <div
+        style={{
+          width: "18px",
+          height: "18px",
+          background: "white",
+          borderRadius: "50%",
+          position: "absolute",
+          top: "3px",
+          left: autoplay ? "23px" : "3px",
+          transition: "left 0.3s",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+        }}
+      />
+    </div>
+    <span
+      style={{
+        color: autoplay ? WP_THEME.primary : "#9ca3af",
+        fontSize: "12px",
+        fontWeight: "700",
+      }}
+    >
+      {autoplay ? "ON" : "OFF"}
+    </span>
+  </div>
+);
+
+const WatchNavBar = ({
+  goPrev,
+  hasPrev,
+  goNext,
+  hasNext,
+  autoplay,
+  setAutoplay,
+}) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      background: WP_THEME.surface2,
+      borderRadius: "12px",
+      padding: "10px 16px",
+      marginTop: "10px",
+      gap: "8px",
+      border: "1px solid " + WP_THEME.border,
+    }}
+  >
+    <button
+      onClick={goPrev}
+      disabled={!hasPrev}
+      style={{
+        background: hasPrev ? WP_THEME.surface : "#f3f4f6",
+        border: "1.5px solid " + (hasPrev ? WP_THEME.border : "#e5e7eb"),
+        color: hasPrev ? WP_THEME.text : "#9ca3af",
+        borderRadius: "20px",
+        padding: "8px 18px",
+        cursor: hasPrev ? "pointer" : "not-allowed",
+        fontSize: "14px",
+        fontWeight: "700",
+        whiteSpace: "nowrap",
+      }}
+    >
+      ⏮ Previous
+    </button>
+    <AutoplayToggle autoplay={autoplay} setAutoplay={setAutoplay} />
+    <button
+      onClick={goNext}
+      disabled={!hasNext}
+      style={{
+        background: hasNext ? WP_THEME.primary : "#f3f4f6",
+        border: "none",
+        color: hasNext ? "white" : "#9ca3af",
+        borderRadius: "20px",
+        padding: "8px 18px",
+        cursor: hasNext ? "pointer" : "not-allowed",
+        fontSize: "14px",
+        fontWeight: "700",
+        whiteSpace: "nowrap",
+      }}
+    >
+      Next ⏭
+    </button>
+  </div>
+);
+
+const MetaSection = ({
+  videoTitle,
+  isMobile,
+  channelName,
+  subscribedChannels,
+  handleSubscribe,
+  isLiked,
+  setIsLiked,
+  isDisliked,
+  setIsDisliked,
+  likeCount,
+  videoId,
+  description,
+  publishedAt,
+  showFullDesc,
+  setShowFullDesc,
+  onClose,
+}) => (
+  <div style={{ padding: isMobile ? "0 12px" : "0" }}>
+    <div
+      style={{
+        color: WP_THEME.text,
+        fontWeight: "700",
+        fontSize: isMobile ? "15px" : "18px",
+        lineHeight: "1.4",
+        marginTop: "14px",
+      }}
+    >
+      {videoTitle}
+    </div>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: "12px",
+        marginTop: "12px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <img
+          src={
+            "https://ui-avatars.com/api/?name=" +
+            encodeURIComponent(channelName) +
+            "&background=random&size=40"
+          }
+          alt={channelName}
+          style={{
+            width: "40px",
+            height: "40px",
+            borderRadius: "50%",
+            flexShrink: 0,
+          }}
+        />
+        <div>
+          <div
+            style={{ color: WP_THEME.text, fontWeight: "700", fontSize: "15px" }}
+          >
+            {channelName}
+          </div>
+          <div style={{ color: WP_THEME.text3, fontSize: "12px" }}>
+            1.2M subscribers
+          </div>
+        </div>
+        <button
+          onClick={() => handleSubscribe(channelName)}
+          style={{
+            background: subscribedChannels.has(channelName)
+              ? WP_THEME.surface2
+              : WP_THEME.primary,
+            color: subscribedChannels.has(channelName)
+              ? WP_THEME.primary
+              : "white",
+            border: "1.5px solid " + WP_THEME.primary,
+            borderRadius: "20px",
+            padding: "8px 18px",
+            fontWeight: "700",
+            cursor: "pointer",
+            fontSize: "14px",
+            marginLeft: "4px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {subscribedChannels.has(channelName) ? "✓ Subscribed" : "Subscribe"}
+        </button>
+      </div>
+    </div>
+    <div
+      style={{
+        display: "flex",
+        gap: "8px",
+        flexWrap: "wrap",
+        marginTop: "12px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          background: WP_THEME.surface2,
+          borderRadius: "20px",
+          overflow: "hidden",
+          border: "1.5px solid " + WP_THEME.border,
+        }}
+      >
+        <button
+          onClick={() => {
+            setIsLiked((l) => !l);
+            if (isDisliked) setIsDisliked(false);
+          }}
+          style={{
+            background: isLiked ? "#ede9fe" : "transparent",
+            border: "none",
+            color: isLiked ? WP_THEME.primary : WP_THEME.text2,
+            padding: "8px 16px",
+            cursor: "pointer",
+            fontSize: "14px",
+            borderRight: "1px solid " + WP_THEME.border,
+            fontWeight: "600",
+          }}
+        >
+          👍 {(likeCount + (isLiked ? 1 : 0)).toLocaleString()}
+        </button>
+        <button
+          onClick={() => {
+            setIsDisliked((d) => !d);
+            if (isLiked) setIsLiked(false);
+          }}
+          style={{
+            background: isDisliked ? "#fff1f2" : "transparent",
+            border: "none",
+            color: isDisliked ? WP_THEME.accent : WP_THEME.text2,
+            padding: "8px 16px",
+            cursor: "pointer",
+            fontSize: "14px",
+            fontWeight: "600",
+          }}
+        >
+          👎
+        </button>
+      </div>
+      <button
+        onClick={() => {
+          navigator.clipboard.writeText(
+            "https://www.youtube.com/watch?v=" + videoId,
+          );
+          alert("Link copied!");
+        }}
+        style={{
+          background: WP_THEME.surface2,
+          border: "1.5px solid " + WP_THEME.border,
+          color: WP_THEME.text2,
+          borderRadius: "20px",
+          padding: "8px 16px",
+          cursor: "pointer",
+          fontSize: "14px",
+          fontWeight: "600",
+        }}
+      >
+        🔗 Share
+      </button>
+      <button
+        onClick={onClose}
+        style={{
+          background: WP_THEME.surface2,
+          border: "1.5px solid " + WP_THEME.border,
+          color: WP_THEME.text3,
+          borderRadius: "20px",
+          padding: "8px 16px",
+          cursor: "pointer",
+          fontSize: "13px",
+          fontWeight: "600",
+        }}
+      >
+        ✕ Close
+      </button>
+    </div>
+    {description !== null && (
+      <div
+        onClick={() => setShowFullDesc((s) => !s)}
+        style={{
+          background: WP_THEME.surface2,
+          borderRadius: "12px",
+          padding: "14px 16px",
+          marginTop: "14px",
+          color: WP_THEME.text2,
+          fontSize: "14px",
+          lineHeight: "1.6",
+          cursor: "pointer",
+          border: "1px solid " + WP_THEME.border,
+        }}
+      >
+        {publishedAt && (
+          <div
+            style={{ color: WP_THEME.text3, fontSize: "13px", marginBottom: "6px" }}
+          >
+            {new Date(publishedAt).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </div>
+        )}
+        <p
+          style={{
+            margin: 0,
+            display: showFullDesc ? "block" : "-webkit-box",
+            WebkitLineClamp: showFullDesc ? "unset" : 2,
+            WebkitBoxOrient: "vertical",
+            overflow: showFullDesc ? "visible" : "hidden",
+          }}
+        >
+          {description || "No description available."}
+        </p>
+        <span
+          style={{
+            color: WP_THEME.primary,
+            fontWeight: "700",
+            fontSize: "13px",
+            marginTop: "6px",
+            display: "block",
+          }}
+        >
+          {showFullDesc ? "Show less" : "...more"}
+        </span>
+      </div>
+    )}
+  </div>
+);
+
+const CommentSection = ({
+  isMobile,
+  comments,
+  newComment,
+  setNewComment,
+  likedComments,
+  addComment,
+  toggleCommentLike,
+}) => (
+  <div style={{ padding: isMobile ? "0 12px 40px" : "0 0 40px" }}>
+    <div
+      style={{
+        color: WP_THEME.text,
+        fontWeight: "700",
+        fontSize: "16px",
+        margin: "28px 0 20px",
+      }}
+    >
+      {comments.length} Comments
+    </div>
+    <div style={{ display: "flex", gap: "12px", marginBottom: "24px" }}>
+      <div
+        style={{
+          width: "36px",
+          height: "36px",
+          borderRadius: "50%",
+          flexShrink: 0,
+          background: WP_THEME.primary,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#fff",
+          fontWeight: "800",
+          fontSize: "12px",
+        }}
+      >
+        YO
+      </div>
+      <div style={{ flex: 1 }}>
+        <input
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addComment()}
+          placeholder="Add a comment..."
+          style={{
+            width: "100%",
+            background: "transparent",
+            border: "none",
+            borderBottom: "2px solid " + WP_THEME.border,
+            color: WP_THEME.text,
+            fontSize: "14px",
+            padding: "8px 0",
+            outline: "none",
+            boxSizing: "border-box",
+            fontFamily: "Outfit, sans-serif",
+          }}
+          onFocus={(e) => (e.target.style.borderBottomColor = WP_THEME.primary)}
+          onBlur={(e) => (e.target.style.borderBottomColor = WP_THEME.border)}
+        />
+        {newComment.trim() && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "8px",
+              marginTop: "8px",
+            }}
+          >
+            <button
+              onClick={() => setNewComment("")}
+              style={{
+                background: "none",
+                border: "none",
+                color: WP_THEME.text3,
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "600",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={addComment}
+              style={{
+                background: WP_THEME.primary,
+                border: "none",
+                color: "white",
+                borderRadius: "20px",
+                padding: "6px 16px",
+                cursor: "pointer",
+                fontWeight: "700",
+                fontSize: "14px",
+              }}
+            >
+              Comment
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+    {comments.map((c) => (
+      <div
+        key={c.id}
+        style={{ display: "flex", gap: "12px", marginBottom: "20px" }}
+      >
+        <div
+          style={{
+            width: "36px",
+            height: "36px",
+            borderRadius: "50%",
+            flexShrink: 0,
+            background: getColor(c.avatar),
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#fff",
+            fontWeight: "800",
+            fontSize: "11px",
+          }}
+        >
+          {c.avatar}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              alignItems: "center",
+              marginBottom: "4px",
+            }}
+          >
+            <span
+              style={{ color: WP_THEME.text, fontWeight: "700", fontSize: "13px" }}
+            >
+              {c.user}
+            </span>
+            <span style={{ color: WP_THEME.text3, fontSize: "12px" }}>
+              {c.time}
+            </span>
+          </div>
+          <p
+            style={{
+              color: WP_THEME.text2,
+              fontSize: "14px",
+              margin: "0 0 6px",
+              lineHeight: "1.5",
+            }}
+          >
+            {c.text}
+          </p>
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button
+              onClick={() => toggleCommentLike(c.id)}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                color: likedComments.has(c.id) ? WP_THEME.primary : WP_THEME.text3,
+                fontSize: "13px",
+                fontWeight: "600",
+              }}
+            >
+              👍 {c.likes}
+            </button>
+            <span
+              style={{ color: WP_THEME.text3, fontSize: "13px", cursor: "pointer" }}
+            >
+              👎
+            </span>
+            <span
+              style={{
+                color: WP_THEME.text3,
+                fontSize: "13px",
+                cursor: "pointer",
+                fontWeight: "600",
+              }}
+            >
+              Reply
+            </span>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const RelatedSidebar = ({
+  suggestions,
+  currentIndex,
+  goTo,
+  isMobile,
+  autoplay,
+  setAutoplay,
+}) => {
+  const relatedList = suggestions.filter((_, i) => i !== currentIndex);
+  return (
+    <div
+      style={{
+        width: isMobile ? "100%" : "402px",
+        flexShrink: 0,
+        overflowY: isMobile ? "visible" : "auto",
+        scrollbarWidth: "thin",
+        scrollbarColor: WP_THEME.border + " transparent",
+        background: WP_THEME.surface,
+        borderLeft: isMobile ? "none" : "2px solid " + WP_THEME.border,
+        padding: "12px 10px 20px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "14px",
+        }}
+      >
+        <span style={{ color: WP_THEME.text, fontWeight: "800", fontSize: "14px" }}>
+          Up Next
+        </span>
+        <AutoplayToggle autoplay={autoplay} setAutoplay={setAutoplay} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {relatedList.map((s) => {
+          const realIdx = suggestions.indexOf(s);
+          const isYTItem = !!s.snippet;
+          const thumb = isYTItem
+            ? s.snippet.thumbnails.medium.url
+            : s.thumbnail;
+          const title = isYTItem ? s.snippet.title : s.title;
+          const channel = isYTItem ? s.snippet.channelTitle : s.channel;
+          const hasVid =
+            (isYTItem && !!s.id?.videoId) || (!isYTItem && !!s.src);
+          return (
+            <div
+              key={s.id?.videoId || s.id || realIdx}
+              onClick={() => hasVid && goTo(realIdx)}
+              style={{
+                display: "flex",
+                gap: "8px",
+                cursor: hasVid ? "pointer" : "default",
+                borderRadius: "10px",
+                padding: "6px",
+                transition: "background 0.2s",
+                opacity: hasVid ? 1 : 0.5,
+                border: "1px solid transparent",
+              }}
+              onMouseEnter={(e) => {
+                if (hasVid) {
+                  e.currentTarget.style.background = WP_THEME.surface2;
+                  e.currentTarget.style.borderColor = WP_THEME.border;
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.borderColor = "transparent";
+              }}
+            >
+              <div
+                style={{
+                  position: "relative",
+                  flexShrink: 0,
+                  width: "168px",
+                  height: "94px",
+                  borderRadius: "10px",
+                  overflow: "hidden",
+                  background: "#e8e0ff",
+                }}
+              >
+                <img
+                  src={thumb}
+                  alt={title}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                />
+                {isYTItem && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "4px",
+                      left: "4px",
+                      background: "#ef4444",
+                      color: "#fff",
+                      fontSize: "9px",
+                      fontWeight: "800",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    ▶ YT
+                  </div>
+                )}
+              </div>
+              <div style={{ flex: 1, minWidth: 0, paddingTop: "2px" }}>
+                <div
+                  style={{
+                    color: WP_THEME.text,
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    lineHeight: "1.4",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                    marginBottom: "4px",
+                  }}
+                >
+                  {title}
+                </div>
+                <div
+                  style={{
+                    color: WP_THEME.text3,
+                    fontSize: "12px",
+                    marginBottom: "2px",
+                    fontWeight: "600",
+                  }}
+                >
+                  {channel}
+                </div>
+                {isYTItem && s.snippet?.publishedAt && (
+                  <div style={{ color: WP_THEME.text3, fontSize: "12px" }}>
+                    {new Date(s.snippet.publishedAt).toLocaleDateString(
+                      "en-US",
+                      { month: "short", day: "numeric", year: "numeric" },
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const WatchPage = ({
   initialVideoId,
   initialTitle,
@@ -1076,686 +1818,6 @@ const WatchPage = ({
     });
   };
 
-  const WP = {
-    bg: "#f0f4ff",
-    surface: "#ffffff",
-    surface2: "#f7f0ff",
-    border: "#e0d4ff",
-    primary: "#7c3aed",
-    primary2: "#a855f7",
-    text: "#1e1b4b",
-    text2: "#4c4589",
-    text3: "#8b84c4",
-    accent: "#f43f5e",
-  };
-
-  const Player = () => (
-    <div
-      style={{
-        width: "100%",
-        position: "relative",
-        paddingBottom: "56.25%",
-        height: 0,
-        overflow: "hidden",
-        background: "#1e1b4b",
-        borderRadius: isMobile ? "0" : "16px",
-        flexShrink: 0,
-      }}
-    >
-      <iframe
-        key={videoId}
-        src={
-          "https://www.youtube.com/embed/" +
-          videoId +
-          "?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1"
-        }
-        title={videoTitle}
-        frameBorder="0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowFullScreen
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          border: "none",
-          display: "block",
-        }}
-      />
-    </div>
-  );
-
-  const AutoplayToggle = () => (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-      <span style={{ color: WP.text3, fontSize: "13px" }}>Autoplay</span>
-      <div
-        onClick={() => setAutoplay((a) => !a)}
-        style={{
-          width: "44px",
-          height: "24px",
-          background: autoplay ? WP.primary : "#d1d5db",
-          borderRadius: "12px",
-          cursor: "pointer",
-          position: "relative",
-          transition: "background 0.3s",
-          flexShrink: 0,
-        }}
-      >
-        <div
-          style={{
-            width: "18px",
-            height: "18px",
-            background: "white",
-            borderRadius: "50%",
-            position: "absolute",
-            top: "3px",
-            left: autoplay ? "23px" : "3px",
-            transition: "left 0.3s",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
-          }}
-        />
-      </div>
-      <span
-        style={{
-          color: autoplay ? WP.primary : "#9ca3af",
-          fontSize: "12px",
-          fontWeight: "700",
-        }}
-      >
-        {autoplay ? "ON" : "OFF"}
-      </span>
-    </div>
-  );
-
-  const NavBar = () => (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        background: WP.surface2,
-        borderRadius: "12px",
-        padding: "10px 16px",
-        marginTop: "10px",
-        gap: "8px",
-        border: "1px solid " + WP.border,
-      }}
-    >
-      <button
-        onClick={goPrev}
-        disabled={!hasPrev}
-        style={{
-          background: hasPrev ? WP.surface : "#f3f4f6",
-          border: "1.5px solid " + (hasPrev ? WP.border : "#e5e7eb"),
-          color: hasPrev ? WP.text : "#9ca3af",
-          borderRadius: "20px",
-          padding: "8px 18px",
-          cursor: hasPrev ? "pointer" : "not-allowed",
-          fontSize: "14px",
-          fontWeight: "700",
-          whiteSpace: "nowrap",
-        }}
-      >
-        ⏮ Previous
-      </button>
-      <AutoplayToggle />
-      <button
-        onClick={goNext}
-        disabled={!hasNext}
-        style={{
-          background: hasNext ? WP.primary : "#f3f4f6",
-          border: "none",
-          color: hasNext ? "white" : "#9ca3af",
-          borderRadius: "20px",
-          padding: "8px 18px",
-          cursor: hasNext ? "pointer" : "not-allowed",
-          fontSize: "14px",
-          fontWeight: "700",
-          whiteSpace: "nowrap",
-        }}
-      >
-        Next ⏭
-      </button>
-    </div>
-  );
-
-  const MetaSection = () => (
-    <div style={{ padding: isMobile ? "0 12px" : "0" }}>
-      <div
-        style={{
-          color: WP.text,
-          fontWeight: "700",
-          fontSize: isMobile ? "15px" : "18px",
-          lineHeight: "1.4",
-          marginTop: "14px",
-        }}
-      >
-        {videoTitle}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "12px",
-          marginTop: "12px",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <img
-            src={
-              "https://ui-avatars.com/api/?name=" +
-              encodeURIComponent(channelName) +
-              "&background=random&size=40"
-            }
-            alt={channelName}
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "50%",
-              flexShrink: 0,
-            }}
-          />
-          <div>
-            <div
-              style={{ color: WP.text, fontWeight: "700", fontSize: "15px" }}
-            >
-              {channelName}
-            </div>
-            <div style={{ color: WP.text3, fontSize: "12px" }}>
-              1.2M subscribers
-            </div>
-          </div>
-          <button
-            onClick={() => handleSubscribe(channelName)}
-            style={{
-              background: subscribedChannels.has(channelName)
-                ? WP.surface2
-                : WP.primary,
-              color: subscribedChannels.has(channelName) ? WP.primary : "white",
-              border: "1.5px solid " + WP.primary,
-              borderRadius: "20px",
-              padding: "8px 18px",
-              fontWeight: "700",
-              cursor: "pointer",
-              fontSize: "14px",
-              marginLeft: "4px",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {subscribedChannels.has(channelName) ? "✓ Subscribed" : "Subscribe"}
-          </button>
-        </div>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          gap: "8px",
-          flexWrap: "wrap",
-          marginTop: "12px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            background: WP.surface2,
-            borderRadius: "20px",
-            overflow: "hidden",
-            border: "1.5px solid " + WP.border,
-          }}
-        >
-          <button
-            onClick={() => {
-              setIsLiked((l) => !l);
-              if (isDisliked) setIsDisliked(false);
-            }}
-            style={{
-              background: isLiked ? "#ede9fe" : "transparent",
-              border: "none",
-              color: isLiked ? WP.primary : WP.text2,
-              padding: "8px 16px",
-              cursor: "pointer",
-              fontSize: "14px",
-              borderRight: "1px solid " + WP.border,
-              fontWeight: "600",
-            }}
-          >
-            👍 {(likeCount + (isLiked ? 1 : 0)).toLocaleString()}
-          </button>
-          <button
-            onClick={() => {
-              setIsDisliked((d) => !d);
-              if (isLiked) setIsLiked(false);
-            }}
-            style={{
-              background: isDisliked ? "#fff1f2" : "transparent",
-              border: "none",
-              color: isDisliked ? WP.accent : WP.text2,
-              padding: "8px 16px",
-              cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: "600",
-            }}
-          >
-            👎
-          </button>
-        </div>
-        <button
-          onClick={() => {
-            navigator.clipboard.writeText(
-              "https://www.youtube.com/watch?v=" + videoId,
-            );
-            alert("Link copied!");
-          }}
-          style={{
-            background: WP.surface2,
-            border: "1.5px solid " + WP.border,
-            color: WP.text2,
-            borderRadius: "20px",
-            padding: "8px 16px",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "600",
-          }}
-        >
-          🔗 Share
-        </button>
-        <button
-          onClick={onClose}
-          style={{
-            background: WP.surface2,
-            border: "1.5px solid " + WP.border,
-            color: WP.text3,
-            borderRadius: "20px",
-            padding: "8px 16px",
-            cursor: "pointer",
-            fontSize: "13px",
-            fontWeight: "600",
-          }}
-        >
-          ✕ Close
-        </button>
-      </div>
-      {description !== null && (
-        <div
-          onClick={() => setShowFullDesc((s) => !s)}
-          style={{
-            background: WP.surface2,
-            borderRadius: "12px",
-            padding: "14px 16px",
-            marginTop: "14px",
-            color: WP.text2,
-            fontSize: "14px",
-            lineHeight: "1.6",
-            cursor: "pointer",
-            border: "1px solid " + WP.border,
-          }}
-        >
-          {publishedAt && (
-            <div
-              style={{ color: WP.text3, fontSize: "13px", marginBottom: "6px" }}
-            >
-              {new Date(publishedAt).toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </div>
-          )}
-          <p
-            style={{
-              margin: 0,
-              display: showFullDesc ? "block" : "-webkit-box",
-              WebkitLineClamp: showFullDesc ? "unset" : 2,
-              WebkitBoxOrient: "vertical",
-              overflow: showFullDesc ? "visible" : "hidden",
-            }}
-          >
-            {description || "No description available."}
-          </p>
-          <span
-            style={{
-              color: WP.primary,
-              fontWeight: "700",
-              fontSize: "13px",
-              marginTop: "6px",
-              display: "block",
-            }}
-          >
-            {showFullDesc ? "Show less" : "...more"}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-
-  const CommentSection = () => (
-    <div style={{ padding: isMobile ? "0 12px 40px" : "0 0 40px" }}>
-      <div
-        style={{
-          color: WP.text,
-          fontWeight: "700",
-          fontSize: "16px",
-          margin: "28px 0 20px",
-        }}
-      >
-        {comments.length} Comments
-      </div>
-      <div style={{ display: "flex", gap: "12px", marginBottom: "24px" }}>
-        <div
-          style={{
-            width: "36px",
-            height: "36px",
-            borderRadius: "50%",
-            flexShrink: 0,
-            background: WP.primary,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontWeight: "800",
-            fontSize: "12px",
-          }}
-        >
-          YO
-        </div>
-        <div style={{ flex: 1 }}>
-          <input
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addComment()}
-            placeholder="Add a comment..."
-            style={{
-              width: "100%",
-              background: "transparent",
-              border: "none",
-              borderBottom: "2px solid " + WP.border,
-              color: WP.text,
-              fontSize: "14px",
-              padding: "8px 0",
-              outline: "none",
-              boxSizing: "border-box",
-              fontFamily: "Outfit, sans-serif",
-            }}
-            onFocus={(e) => (e.target.style.borderBottomColor = WP.primary)}
-            onBlur={(e) => (e.target.style.borderBottomColor = WP.border)}
-          />
-          {newComment.trim() && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "8px",
-                marginTop: "8px",
-              }}
-            >
-              <button
-                onClick={() => setNewComment("")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: WP.text3,
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={addComment}
-                style={{
-                  background: WP.primary,
-                  border: "none",
-                  color: "white",
-                  borderRadius: "20px",
-                  padding: "6px 16px",
-                  cursor: "pointer",
-                  fontWeight: "700",
-                  fontSize: "14px",
-                }}
-              >
-                Comment
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-      {comments.map((c) => (
-        <div
-          key={c.id}
-          style={{ display: "flex", gap: "12px", marginBottom: "20px" }}
-        >
-          <div
-            style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "50%",
-              flexShrink: 0,
-              background: getColor(c.avatar),
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#fff",
-              fontWeight: "800",
-              fontSize: "11px",
-            }}
-          >
-            {c.avatar}
-          </div>
-          <div style={{ flex: 1 }}>
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                alignItems: "center",
-                marginBottom: "4px",
-              }}
-            >
-              <span
-                style={{ color: WP.text, fontWeight: "700", fontSize: "13px" }}
-              >
-                {c.user}
-              </span>
-              <span style={{ color: WP.text3, fontSize: "12px" }}>
-                {c.time}
-              </span>
-            </div>
-            <p
-              style={{
-                color: WP.text2,
-                fontSize: "14px",
-                margin: "0 0 6px",
-                lineHeight: "1.5",
-              }}
-            >
-              {c.text}
-            </p>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button
-                onClick={() => toggleCommentLike(c.id)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 0,
-                  color: likedComments.has(c.id) ? WP.primary : WP.text3,
-                  fontSize: "13px",
-                  fontWeight: "600",
-                }}
-              >
-                👍 {c.likes}
-              </button>
-              <span
-                style={{ color: WP.text3, fontSize: "13px", cursor: "pointer" }}
-              >
-                👎
-              </span>
-              <span
-                style={{
-                  color: WP.text3,
-                  fontSize: "13px",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                }}
-              >
-                Reply
-              </span>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-
-  const RelatedSidebar = () => {
-    const relatedList = suggestions.filter((_, i) => i !== currentIndex);
-    return (
-      <div
-        style={{
-          width: isMobile ? "100%" : "402px",
-          flexShrink: 0,
-          overflowY: isMobile ? "visible" : "auto",
-          scrollbarWidth: "thin",
-          scrollbarColor: WP.border + " transparent",
-          background: WP.surface,
-          borderLeft: isMobile ? "none" : "2px solid " + WP.border,
-          padding: "12px 10px 20px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "14px",
-          }}
-        >
-          <span style={{ color: WP.text, fontWeight: "800", fontSize: "14px" }}>
-            Up Next
-          </span>
-          <AutoplayToggle />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {relatedList.map((s) => {
-            const realIdx = suggestions.indexOf(s);
-            const isYTItem = !!s.snippet;
-            const thumb = isYTItem
-              ? s.snippet.thumbnails.medium.url
-              : s.thumbnail;
-            const title = isYTItem ? s.snippet.title : s.title;
-            const channel = isYTItem ? s.snippet.channelTitle : s.channel;
-            const hasVid =
-              (isYTItem && !!s.id?.videoId) || (!isYTItem && !!s.src);
-            return (
-              <div
-                key={s.id?.videoId || s.id || realIdx}
-                onClick={() => hasVid && goTo(realIdx)}
-                style={{
-                  display: "flex",
-                  gap: "8px",
-                  cursor: hasVid ? "pointer" : "default",
-                  borderRadius: "10px",
-                  padding: "6px",
-                  transition: "background 0.2s",
-                  opacity: hasVid ? 1 : 0.5,
-                  border: "1px solid transparent",
-                }}
-                onMouseEnter={(e) => {
-                  if (hasVid) {
-                    e.currentTarget.style.background = WP.surface2;
-                    e.currentTarget.style.borderColor = WP.border;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
-                  e.currentTarget.style.borderColor = "transparent";
-                }}
-              >
-                <div
-                  style={{
-                    position: "relative",
-                    flexShrink: 0,
-                    width: "168px",
-                    height: "94px",
-                    borderRadius: "10px",
-                    overflow: "hidden",
-                    background: "#e8e0ff",
-                  }}
-                >
-                  <img
-                    src={thumb}
-                    alt={title}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                  />
-                  {isYTItem && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "4px",
-                        left: "4px",
-                        background: "#ef4444",
-                        color: "#fff",
-                        fontSize: "9px",
-                        fontWeight: "800",
-                        padding: "2px 6px",
-                        borderRadius: "4px",
-                      }}
-                    >
-                      ▶ YT
-                    </div>
-                  )}
-                </div>
-                <div style={{ flex: 1, minWidth: 0, paddingTop: "2px" }}>
-                  <div
-                    style={{
-                      color: WP.text,
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      lineHeight: "1.4",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    {title}
-                  </div>
-                  <div
-                    style={{
-                      color: WP.text3,
-                      fontSize: "12px",
-                      marginBottom: "2px",
-                      fontWeight: "600",
-                    }}
-                  >
-                    {channel}
-                  </div>
-                  {isYTItem && s.snippet?.publishedAt && (
-                    <div style={{ color: WP.text3, fontSize: "12px" }}>
-                      {new Date(s.snippet.publishedAt).toLocaleDateString(
-                        "en-US",
-                        { month: "short", day: "numeric", year: "numeric" },
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
   if (isMobile) {
     return (
       <>
@@ -1817,14 +1879,53 @@ const WatchPage = ({
               ▶ YT
             </span>
           </div>
-          <Player />
+          <VideoPlayer videoId={videoId} videoTitle={videoTitle} isMobile={isMobile} />
           <div style={{ padding: "0 12px" }}>
-            <NavBar />
+            <WatchNavBar
+              goPrev={goPrev}
+              hasPrev={hasPrev}
+              goNext={goNext}
+              hasNext={hasNext}
+              autoplay={autoplay}
+              setAutoplay={setAutoplay}
+            />
           </div>
-          <MetaSection />
-          <CommentSection />
+          <MetaSection
+            videoTitle={videoTitle}
+            isMobile={isMobile}
+            channelName={channelName}
+            subscribedChannels={subscribedChannels}
+            handleSubscribe={handleSubscribe}
+            isLiked={isLiked}
+            setIsLiked={setIsLiked}
+            isDisliked={isDisliked}
+            setIsDisliked={setIsDisliked}
+            likeCount={likeCount}
+            videoId={videoId}
+            description={description}
+            publishedAt={publishedAt}
+            showFullDesc={showFullDesc}
+            setShowFullDesc={setShowFullDesc}
+            onClose={onClose}
+          />
+          <CommentSection
+            isMobile={isMobile}
+            comments={comments}
+            newComment={newComment}
+            setNewComment={setNewComment}
+            likedComments={likedComments}
+            addComment={addComment}
+            toggleCommentLike={toggleCommentLike}
+          />
           <div style={{ borderTop: "8px solid #f0f4ff", marginTop: "8px" }}>
-            <RelatedSidebar />
+            <RelatedSidebar
+              suggestions={suggestions}
+              currentIndex={currentIndex}
+              goTo={goTo}
+              isMobile={isMobile}
+              autoplay={autoplay}
+              setAutoplay={setAutoplay}
+            />
           </div>
         </div>
       </>
@@ -1931,10 +2032,42 @@ const WatchPage = ({
               scrollbarColor: "#e0d4ff transparent",
             }}
           >
-            <Player />
-            <NavBar />
-            <MetaSection />
-            <CommentSection />
+            <VideoPlayer videoId={videoId} videoTitle={videoTitle} isMobile={isMobile} />
+            <WatchNavBar
+              goPrev={goPrev}
+              hasPrev={hasPrev}
+              goNext={goNext}
+              hasNext={hasNext}
+              autoplay={autoplay}
+              setAutoplay={setAutoplay}
+            />
+            <MetaSection
+              videoTitle={videoTitle}
+              isMobile={isMobile}
+              channelName={channelName}
+              subscribedChannels={subscribedChannels}
+              handleSubscribe={handleSubscribe}
+              isLiked={isLiked}
+              setIsLiked={setIsLiked}
+              isDisliked={isDisliked}
+              setIsDisliked={setIsDisliked}
+              likeCount={likeCount}
+              videoId={videoId}
+              description={description}
+              publishedAt={publishedAt}
+              showFullDesc={showFullDesc}
+              setShowFullDesc={setShowFullDesc}
+              onClose={onClose}
+            />
+            <CommentSection
+              isMobile={isMobile}
+              comments={comments}
+              newComment={newComment}
+              setNewComment={setNewComment}
+              likedComments={likedComments}
+              addComment={addComment}
+              toggleCommentLike={toggleCommentLike}
+            />
           </div>
           <div
             style={{
@@ -1945,7 +2078,14 @@ const WatchPage = ({
               scrollbarColor: "#e0d4ff transparent",
             }}
           >
-            <RelatedSidebar />
+            <RelatedSidebar
+              suggestions={suggestions}
+              currentIndex={currentIndex}
+              goTo={goTo}
+              isMobile={isMobile}
+              autoplay={autoplay}
+              setAutoplay={setAutoplay}
+            />
           </div>
         </div>
       </div>

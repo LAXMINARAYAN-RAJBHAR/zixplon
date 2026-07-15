@@ -240,6 +240,51 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
   const isMobile = () => window.innerWidth <= 768;
 
+  // ── Mobile back-button: pressing back while a chat is open should
+  // close just the chat window (back to the inbox list), not the whole
+  // Messages panel / navigate away from the page. ──
+  const chatHistoryPushedRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Push a history entry the moment a chat opens on mobile; clear the
+  // flag once the chat closes (whichever way it closed).
+  useEffect(() => {
+    if (!isMobile()) return;
+
+    if (activeUsername && !chatHistoryPushedRef.current) {
+      window.history.pushState({ mpChatOpen: true }, "");
+      chatHistoryPushedRef.current = true;
+    }
+
+    if (!activeUsername) {
+      chatHistoryPushedRef.current = false;
+    }
+  }, [activeUsername]);
+
+  // Intercept the back button: if we're the ones who pushed the extra
+  // history entry, consume it here and just close the chat instead of
+  // letting the browser navigate/exit.
+  useEffect(() => {
+    if (!isMobile()) return;
+
+    const handlePopState = () => {
+      if (chatHistoryPushedRef.current && isMountedRef.current) {
+        chatHistoryPushedRef.current = false;
+        setActiveUsername(null);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   const handleDragStart = (e) => {
     if (isMobile()) return;
     const panel = panelRef.current;
@@ -657,6 +702,18 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     setActiveUsername(username);
   };
 
+  // Used by the on-screen back button: on mobile, if we pushed a history
+  // entry when the chat opened, pop it (fires popstate → closes the
+  // chat). On desktop, or if no entry was pushed, just close directly.
+  const handleBackFromChat = (e) => {
+    e.stopPropagation();
+    if (isMobile() && chatHistoryPushedRef.current) {
+      window.history.back();
+    } else {
+      setActiveUsername(null);
+    }
+  };
+
   return (
     <div
       className={`mp-overlay ${!currentUser ? "mp-overlay-center" : ""}`}
@@ -851,13 +908,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     onMouseDown={handleDragStart}
                     onTouchStart={handleDragStart}
                   >
-                    <button
-                      className="mp-back-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveUsername(null);
-                      }}
-                    >
+                    <button className="mp-back-btn" onClick={handleBackFromChat}>
                       ←
                     </button>
                     <div className="mp-convo-avatar">

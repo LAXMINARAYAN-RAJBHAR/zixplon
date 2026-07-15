@@ -340,6 +340,164 @@ const MobileTrendingStrip = ({
   );
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DesktopTrendingStrip — desktop equivalent of MobileTrendingStrip.
+// Shows multiple trending items in a horizontal row. Click-and-drag to
+// scroll (same pattern as homePage_options_track), and each card is
+// still a normal click target for navigation. Replaces FeaturedHero.
+// ─────────────────────────────────────────────────────────────────────────────
+const DesktopTrendingStrip = ({
+  dbVideos,
+  dbReels = [],
+  onVideoClick,
+  onReelClick,
+}) => {
+  const trackRef = useRef(null);
+  const isPausedRef = useRef(false);
+  const autoScrollRef = useRef(null);
+
+  const trendingItems = [
+    ...dbVideos.slice(0, 8).map((v) => ({ ...v, _type: "video" })),
+    ...dbReels.slice(0, 6).map((r) => ({
+      ...r,
+      _type: "reel",
+      thumbnail: r.thumbnail,
+      title: r.title,
+      channel: r.user,
+    })),
+    ...dbVideos
+      .filter((v) =>
+        v.tags?.some((t) =>
+          [
+            "Hindi Movies",
+            "Hollywood Movies",
+            "Bhojpuri Cinema",
+            "Superhero Movies",
+            "Pakistani Movies",
+          ].includes(t),
+        ),
+      )
+      .slice(0, 4)
+      .map((v) => ({ ...v, _type: "movie" })),
+  ].slice(0, 20);
+
+  // gentle auto-drift, same idea as the mobile version
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track || trendingItems.length === 0) return;
+    let pos = track.scrollLeft;
+    const speed = 0.4;
+    const step = () => {
+      if (!isPausedRef.current) {
+        const maxScroll = track.scrollWidth - track.clientWidth;
+        if (maxScroll <= 0) {
+          pos = 0;
+        } else {
+          pos += speed;
+          if (pos >= maxScroll) pos = 0;
+        }
+        track.scrollLeft = pos;
+      } else {
+        pos = track.scrollLeft;
+      }
+      autoScrollRef.current = requestAnimationFrame(step);
+    };
+    autoScrollRef.current = requestAnimationFrame(step);
+    return () => {
+      if (autoScrollRef.current) cancelAnimationFrame(autoScrollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trendingItems.length]);
+
+  if (trendingItems.length === 0) return null;
+
+  const TYPE_BADGE = {
+    video: { label: "🎬", bg: "#7c3aed" },
+    reel: { label: "📱", bg: "#f97316" },
+    movie: { label: "🎥", bg: "#f43f5e" },
+  };
+
+  // click-and-drag scroll, same pattern as homePage_options_track
+  const handleMouseDown = (e) => {
+    isPausedRef.current = true;
+    const track = trackRef.current;
+    const startX = e.pageX - track.offsetLeft;
+    const startScroll = track.scrollLeft;
+    let dragged = false;
+    const onMove = (ev) => {
+      const x = ev.pageX - track.offsetLeft;
+      if (Math.abs(x - startX) > 5) dragged = true;
+      track.scrollLeft = startScroll - (x - startX);
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setTimeout(() => {
+        isPausedRef.current = false;
+      }, 1200);
+      // stash on track so click handler can suppress the click after a real drag
+      track.dataset.wasDragged = dragged ? "1" : "0";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
+  return (
+    <div className="desktop-trending-strip">
+      <div className="desktop-trending-label">
+        <span>Z</span>
+        <span>🔥 Trending Now</span>
+      </div>
+      <div
+        className="desktop-trending-track-wrapper"
+        ref={trackRef}
+        onMouseEnter={() => (isPausedRef.current = true)}
+        onMouseLeave={() => (isPausedRef.current = false)}
+        onMouseDown={handleMouseDown}
+        style={{ cursor: "grab" }}
+      >
+        <div className="desktop-trending-track">
+          {trendingItems.map((v, i) => {
+            const badge = TYPE_BADGE[v._type] || TYPE_BADGE.video;
+            return (
+              <div
+                key={`dtrend_${v._type}_${v.id}_${i}`}
+                className="desktop-trending-card"
+                onClick={() => {
+                  if (trackRef.current?.dataset.wasDragged === "1") return; // ignore click after drag
+                  if (v._type === "reel")
+                    onReelClick && onReelClick(v, trendingItems);
+                  else onVideoClick && onVideoClick(v, trendingItems);
+                }}
+              >
+                <span className="desktop-trending-rank">#{i + 1}</span>
+                <span
+                  className="desktop-trending-badge"
+                  style={{ background: badge.bg }}
+                >
+                  {badge.label}
+                </span>
+                <img
+                  src={v.thumbnail}
+                  alt={v.title}
+                  className="desktop-trending-thumb"
+                  draggable={false}
+                />
+                <div className="desktop-trending-info">
+                  <div className="desktop-trending-title">{v.title}</div>
+                  <div className="desktop-trending-channel">
+                    {v.channel || v.user}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ShortCard = ({
   short,
   incrementView,
@@ -482,46 +640,6 @@ const ShortCard = ({
         <div className="homePage_shortUser">{short.user}</div>
       </Link>
     </div>
-  );
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FeaturedHero — replaces the old empty "Live Now" placeholder on the
-// homepage with a single always-populated trending card. Picks the
-// highest-viewed uploaded video and renders it as one large hero card
-// above the Shorts / video rails. Renders nothing if there are no videos
-// yet, and is hidden on mobile (which already has its own trending strip).
-// ─────────────────────────────────────────────────────────────────────────────
-const FeaturedHero = ({ videos, viewCounts, onOpen }) => {
-  if (!videos || videos.length === 0) return null;
-  const top = [...videos].sort((a, b) => {
-    const va = viewCounts["video_" + a.id] ?? 0;
-    const vb = viewCounts["video_" + b.id] ?? 0;
-    return vb - va;
-  })[0];
-  if (!top) return null;
-
-  return (
-    <Link
-      to={"/video/" + top.id}
-      className="homePage_heroCard"
-      onClick={() => onOpen(top.id)}
-    >
-      <div className="homePage_heroThumbWrap">
-        <img
-          src={top.thumbnail}
-          alt={top.title}
-          className="homePage_heroThumb"
-        />
-        <span className="homePage_heroBadge">🔥 Trending</span>
-      </div>
-      <div className="homePage_heroInfo">
-        <p className="homePage_heroTitle">{top.title}</p>
-        <p className="homePage_heroMeta">
-          {formatViews(viewCounts["video_" + top.id] ?? 0)} · {top.channel}
-        </p>
-      </div>
-    </Link>
   );
 };
 
@@ -3090,17 +3208,36 @@ const HomePage = ({ sideNavbar }) => {
           </div>
         )}
 
-        {/* ✅ ADDED: single always-populated "trending" hero card, above
-            the Shorts / video rails, only on the default "All" category
-            and only on desktop (mobile already has MobileTrendingStrip
-            for this job). Replaces relying solely on the Live section
-            (which can legitimately show "no one is live right now") for
-            the page's top visual anchor. */}
+        {/* ✅ CHANGED: desktop trending row — replaces the old single-item
+            FeaturedHero. Shows multiple trending videos/reels/movies in a
+            draggable horizontal strip, matching MobileTrendingStrip's job
+            but for desktop. Only on the default "All" category, desktop
+            only (mobile already has MobileTrendingStrip for this job). */}
         {!searchActive && selectedOption === "All" && !isMobile && (
-          <FeaturedHero
-            videos={dbVideos}
-            viewCounts={viewCounts}
-            onOpen={(id) => incrementView(String(id), "video")}
+          <DesktopTrendingStrip
+            dbVideos={allVideos}
+            dbReels={allReels}
+            onVideoClick={(v, trendingList) => {
+              incrementView(String(v.id), "video");
+              const trendingVideoIds = trendingList
+                .filter((t) => t._type !== "reel")
+                .map((t) => String(t.id));
+              navigate(`/video/${v.id}`, {
+                state: { trendingIds: trendingVideoIds, fromTrending: true },
+              });
+            }}
+            onReelClick={(r, trendingList) => {
+              const trendingReelIds = trendingList
+                .filter((t) => t._type === "reel")
+                .map((t) => String(t.id));
+              navigate("/reels/" + r.id, {
+                state: {
+                  clickedReel: r,
+                  trendingIds: trendingReelIds,
+                  fromTrending: true,
+                },
+              });
+            }}
           />
         )}
 

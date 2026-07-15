@@ -543,6 +543,11 @@ const SearchResults = () => {
   const [profileResults, setProfileResults] = useState([]);
   const [localVideoResults, setLocalVideoResults] = useState([]);
   const [reelResults, setReelResults] = useState([]);
+  // ✅ ADDED: separate "still fetching YouTube/posts" flag from the
+  // page-level `loading` skeleton. `loading` now only covers the brief
+  // synchronous local-data pass (profiles/reels/local videos), so those
+  // results render immediately instead of waiting on the YouTube API.
+  const [ytPostsLoading, setYtPostsLoading] = useState(false);
 
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [selectedVideoIndex, setSelectedVideoIndex] = useState(null);
@@ -716,6 +721,14 @@ const SearchResults = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key, location.search]);
 
+  // ✅ CHANGED: profiles/reels/local videos are all computed synchronously
+  // from data already in memory (or a single fast Supabase call for
+  // reels) — there's no reason to make the user wait on the slower
+  // YouTube + posts network calls before seeing any of them. `loading`
+  // now only spans that quick local pass, and flips off right after;
+  // `ytPostsLoading` covers the YouTube/posts fetch separately so those
+  // sections can show their own inline "searching..." state without
+  // blocking everything else.
   const fetchAll = async (q) => {
     setLoading(true);
     setYoutubeResults([]);
@@ -777,8 +790,16 @@ const SearchResults = () => {
     );
     setLocalVideoResults(matchedVideos);
 
-    await Promise.all([fetchYoutube(q), fetchPosts(q)]);
+    // ✅ CHANGED: local/synchronous results are ready — drop the full-page
+    // skeleton now instead of waiting on YouTube + posts.
     setLoading(false);
+
+    // ✅ CHANGED: YouTube + posts fetch independently in the background;
+    // their own sections show a "searching..." state via ytPostsLoading
+    // without blocking the sections above.
+    setYtPostsLoading(true);
+    await Promise.all([fetchYoutube(q), fetchPosts(q)]);
+    setYtPostsLoading(false);
   };
 
   // ── FIXED: fetchYoutube with pagination + deduplication ──
@@ -2175,7 +2196,11 @@ const SearchResults = () => {
               )}
 
               {/* ── YOUTUBE VIDEOS SECTION ── */}
-              {showVideos && youtubeResults.length > 0 && (
+              {/* ✅ CHANGED: now shows an inline "searching..." indicator
+                  driven by ytPostsLoading while YouTube is still loading,
+                  instead of relying on the page-level `loading` flag which
+                  no longer covers this fetch. */}
+              {showVideos && (youtubeResults.length > 0 || ytPostsLoading) && (
                 <div>
                   {postResults.length > 0 && showPosts && (
                     <h2
@@ -2187,6 +2212,18 @@ const SearchResults = () => {
                       }}
                     >
                       ▶ YouTube Videos
+                      {ytPostsLoading && (
+                        <span
+                          style={{
+                            marginLeft: "8px",
+                            color: "#555",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                          }}
+                        >
+                          — searching...
+                        </span>
+                      )}
                     </h2>
                   )}
                   <div
@@ -2289,7 +2326,10 @@ const SearchResults = () => {
               )}
 
               {/* ── NO RESULTS ── */}
-              {!hasAnyResults && (
+              {/* ✅ CHANGED: don't show "no results" while YouTube/posts
+                  are still in flight — hasAnyResults could legitimately
+                  be false for a moment even though results are coming. */}
+              {!hasAnyResults && !ytPostsLoading && (
                 <div style={{ textAlign: "center", marginTop: "80px" }}>
                   <div style={{ fontSize: "48px", marginBottom: "16px" }}>
                     🔍

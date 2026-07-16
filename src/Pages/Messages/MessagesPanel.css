@@ -434,6 +434,7 @@
 
 .mp-chat-input-row {
   display: flex;
+  align-items: center;
   gap: 8px;
   padding: 10px 14px;
   border-top: 2px solid var(--zx-border);
@@ -509,6 +510,10 @@
   background: var(--zx-bg);
 }
 
+.mp-mic-btn {
+  color: var(--zx-primary);
+}
+
 .mp-emoji-picker {
   position: absolute;
   bottom: 56px;
@@ -543,6 +548,10 @@
 .mp-bubble-has-attachment {
   padding: 6px;
   gap: 6px;
+}
+
+.mp-bubble-has-voice {
+  padding: 8px 10px;
 }
 
 .mp-bubble-image {
@@ -636,6 +645,22 @@
   flex: 1;
   border-left: 3px solid var(--file-color, var(--zx-primary));
   padding-left: 8px;
+}
+
+.mp-pending-voice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.mp-pending-voice-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--zx-text2);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .mp-pending-remove {
@@ -857,4 +882,110 @@
 
 @media (max-width: 768px) {
   .mp-bubble-actions { opacity: 0.75; }
+}
+
+/* ── Voice message recording indicator (replaces the input row while recording) ── */
+.mp-recording-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.mp-recording-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--zx-primary);
+  flex-shrink: 0;
+  animation: mp-pulse 1s ease-in-out infinite;
+}
+
+@keyframes mp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.mp-recording-time {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--zx-primary);
+  flex-shrink: 0;
+  min-width: 34px;
+}
+
+.mp-recording-label {
+  font-size: 12px;
+  color: var(--zx-text3);
+  flex: 1;
+}
+
+.mp-recording-cancel {
+  color: var(--zx-text3);
+}
+.mp-recording-cancel:hover {
+  color: var(--zx-primary);
+}
+
+/* ── Voice message player (used both in the pre-send preview and in sent bubbles) ── */
+.mp-voice-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 180px;
+  padding: 2px 4px;
+}
+
+.mp-voice-play-btn {
+  background: rgba(0,0,0,0.06);
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--zx-primary);
+}
+.mp-bubble-row.mine .mp-voice-play-btn {
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+}
+
+.mp-voice-track {
+  flex: 1;
+  height: 4px;
+  background: var(--zx-border);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+}
+.mp-bubble-row.mine .mp-voice-track {
+  background: rgba(255,255,255,0.35);
+}
+
+.mp-voice-track-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--zx-primary);
+  border-radius: 2px;
+}
+.mp-bubble-row.mine .mp-voice-track-fill {
+  background: #fff;
+}
+
+.mp-voice-time {
+  font-size: 10px;
+  font-family: 'Nunito', sans-serif;
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+  opacity: 0.85;
 }

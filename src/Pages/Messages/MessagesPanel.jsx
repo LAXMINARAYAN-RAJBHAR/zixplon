@@ -96,8 +96,21 @@ const formatFileSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+// ── Formats a whole number of seconds as m:ss (used by both the
+// recording timer and the voice-message player) ──
+const formatDuration = (totalSeconds) => {
+  const s = Math.max(0, Math.floor(totalSeconds || 0));
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+};
+
 const CLOUDINARY_CLOUD_NAME = "dwoqk0yue";
 const CLOUDINARY_UPLOAD_PRESET = "youtube-clone";
+
+// Hard cap on recording length so a stray open mic can't produce a
+// huge upload. Auto-stops and hands off to the preview stage.
+const MAX_VOICE_SECONDS = 180;
 
 const EMOJI_LIST = [
   "😀",
@@ -191,6 +204,87 @@ const uploadToCloudinary = async (file, resourceType) => {
   return data.secure_url;
 };
 
+// ── Compact custom audio player used for both the pre-send preview and
+// the sent voice-message bubble. Built instead of native <audio controls>
+// so it matches the bubble styling and works consistently across browsers. ──
+const VoiceMessagePlayer = ({ src, mine, initialDuration }) => {
+  const audioRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState(initialDuration || 0);
+  const [currentTime, setCurrentTime] = useState(0);
+
+  // Chrome (and some other browsers) report Infinity for the duration of
+  // MediaRecorder-produced webm blobs until you seek near the end once.
+  // This nudges the browser into calculating the real duration.
+  const handleLoadedMetadata = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!isFinite(audio.duration)) {
+      const onTimeUpdate = () => {
+        audio.removeEventListener("timeupdate", onTimeUpdate);
+        audio.currentTime = 0;
+        setDuration(isFinite(audio.duration) ? audio.duration : 0);
+      };
+      audio.addEventListener("timeupdate", onTimeUpdate);
+      audio.currentTime = 1e101;
+    } else {
+      setDuration(audio.duration);
+    }
+  };
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) audio.pause();
+    else audio.play().catch(() => {});
+  };
+
+  const handleSeek = (e) => {
+    const audio = audioRef.current;
+    if (!audio || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    audio.currentTime = ratio * duration;
+    setCurrentTime(ratio * duration);
+  };
+
+  const displaySeconds = currentTime > 0 ? currentTime : duration;
+
+  return (
+    <div className={`mp-voice-player ${mine ? "mine" : ""}`}>
+      <button
+        type="button"
+        className="mp-voice-play-btn"
+        onClick={togglePlay}
+        aria-label={isPlaying ? "Pause voice message" : "Play voice message"}
+      >
+        {isPlaying ? "⏸" : "▶"}
+      </button>
+      <div className="mp-voice-track" onClick={handleSeek}>
+        <div
+          className="mp-voice-track-fill"
+          style={{ width: duration ? `${(currentTime / duration) * 100}%` : "0%" }}
+        />
+      </div>
+      <span className="mp-voice-time">{formatDuration(displaySeconds)}</span>
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        onLoadedMetadata={handleLoadedMetadata}
+        onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => {
+          setIsPlaying(false);
+          setCurrentTime(0);
+        }}
+        style={{ display: "none" }}
+      />
+    </div>
+  );
+};
+
 const MessagesPanel = ({ initialUsername, onClose }) => {
   const currentUser = localStorage.getItem("username") || "";
 
@@ -212,8 +306,17 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const emojiBtnRef = useRef();
 
   const fileInputRef = useRef();
-  const [pendingAttachment, setPendingAttachment] = useState(null); // { file, previewUrl, type, name, size }
+  const [pendingAttachment, setPendingAttachment] = useState(null); // { file, previewUrl, type, name, size, duration? }
   const [uploading, setUploading] = useState(false);
+
+  // ── Voice message recording ──
+  const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recordingTimerRef = useRef(null);
+  const recordingSecondsRef = useRef(0);
+  const streamRef = useRef(null);
 
   // ── Reactions / inline editing ──
   const [openReactionFor, setOpenReactionFor] = useState(null); // message id
@@ -371,6 +474,26 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [openReactionFor]);
+
+  // Safety net: if the panel unmounts (or the user navigates away) while
+  // a recording is in progress, make sure the mic is released.
+  useEffect(() => {
+    return () => {
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state !== "inactive"
+      ) {
+        try {
+          mediaRecorderRef.current.onstop = null;
+          mediaRecorderRef.current.stop();
+        } catch {
+          /* no-op */
+        }
+      }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      clearInterval(recordingTimerRef.current);
+    };
+  }, []);
 
   const insertEmoji = (emoji) => {
     setText((prev) => prev + emoji);
@@ -610,6 +733,107 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     setPendingAttachment(null);
   };
 
+  // ── Voice message recording ──
+  const startRecording = async () => {
+    if (pendingAttachment || recording) return;
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      alert("Voice messages aren't supported in this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : "";
+
+      const recorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType } : undefined,
+      );
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+        const ext = (recorder.mimeType || "audio/webm").includes("mp4")
+          ? "m4a"
+          : "webm";
+        const file = new File([blob], `voice-${Date.now()}.${ext}`, {
+          type: blob.type,
+        });
+        const previewUrl = URL.createObjectURL(blob);
+
+        setPendingAttachment({
+          file,
+          previewUrl,
+          type: "voice",
+          name: file.name,
+          size: file.size,
+          duration: recordingSecondsRef.current,
+        });
+
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+
+      recordingSecondsRef.current = 0;
+      setRecordingSeconds(0);
+      setRecording(true);
+
+      recordingTimerRef.current = setInterval(() => {
+        recordingSecondsRef.current += 1;
+        setRecordingSeconds(recordingSecondsRef.current);
+        if (recordingSecondsRef.current >= MAX_VOICE_SECONDS) {
+          stopRecording();
+        }
+      }, 1000);
+    } catch (err) {
+      alert("Couldn't access your microphone. Please check permissions.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
+      mediaRecorderRef.current.stop();
+    }
+    clearInterval(recordingTimerRef.current);
+    setRecording(false);
+  };
+
+  const cancelRecording = () => {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
+      // Prevent onstop from turning this into a pending attachment.
+      mediaRecorderRef.current.onstop = null;
+      mediaRecorderRef.current.stop();
+    }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    clearInterval(recordingTimerRef.current);
+    audioChunksRef.current = [];
+    setRecording(false);
+    setRecordingSeconds(0);
+  };
+
   const handleSend = async () => {
     if (
       (!text.trim() && !pendingAttachment) ||
@@ -633,7 +857,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
         const resourceType =
           pendingAttachment.type === "image"
             ? "image"
-            : pendingAttachment.type === "video"
+            : pendingAttachment.type === "video" ||
+                pendingAttachment.type === "voice"
               ? "video"
               : "raw";
         attachment_url = await uploadToCloudinary(
@@ -670,7 +895,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           ? "📷 Photo"
           : attachment_type === "video"
             ? "🎥 Video"
-            : `📎 ${attachment_name || "Attachment"}`);
+            : attachment_type === "voice"
+              ? "🎤 Voice message"
+              : `📎 ${attachment_name || "Attachment"}`);
       await supabase
         .from("conversations")
         .update({
@@ -1142,6 +1369,10 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
                               <div
                                 className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""} ${
+                                  m.attachment_type === "voice"
+                                    ? "mp-bubble-has-voice"
+                                    : ""
+                                } ${
                                   m.text &&
                                   !m.attachment_url &&
                                   isEmojiOnlyMessage(m.text)
@@ -1205,6 +1436,14 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                           src={m.attachment_url}
                                           controls
                                           className="mp-bubble-video"
+                                        />
+                                      )}
+
+                                    {m.attachment_url &&
+                                      m.attachment_type === "voice" && (
+                                        <VoiceMessagePlayer
+                                          src={m.attachment_url}
+                                          mine={mine}
                                         />
                                       )}
 
@@ -1315,6 +1554,18 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                       {pendingAttachment.type === "video" && (
                         <video src={pendingAttachment.previewUrl} />
                       )}
+                      {pendingAttachment.type === "voice" && (
+                        <div className="mp-pending-voice">
+                          <VoiceMessagePlayer
+                            src={pendingAttachment.previewUrl}
+                            mine={false}
+                            initialDuration={pendingAttachment.duration}
+                          />
+                          <span className="mp-pending-voice-label">
+                            🎤 Voice message
+                          </span>
+                        </div>
+                      )}
                       {pendingAttachment.type === "file" &&
                         (() => {
                           const info = getFileTypeInfo(pendingAttachment.name);
@@ -1354,59 +1605,95 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                       onChange={handleFileSelect}
                       accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.csv"
                     />
-                    <button
-                      type="button"
-                      className="mp-icon-btn"
-                      onClick={() => fileInputRef.current?.click()}
-                      aria-label="Attach file"
-                    >
-                      📎
-                    </button>
 
-                    <button
-                      type="button"
-                      ref={emojiBtnRef}
-                      className="mp-icon-btn"
-                      onClick={() => setShowEmojiPicker((v) => !v)}
-                      aria-label="Emoji"
-                    >
-                      😀
-                    </button>
-
-                    {showEmojiPicker && (
-                      <div className="mp-emoji-picker" ref={emojiPickerRef}>
-                        {EMOJI_LIST.map((emoji) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            className="mp-emoji-btn"
-                            onClick={() => insertEmoji(emoji)}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
+                    {recording ? (
+                      <div className="mp-recording-row">
+                        <span className="mp-recording-dot" />
+                        <span className="mp-recording-time">
+                          {formatDuration(recordingSeconds)}
+                        </span>
+                        <span className="mp-recording-label">Recording…</span>
+                        <button
+                          type="button"
+                          className="mp-icon-btn mp-recording-cancel"
+                          onClick={cancelRecording}
+                          aria-label="Cancel recording"
+                        >
+                          🗑
+                        </button>
+                        <button
+                          className="mp-send-btn"
+                          onClick={stopRecording}
+                          aria-label="Stop and preview recording"
+                        >
+                          ⏹
+                        </button>
                       </div>
-                    )}
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="mp-icon-btn"
+                          onClick={() => fileInputRef.current?.click()}
+                          aria-label="Attach file"
+                        >
+                          📎
+                        </button>
 
-                    <input
-                      ref={inputRef}
-                      className="mp-chat-input"
-                      placeholder="Type a message…"
-                      value={text}
-                      onChange={(e) => setText(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                    />
-                    <button
-                      className="mp-send-btn"
-                      onClick={handleSend}
-                      disabled={
-                        (!text.trim() && !pendingAttachment) ||
-                        sending ||
-                        uploading
-                      }
-                    >
-                      ➤
-                    </button>
+                        <button
+                          type="button"
+                          ref={emojiBtnRef}
+                          className="mp-icon-btn"
+                          onClick={() => setShowEmojiPicker((v) => !v)}
+                          aria-label="Emoji"
+                        >
+                          😀
+                        </button>
+
+                        {showEmojiPicker && (
+                          <div className="mp-emoji-picker" ref={emojiPickerRef}>
+                            {EMOJI_LIST.map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                className="mp-emoji-btn"
+                                onClick={() => insertEmoji(emoji)}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        <input
+                          ref={inputRef}
+                          className="mp-chat-input"
+                          placeholder="Type a message…"
+                          value={text}
+                          onChange={(e) => setText(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                        />
+
+                        {text.trim() || pendingAttachment ? (
+                          <button
+                            className="mp-send-btn"
+                            onClick={handleSend}
+                            disabled={sending || uploading}
+                          >
+                            ➤
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="mp-icon-btn mp-mic-btn"
+                            onClick={startRecording}
+                            aria-label="Record voice message"
+                          >
+                            🎤
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 </>
               )}

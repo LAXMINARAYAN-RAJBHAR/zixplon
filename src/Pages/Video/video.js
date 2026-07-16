@@ -89,6 +89,12 @@ const isMobileDevice = () =>
     "ontouchstart" in window ||
     navigator.maxTouchPoints > 0);
 
+// Fallback avatar generator — used whenever a real avatar_url is missing or fails to load
+const getFallbackAvatar = (name) =>
+  `https://ui-avatars.com/api/?name=${encodeURIComponent(
+    name || "U"
+  )}&background=7c3aed&color=fff&size=42`;
+
 const Video = ({ sideNavbar }) => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -118,6 +124,7 @@ const Video = ({ sideNavbar }) => {
   const [viewCount, setViewCount] = useState(0);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [videoMeta, setVideoMeta] = useState(null);
+  const [channelAvatar, setChannelAvatar] = useState(null);
 
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -267,6 +274,32 @@ const Video = ({ sideNavbar }) => {
     };
     loadSubscription();
   }, [id, video?.username]);
+
+  // ── Fetch the channel/uploader's real avatar from the profiles table.
+  //    Falls back to null (handled at render time + onError) if missing or on error.
+  useEffect(() => {
+    const loadChannelAvatar = async () => {
+      if (!video) return;
+      const channelUsername = video.username || video.channel?.toLowerCase();
+      if (!channelUsername) {
+        setChannelAvatar(null);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("avatar_url")
+        .eq("username", channelUsername) // change to .eq("id", channelUsername) if your key column is id
+        .maybeSingle();
+
+      if (!error && data?.avatar_url) {
+        setChannelAvatar(data.avatar_url);
+      } else {
+        setChannelAvatar(null);
+      }
+    };
+    loadChannelAvatar();
+  }, [video?.id, video?.username, video?.channel]);
 
   const handleSubscribe = async () => {
     const userId = localStorage.getItem("userId");
@@ -792,8 +825,12 @@ const Video = ({ sideNavbar }) => {
               >
                 <img
                   className="youtube_video_ProfileBlock_left_image"
-                  src="https://th.bing.com/th/id/OIP.hA04LwcrDABDbCzqGof8iQHaHa?rs=1&pid=imgDetMain"
+                  src={channelAvatar || getFallbackAvatar(video.channel || channelUsername)}
                   alt="profile"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = getFallbackAvatar(video.channel || channelUsername);
+                  }}
                 />
               </Link>
               <div className="youtubeVideo_subsView">
@@ -880,9 +917,13 @@ const Video = ({ sideNavbar }) => {
                 className="video_youtubeSelfCommentProfile"
                 src={
                   localStorage.getItem("profilePic") ||
-                  `https://ui-avatars.com/api/?name=${encodeURIComponent(loggedInUser)}&background=7c3aed&color=fff&size=40`
+                  getFallbackAvatar(loggedInUser)
                 }
                 alt="self"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = getFallbackAvatar(loggedInUser);
+                }}
               />
               <div className="addAComment">
                 <input
@@ -924,8 +965,12 @@ const Video = ({ sideNavbar }) => {
                   <div className="youtubeSelfComment" key={c.id}>
                     <img
                       className="video_youtubeSelfCommentProfile"
-                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(c.user)}&background=7c3aed&color=fff&size=40`}
+                      src={getFallbackAvatar(c.user)}
                       alt="commenter"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = getFallbackAvatar(c.user);
+                      }}
                     />
                     <div className="others_commentSection">
                       <div className="others_commentSectionHeader">

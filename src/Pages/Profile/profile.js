@@ -327,6 +327,18 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, on
             ))}
           </div>
         )}
+        {/* ── NEW: post video ── */}
+        {post.video_url && (
+          <div style={{ borderRadius:"8px", overflow:"hidden", marginBottom:"12px", border:"1px solid #2a2a2a", background:"#000" }}>
+            <video
+              src={post.video_url}
+              controls
+              playsInline
+              preload="metadata"
+              style={{ width:"100%", maxHeight:"480px", display:"block", background:"#000" }}
+            />
+          </div>
+        )}
         {post.link && (
           <a href={post.link.url} target="_blank" rel="noreferrer" style={{ display:"block", background:"#111", border:"1px solid #333", borderRadius:"8px", padding:"12px", textDecoration:"none", marginBottom:"12px" }}>
             <div style={{ color:"#888", fontSize:"11px", marginBottom:"4px" }}>{post.link.domain}</div>
@@ -821,7 +833,9 @@ const Profile = ({ sideNavbar }) => {
     if (!editPostTarget) return;
     const newText = editPostText.trim();
 
-    const hasImages = editPostTarget.image_urls?.length > 0 || editPostTarget.image_url;
+    // ── UPDATED: also treat an attached video as "has media" so clearing text on a
+    // video-only post doesn't incorrectly report the post as empty ──
+    const hasImages = editPostTarget.image_urls?.length > 0 || editPostTarget.image_url || editPostTarget.video_url;
     if (!newText && !hasImages && !editPostTarget.link) {
       setEditPostError("Post can't be empty.");
       return;
@@ -1307,6 +1321,18 @@ const Profile = ({ sideNavbar }) => {
             )}
             {(editPostTarget.image_urls?.length > 0 || editPostTarget.image_url) && (
               <p style={{ color:"var(--zx-text3)", fontSize:"11px", margin:"-10px 0 0" }}>Images can't be changed here — delete and repost to swap them.</p>
+            )}
+
+            {/* ── NEW: video preview + note in edit modal ── */}
+            {editPostTarget.video_url && (
+              <>
+                <video
+                  src={editPostTarget.video_url}
+                  controls
+                  style={{ width:"100%", maxHeight:"180px", borderRadius:"8px", border:"2px solid var(--zx-border)", background:"#000" }}
+                />
+                <p style={{ color:"var(--zx-text3)", fontSize:"11px", margin:"-10px 0 0" }}>Video can't be changed here — delete and repost to swap it.</p>
+              </>
             )}
 
             <div>

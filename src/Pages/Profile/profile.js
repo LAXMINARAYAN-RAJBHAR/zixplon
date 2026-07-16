@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import "./profile.css";
 import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
+import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
@@ -59,6 +60,12 @@ const PRIVACY_OPTIONS = [
   { value: "friends", label: "Friends", icon: "👥" },
   { value: "only_me", label: "Only me", icon: "🔒" },
 ];
+
+// ── Tabs, in swipe order ──
+const PROFILE_TABS = ["videos", "reels", "posts"];
+
+// How many characters of post text to show before offering "Show more"
+const POST_TEXT_LIMIT = 220;
 
 // ─── Action Menu (⋮) ────────────────────────────────────────────────────────
 const ActionMenu = ({ onEdit, onDelete, variant = "dark", extraActions = [] }) => {
@@ -194,11 +201,21 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
 };
 
 // ─── Profile Post Card ────────────────────────────────────────────────────────
-const ProfilePostCard = ({ post, isOwner, onDelete, onEdit }) => {
+const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, onAddComment }) => {
   const [lightboxData, setLightboxData] = useState(null);
   const [showComments, setShowComments] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [commentSending, setCommentSending] = useState(false);
+  const [likeBusy, setLikeBusy] = useState(false);
+
   const totalReactions = Object.values(post.reactionCounts || {}).reduce((a, b) => a + b, 0);
   const images = post.image_urls?.length > 0 ? post.image_urls : post.image_url ? [post.image_url] : [];
+
+  const isLongText = (post.text || "").length > POST_TEXT_LIMIT;
+  const displayText = isLongText && !expanded
+    ? post.text.slice(0, POST_TEXT_LIMIT).trimEnd() + "…"
+    : post.text;
 
   const gridStyle = (count) => {
     if (count === 1) return { gridTemplateColumns: "1fr", height: "auto" };
@@ -211,6 +228,50 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit }) => {
     const base = { position: "relative", overflow: "hidden", cursor: "zoom-in" };
     if (count === 3 && idx === 0) return { ...base, gridRow: "1 / 3" };
     return base;
+  };
+
+  const handleToggleLike = async () => {
+    const currentUser = localStorage.getItem("username") || "";
+    if (!currentUser) { alert("Please log in to like posts."); return; }
+    if (likeBusy) return;
+    setLikeBusy(true);
+
+    const wasLiked = !!post.myReaction;
+    const newCounts = { ...(post.reactionCounts || {}) };
+
+    try {
+      if (wasLiked) {
+        newCounts.like = Math.max(0, (newCounts.like || 0) - 1);
+        onReactionChange(post.id, { myReaction: null, reactionCounts: newCounts });
+        await supabase.from("post_reactions").delete().eq("post_id", post.id).eq("username", currentUser);
+      } else {
+        newCounts.like = (newCounts.like || 0) + 1;
+        onReactionChange(post.id, { myReaction: "like", reactionCounts: newCounts });
+        await supabase.from("post_reactions").insert({ post_id: post.id, username: currentUser, type: "like" });
+      }
+    } finally {
+      setLikeBusy(false);
+    }
+  };
+
+  const handleAddComment = async () => {
+    const currentUser = localStorage.getItem("username") || "";
+    if (!currentUser) { alert("Please log in to comment."); return; }
+    const trimmed = commentText.trim();
+    if (!trimmed || commentSending) return;
+
+    setCommentSending(true);
+    const { data, error } = await supabase
+      .from("post_comments")
+      .insert({ post_id: post.id, username: currentUser, text: trimmed })
+      .select()
+      .single();
+
+    if (!error && data) {
+      onAddComment(post.id, data);
+      setCommentText("");
+    }
+    setCommentSending(false);
   };
 
   return (
@@ -243,7 +304,19 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit }) => {
             </div>
           )}
         </div>
-        {post.text && <p style={{ color:"#e0e0e0", fontSize:"14px", lineHeight:"1.6", margin:"0 0 12px", wordBreak:"break-word" }}>{post.text}</p>}
+        {post.text && (
+          <p style={{ color:"#e0e0e0", fontSize:"14px", lineHeight:"1.6", margin:"0 0 12px", wordBreak:"break-word" }}>
+            {displayText}
+            {isLongText && (
+              <button
+                onClick={() => setExpanded((v) => !v)}
+                style={{ background:"none", border:"none", color:"#a78bfa", fontSize:"13px", fontWeight:"700", cursor:"pointer", padding:"0 0 0 6px" }}
+              >
+                {expanded ? "Show less" : "Show more"}
+              </button>
+            )}
+          </p>
+        )}
         {images.length > 0 && (
           <div style={{ display:"grid", gap:"4px", borderRadius:"8px", overflow:"hidden", marginBottom:"12px", border:"1px solid #2a2a2a", ...gridStyle(Math.min(images.length, 4)) }}>
             {images.slice(0, 4).map((url, idx) => (
@@ -261,17 +334,35 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit }) => {
           </a>
         )}
         <div style={{ display:"flex", gap:"16px", alignItems:"center", paddingTop:"10px", borderTop:"1px solid #2a2a2a" }}>
-          <span style={{ color:"#aaa", fontSize:"13px", display:"flex", alignItems:"center", gap:"4px" }}>
-            <ThumbUpOutlinedIcon style={{ fontSize:"16px" }} /> {totalReactions}
-          </span>
+          <button
+            onClick={handleToggleLike}
+            disabled={likeBusy}
+            style={{
+              background: "none",
+              border: "none",
+              color: post.myReaction ? "#a78bfa" : "#aaa",
+              fontSize: "13px",
+              fontWeight: post.myReaction ? "700" : "400",
+              cursor: likeBusy ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: 0,
+            }}
+          >
+            {post.myReaction
+              ? <ThumbUpIcon style={{ fontSize:"16px" }} />
+              : <ThumbUpOutlinedIcon style={{ fontSize:"16px" }} />}
+            {totalReactions}
+          </button>
           <button onClick={() => setShowComments((v) => !v)} style={{ background:"none", border:"none", color:"#aaa", fontSize:"13px", cursor:"pointer", display:"flex", alignItems:"center", gap:"4px", padding:0 }}>
             <ChatBubbleOutlineIcon style={{ fontSize:"16px" }} />
             {post.comments?.length || 0} comment{post.comments?.length !== 1 ? "s" : ""}
           </button>
         </div>
-        {showComments && post.comments?.length > 0 && (
+        {showComments && (
           <div style={{ marginTop:"12px", display:"flex", flexDirection:"column", gap:"8px" }}>
-            {post.comments.map((c) => (
+            {post.comments?.map((c) => (
               <div key={c.id} style={{ display:"flex", gap:"8px", alignItems:"flex-start" }}>
                 <div style={{ width:"28px", height:"28px", borderRadius:"50%", background:"#333", display:"flex", alignItems:"center", justifyContent:"center", color:"#ccc", fontSize:"11px", fontWeight:"700", flexShrink:0 }}>
                   {(c.username || "?").slice(0, 2).toUpperCase()}
@@ -282,6 +373,34 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit }) => {
                 </div>
               </div>
             ))}
+            <div style={{ display:"flex", gap:"8px", alignItems:"center", marginTop:"4px" }}>
+              <input
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleAddComment(); }}
+                placeholder="Write a comment…"
+                style={{ flex:1, background:"#262626", border:"1px solid #333", borderRadius:"20px", color:"#fff", padding:"8px 14px", fontSize:"13px", outline:"none" }}
+              />
+              <button
+                onClick={handleAddComment}
+                disabled={commentSending || !commentText.trim()}
+                aria-label="Post comment"
+                style={{
+                  background: "#7c3aed",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "32px",
+                  height: "32px",
+                  cursor: commentSending || !commentText.trim() ? "not-allowed" : "pointer",
+                  flexShrink: 0,
+                  opacity: commentText.trim() ? 1 : 0.5,
+                  fontSize: "13px",
+                }}
+              >
+                ➤
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -406,6 +525,35 @@ const Profile = ({ sideNavbar }) => {
   const [editPostPrivacy, setEditPostPrivacy] = useState("public");
   const [editPostSaving, setEditPostSaving]   = useState(false);
   const [editPostError, setEditPostError]     = useState("");
+
+  // ── Swipe-to-switch-tabs (mobile) ──
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
+
+  const handleTabTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTabTouchEnd = (e) => {
+    if (touchStartX.current === null) return;
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const deltaX = endX - touchStartX.current;
+    const deltaY = endY - touchStartY.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+
+    // Ignore short or mostly-vertical swipes (scrolling)
+    if (Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return;
+
+    const currentIndex = PROFILE_TABS.indexOf(activeTab);
+    if (deltaX < 0 && currentIndex < PROFILE_TABS.length - 1) {
+      setActiveTab(PROFILE_TABS[currentIndex + 1]); // swipe left → next tab
+    } else if (deltaX > 0 && currentIndex > 0) {
+      setActiveTab(PROFILE_TABS[currentIndex - 1]); // swipe right → previous tab
+    }
+  };
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -639,6 +787,17 @@ const Profile = ({ sideNavbar }) => {
   const handleDeletePost = async (postId) => {
     await supabase.from("posts").delete().eq("id", postId).eq("username", key);
     setUserPosts((prev) => prev.filter((p) => p.id !== postId));
+  };
+
+  // ── Post reaction / comment state updates (from ProfilePostCard) ──
+  const handleReactionChange = (postId, updates) => {
+    setUserPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, ...updates } : p)));
+  };
+
+  const handleAddComment = (postId, comment) => {
+    setUserPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, comments: [...(p.comments || []), comment] } : p)),
+    );
   };
 
   // ── Edit Post handlers ──
@@ -885,6 +1044,9 @@ const Profile = ({ sideNavbar }) => {
           <button style={tabStyle("posts")}  onClick={() => setActiveTab("posts")}>📝 Posts ({userPosts.length})</button>
         </div>
 
+        {/* ── Swipeable tab content (mobile: swipe left/right to switch tabs) ── */}
+        <div onTouchStart={handleTabTouchStart} onTouchEnd={handleTabTouchEnd}>
+
         {/* ── Videos Tab ── */}
         {activeTab === "videos" && (
           allUserVideos.length === 0
@@ -895,7 +1057,7 @@ const Profile = ({ sideNavbar }) => {
                   return (
                     <div key={video.id} style={{ position:"relative", minWidth:0 }}>
                       <Link to={`/video/${video.id}`} className="profileVideo_block">
-                        <div className="profileVideo_block_thumbnail reel-thumb" style={{ position:"relative" }}>
+                        <div className="profileVideo_block_thumbnail square-thumb" style={{ position:"relative" }}>
                           <img className="profileVideo_block_thumbnail_img" src={video.thumbnail} alt={video.title} />
                           <span style={{ position:"absolute", bottom:"6px", right:"6px", background:"rgba(0,0,0,0.75)", color:"white", fontSize:"11px", padding:"2px 5px", borderRadius:"4px" }}>{video.duration}</span>
                         </div>
@@ -936,11 +1098,10 @@ const Profile = ({ sideNavbar }) => {
                         onClick={() => navigate("/reels", { state: { clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 } } })}>
 
                         <div
-                          className="profileVideo_block_thumbnail"
+                          className="profileVideo_block_thumbnail reel-thumb"
                           style={{
                             position:    "relative",
                             width:       "100%",
-                            paddingTop:  "177.78%", // 16/9 * 100 → reserves a 9:16 portrait box
                             overflow:    "hidden",
                             background:  "#1e1b4b",
                           }}
@@ -1006,11 +1167,16 @@ const Profile = ({ sideNavbar }) => {
                   isOwner={user.isOwner}
                   onDelete={handleDeletePost}
                   onEdit={openEditPost}
+                  onReactionChange={handleReactionChange}
+                  onAddComment={handleAddComment}
                 />
               ))
             )}
           </div>
         )}
+
+        </div>
+        {/* ── end swipeable tab content ── */}
       </div>
 
       {/* ── Subscribers Modal ── */}
@@ -1080,7 +1246,7 @@ const Profile = ({ sideNavbar }) => {
 
             <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
               <img src={editContentThumbnail} alt="thumbnail preview"
-                style={{ width:"64px", height: editContentTarget.type === "reel" ? "96px" : "42px", objectFit:"cover", borderRadius:"8px", border:"2px solid var(--zx-primary)", flexShrink:0, background:"#1e1b4b" }}
+                style={{ width:"64px", height: editContentTarget.type === "reel" ? "96px" : "64px", objectFit:"cover", borderRadius:"8px", border:"2px solid var(--zx-primary)", flexShrink:0, background:"#1e1b4b" }}
                 onError={(e) => { e.target.style.opacity = 0.3; }} />
               <div style={{ flex:1 }}>
                 <p style={{ color:"var(--zx-text3)", fontSize:"13px", margin:"0 0 6px" }}>Paste Thumbnail URL</p>

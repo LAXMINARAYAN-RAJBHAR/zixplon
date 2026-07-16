@@ -176,328 +176,8 @@ const useSwipeTabs = (
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MobileTrendingStrip — the horizontal "Trending Now" rail shown at the top
-// of the mobile home page.
-// ✅ CHANGED: now auto-scrolls on its own (same rAF technique used by the
-// desktop category pill strip) while staying fully tappable. The loop
-// pauses the instant the user touches/hovers the strip — a plain tap has
-// no meaningful touch duration, so onClick on each card still fires
-// normally and opens the video/reel exactly as before. Manual swipe still
-// works too, since we only nudge scrollLeft in JS rather than intercepting
-// touch/drag events.
+// ShortCard
 // ─────────────────────────────────────────────────────────────────────────────
-const MobileTrendingStrip = ({
-  dbVideos,
-  dbReels = [],
-  onVideoClick,
-  onReelClick,
-}) => {
-  const trackWrapperRef = useRef(null);
-  const autoScrollRef = useRef(null);
-  const isPausedRef = useRef(false);
-
-  const trendingVideos = [
-    ...dbVideos.slice(0, 6).map((v) => ({ ...v, _type: "video" })),
-    ...dbReels.slice(0, 5).map((r) => ({
-      ...r,
-      _type: "reel",
-      thumbnail: r.thumbnail,
-      title: r.title,
-      channel: r.user,
-    })),
-    ...dbVideos
-      .filter((v) =>
-        v.tags?.some((t) =>
-          [
-            "Hindi Movies",
-            "Hollywood Movies",
-            "Bhojpuri Cinema",
-            "Superhero Movies",
-            "Pakistani Movies",
-          ].includes(t),
-        ),
-      )
-      .slice(0, 3)
-      .map((v) => ({ ...v, _type: "movie" })),
-    ...dbVideos
-      .filter((v) => v.tags?.includes("Live"))
-      .slice(0, 2)
-      .map((v) => ({ ...v, _type: "live" })),
-  ].slice(0, 16);
-
-  // ✅ ADDED: auto-scroll loop for the trending rail.
-  useEffect(() => {
-    const track = trackWrapperRef.current;
-    if (!track || trendingVideos.length === 0) return;
-    let pos = track.scrollLeft;
-    const speed = 0.5; // px per frame — slow, steady drift
-    const step = () => {
-      if (!isPausedRef.current) {
-        const maxScroll = track.scrollWidth - track.clientWidth;
-        if (maxScroll <= 0) {
-          pos = 0;
-        } else {
-          pos += speed;
-          if (pos >= maxScroll) pos = 0;
-        }
-        track.scrollLeft = pos;
-      } else {
-        // Stay in sync if the user manually scrolled while paused, so
-        // resuming doesn't jump back to wherever auto-scroll last left off.
-        pos = track.scrollLeft;
-      }
-      autoScrollRef.current = requestAnimationFrame(step);
-    };
-    autoScrollRef.current = requestAnimationFrame(step);
-    return () => {
-      if (autoScrollRef.current) cancelAnimationFrame(autoScrollRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trendingVideos.length]);
-
-  if (trendingVideos.length === 0) return null;
-
-  const TYPE_BADGE = {
-    video: { label: "🎬", bg: "#7c3aed" },
-    reel: { label: "📱", bg: "#f97316" },
-    movie: { label: "🎥", bg: "#f43f5e" },
-    live: { label: "🔴", bg: "#ef4444" },
-  };
-
-  return (
-    <div className="mobile-trending-strip">
-      <div className="mobile-trending-label">
-        <span>Z</span>
-        <span>Trending Now</span>
-      </div>
-      <div
-        className="mobile-trending-track-wrapper"
-        ref={trackWrapperRef}
-        onMouseEnter={() => {
-          isPausedRef.current = true;
-        }}
-        onMouseLeave={() => {
-          isPausedRef.current = false;
-        }}
-        onTouchStart={() => {
-          isPausedRef.current = true;
-        }}
-        onTouchEnd={() => {
-          // small grace period so a swipe's momentum scroll isn't fought
-          // by auto-scroll resuming mid-flick
-          setTimeout(() => {
-            isPausedRef.current = false;
-          }, 2000);
-        }}
-      >
-        <div className="mobile-trending-track">
-          {trendingVideos.map((v, i) => {
-            const badge = TYPE_BADGE[v._type] || TYPE_BADGE.video;
-            return (
-              <div
-                key={`trending_${v._type}_${v.id}_${i}`}
-                className="mobile-trending-card"
-                onClick={() => {
-                  if (v._type === "reel")
-                    onReelClick && onReelClick(v, trendingVideos);
-                  else onVideoClick && onVideoClick(v, trendingVideos);
-                }}
-              >
-                <span className="mobile-trending-rank">#{i + 1}</span>
-                <span
-                  style={{
-                    position: "absolute",
-                    top: 5,
-                    right: 5,
-                    background: badge.bg,
-                    color: "#fff",
-                    fontSize: "9px",
-                    fontWeight: "800",
-                    padding: "2px 5px",
-                    borderRadius: "4px",
-                    zIndex: 4,
-                  }}
-                >
-                  {badge.label}
-                </span>
-                <img
-                  src={v.thumbnail}
-                  alt={v.title}
-                  className="mobile-trending-card-thumb"
-                />
-                <div className="mobile-trending-card-info">
-                  <div className="mobile-trending-card-title">{v.title}</div>
-                  <div className="mobile-trending-card-channel">
-                    {v.channel || v.user}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DesktopTrendingStrip — desktop equivalent of MobileTrendingStrip.
-// Shows multiple trending items in a horizontal row. Click-and-drag to
-// scroll (same pattern as homePage_options_track), and each card is
-// still a normal click target for navigation. Replaces FeaturedHero.
-// ─────────────────────────────────────────────────────────────────────────────
-const DesktopTrendingStrip = ({
-  dbVideos,
-  dbReels = [],
-  onVideoClick,
-  onReelClick,
-}) => {
-  const trackRef = useRef(null);
-  const isPausedRef = useRef(false);
-  const autoScrollRef = useRef(null);
-
-  const trendingItems = [
-    ...dbVideos.slice(0, 8).map((v) => ({ ...v, _type: "video" })),
-    ...dbReels.slice(0, 6).map((r) => ({
-      ...r,
-      _type: "reel",
-      thumbnail: r.thumbnail,
-      title: r.title,
-      channel: r.user,
-    })),
-    ...dbVideos
-      .filter((v) =>
-        v.tags?.some((t) =>
-          [
-            "Hindi Movies",
-            "Hollywood Movies",
-            "Bhojpuri Cinema",
-            "Superhero Movies",
-            "Pakistani Movies",
-          ].includes(t),
-        ),
-      )
-      .slice(0, 4)
-      .map((v) => ({ ...v, _type: "movie" })),
-  ].slice(0, 20);
-
-  // gentle auto-drift, same idea as the mobile version
-  useEffect(() => {
-    const track = trackRef.current;
-    if (!track || trendingItems.length === 0) return;
-    let pos = track.scrollLeft;
-    const speed = 0.4;
-    const step = () => {
-      if (!isPausedRef.current) {
-        const maxScroll = track.scrollWidth - track.clientWidth;
-        if (maxScroll <= 0) {
-          pos = 0;
-        } else {
-          pos += speed;
-          if (pos >= maxScroll) pos = 0;
-        }
-        track.scrollLeft = pos;
-      } else {
-        pos = track.scrollLeft;
-      }
-      autoScrollRef.current = requestAnimationFrame(step);
-    };
-    autoScrollRef.current = requestAnimationFrame(step);
-    return () => {
-      if (autoScrollRef.current) cancelAnimationFrame(autoScrollRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trendingItems.length]);
-
-  if (trendingItems.length === 0) return null;
-
-  const TYPE_BADGE = {
-    video: { label: "🎬", bg: "#7c3aed" },
-    reel: { label: "📱", bg: "#f97316" },
-    movie: { label: "🎥", bg: "#f43f5e" },
-  };
-
-  // click-and-drag scroll, same pattern as homePage_options_track
-  const handleMouseDown = (e) => {
-    isPausedRef.current = true;
-    const track = trackRef.current;
-    const startX = e.pageX - track.offsetLeft;
-    const startScroll = track.scrollLeft;
-    let dragged = false;
-    const onMove = (ev) => {
-      const x = ev.pageX - track.offsetLeft;
-      if (Math.abs(x - startX) > 5) dragged = true;
-      track.scrollLeft = startScroll - (x - startX);
-    };
-    const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-      setTimeout(() => {
-        isPausedRef.current = false;
-      }, 1200);
-      // stash on track so click handler can suppress the click after a real drag
-      track.dataset.wasDragged = dragged ? "1" : "0";
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  };
-
-  return (
-    <div className="desktop-trending-strip">
-      <div className="desktop-trending-label">
-        <span>Z</span>
-        <span>🔥 Trending Now</span>
-      </div>
-      <div
-        className="desktop-trending-track-wrapper"
-        ref={trackRef}
-        onMouseEnter={() => (isPausedRef.current = true)}
-        onMouseLeave={() => (isPausedRef.current = false)}
-        onMouseDown={handleMouseDown}
-        style={{ cursor: "grab" }}
-      >
-        <div className="desktop-trending-track">
-          {trendingItems.map((v, i) => {
-            const badge = TYPE_BADGE[v._type] || TYPE_BADGE.video;
-            return (
-              <div
-                key={`dtrend_${v._type}_${v.id}_${i}`}
-                className="desktop-trending-card"
-                onClick={() => {
-                  if (trackRef.current?.dataset.wasDragged === "1") return; // ignore click after drag
-                  if (v._type === "reel")
-                    onReelClick && onReelClick(v, trendingItems);
-                  else onVideoClick && onVideoClick(v, trendingItems);
-                }}
-              >
-                <span className="desktop-trending-rank">#{i + 1}</span>
-                <span
-                  className="desktop-trending-badge"
-                  style={{ background: badge.bg }}
-                >
-                  {badge.label}
-                </span>
-                <img
-                  src={v.thumbnail}
-                  alt={v.title}
-                  className="desktop-trending-thumb"
-                  draggable={false}
-                />
-                <div className="desktop-trending-info">
-                  <div className="desktop-trending-title">{v.title}</div>
-                  <div className="desktop-trending-channel">
-                    {v.channel || v.user}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const ShortCard = ({
   short,
   incrementView,
@@ -945,6 +625,278 @@ const SaveMenuButton = ({
         }
       `}</style>
     </>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ✅ DRAMATIC TRENDING CAROUSEL — cinematic coverflow slideshow.
+// Replaces the previous MobileTrendingStrip + DesktopTrendingStrip
+// components with a single responsive carousel: 3D coverflow cards,
+// Ken Burns zoom on the active slide, animated title reveal, progress
+// bar, dot navigation, chevron buttons, keyboard support (arrow keys +
+// Enter/Space), and pause-on-interact with a short resume grace period.
+// ─────────────────────────────────────────────────────────────────────────────
+const DRAMATIC_AUTOPLAY_MS = 4200;
+
+const MOVIE_TAG_LIST = [
+  "Hindi Movies",
+  "Hollywood Movies",
+  "Bhojpuri Cinema",
+  "Superhero Movies",
+  "Pakistani Movies",
+];
+
+const DramaticTrendingCarousel = ({
+  dbVideos,
+  dbReels = [],
+  onVideoClick,
+  onReelClick,
+}) => {
+  const isMobile = useIsMobile();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [cycleKey, setCycleKey] = useState(0); // remounts progress bar + text reveal each slide
+  const resumeTimeoutRef = useRef(null);
+  const autoplayTimeoutRef = useRef(null);
+
+  const items = React.useMemo(() => {
+    const videoLimit = isMobile ? 6 : 8;
+    const reelLimit = isMobile ? 5 : 6;
+    const movieLimit = isMobile ? 3 : 4;
+    return [
+      ...dbVideos.slice(0, videoLimit).map((v) => ({ ...v, _type: "video" })),
+      ...dbReels.slice(0, reelLimit).map((r) => ({
+        ...r,
+        _type: "reel",
+        thumbnail: r.thumbnail,
+        title: r.title,
+        channel: r.user,
+      })),
+      ...dbVideos
+        .filter((v) => v.tags?.some((t) => MOVIE_TAG_LIST.includes(t)))
+        .slice(0, movieLimit)
+        .map((v) => ({ ...v, _type: "movie" })),
+    ].slice(0, isMobile ? 12 : 16);
+  }, [dbVideos, dbReels, isMobile]);
+
+  const total = items.length;
+
+  const goTo = (idx) => {
+    if (total === 0) return;
+    const next = ((idx % total) + total) % total;
+    setActiveIndex(next);
+    setCycleKey((k) => k + 1);
+  };
+  const goNext = () => goTo(activeIndex + 1);
+  const goPrev = () => goTo(activeIndex - 1);
+
+  const pause = () => {
+    if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
+    setIsPaused(true);
+  };
+  const resume = (delay = 0) => {
+    const doResume = () => setIsPaused(false);
+    if (delay > 0) resumeTimeoutRef.current = setTimeout(doResume, delay);
+    else doResume();
+  };
+
+  // Autoplay loop — advances one slide every DRAMATIC_AUTOPLAY_MS unless paused
+  useEffect(() => {
+    if (total === 0 || isPaused) return;
+    autoplayTimeoutRef.current = setTimeout(() => {
+      goNext();
+    }, DRAMATIC_AUTOPLAY_MS);
+    return () => clearTimeout(autoplayTimeoutRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex, isPaused, total]);
+
+  useEffect(() => {
+    return () => {
+      if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
+    };
+  }, []);
+
+  if (total === 0) return null;
+
+  const TYPE_BADGE = {
+    video: { label: "🎬", bg: "#7c3aed" },
+    reel: { label: "📱", bg: "#f97316" },
+    movie: { label: "🎥", bg: "#f43f5e" },
+    live: { label: "🔴", bg: "#ef4444" },
+  };
+
+  const handleSelect = (item) => {
+    if (item._type === "reel") onReelClick && onReelClick(item, items);
+    else onVideoClick && onVideoClick(item, items);
+  };
+
+  const cardOffset = isMobile ? 130 : 230;
+
+  return (
+    <div
+      className="zx-dramatic-trending"
+      onMouseEnter={pause}
+      onMouseLeave={() => resume(0)}
+      onTouchStart={pause}
+      onTouchEnd={() => resume(900)}
+    >
+      <div className="zx-dramatic-trending-label">
+        <span className="zx-dramatic-z-badge">Z</span>
+        <span>Trending Now</span>
+        {isPaused && (
+          <span className="zx-trending-pause-indicator" aria-hidden="true">
+            ⏸ Paused
+          </span>
+        )}
+      </div>
+
+      <div
+        className="zx-dramatic-stage"
+        role="region"
+        aria-label="Trending now — use left and right arrow keys to browse, Enter to open"
+        tabIndex={0}
+        onFocus={pause}
+        onBlur={() => resume(0)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") {
+            e.preventDefault();
+            pause();
+            goNext();
+            resume(2500);
+          } else if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            pause();
+            goPrev();
+            resume(2500);
+          } else if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleSelect(items[activeIndex]);
+          }
+        }}
+      >
+        {items.map((item, i) => {
+          let offset = i - activeIndex;
+          if (offset > total / 2) offset -= total;
+          if (offset < -total / 2) offset += total;
+          const abs = Math.abs(offset);
+          if (abs > 3) return null; // don't render far-off cards, keeps it light
+
+          const isActive = offset === 0;
+          const translateX = offset * cardOffset;
+          const scale = isActive ? 1 : Math.max(0.62, 1 - abs * 0.16);
+          const rotateY = offset * -16;
+          const zIndex = 10 - abs;
+          const opacity = 1 - abs * 0.24;
+          const blurPx = isActive ? 0 : Math.min(abs * 1.4, 4);
+          const badge = TYPE_BADGE[item._type] || TYPE_BADGE.video;
+
+          return (
+            <div
+              key={`dramatic_${item._type}_${item.id}_${i}`}
+              className={"zx-dramatic-card" + (isActive ? " active" : "")}
+              style={{
+                transform: `translate(-50%, -50%) translateX(${translateX}px) scale(${scale}) rotateY(${rotateY}deg)`,
+                zIndex,
+                opacity,
+                filter: blurPx ? `blur(${blurPx}px)` : "none",
+              }}
+              onClick={() => {
+                if (isActive) handleSelect(item);
+                else {
+                  pause();
+                  goTo(i);
+                  resume(2500);
+                }
+              }}
+              tabIndex={isActive ? 0 : -1}
+              role="button"
+              aria-label={`${item.title}, ${item.channel || item.user}`}
+              aria-current={isActive || undefined}
+            >
+              <span
+                className="zx-dramatic-card-badge"
+                style={{ background: badge.bg }}
+              >
+                {badge.label}
+              </span>
+              <span className="zx-dramatic-card-rank">#{i + 1}</span>
+              <div className="zx-dramatic-card-imgwrap">
+                <img
+                  key={isActive ? `active-img-${cycleKey}` : "img"}
+                  src={item.thumbnail}
+                  alt={item.title}
+                  className={
+                    "zx-dramatic-card-img" + (isActive ? " kenburns" : "")
+                  }
+                />
+                <div className="zx-dramatic-card-gradient" />
+              </div>
+              {isActive && (
+                <div
+                  className="zx-dramatic-card-info"
+                  key={`info-${cycleKey}`}
+                >
+                  <div className="zx-dramatic-card-title">{item.title}</div>
+                  <div className="zx-dramatic-card-channel">
+                    {item.channel || item.user}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        <button
+          className="zx-dramatic-nav prev"
+          onClick={() => {
+            pause();
+            goPrev();
+            resume(2500);
+          }}
+          aria-label="Previous slide"
+        >
+          ‹
+        </button>
+        <button
+          className="zx-dramatic-nav next"
+          onClick={() => {
+            pause();
+            goNext();
+            resume(2500);
+          }}
+          aria-label="Next slide"
+        >
+          ›
+        </button>
+      </div>
+
+      <div className="zx-dramatic-controls">
+        <div className="zx-dramatic-dots">
+          {items.map((_, i) => (
+            <button
+              key={i}
+              className={
+                "zx-dramatic-dot" + (i === activeIndex ? " active" : "")
+              }
+              onClick={() => {
+                pause();
+                goTo(i);
+                resume(2500);
+              }}
+              aria-label={`Go to slide ${i + 1}`}
+            />
+          ))}
+        </div>
+        {!isPaused && (
+          <div className="zx-dramatic-progress-track" key={cycleKey}>
+            <div
+              className="zx-dramatic-progress-bar"
+              style={{ animationDuration: DRAMATIC_AUTOPLAY_MS + "ms" }}
+            />
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -3307,10 +3259,11 @@ const HomePage = ({ sideNavbar }) => {
         {searchActive && <SearchResultsPanel />}
 
         {!searchActive && (
-          <MobileTrendingStrip
+          <DramaticTrendingCarousel
             dbVideos={allVideos}
             dbReels={allReels}
             onVideoClick={(v, trendingList) => {
+              incrementView(String(v.id), "video");
               const trendingVideoIds = trendingList
                 .filter((t) => t._type !== "reel")
                 .map((t) => String(t.id));
@@ -3346,39 +3299,6 @@ const HomePage = ({ sideNavbar }) => {
           <div ref={liveBrowserRef} style={{ marginBottom: "28px" }}>
             <LiveBrowser currentUser={loggedInUsername} />
           </div>
-        )}
-
-        {/* ✅ CHANGED: desktop trending row — replaces the old single-item
-            FeaturedHero. Shows multiple trending videos/reels/movies in a
-            draggable horizontal strip, matching MobileTrendingStrip's job
-            but for desktop. Only on the default "All" category, desktop
-            only (mobile already has MobileTrendingStrip for this job). */}
-        {!searchActive && selectedOption === "All" && !isMobile && (
-          <DesktopTrendingStrip
-            dbVideos={allVideos}
-            dbReels={allReels}
-            onVideoClick={(v, trendingList) => {
-              incrementView(String(v.id), "video");
-              const trendingVideoIds = trendingList
-                .filter((t) => t._type !== "reel")
-                .map((t) => String(t.id));
-              navigate(`/video/${v.id}`, {
-                state: { trendingIds: trendingVideoIds, fromTrending: true },
-              });
-            }}
-            onReelClick={(r, trendingList) => {
-              const trendingReelIds = trendingList
-                .filter((t) => t._type === "reel")
-                .map((t) => String(t.id));
-              navigate("/reels/" + r.id, {
-                state: {
-                  clickedReel: r,
-                  trendingIds: trendingReelIds,
-                  fromTrending: true,
-                },
-              });
-            }}
-          />
         )}
 
         {!searchActive && (

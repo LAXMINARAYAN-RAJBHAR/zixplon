@@ -1181,7 +1181,7 @@
   border-radius: 3px;
   overflow: hidden;
 }
-/* .zx-dramatic-progress-bar {
+.zx-dramatic-progress-bar {
   height: 100%;
   width: 0%;
   background: linear-gradient(90deg, var(--zx-primary), var(--zx-accent1));
@@ -1192,7 +1192,7 @@
 @keyframes zx-progress-fill {
   from { width: 0%; }
   to   { width: 100%; }
-} */
+}
 
 /* Keyboard focus rings for the stage's individual cards (in case
    focus-visible isn't picked up by the browser on the stage wrapper) */

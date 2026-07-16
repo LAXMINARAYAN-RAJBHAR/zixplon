@@ -754,6 +754,46 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       .eq("id", message.id);
   };
 
+  // ── Delete message (delete for everyone) ──
+  const deleteMessage = async (message) => {
+    const confirmed = window.confirm("Delete this message for everyone?");
+    if (!confirmed) return;
+
+    const deletedAt = new Date().toISOString();
+    setOpenReactionFor(null);
+    if (editingId === message.id) cancelEdit();
+
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === message.id
+          ? {
+              ...m,
+              deleted_at: deletedAt,
+              text: null,
+              attachment_url: null,
+              attachment_type: null,
+              attachment_name: null,
+              attachment_size: null,
+              reactions: {},
+            }
+          : m,
+      ),
+    );
+
+    await supabase
+      .from("direct_messages")
+      .update({
+        deleted_at: deletedAt,
+        text: null,
+        attachment_url: null,
+        attachment_type: null,
+        attachment_name: null,
+        attachment_size: null,
+        reactions: {},
+      })
+      .eq("id", message.id);
+  };
+
   const panelStyle = position
     ? {
         position: "fixed",
@@ -1046,7 +1086,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                             className={`mp-bubble-row ${mine ? "mine" : ""}`}
                           >
                             <div className="mp-bubble-stack">
-                              {editingId !== m.id && (
+                              {editingId !== m.id && !m.deleted_at && (
                                 <div className="mp-bubble-actions">
                                   <button
                                     type="button"
@@ -1070,10 +1110,20 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                       ✎
                                     </button>
                                   )}
+                                  {mine && (
+                                    <button
+                                      type="button"
+                                      className="mp-bubble-action-btn mp-delete-action-btn"
+                                      onClick={() => deleteMessage(m)}
+                                      aria-label="Delete message"
+                                    >
+                                      🗑
+                                    </button>
+                                  )}
                                 </div>
                               )}
 
-                              {openReactionFor === m.id && (
+                              {openReactionFor === m.id && !m.deleted_at && (
                                 <div
                                   className={`mp-reaction-picker ${mine ? "mine" : ""}`}
                                 >
@@ -1097,9 +1147,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                   isEmojiOnlyMessage(m.text)
                                     ? "mp-bubble-emoji-only"
                                     : ""
-                                }`}
+                                } ${m.deleted_at ? "mp-bubble-deleted" : ""}`}
                               >
-                                {editingId === m.id ? (
+                                {m.deleted_at ? (
+                                  <span className="mp-deleted-text">
+                                    🚫 This message was deleted
+                                  </span>
+                                ) : editingId === m.id ? (
                                   <div className="mp-edit-box">
                                     <input
                                       className="mp-edit-input"
@@ -1223,7 +1277,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                 )}
                               </div>
 
-                              {reactionEntries.length > 0 && (
+                              {reactionEntries.length > 0 && !m.deleted_at && (
                                 <div
                                   className={`mp-reactions-row ${mine ? "mine" : ""}`}
                                 >

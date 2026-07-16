@@ -835,6 +835,26 @@
   margin-right: 2px;
 }
 
+.mp-delete-action-btn:hover {
+  background: #fee2e2;
+  color: var(--zx-primary);
+}
+
+.mp-bubble.mp-bubble-deleted {
+  background: var(--zx-surface2) !important;
+  border-color: var(--zx-border) !important;
+  color: var(--zx-text3) !important;
+}
+.mp-bubble-row.mine .mp-bubble.mp-bubble-deleted {
+  background: var(--zx-surface2) !important;
+}
+
+.mp-deleted-text {
+  font-style: italic;
+  font-size: 12.5px;
+  opacity: 0.8;
+}
+
 @media (max-width: 768px) {
   .mp-bubble-actions { opacity: 0.75; }
 }

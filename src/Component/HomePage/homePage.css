@@ -564,7 +564,7 @@
      bumped slightly to stay proportional on the bigger card. */
   .mobile-trending-card {
     flex: 0 0 auto;
-    width: 190px;
+    width: 250px;
     cursor: pointer; position: relative;
     border: 2px solid var(--zx-border);
     border-radius: var(--zx-radius-sm); overflow: hidden;
@@ -578,7 +578,7 @@
   }
   .mobile-trending-card-thumb {
     width: 100%;
-    height: 150px;
+    height: 190px;
     object-fit: cover; display: block;
   }
   .mobile-trending-card-info { padding: 7px 8px 8px; background: var(--zx-surface); }
@@ -745,8 +745,8 @@
   }
 
   /* ✅ CHANGED: enlarged trending card for this breakpoint, was 145px/105px */
-  .mobile-trending-card { width: 170px; }
-  .mobile-trending-card-thumb { height: 130px; }
+  .mobile-trending-card { width: 250px; }
+  .mobile-trending-card-thumb { height: 190px; }
   .homePage_shortsTitle { font-size: 13px !important; }
   .search-results-panel .homePage_shortThumbnail { height: 160px !important; }
 }
@@ -774,8 +774,8 @@
   }
 
   /* ✅ CHANGED: enlarged trending card for this breakpoint, was 130px/90px */
-  .mobile-trending-card { width: 150px; }
-  .mobile-trending-card-thumb { height: 110px; }
+  .mobile-trending-card { width: 250px; }
+  .mobile-trending-card-thumb { height: 190px; }
   .mobile-tab-label { font-size: 7px !important; }
   .mobile-tab-icon  { font-size: 17px !important; }
   .search-results-panel .homePage_shortThumbnail { height: 145px !important; }

@@ -12,7 +12,7 @@ import CheckIcon from "@mui/icons-material/Check";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import { createPortal } from "react-dom";
-// ✅ ADDED: LiveBrowser shows currently-live LiveKit streams (reads the
+// LiveBrowser shows currently-live LiveKit streams (reads the
 // "live_streams" Supabase table). Adjust the path below if your
 // LiveBrowser component lives in a different folder.
 import LiveBrowser from "../Live/LiveViewer";
@@ -324,43 +324,555 @@ const ShortCard = ({
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ShortsRow — hoisted to module scope (was previously redefined on every
+// HomePage render as `const ShortsRow = (...) => (...)` inside the
+// component body, which meant React treated it as a brand-new component
+// type on every re-render and remounted the whole shorts row — including
+// every <ShortCard>'s IntersectionObserver — any time HomePage re-rendered
+// for an unrelated reason (e.g. viewCounts ticking up). All the data it
+// needs now comes in as props instead of being closed over.
+// ─────────────────────────────────────────────────────────────────────────────
+const ShortsRow = ({
+  data,
+  title,
+  incrementView,
+  viewCounts,
+  handleDeleteReel,
+  navigate,
+  watchedContentIds,
+}) => (
+  <div className="homePage_shortsSection">
+    <div className="homePage_shortsHeader">
+      <span className="homePage_shortsTitle">
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "24px",
+            height: "24px",
+            background: "linear-gradient(135deg,#e53935,#f97316)",
+            color: "white",
+            fontWeight: "900",
+            fontSize: "15px",
+            fontFamily: "Arial Black, sans-serif",
+            borderRadius: "6px",
+            marginRight: "0px",
+            flexShrink: 0,
+            verticalAlign: "middle",
+          }}
+        >
+          Z
+        </span>
+        {title}
+      </span>
+    </div>
+    <div className="homePage_shortsRow">
+      {data.map((short) => (
+        <ShortCard
+          key={short.id}
+          short={short}
+          incrementView={incrementView}
+          viewCounts={viewCounts}
+          handleDeleteReel={handleDeleteReel}
+          navigate={navigate}
+          watchedContentIds={watchedContentIds}
+        />
+      ))}
+    </div>
+  </div>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VideoCard — hoisted to module scope for the same reason as ShortsRow
+// above: it was previously defined inside HomePage's function body, so
+// every uploaded-video grid remounted (losing hover/scroll state, and
+// re-triggering image loads) whenever HomePage re-rendered for any
+// reason. All previously-closed-over values now arrive as props.
+// ─────────────────────────────────────────────────────────────────────────────
+const VideoCard = ({
+  video,
+  isUploaded = false,
+  viewCounts,
+  watchLaterIds,
+  loggedInUsername,
+  handleToggleWatchLater,
+  handleDeleteVideo,
+  handleLikeVideo,
+  watchedContentIds,
+  incrementView,
+}) => {
+  const showNew =
+    isUploaded && !isWatched("video", video.id, watchedContentIds);
+  const isSaved = watchLaterIds.has(String(video.id));
+
+  return (
+    <div className="youtube_thumbnailBox" style={{ position: "relative" }}>
+      {/* Three-dots menu with full dropdown — only for uploaded videos */}
+      {isUploaded && (
+        <SaveMenuButton
+          videoId={video.id}
+          isSaved={isSaved}
+          onToggleWatchLater={handleToggleWatchLater}
+          video={video}
+          loggedInUsername={loggedInUsername}
+          onDelete={handleDeleteVideo}
+        />
+      )}
+
+      <Link
+        to={"/video/" + video.id}
+        className="youtube_thumbnailWrapper"
+        onClick={() => {
+          if (isUploaded) incrementView(video.id, "video");
+        }}
+      >
+        <img
+          src={video.thumbnail}
+          alt={video.title}
+          className="youtube_thumbnailPic"
+        />
+        <div className="youtube_timingThumbnail">{video.duration}</div>
+        {showNew && (
+          <div
+            style={{
+              position: "absolute",
+              top: "8px",
+              left: "8px",
+              background: "linear-gradient(135deg,#f43f5e,#f97316)",
+              color: "white",
+              fontSize: "10px",
+              fontWeight: "800",
+              padding: "2px 7px",
+              borderRadius: "5px",
+              zIndex: 2,
+            }}
+          >
+            New
+          </div>
+        )}
+        <div className="youtube_playOverlay">
+          <div className="youtube_playButton">▶</div>
+        </div>
+      </Link>
+      <div className="youtubeTitleBox">
+        <div className="youtubeBoxProfile">
+          <img
+            src={
+              "https://api.dicebear.com/7.x/initials/svg?seed=" +
+              video.channel
+            }
+            alt={video.channel}
+            className="youtube_thumbnail_Profile"
+          />
+          <Link
+            to={"/user/" + (video.username || video.channel.toLowerCase())}
+            style={{ textDecoration: "none", color: "inherit" }}
+          >
+            <p className="youtube_ChannelName">{video.channel}</p>
+          </Link>
+        </div>
+        <div className="youtubeVideoInfo">
+          <p className="youtube_videoTitle">{video.title}</p>
+          <p
+            className="youtubeVideo_Views"
+            style={{ display: "flex", gap: "10px", alignItems: "center" }}
+          >
+            {isUploaded && (
+              <>
+                <span>
+                  👁 {formatViews(viewCounts["video_" + video.id] ?? 0)}
+                </span>
+                <span style={{ color: "#d1d5db", fontSize: "11px" }}>•</span>
+                <button
+                  onClick={(e) => handleLikeVideo(e, video.id)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#8b84c4",
+                    cursor: "pointer",
+                    fontSize: "inherit",
+                    padding: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "3px",
+                    fontWeight: "600",
+                  }}
+                >
+                  👍 {video.likes ?? 0} Likes
+                </button>
+              </>
+            )}
+            {/* Note: previously showed a hardcoded "👍 3 Likes" for
+               non-uploaded (YouTube) cards regardless of the actual
+               video — removed since it was fabricated data, not a
+               real like count we have access to. */}
+          </p>
+          {isUploaded && video.created_at && (
+            <p
+              className="youtubeVideo_UploadDate"
+              style={{
+                color: "#a8a3d6",
+                fontSize: "12px",
+                margin: "3px 0 0",
+                fontWeight: "500",
+              }}
+            >
+              {formatTimeAgo(video.created_at)}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// YouTubeVideoCard — hoisted to module scope; takes onSelect instead of
+// closing over openWatchPage.
+// ─────────────────────────────────────────────────────────────────────────────
+const YouTubeVideoCard = ({ item, onSelect }) => (
+  <div
+    className="youtube_thumbnailBox"
+    style={{ cursor: "pointer" }}
+    onClick={() =>
+      onSelect(
+        item.id.videoId,
+        item.snippet.title,
+        item.snippet.channelTitle,
+      )
+    }
+  >
+    <div
+      className="youtube_thumbnailWrapper"
+      style={{ position: "relative", display: "block" }}
+    >
+      <img
+        src={item.snippet.thumbnails.medium.url}
+        alt={item.snippet.title}
+        className="youtube_thumbnailPic"
+      />
+      <div
+        style={{
+          position: "absolute",
+          top: "8px",
+          left: "8px",
+          background: "#ef4444",
+          color: "white",
+          fontSize: "10px",
+          fontWeight: "800",
+          padding: "2px 7px",
+          borderRadius: "5px",
+        }}
+      >
+        ▶ YouTube
+      </div>
+    </div>
+    <div className="youtubeTitleBox">
+      <div className="youtubeBoxProfile">
+        <img
+          src={
+            "https://ui-avatars.com/api/?name=" +
+            encodeURIComponent(item.snippet.channelTitle) +
+            "&background=random&size=36"
+          }
+          alt={item.snippet.channelTitle}
+          className="youtube_thumbnail_Profile"
+        />
+        <p className="youtube_ChannelName">{item.snippet.channelTitle}</p>
+      </div>
+      <div className="youtubeVideoInfo">
+        <p className="youtube_videoTitle">{item.snippet.title}</p>
+        <p className="youtubeVideo_Views">
+          {new Date(item.snippet.publishedAt).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })}
+        </p>
+      </div>
+    </div>
+  </div>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SkeletonCard / SectionLabel — hoisted; neither closed over any HomePage
+// state to begin with, so this is a pure "stop recreating the function
+// every render" cleanup.
+// ─────────────────────────────────────────────────────────────────────────────
+const SkeletonCard = () => (
+  <div
+    className="youtube_thumbnailBox"
+    style={{ border: "2px solid #e0d4ff" }}
+  >
+    <div
+      style={{
+        width: "100%",
+        paddingTop: "56.25%",
+        background:
+          "linear-gradient(90deg,#e8e0ff 25%,#f3eeff 50%,#e8e0ff 75%)",
+        backgroundSize: "400px 100%",
+        borderRadius: "0",
+        animation: "shimmer 1.4s infinite",
+      }}
+    />
+    <div
+      style={{
+        padding: "10px 12px",
+        display: "flex",
+        gap: "10px",
+        background: "#fff",
+      }}
+    >
+      <div
+        style={{
+          width: "34px",
+          height: "34px",
+          borderRadius: "50%",
+          background:
+            "linear-gradient(90deg,#e8e0ff 25%,#f3eeff 50%,#e8e0ff 75%)",
+          backgroundSize: "400px 100%",
+          flexShrink: 0,
+          animation: "shimmer 1.4s infinite",
+        }}
+      />
+      <div style={{ flex: 1 }}>
+        <div
+          style={{
+            height: "13px",
+            background:
+              "linear-gradient(90deg,#e8e0ff 25%,#f3eeff 50%,#e8e0ff 75%)",
+            backgroundSize: "400px 100%",
+            borderRadius: "6px",
+            marginBottom: "8px",
+            animation: "shimmer 1.4s infinite",
+          }}
+        />
+        <div
+          style={{
+            height: "12px",
+            background:
+              "linear-gradient(90deg,#e8e0ff 25%,#f3eeff 50%,#e8e0ff 75%)",
+            backgroundSize: "400px 100%",
+            borderRadius: "6px",
+            width: "60%",
+            animation: "shimmer 1.4s infinite",
+          }}
+        />
+      </div>
+    </div>
+  </div>
+);
+
+const SectionLabel = ({ color, bg, text, count }) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      marginBottom: "14px",
+    }}
+  >
+    <span
+      style={{
+        background: bg,
+        color: color,
+        fontSize: "11px",
+        fontWeight: "800",
+        padding: "4px 12px",
+        borderRadius: "20px",
+        fontFamily: "Nunito, sans-serif",
+        letterSpacing: "0.3px",
+      }}
+    >
+      {text}
+    </span>
+    {count !== undefined && (
+      <span style={{ color: "#8b84c4", fontSize: "12px", fontWeight: "600" }}>
+        {count} video{count !== 1 ? "s" : ""}
+      </span>
+    )}
+  </div>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SearchResultsPanel — hoisted to module scope. Previously redefined
+// inside HomePage on every render (and closed over searchQuery,
+// searchedReels, etc. directly); now takes them as props. This also
+// means it now shares the hoisted VideoCard/YouTubeVideoCard/ShortCard
+// components rather than duplicating markup.
+// ─────────────────────────────────────────────────────────────────────────────
+const SearchResultsPanel = ({
+  searchQuery,
+  searchedReels,
+  searchedLocalVideos,
+  ytLoading,
+  ytVideos,
+  shortCardProps,
+  videoCardProps,
+  openWatchPage,
+}) => (
+  <div className="search-results-panel">
+    <div style={{ marginBottom: "20px" }}>
+      <h2
+        style={{
+          color: "#1e1b4b",
+          fontSize: "18px",
+          fontWeight: "800",
+          margin: "0 0 6px",
+          fontFamily: "Nunito, sans-serif",
+        }}
+      >
+        🔍 Results for "{searchQuery}"
+      </h2>
+      <span style={{ color: "#8b84c4", fontSize: "13px", fontWeight: "600" }}>
+        {searchedLocalVideos.length} local videos · {searchedReels.length}{" "}
+        reels · {ytVideos.length} YouTube
+      </span>
+    </div>
+    {searchedReels.length > 0 && (
+      <div style={{ marginBottom: "40px" }}>
+        <SectionLabel
+          color="#f97316"
+          bg="#fff7ed"
+          text="🎬 REELS"
+          count={searchedReels.length}
+        />
+        <div className="homePage_shortsRow">
+          {searchedReels.map((short) => (
+            <ShortCard key={short.id} short={short} {...shortCardProps} />
+          ))}
+        </div>
+      </div>
+    )}
+    {searchedLocalVideos.length > 0 && (
+      <div style={{ marginBottom: "40px" }}>
+        <SectionLabel
+          color="#4c4589"
+          bg="#f0f4ff"
+          text="🎬 UPLOADED VIDEOS"
+          count={searchedLocalVideos.length}
+        />
+        <div className="youtube_VideoGrid">
+          {searchedLocalVideos.map((v) => (
+            <VideoCard
+              key={v.id}
+              video={v}
+              isUploaded={v.isUploaded || false}
+              {...videoCardProps}
+            />
+          ))}
+        </div>
+      </div>
+    )}
+    {ytLoading && (
+      <div style={{ marginBottom: "40px" }}>
+        <SectionLabel
+          color="#ef4444"
+          bg="#fff1f2"
+          text="▶ YOUTUBE — searching..."
+        />
+        <div className="youtube_VideoGrid">
+          {[...Array(8)].map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      </div>
+    )}
+    {!ytLoading && ytVideos.length > 0 && (
+      <div style={{ marginBottom: "40px" }}>
+        <SectionLabel
+          color="#ef4444"
+          bg="#fff1f2"
+          text="▶ YOUTUBE"
+          count={ytVideos.length}
+        />
+        <div className="youtube_VideoGrid">
+          {ytVideos.map((item) => (
+            <YouTubeVideoCard
+              key={item.id.videoId}
+              item={item}
+              onSelect={openWatchPage}
+            />
+          ))}
+        </div>
+      </div>
+    )}
+    {!ytLoading &&
+      searchedLocalVideos.length === 0 &&
+      searchedReels.length === 0 &&
+      ytVideos.length === 0 && (
+        <div style={{ textAlign: "center", marginTop: "80px" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔍</div>
+          <p
+            style={{ color: "#8b84c4", fontSize: "16px", fontWeight: "600" }}
+          >
+            No results for "
+            <span style={{ color: "#7c3aed" }}>{searchQuery}</span>"
+          </p>
+          <p style={{ color: "#c4bfdf", fontSize: "13px", marginTop: "8px" }}>
+            Try different keywords
+          </p>
+        </div>
+      )}
+  </div>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DropdownPortal — renders dropdown via portal so it's never clipped by
 // overflow:hidden on parent cards. Positions itself relative to the trigger.
-// ✅ FIX: now accepts `menuRef` and attaches it to the portaled DOM node, so
-// the outside-click handler in SaveMenuButton can correctly detect clicks
+// Accepts `menuRef` and attaches it to the portaled DOM node, so the
+// outside-click handler in SaveMenuButton can correctly detect clicks
 // that land *inside* the portaled menu (which lives in document.body, not
 // inside wrapperRef in the real DOM tree).
+// FIX: previously only recalculated position once (on mount / when
+// wrapperRef changed), so scrolling the page or resizing the window while
+// the menu was open left it glued to stale coordinates. Now recalculates
+// on scroll (capture phase, so it catches scrolling on any ancestor, not
+// just window) and on resize while open.
 // ─────────────────────────────────────────────────────────────────────────────
 const DropdownPortal = ({ wrapperRef, menuRef, children }) => {
   const [style, setStyle] = React.useState({});
 
   React.useLayoutEffect(() => {
     if (!wrapperRef.current) return;
-    const rect = wrapperRef.current.getBoundingClientRect();
-    const menuWidth = 230;
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
 
-    // Prefer opening to the LEFT of the button (so text is never clipped)
-    let left = rect.right - menuWidth;
-    if (left < 8) left = 8; // clamp left edge
-    if (left + menuWidth > viewportWidth - 8)
-      // clamp right edge
-      left = viewportWidth - menuWidth - 8;
+    const recalc = () => {
+      if (!wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const menuWidth = 230;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
 
-    // Open below; if not enough space flip above
-    let top = rect.bottom + 6;
-    const estimatedHeight = 220;
-    if (top + estimatedHeight > viewportHeight - 8)
-      top = rect.top - estimatedHeight - 6;
+      // Prefer opening to the LEFT of the button (so text is never clipped)
+      let left = rect.right - menuWidth;
+      if (left < 8) left = 8; // clamp left edge
+      if (left + menuWidth > viewportWidth - 8)
+        // clamp right edge
+        left = viewportWidth - menuWidth - 8;
 
-    setStyle({
-      position: "fixed",
-      top: top + "px",
-      left: left + "px",
-      width: menuWidth + "px",
-      zIndex: 99999,
-    });
+      // Open below; if not enough space flip above
+      let top = rect.bottom + 6;
+      const estimatedHeight = 220;
+      if (top + estimatedHeight > viewportHeight - 8)
+        top = rect.top - estimatedHeight - 6;
+
+      setStyle({
+        position: "fixed",
+        top: top + "px",
+        left: left + "px",
+        width: menuWidth + "px",
+        zIndex: 99999,
+      });
+    };
+
+    recalc();
+    window.addEventListener("scroll", recalc, true);
+    window.addEventListener("resize", recalc);
+    return () => {
+      window.removeEventListener("scroll", recalc, true);
+      window.removeEventListener("resize", recalc);
+    };
   }, [wrapperRef]);
 
   return createPortal(
@@ -384,15 +896,12 @@ const SaveMenuButton = ({
 }) => {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
-  const menuRef = useRef(null); // ✅ FIX: ref to the portaled menu's DOM node
+  const menuRef = useRef(null); // ref to the portaled menu's DOM node
   const navigate = useNavigate();
 
-  // ✅ FIX: Close on outside click / touch — now checks BOTH the trigger
-  // wrapper AND the portaled menu content, since the portal renders into
-  // document.body and is therefore not a DOM descendant of wrapperRef.
-  // Previously this only checked wrapperRef, so every mousedown on a menu
-  // item was (incorrectly) treated as "outside" and closed the menu before
-  // the click handler could fire.
+  // Close on outside click / touch — checks BOTH the trigger wrapper AND
+  // the portaled menu content, since the portal renders into document.body
+  // and is therefore not a DOM descendant of wrapperRef.
   useEffect(() => {
     if (!open) return;
     const close = (e) => {
@@ -475,7 +984,7 @@ const SaveMenuButton = ({
       onClick: (e) => {
         e.preventDefault();
         e.stopPropagation();
-        // ← Use og URL so WhatsApp shows thumbnail preview
+        // Use og URL so WhatsApp shows thumbnail preview
         const url = `https://zixplon-tawny.vercel.app/api/og?type=video&id=${videoId}`;
 
         if (navigator.share) {
@@ -561,7 +1070,7 @@ const SaveMenuButton = ({
                 <button
                   key={item.id}
                   onMouseDown={(e) => {
-                    // ✅ FIX: stop the document-level mousedown listener from
+                    // Stop the document-level mousedown listener from
                     // ever treating this click as "outside" in the first
                     // place — belt-and-braces alongside the menuRef check.
                     e.stopPropagation();
@@ -629,12 +1138,11 @@ const SaveMenuButton = ({
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ✅ DRAMATIC TRENDING CAROUSEL — cinematic coverflow slideshow.
-// Replaces the previous MobileTrendingStrip + DesktopTrendingStrip
-// components with a single responsive carousel: 3D coverflow cards,
-// Ken Burns zoom on the active slide, animated title reveal, progress
-// bar, dot navigation, chevron buttons, keyboard support (arrow keys +
-// Enter/Space), and pause-on-interact with a short resume grace period.
+// DRAMATIC TRENDING CAROUSEL — cinematic coverflow slideshow.
+// 3D coverflow cards, Ken Burns zoom on the active slide, animated title
+// reveal, progress bar, dot navigation, chevron buttons, keyboard support
+// (arrow keys + Enter/Space), and pause-on-interact with a short resume
+// grace period.
 // ─────────────────────────────────────────────────────────────────────────────
 const DRAMATIC_AUTOPLAY_MS = 4200;
 
@@ -901,24 +1409,12 @@ const DramaticTrendingCarousel = ({
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ✅ FIX (video restart bug): the six components below (WP_THEME + VideoPlayer,
-// AutoplayToggle, WatchNavBar, MetaSection, CommentSection, RelatedSidebar)
-// used to be defined INSIDE the WatchPage function body as
-// `const Player = () => (...)`, `const NavBar = () => (...)`, etc., and were
-// rendered as JSX components (`<Player />`, `<NavBar />`...).
-//
-// That's a classic React footgun: because those were re-created as brand-new
-// function references on every single WatchPage re-render (typing a comment,
-// liking, toggling autoplay, the parent's 30s watched-ids poll, etc.), React
-// saw a *different component type* each time and unmounted + remounted the
-// underlying DOM — including the YouTube <iframe> — every time. That's what
-// caused the video to visibly "restart".
-//
-// Moving them out to stable, top-level components (with all needed data
-// passed in as props) fixes this: React now keeps the same component
-// identity across WatchPage re-renders, and the <iframe> is only
-// unmounted/remounted when `videoId` itself actually changes (via its
-// `key={videoId}`), which is the only time we actually want that to happen.
+// WP_THEME + VideoPlayer, AutoplayToggle, WatchNavBar, MetaSection,
+// CommentSection, RelatedSidebar — stable, top-level components (data
+// passed in as props) so React keeps the same component identity across
+// WatchPage re-renders. The <iframe> is only unmounted/remounted when
+// `videoId` itself actually changes (via its `key={videoId}`), which is
+// the only time we actually want that to happen.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const WP_THEME = {
@@ -1774,9 +2270,7 @@ const WatchPage = ({
     return (
       <>
         <style>
-          {
-            ".hp-watch-root{position:fixed;top:55px;left:0;right:0;bottom:0;z-index:999;background:#f0f4ff;display:flex;flex-direction:column;font-family:'Outfit',sans-serif;overflow-y:auto;-webkit-overflow-scrolling:touch;}.hp-watch-root *{-webkit-transform:none !important;}@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}"
-          }
+          {".hp-watch-root{-webkit-overflow-scrolling:touch;}.hp-watch-root *{-webkit-transform:none !important;}"}
         </style>
         <div className="hp-watch-root">
           <div
@@ -1887,9 +2381,7 @@ const WatchPage = ({
   return (
     <>
       <style>
-        {
-          "@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-thumb{background:#e0d4ff;border-radius:4px;}"
-        }
+        {"::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-thumb{background:#e0d4ff;border-radius:4px;}"}
       </style>
       <div
         style={{
@@ -2052,8 +2544,8 @@ const HomePage = ({ sideNavbar }) => {
   const [selectedOption, setSelectedOption] = useState("All");
   const [mobileTab, setMobileTab] = useState("shorts");
 
-  // ✅ ADDED: ref for the desktop LiveBrowser section, so the dedicated
-  // "Live" pill in the category strip can smooth-scroll straight to it.
+  // Ref for the desktop LiveBrowser section, so the dedicated "Live" pill
+  // in the category strip can smooth-scroll straight to it.
   const liveBrowserRef = useRef(null);
 
   const TAB_IDS = MOBILE_TABS.map((t) => t.id);
@@ -2181,10 +2673,10 @@ const HomePage = ({ sideNavbar }) => {
     } catch (_) {}
   };
 
-  // ✅ CHANGED: "Live" removed from this filterable options array — it now
-  // has its own dedicated pill (rendered separately below) that scrolls to
-  // / switches to the real LiveKit LiveBrowser section instead of filtering
-  // uploaded videos tagged "Live".
+  // "Live" removed from this filterable options array — it now has its own
+  // dedicated pill (rendered separately below) that scrolls to / switches
+  // to the real LiveKit LiveBrowser section instead of filtering uploaded
+  // videos tagged "Live".
   const options = [
     "All",
     "DD News",
@@ -2380,8 +2872,8 @@ const HomePage = ({ sideNavbar }) => {
     return () => supabase.removeChannel(reelsSub);
   }, [loadWatchedIds]);
 
-  // ── Only uploaded content (from Supabase) is shown — no hardcoded/static
-  //    demo videos or reels are merged in anymore.
+  // Only uploaded content (from Supabase) is shown — no hardcoded/static
+  // demo videos or reels are merged in anymore.
   const allVideos = dbVideos;
   const allReels = dbReels;
 
@@ -2409,6 +2901,12 @@ const HomePage = ({ sideNavbar }) => {
     };
   }, []);
 
+  // FIX: previously, any non-403 error (a network blip, a 500, a timeout)
+  // caused an immediate `break` — giving up on the whole search even
+  // though there were still unused keys left to try. Now only a genuine
+  // client error (4xx that isn't a quota/rate-limit code) stops the loop;
+  // quota errors (403/429) and network-level failures (no `err.response`
+  // at all) both advance to the next key and retry.
   const fetchYouTubeByTopic = async (topic) => {
     if (["All", "Recently Uploaded", "Watched"].includes(topic)) {
       setYtVideos([]);
@@ -2436,11 +2934,14 @@ const HomePage = ({ sideNavbar }) => {
         setYtVideos(res.data.items || []);
         break;
       } catch (err) {
-        if (err.response?.status === 403) {
+        const status = err.response?.status;
+        const isQuotaOrNetworkIssue =
+          status === 403 || status === 429 || !err.response;
+        if (isQuotaOrNetworkIssue) {
           currentKeyIndex = (keyIndex + 1) % API_KEYS.length;
           continue;
         }
-        break;
+        break; // genuine client error (e.g. bad request) — no point retrying
       }
     }
     setYtLoading(false);
@@ -2599,331 +3100,26 @@ const HomePage = ({ sideNavbar }) => {
     }
   };
 
-  const ShortsRow = ({ data, title }) => (
-    <div className="homePage_shortsSection">
-      <div className="homePage_shortsHeader">
-        <span className="homePage_shortsTitle">
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "24px",
-              height: "24px",
-              background: "linear-gradient(135deg,#e53935,#f97316)",
-              color: "white",
-              fontWeight: "900",
-              fontSize: "15px",
-              fontFamily: "Arial Black, sans-serif",
-              borderRadius: "6px",
-              marginRight: "0px",
-              flexShrink: 0,
-              verticalAlign: "middle",
-            }}
-          >
-            Z
-          </span>
-          {title}
-        </span>
-      </div>
-      <div className="homePage_shortsRow">
-        {data.map((short) => (
-          <ShortCard
-            key={short.id}
-            short={short}
-            incrementView={incrementView}
-            viewCounts={viewCounts}
-            handleDeleteReel={handleDeleteReel}
-            navigate={navigate}
-            watchedContentIds={watchedContentIds}
-          />
-        ))}
-      </div>
-    </div>
-  );
-
-  const VideoCard = ({ video, isUploaded = false }) => {
-    const showNew =
-      isUploaded && !isWatched("video", video.id, watchedContentIds);
-    const isSaved = watchLaterIds.has(String(video.id));
-
-    return (
-      <div className="youtube_thumbnailBox" style={{ position: "relative" }}>
-        {/* Three-dots menu with full dropdown — only for uploaded videos */}
-        {isUploaded && (
-          <SaveMenuButton
-            videoId={video.id}
-            isSaved={isSaved}
-            onToggleWatchLater={handleToggleWatchLater}
-            video={video}
-            loggedInUsername={loggedInUsername}
-            onDelete={handleDeleteVideo}
-          />
-        )}
-
-        <Link
-          to={"/video/" + video.id}
-          className="youtube_thumbnailWrapper"
-          onClick={() => {
-            if (isUploaded) incrementView(video.id, "video");
-          }}
-        >
-          <img
-            src={video.thumbnail}
-            alt={video.title}
-            className="youtube_thumbnailPic"
-          />
-          <div className="youtube_timingThumbnail">{video.duration}</div>
-          {showNew && (
-            <div
-              style={{
-                position: "absolute",
-                top: "8px",
-                left: "8px",
-                background: "linear-gradient(135deg,#f43f5e,#f97316)",
-                color: "white",
-                fontSize: "10px",
-                fontWeight: "800",
-                padding: "2px 7px",
-                borderRadius: "5px",
-                zIndex: 2,
-              }}
-            >
-              New
-            </div>
-          )}
-          <div className="youtube_playOverlay">
-            <div className="youtube_playButton">▶</div>
-          </div>
-        </Link>
-        <div className="youtubeTitleBox">
-          <div className="youtubeBoxProfile">
-            <img
-              src={
-                "https://api.dicebear.com/7.x/initials/svg?seed=" +
-                video.channel
-              }
-              alt={video.channel}
-              className="youtube_thumbnail_Profile"
-            />
-            <Link
-              to={"/user/" + (video.username || video.channel.toLowerCase())}
-              style={{ textDecoration: "none", color: "inherit" }}
-            >
-              <p className="youtube_ChannelName">{video.channel}</p>
-            </Link>
-          </div>
-          <div className="youtubeVideoInfo">
-            <p className="youtube_videoTitle">{video.title}</p>
-            <p
-              className="youtubeVideo_Views"
-              style={{ display: "flex", gap: "10px", alignItems: "center" }}
-            >
-              {isUploaded ? (
-                <>
-                  <span>
-                    👁 {formatViews(viewCounts["video_" + video.id] ?? 0)}
-                  </span>
-                  <span style={{ color: "#d1d5db", fontSize: "11px" }}>•</span>
-                  <button
-                    onClick={(e) => handleLikeVideo(e, video.id)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#8b84c4",
-                      cursor: "pointer",
-                      fontSize: "inherit",
-                      padding: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "3px",
-                      fontWeight: "600",
-                    }}
-                  >
-                    👍 {video.likes ?? 0} Likes
-                  </button>
-                </>
-              ) : (
-                <span>👍 3 Likes</span>
-              )}
-            </p>
-            {isUploaded && video.created_at && (
-              <p
-                className="youtubeVideo_UploadDate"
-                style={{
-                  color: "#a8a3d6",
-                  fontSize: "12px",
-                  margin: "3px 0 0",
-                  fontWeight: "500",
-                }}
-              >
-                {formatTimeAgo(video.created_at)}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+  // Shared prop bags so VideoCard / ShortsRow / ShortCard / SearchResultsPanel
+  // (all module-level components now) get identical, up-to-date props at
+  // every call site without repeating the same seven-prop list six times.
+  const videoCardProps = {
+    viewCounts,
+    watchLaterIds,
+    loggedInUsername,
+    handleToggleWatchLater,
+    handleDeleteVideo,
+    handleLikeVideo,
+    watchedContentIds,
+    incrementView,
   };
-
-  const YouTubeVideoCard = ({ item }) => (
-    <div
-      className="youtube_thumbnailBox"
-      style={{ cursor: "pointer" }}
-      onClick={() =>
-        openWatchPage(
-          item.id.videoId,
-          item.snippet.title,
-          item.snippet.channelTitle,
-        )
-      }
-    >
-      <div
-        className="youtube_thumbnailWrapper"
-        style={{ position: "relative", display: "block" }}
-      >
-        <img
-          src={item.snippet.thumbnails.medium.url}
-          alt={item.snippet.title}
-          className="youtube_thumbnailPic"
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: "8px",
-            left: "8px",
-            background: "#ef4444",
-            color: "white",
-            fontSize: "10px",
-            fontWeight: "800",
-            padding: "2px 7px",
-            borderRadius: "5px",
-          }}
-        >
-          ▶ YouTube
-        </div>
-      </div>
-      <div className="youtubeTitleBox">
-        <div className="youtubeBoxProfile">
-          <img
-            src={
-              "https://ui-avatars.com/api/?name=" +
-              encodeURIComponent(item.snippet.channelTitle) +
-              "&background=random&size=36"
-            }
-            alt={item.snippet.channelTitle}
-            className="youtube_thumbnail_Profile"
-          />
-          <p className="youtube_ChannelName">{item.snippet.channelTitle}</p>
-        </div>
-        <div className="youtubeVideoInfo">
-          <p className="youtube_videoTitle">{item.snippet.title}</p>
-          <p className="youtubeVideo_Views">
-            {new Date(item.snippet.publishedAt).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-
-  const SkeletonCard = () => (
-    <div
-      className="youtube_thumbnailBox"
-      style={{ border: "2px solid #e0d4ff" }}
-    >
-      <div
-        style={{
-          width: "100%",
-          paddingTop: "56.25%",
-          background:
-            "linear-gradient(90deg,#e8e0ff 25%,#f3eeff 50%,#e8e0ff 75%)",
-          backgroundSize: "400px 100%",
-          borderRadius: "0",
-          animation: "shimmer 1.4s infinite",
-        }}
-      />
-      <div
-        style={{
-          padding: "10px 12px",
-          display: "flex",
-          gap: "10px",
-          background: "#fff",
-        }}
-      >
-        <div
-          style={{
-            width: "34px",
-            height: "34px",
-            borderRadius: "50%",
-            background:
-              "linear-gradient(90deg,#e8e0ff 25%,#f3eeff 50%,#e8e0ff 75%)",
-            backgroundSize: "400px 100%",
-            flexShrink: 0,
-            animation: "shimmer 1.4s infinite",
-          }}
-        />
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              height: "13px",
-              background:
-                "linear-gradient(90deg,#e8e0ff 25%,#f3eeff 50%,#e8e0ff 75%)",
-              backgroundSize: "400px 100%",
-              borderRadius: "6px",
-              marginBottom: "8px",
-              animation: "shimmer 1.4s infinite",
-            }}
-          />
-          <div
-            style={{
-              height: "12px",
-              background:
-                "linear-gradient(90deg,#e8e0ff 25%,#f3eeff 50%,#e8e0ff 75%)",
-              backgroundSize: "400px 100%",
-              borderRadius: "6px",
-              width: "60%",
-              animation: "shimmer 1.4s infinite",
-            }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const SectionLabel = ({ color, bg, text, count }) => (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        marginBottom: "14px",
-      }}
-    >
-      <span
-        style={{
-          background: bg,
-          color: color,
-          fontSize: "11px",
-          fontWeight: "800",
-          padding: "4px 12px",
-          borderRadius: "20px",
-          fontFamily: "Nunito, sans-serif",
-          letterSpacing: "0.3px",
-        }}
-      >
-        {text}
-      </span>
-      {count !== undefined && (
-        <span style={{ color: "#8b84c4", fontSize: "12px", fontWeight: "600" }}>
-          {count} video{count !== 1 ? "s" : ""}
-        </span>
-      )}
-    </div>
-  );
+  const shortCardProps = {
+    incrementView,
+    viewCounts,
+    handleDeleteReel,
+    navigate,
+    watchedContentIds,
+  };
 
   const movieTags = [
     "Hindi Movies",
@@ -2939,116 +3135,6 @@ const HomePage = ({ sideNavbar }) => {
     v.tags?.some((t) => movieTags.includes(t)),
   );
   const liveVideos = allVideos.filter((v) => v.tags?.includes("Live"));
-
-  const SearchResultsPanel = () => (
-    <div className="search-results-panel">
-      <div style={{ marginBottom: "20px" }}>
-        <h2
-          style={{
-            color: "#1e1b4b",
-            fontSize: "18px",
-            fontWeight: "800",
-            margin: "0 0 6px",
-            fontFamily: "Nunito, sans-serif",
-          }}
-        >
-          🔍 Results for "{searchQuery}"
-        </h2>
-        <span style={{ color: "#8b84c4", fontSize: "13px", fontWeight: "600" }}>
-          {searchedLocalVideos.length} local videos · {searchedReels.length}{" "}
-          reels · {ytVideos.length} YouTube
-        </span>
-      </div>
-      {searchedReels.length > 0 && (
-        <div style={{ marginBottom: "40px" }}>
-          <SectionLabel
-            color="#f97316"
-            bg="#fff7ed"
-            text="🎬 REELS"
-            count={searchedReels.length}
-          />
-          <div className="homePage_shortsRow">
-            {searchedReels.map((short) => (
-              <ShortCard
-                key={short.id}
-                short={short}
-                incrementView={incrementView}
-                viewCounts={viewCounts}
-                handleDeleteReel={handleDeleteReel}
-                navigate={navigate}
-                watchedContentIds={watchedContentIds}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-      {searchedLocalVideos.length > 0 && (
-        <div style={{ marginBottom: "40px" }}>
-          <SectionLabel
-            color="#4c4589"
-            bg="#f0f4ff"
-            text="🎬 UPLOADED VIDEOS"
-            count={searchedLocalVideos.length}
-          />
-          <div className="youtube_VideoGrid">
-            {searchedLocalVideos.map((v) => (
-              <VideoCard
-                key={v.id}
-                video={v}
-                isUploaded={v.isUploaded || false}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-      {ytLoading && (
-        <div style={{ marginBottom: "40px" }}>
-          <SectionLabel
-            color="#ef4444"
-            bg="#fff1f2"
-            text="▶ YOUTUBE — searching..."
-          />
-          <div className="youtube_VideoGrid">
-            {[...Array(8)].map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-        </div>
-      )}
-      {!ytLoading && ytVideos.length > 0 && (
-        <div style={{ marginBottom: "40px" }}>
-          <SectionLabel
-            color="#ef4444"
-            bg="#fff1f2"
-            text="▶ YOUTUBE"
-            count={ytVideos.length}
-          />
-          <div className="youtube_VideoGrid">
-            {ytVideos.map((item) => (
-              <YouTubeVideoCard key={item.id.videoId} item={item} />
-            ))}
-          </div>
-        </div>
-      )}
-      {!ytLoading &&
-        searchedLocalVideos.length === 0 &&
-        searchedReels.length === 0 &&
-        ytVideos.length === 0 && (
-          <div style={{ textAlign: "center", marginTop: "80px" }}>
-            <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔍</div>
-            <p
-              style={{ color: "#8b84c4", fontSize: "16px", fontWeight: "600" }}
-            >
-              No results for "
-              <span style={{ color: "#7c3aed" }}>{searchQuery}</span>"
-            </p>
-            <p style={{ color: "#c4bfdf", fontSize: "13px", marginTop: "8px" }}>
-              Try different keywords
-            </p>
-          </div>
-        )}
-    </div>
-  );
 
   const renderMobileTabContent = () => {
     switch (mobileTab) {
@@ -3073,15 +3159,7 @@ const HomePage = ({ sideNavbar }) => {
                 </div>
                 <div className="homePage_shortsRow">
                   {allReels.map((short) => (
-                    <ShortCard
-                      key={short.id}
-                      short={short}
-                      incrementView={incrementView}
-                      viewCounts={viewCounts}
-                      handleDeleteReel={handleDeleteReel}
-                      navigate={navigate}
-                      watchedContentIds={watchedContentIds}
-                    />
+                    <ShortCard key={short.id} short={short} {...shortCardProps} />
                   ))}
                 </div>
               </>
@@ -3098,7 +3176,7 @@ const HomePage = ({ sideNavbar }) => {
               {dbLoading &&
                 [...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
               {dbVideos.map((v) => (
-                <VideoCard key={v.id} video={v} isUploaded={true} />
+                <VideoCard key={v.id} video={v} isUploaded={true} {...videoCardProps} />
               ))}
             </div>
             {!dbLoading && dbVideos.length === 0 && (
@@ -3126,7 +3204,7 @@ const HomePage = ({ sideNavbar }) => {
             {movieVideos.length > 0 ? (
               <div className="youtube_VideoGrid">
                 {movieVideos.map((v) => (
-                  <VideoCard key={v.id} video={v} isUploaded={true} />
+                  <VideoCard key={v.id} video={v} isUploaded={true} {...videoCardProps} />
                 ))}
               </div>
             ) : (
@@ -3146,10 +3224,10 @@ const HomePage = ({ sideNavbar }) => {
           </div>
         );
       case "live":
-        // ✅ CHANGED: this tab renders the real LiveKit LiveBrowser (reads
-        // is_live rows from Supabase "live_streams" table) instead of the
-        // old "videos tagged Live" filter, which had nothing to do with
-        // actual live streaming.
+        // This tab renders the real LiveKit LiveBrowser (reads is_live
+        // rows from the Supabase "live_streams" table) instead of an old
+        // "videos tagged Live" filter that had nothing to do with actual
+        // live streaming.
         return (
           <div className="mobile-tab-content" {...swipeHandlers}>
             <LiveBrowser currentUser={loggedInUsername} />
@@ -3200,8 +3278,8 @@ const HomePage = ({ sideNavbar }) => {
           }}
           style={{ cursor: "grab", userSelect: "none" }}
         >
-          {/* ✅ ADDED: dedicated Live pill — separate from the filterable
-              options list. Scrolls to the desktop LiveBrowser section, or
+          {/* Dedicated Live pill — separate from the filterable options
+              list. Scrolls to the desktop LiveBrowser section, or
               switches to the mobile Live tab, instead of filtering videos
               tagged "Live". */}
           <div
@@ -3231,12 +3309,11 @@ const HomePage = ({ sideNavbar }) => {
             🔴 Live
           </div>
 
-          {/* ✅ CHANGED: category pills now use a plain "active" className
-              instead of a large inline style block recomputed every
-              render — the CSS rule .homePage_option.active carries the
-              same accent so the highlighted pill still reads clearly, but
-              the DOM stays lighter and the selector in homePage.css is no
-              longer the brittle [style*="white"] match. */}
+          {/* Category pills use a plain "active" className instead of a
+              large inline style block recomputed every render — the CSS
+              rule .homePage_option.active carries the same accent so the
+              highlighted pill still reads clearly, but the DOM stays
+              lighter. */}
           {options.map((item) => (
             <div
               key={item}
@@ -3256,7 +3333,18 @@ const HomePage = ({ sideNavbar }) => {
           "home_mainPage" + (sideNavbar ? " sidebar-open" : " sidebar-closed")
         }
       >
-        {searchActive && <SearchResultsPanel />}
+        {searchActive && (
+          <SearchResultsPanel
+            searchQuery={searchQuery}
+            searchedReels={searchedReels}
+            searchedLocalVideos={searchedLocalVideos}
+            ytLoading={ytLoading}
+            ytVideos={ytVideos}
+            shortCardProps={shortCardProps}
+            videoCardProps={videoCardProps}
+            openWatchPage={openWatchPage}
+          />
+        )}
 
         {!searchActive && (
           <DramaticTrendingCarousel
@@ -3286,10 +3374,10 @@ const HomePage = ({ sideNavbar }) => {
           />
         )}
 
-        {/* ✅ ADDED: desktop-visible Live section — shows real LiveKit
-            streams from the "live_streams" table. Sits above the mobile
-            tab bar / category grid, hidden automatically on mobile since
-            it's inside the desktop-only render path (mobile CSS hides
+        {/* Desktop-visible Live section — shows real LiveKit streams from
+            the "live_streams" table. Sits above the mobile tab bar /
+            category grid, hidden automatically on mobile since it's
+            inside the desktop-only render path (mobile CSS hides
             everything except .mobile-trending-strip / .mobile-tab-bar /
             .mobile-tab-content / .search-results-panel — so on mobile this
             block simply won't render; the "live" mobile tab above handles
@@ -3362,6 +3450,7 @@ const HomePage = ({ sideNavbar }) => {
                         <ShortsRow
                           data={rowReels}
                           title={rowIndex === 0 ? "Shorts" : "More Shorts"}
+                          {...shortCardProps}
                         />
                       )}
                       <div className="youtube_VideoGrid">
@@ -3375,6 +3464,7 @@ const HomePage = ({ sideNavbar }) => {
                               key={v.id}
                               video={v}
                               isUploaded={v.isUploaded || false}
+                              {...videoCardProps}
                             />
                           ))}
                       </div>
@@ -3436,7 +3526,7 @@ const HomePage = ({ sideNavbar }) => {
                     {dbVideos
                       .filter((v) => v.tags?.includes(selectedOption))
                       .map((v) => (
-                        <VideoCard key={v.id} video={v} isUploaded={true} />
+                        <VideoCard key={v.id} video={v} isUploaded={true} {...videoCardProps} />
                       ))}
                   </div>
                 </div>
@@ -3461,7 +3551,11 @@ const HomePage = ({ sideNavbar }) => {
                   />
                   <div className="youtube_VideoGrid">
                     {ytVideos.map((item) => (
-                      <YouTubeVideoCard key={item.id.videoId} item={item} />
+                      <YouTubeVideoCard
+                        key={item.id.videoId}
+                        item={item}
+                        onSelect={openWatchPage}
+                      />
                     ))}
                   </div>
                 </div>
@@ -3509,11 +3603,6 @@ const HomePage = ({ sideNavbar }) => {
           onIncrementView={incrementView}
         />
       )}
-      <style>
-        {
-          "@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}"
-        }
-      </style>
     </div>
   );
 };

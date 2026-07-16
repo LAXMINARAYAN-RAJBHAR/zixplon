@@ -558,10 +558,13 @@
   .mobile-trending-track-wrapper::-webkit-scrollbar { display: none; }
   .mobile-trending-track { display: flex; gap: 10px; width: max-content; }
 
-  /* ── Trending card ── */
+  /* ── Trending card ──
+     ✅ CHANGED: enlarged from 160px/120px to 190px/150px so thumbnails
+     read more clearly on mobile. Rank badge / title / channel text
+     bumped slightly to stay proportional on the bigger card. */
   .mobile-trending-card {
     flex: 0 0 auto;
-    width: 160px;
+    width: 190px;
     cursor: pointer; position: relative;
     border: 2px solid var(--zx-border);
     border-radius: var(--zx-radius-sm); overflow: hidden;
@@ -575,26 +578,26 @@
   }
   .mobile-trending-card-thumb {
     width: 100%;
-    height: 120px;
+    height: 150px;
     object-fit: cover; display: block;
   }
-  .mobile-trending-card-info { padding: 6px 7px 7px; background: var(--zx-surface); }
+  .mobile-trending-card-info { padding: 7px 8px 8px; background: var(--zx-surface); }
   .mobile-trending-card-title {
-    font-size: 11px; font-weight: 700; color: var(--zx-text); line-height: 1.3;
+    font-size: 12px; font-weight: 700; color: var(--zx-text); line-height: 1.3;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     overflow: hidden; font-family: 'Outfit', sans-serif; margin: 0 0 3px;
   }
   .mobile-trending-card-channel {
-    font-size: 10px; font-weight: 700; color: var(--zx-primary2);
+    font-size: 11px; font-weight: 700; color: var(--zx-primary2);
     font-family: 'Nunito', sans-serif;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .mobile-trending-rank {
-    position: absolute; top: 5px; left: 5px;
+    position: absolute; top: 6px; left: 6px;
     background: linear-gradient(135deg, var(--zx-primary), var(--zx-accent1));
     color: #fff; font-family: 'Nunito', sans-serif;
-    font-size: 10px; font-weight: 900;
-    padding: 2px 6px; border-radius: 5px; z-index: 4;
+    font-size: 11px; font-weight: 900;
+    padding: 3px 7px; border-radius: 5px; z-index: 4;
   }
 
   /* ── Mobile Tab Bar ── */
@@ -741,8 +744,9 @@
     aspect-ratio: 9 / 16 !important;
   }
 
-  .mobile-trending-card { width: 145px; }
-  .mobile-trending-card-thumb { height: 105px; }
+  /* ✅ CHANGED: enlarged trending card for this breakpoint, was 145px/105px */
+  .mobile-trending-card { width: 170px; }
+  .mobile-trending-card-thumb { height: 130px; }
   .homePage_shortsTitle { font-size: 13px !important; }
   .search-results-panel .homePage_shortThumbnail { height: 160px !important; }
 }
@@ -769,8 +773,9 @@
     aspect-ratio: 9 / 16 !important;
   }
 
-  .mobile-trending-card { width: 130px; }
-  .mobile-trending-card-thumb { height: 90px; }
+  /* ✅ CHANGED: enlarged trending card for this breakpoint, was 130px/90px */
+  .mobile-trending-card { width: 150px; }
+  .mobile-trending-card-thumb { height: 110px; }
   .mobile-tab-label { font-size: 7px !important; }
   .mobile-tab-icon  { font-size: 17px !important; }
   .search-results-panel .homePage_shortThumbnail { height: 145px !important; }
@@ -865,9 +870,11 @@
   gap: 14px;
   width: max-content;
 }
+/* ✅ CHANGED: enlarged from 220px to 260px so trending thumbnails are more
+   prominent on desktop. Info block padding/text bumped slightly to match. */
 .desktop-trending-card {
   flex: 0 0 auto;
-  width: 220px;
+  width: 400px;
   cursor: pointer;
   position: relative;
   border: 2px solid var(--zx-border);
@@ -884,16 +891,16 @@
 }
 .desktop-trending-thumb {
   width: 100%;
-  height: 130px;
+  height: 250px;
   object-fit: cover;
   display: block;
 }
 .desktop-trending-info {
-  padding: 8px 10px 10px;
+  padding: 9px 11px 11px;
   background: var(--zx-surface);
 }
 .desktop-trending-title {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--zx-text);
   line-height: 1.35;
@@ -905,7 +912,7 @@
   margin: 0 0 4px;
 }
 .desktop-trending-channel {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--zx-primary2);
   font-family: 'Nunito', sans-serif;
@@ -915,25 +922,25 @@
 }
 .desktop-trending-rank {
   position: absolute;
-  top: 6px;
-  left: 6px;
+  top: 7px;
+  left: 7px;
   background: linear-gradient(135deg, var(--zx-primary), var(--zx-accent1));
   color: #fff;
   font-family: 'Nunito', sans-serif;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
-  padding: 2px 7px;
+  padding: 3px 8px;
   border-radius: 5px;
   z-index: 4;
 }
 .desktop-trending-badge {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 7px;
+  right: 7px;
   color: #fff;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  padding: 2px 6px;
+  padding: 3px 7px;
   border-radius: 4px;
   z-index: 4;
 }

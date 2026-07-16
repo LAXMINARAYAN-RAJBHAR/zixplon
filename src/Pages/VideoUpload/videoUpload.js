@@ -18,6 +18,14 @@ const INITIAL_FIELDS = {
   videoType: "",
 };
 
+// ── NEW: local-upload config ───────────────────────────────────────────────
+// Files bigger than this go to your local server instead of Cloudinary.
+// Cloudinary (esp. free/unsigned) tends to reject big files even when chunked,
+// so anything above this threshold is routed to the local Node server instead.
+const LOCAL_SERVER_URL = "http://localhost:5000/upload";
+const LOCAL_UPLOAD_THRESHOLD = 90 * 1024 * 1024; // 90MB
+// ─────────────────────────────────────────────────────────────────────────
+
 const resolveFeature = (state) => {
   if (!state) return { mode: null, data: null };
   if (state.remixData)       return { mode: "remix",       data: state.remixData };
@@ -86,6 +94,7 @@ const VideoUpload = () => {
   const [uploadProgress,  setUploadProgress]  = useState(0);
   const [uploadSpeed,     setUploadSpeed]     = useState(0);
   const [timeRemaining,   setTimeRemaining]   = useState("");
+  const [isLocalUpload,   setIsLocalUpload]   = useState(false); // NEW: track where the current video ended up
 
   const uploadStartTime  = useRef(null);
   const uploadedBytesRef = useRef(0);
@@ -120,6 +129,7 @@ const VideoUpload = () => {
     setUploadProgress(0);
     setUploadSpeed(0);
     setTimeRemaining("");
+    setIsLocalUpload(false);
     uploadStartTime.current  = null;
     uploadedBytesRef.current = 0;
     durationRef.current      = "00:00";
@@ -258,6 +268,25 @@ const VideoUpload = () => {
     return videoUrl;
   };
 
+  // ── NEW: upload big files to your own local server instead of Cloudinary ──
+  const uploadToLocalServer = async (file) => {
+    const formData = new FormData();
+    formData.append("video", file); // field name must match multer's upload.single("video") server-side
+
+    const res = await axios.post(LOCAL_SERVER_URL, formData, {
+      timeout: 0,
+      onUploadProgress: (e) => {
+        setUploadProgress(Math.round((e.loaded * 100) / e.total));
+        updateSpeedAndETA(e.loaded, file.size);
+      },
+    });
+
+    // Server returns { success, filename, path, size }
+    // This is a local-only reference — see note in handleSubmit/UI about playback limits.
+    return `local://${res.data.filename}`;
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
   const buildCloudinaryFallbackThumbnail = (videoUrl) => {
     try {
       return videoUrl
@@ -274,18 +303,39 @@ const VideoUpload = () => {
     const files = e.target.files;
     if (!files || files.length === 0) { setLoader(false); return; }
     const file = files[0];
-    if (file.size > 4 * 1024 * 1024 * 1024) { setError("File too large. Maximum size is 4GB."); setLoader(false); return; }
+    if (file.size > 10 * 1024 * 1024 * 1024) { setError("File too large. Maximum size is 10GB."); setLoader(false); return; }
     try {
       const [, thumbnailBlob] = await Promise.all([
         getVideoDuration(file),
         captureThumbnail(file).catch((err) => { console.warn("Client-side thumbnail capture failed:", err.message); return null; }),
       ]);
-      const videoUrl = await uploadToCloudinary(file);
+
+      // ── NEW: route big files to the local server, everything else to Cloudinary ──
+      const goLocal = file.size > LOCAL_UPLOAD_THRESHOLD;
+      let videoUrl;
+      try {
+        videoUrl = goLocal ? await uploadToLocalServer(file) : await uploadToCloudinary(file);
+      } catch (uploadErr) {
+        if (!goLocal) throw uploadErr;
+        throw new Error(
+          `Could not reach your local upload server. Make sure it's running ("npm start" in local-video-uploader) at ${LOCAL_SERVER_URL}.`
+        );
+      }
+      setIsLocalUpload(goLocal);
+
       let thumbnailUrl = inputField.thumbnail;
       if (!imageUploaded) {
-        if (thumbnailBlob) { thumbnailUrl = await uploadThumbnailToCloudinary(thumbnailBlob); setThumbSource("auto"); }
-        else { const fallback = buildCloudinaryFallbackThumbnail(videoUrl); thumbnailUrl = fallback || thumbnailUrl; setThumbSource("auto"); }
+        if (thumbnailBlob) {
+          thumbnailUrl = await uploadThumbnailToCloudinary(thumbnailBlob);
+          setThumbSource("auto");
+        } else if (!goLocal) {
+          // Cloudinary-only fallback trick — doesn't apply to local:// URLs
+          const fallback = buildCloudinaryFallbackThumbnail(videoUrl);
+          thumbnailUrl = fallback || thumbnailUrl;
+          setThumbSource("auto");
+        }
       }
+
       setInputField((prev) => ({ ...prev, videoLink: videoUrl, thumbnail: thumbnailUrl }));
       setVideoUploaded(true); setUploadProgress(100); setLoader(false); releaseWakeLock();
     } catch (err) {
@@ -309,25 +359,6 @@ const VideoUpload = () => {
     } catch (err) { setThumbLoader(false); setError("Thumbnail upload failed. Please try again."); }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // FIXED: notifySubscribers
-  //
-  // Two bugs fixed here:
-  //
-  // 1. The old query selected "subscriber_username" from "subscriptions",
-  //    but that column doesn't exist — the real columns are "subscriber_id"
-  //    and "subscribed_to". "subscriber_id" can hold either a UUID (current
-  //    accounts) or a legacy plain username (older rows), so we resolve
-  //    UUIDs to usernames via the "profiles" table before building
-  //    notification rows, same pattern already used in PostFeed.jsx.
-  //
-  // 2. content_id / content_type were never included on the inserted
-  //    notification rows, so every notification created here had those
-  //    columns as NULL — which is why clicking a notification in the
-  //    navbar/notifications page silently did nothing (handleNotificationClick
-  //    bails out early when contentId/contentType are missing). Both are
-  //    now required params and get written on every notification.
-  // ─────────────────────────────────────────────────────────────────────────
   const notifySubscribers = async (title, type, contentId) => {
     const uploaderUsername = localStorage.getItem("username");
     if (!uploaderUsername) return;
@@ -359,7 +390,7 @@ const VideoUpload = () => {
       ...new Set(
         subRows
           .map((s) => (uuidRegex.test(s.subscriber_id) ? idToUsername[s.subscriber_id] : s.subscriber_id))
-          .filter(Boolean) // drops UUIDs that still couldn't be resolved
+          .filter(Boolean)
       ),
     ];
 
@@ -371,8 +402,8 @@ const VideoUpload = () => {
       type:                "upload",
       message:             `${uploaderUsername} uploaded a new ${type}: "${title}"`,
       is_read:             false,
-      content_id:          contentId, // ✅ now included
-      content_type:        type,      // ✅ "reel" or "video"
+      content_id:          contentId,
+      content_type:        type,
     }));
 
     if (notifications.length > 0) await supabase.from("notifications").insert(notifications);
@@ -387,7 +418,7 @@ const VideoUpload = () => {
       type:               "upload",
       message:            `@${remixerUsername} remixed your reel "${remixData.remixed_from_title}" with "${title}" 🎬`,
       is_read:            false,
-      content_id:         contentId, // ✅ so this notification is clickable too
+      content_id:         contentId,
       content_type:       "reel",
     });
   };
@@ -408,24 +439,28 @@ const VideoUpload = () => {
       type:               "upload",
       message:            notif.msg,
       is_read:            false,
-      content_id:         contentId, // ✅ so this notification is clickable too
+      content_id:         contentId,
       content_type:       "reel",
     });
   };
 
-  // ── handleSubmit — with moderation check INSIDE the function ──────────────
   const handleSubmit = async () => {
-    // ── Validation ──
     if (!inputField.title)       return setError("Please enter a title.");
     if (!inputField.description) return setError("Please enter a description.");
     if (!inputField.videoLink)   return setError("Please upload a video first.");
     if (uploadMode === "video" && !isFeatureMode && !inputField.videoType)
       return setError("Please enter a category.");
 
+    // NEW: warn (don't block) if this is a local-only video before it's saved to the feed
+    if (isLocalUpload) {
+      console.warn(
+        "This video was saved to your local computer, not Cloudinary — it will only be playable on this machine."
+      );
+    }
+
     setSaving(true);
     setError("");
 
-    // ── FIX: Moderation check is INSIDE handleSubmit, after validation ──────
     try {
       const { isClean, violatingWord } = await checkContent(
         inputField.title,
@@ -438,16 +473,11 @@ const VideoUpload = () => {
         return;
       }
     } catch (moderationErr) {
-      // If moderation check itself fails, log but allow upload to continue
       console.warn("Moderation check failed, proceeding:", moderationErr);
     }
-    // ── End moderation check ─────────────────────────────────────────────────
 
     try {
       if (uploadMode === "video" && !isFeatureMode) {
-        // ── Plain video upload ──
-        // FIX: added .select().single() so we get the new row's id back —
-        // needed to attach content_id to the upload notification below.
         const { data: newVideo, error: videoError } = await supabase
           .from("videos")
           .insert([{
@@ -466,7 +496,6 @@ const VideoUpload = () => {
 
         await notifySubscribers(inputField.title, "video", newVideo.id);
       } else {
-        // ── Reel / feature upload ──
         const reelPayload = {
           title:       inputField.title,
           description: inputField.description,
@@ -484,9 +513,6 @@ const VideoUpload = () => {
           reelPayload.remixed_from_username = featureData.remixed_from_username;
         }
 
-        // FIX: added .select().single() so we get the new reel's id back —
-        // needed to attach content_id to the upload / remix / feature
-        // notifications below.
         const { data: newReel, error: reelError } = await supabase
           .from("reels")
           .insert([reelPayload])
@@ -521,7 +547,6 @@ const VideoUpload = () => {
         ? `Post ${banner?.emoji}`
         : `Upload ${uploadMode === "reel" ? "Reel" : "Video"}`;
 
-  // ── Success screen ──
   if (submitted) return (
     <div className="videoUpload">
       <div className="uploadBox">
@@ -534,7 +559,13 @@ const VideoUpload = () => {
               {banner?.emoji} {banner?.label} {banner?.by}
             </p>
           )}
-          <video src={inputField.videoLink} poster={inputField.thumbnail} controls className="upload_success_preview" />
+          {isLocalUpload ? (
+            <p style={{ fontSize: "12px", color: "#b08585" }}>
+              📁 Saved locally on your computer — playback preview isn't available for local files.
+            </p>
+          ) : (
+            <video src={inputField.videoLink} poster={inputField.thumbnail} controls className="upload_success_preview" />
+          )}
           <h3>{inputField.title}</h3>
           <p className="upload_success_meta">
             {uploadMode === "video" && !isFeatureMode ? `${inputField.videoType} • ` : ""}
@@ -555,13 +586,11 @@ const VideoUpload = () => {
     <div className="videoUpload">
       <div className="uploadBox">
 
-        {/* ── Title row ── */}
         <div className="uploadVideoTitle">
           <CloudUploadIcon sx={{ fontSize: "54px", color: "orange" }} />
           {isFeatureMode ? `${banner?.emoji} ${banner?.label}` : "Upload"}
         </div>
 
-        {/* ── Feature banner ── */}
         {isFeatureMode && banner && (
           <div className="upload_feature_banner" style={{ "--feature-color": banner.color }}>
             <img src={banner.thumb} alt="source" className="upload_feature_thumb" />
@@ -575,7 +604,6 @@ const VideoUpload = () => {
           </div>
         )}
 
-        {/* ── Mode toggle ── */}
         {!isFeatureMode && (
           <div className="upload_mode_toggle">
             <div className={`upload_mode_btn ${uploadMode === "video" ? "active" : ""}`} onClick={() => switchMode("video")}>🎬 Video</div>
@@ -596,13 +624,11 @@ const VideoUpload = () => {
           }
         `}</style>
 
-        {/* Hint text */}
         {isFeatureMode && banner?.hint && <p className="upload_mode_hint">{banner.hint}</p>}
         {!isFeatureMode && uploadMode === "reel" && (
           <p className="upload_mode_hint">Reels are short vertical videos — they appear in the Reels / Shorts section.</p>
         )}
 
-        {/* ── Form ── */}
         <div className="uploadForm">
           <input
             type="text"
@@ -628,7 +654,6 @@ const VideoUpload = () => {
             />
           )}
 
-          {/* Video file */}
           <div className="upload_file_row">
             <span className="upload_file_label">
               {isFeatureMode ? `${banner?.emoji} Your Video` : uploadMode === "reel" ? "Reel Video" : "Video"}
@@ -639,7 +664,13 @@ const VideoUpload = () => {
             </span>
           </div>
 
-          {/* Thumbnail file */}
+          {/* NEW: shows where the video actually ended up once uploaded */}
+          {videoUploaded && (
+            <span style={{ fontSize: "11px", color: isLocalUpload ? "#f97316" : "#10b981", fontWeight: 700 }}>
+              {isLocalUpload ? "📁 Saved to your local computer" : "☁️ Uploaded to Cloudinary"}
+            </span>
+          )}
+
           <div className="upload_file_row">
             <span className="upload_file_label">
               Thumbnail
@@ -652,7 +683,6 @@ const VideoUpload = () => {
             {thumbLoader && <CircularProgress size={20} sx={{ color:"orange", ml:1 }} />}
           </div>
 
-          {/* Thumbnail preview */}
           {inputField.thumbnail && (
             <div className="upload_thumb_row">
               <img src={inputField.thumbnail} alt="Thumbnail preview" className="upload_thumb_preview" />
@@ -662,12 +692,13 @@ const VideoUpload = () => {
             </div>
           )}
 
-          {/* Upload progress */}
           {loader && (
             <Box sx={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
               <Box sx={{ display:"flex", alignItems:"center", gap:"12px" }}>
                 <CircularProgress size={28} sx={{ color:"orange" }} />
-                <span style={{ color:"#aaa", fontSize:"0.9rem" }}>☁️ Uploading to Zixplon...</span>
+                <span style={{ color:"#aaa", fontSize:"0.9rem" }}>
+                  {isLocalUpload ? "📁 Saving to your computer..." : "☁️ Uploading to Zixplon..."}
+                </span>
               </Box>
               <div style={{ width:"100%", background:"#333", borderRadius:"8px", height:"8px" }}>
                 <div style={{ width:`${uploadProgress}%`, background:"orange", height:"100%", borderRadius:"8px", transition:"width 0.3s" }} />
@@ -684,7 +715,6 @@ const VideoUpload = () => {
           {error && <p className="upload_error_msg">{error}</p>}
         </div>
 
-        {/* Action buttons */}
         <div className="uploadBtns">
           <div
             className={`uploadBtns-form ${loader || saving || thumbLoader ? "uploadBtns-disabled" : ""}`}

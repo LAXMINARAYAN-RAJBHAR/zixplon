@@ -152,6 +152,9 @@ const EMOJI_LIST = [
   "📸",
 ];
 
+// ── Quick-reaction emoji set for message/attachment reactions ──
+const REACTION_EMOJIS = ["❤️", "😂", "👍", "😮", "😢", "🙏"];
+
 const timeAgo = (dateStr) => {
   if (!dateStr) return "";
   const diff = (Date.now() - new Date(dateStr)) / 1000;
@@ -211,6 +214,11 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const fileInputRef = useRef();
   const [pendingAttachment, setPendingAttachment] = useState(null); // { file, previewUrl, type, name, size }
   const [uploading, setUploading] = useState(false);
+
+  // ── Reactions / inline editing ──
+  const [openReactionFor, setOpenReactionFor] = useState(null); // message id
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState("");
 
   // ── Presence / last-seen ──
   const { onlineUsers, getLastSeen } = usePresence();
@@ -348,6 +356,21 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showEmojiPicker]);
+
+  // Close the reaction picker when clicking outside it
+  useEffect(() => {
+    if (!openReactionFor) return;
+    const handleClickOutside = (e) => {
+      if (
+        !e.target.closest(".mp-reaction-picker") &&
+        !e.target.closest(".mp-react-trigger")
+      ) {
+        setOpenReactionFor(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openReactionFor]);
 
   const insertEmoji = (emoji) => {
     setText((prev) => prev + emoji);
@@ -670,6 +693,67 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     }
   };
 
+  // ── Reactions ──
+  const toggleReaction = async (message, emoji) => {
+    const current = message.reactions || {};
+    const alreadyThisEmoji = (current[emoji] || []).includes(currentUser);
+
+    // One reaction per user: strip currentUser from every emoji first,
+    // then re-add them to the picked emoji unless they were toggling it off.
+    const updated = {};
+    Object.entries(current).forEach(([em, users]) => {
+      const filtered = users.filter((u) => u !== currentUser);
+      if (filtered.length) updated[em] = filtered;
+    });
+    if (!alreadyThisEmoji) {
+      updated[emoji] = [...(updated[emoji] || []), currentUser];
+    }
+
+    setOpenReactionFor(null);
+    setMessages((prev) =>
+      prev.map((m) => (m.id === message.id ? { ...m, reactions: updated } : m)),
+    );
+
+    await supabase
+      .from("direct_messages")
+      .update({ reactions: updated })
+      .eq("id", message.id);
+  };
+
+  // ── Inline editing ──
+  const startEdit = (m) => {
+    setEditingId(m.id);
+    setEditText(m.text || "");
+    setOpenReactionFor(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const saveEdit = async (message) => {
+    const trimmed = editText.trim();
+    if (!trimmed || trimmed === message.text) {
+      cancelEdit();
+      return;
+    }
+
+    const editedAt = new Date().toISOString();
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === message.id ? { ...m, text: trimmed, edited_at: editedAt } : m,
+      ),
+    );
+    setEditingId(null);
+    setEditText("");
+
+    await supabase
+      .from("direct_messages")
+      .update({ text: trimmed, edited_at: editedAt })
+      .eq("id", message.id);
+  };
+
   const panelStyle = position
     ? {
         position: "fixed",
@@ -952,92 +1036,215 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                           m.attachment_type === "file"
                             ? getFileTypeInfo(m.attachment_name)
                             : null;
+                        const reactionEntries = Object.entries(
+                          m.reactions || {},
+                        ).filter(([, users]) => users.length > 0);
+
                         return (
                           <div
                             key={m.id}
                             className={`mp-bubble-row ${mine ? "mine" : ""}`}
                           >
-                            <div
-                              className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""} ${
-                                m.text &&
-                                !m.attachment_url &&
-                                isEmojiOnlyMessage(m.text)
-                                  ? "mp-bubble-emoji-only"
-                                  : ""
-                              }`}
-                            >
-                              {m.attachment_url &&
-                                m.attachment_type === "image" && (
-                                  <img
-                                    src={m.attachment_url}
-                                    alt="attachment"
-                                    className="mp-bubble-image"
+                            <div className="mp-bubble-stack">
+                              {editingId !== m.id && (
+                                <div className="mp-bubble-actions">
+                                  <button
+                                    type="button"
+                                    className="mp-bubble-action-btn mp-react-trigger"
                                     onClick={() =>
-                                      window.open(m.attachment_url, "_blank")
+                                      setOpenReactionFor(
+                                        openReactionFor === m.id ? null : m.id,
+                                      )
                                     }
-                                  />
-                                )}
-
-                              {m.attachment_url &&
-                                m.attachment_type === "video" && (
-                                  <video
-                                    src={m.attachment_url}
-                                    controls
-                                    className="mp-bubble-video"
-                                  />
-                                )}
-
-                              {m.attachment_url &&
-                                m.attachment_type === "file" && (
-                                  <a
-                                    href={m.attachment_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="mp-bubble-file"
-                                    style={{ "--file-color": fileInfo.color }}
+                                    aria-label="React"
                                   >
-                                    <span className="mp-file-icon">
-                                      {fileInfo.icon}
-                                    </span>
-                                    <span className="mp-file-meta">
-                                      <span
-                                        className="mp-file-name"
-                                        title={m.attachment_name}
-                                      >
-                                        {m.attachment_name || "Attachment"}
-                                      </span>
-                                      <span className="mp-file-sub">
-                                        {fileInfo.label}
-                                        {m.attachment_size
-                                          ? ` · ${formatFileSize(m.attachment_size)}`
-                                          : ""}
-                                      </span>
-                                    </span>
-                                    <span className="mp-file-download">⬇</span>
-                                  </a>
-                                )}
+                                    🙂
+                                  </button>
+                                  {mine && m.text && !m.attachment_url && (
+                                    <button
+                                      type="button"
+                                      className="mp-bubble-action-btn"
+                                      onClick={() => startEdit(m)}
+                                      aria-label="Edit message"
+                                    >
+                                      ✎
+                                    </button>
+                                  )}
+                                </div>
+                              )}
 
-                              {m.text &&
-                                (isEmojiOnlyMessage(m.text) ? (
-                                  <span className="mp-emoji-only-text">
-                                    {m.text}
-                                  </span>
+                              {openReactionFor === m.id && (
+                                <div
+                                  className={`mp-reaction-picker ${mine ? "mine" : ""}`}
+                                >
+                                  {REACTION_EMOJIS.map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      type="button"
+                                      className="mp-reaction-picker-btn"
+                                      onClick={() => toggleReaction(m, emoji)}
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+
+                              <div
+                                className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""} ${
+                                  m.text &&
+                                  !m.attachment_url &&
+                                  isEmojiOnlyMessage(m.text)
+                                    ? "mp-bubble-emoji-only"
+                                    : ""
+                                }`}
+                              >
+                                {editingId === m.id ? (
+                                  <div className="mp-edit-box">
+                                    <input
+                                      className="mp-edit-input"
+                                      value={editText}
+                                      autoFocus
+                                      onChange={(e) =>
+                                        setEditText(e.target.value)
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          saveEdit(m);
+                                        }
+                                        if (e.key === "Escape") cancelEdit();
+                                      }}
+                                    />
+                                    <div className="mp-edit-actions">
+                                      <button onClick={() => saveEdit(m)}>
+                                        Save
+                                      </button>
+                                      <button onClick={cancelEdit}>
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
                                 ) : (
-                                  <span>{renderMessageText(m.text, mine)}</span>
-                                ))}
+                                  <>
+                                    {m.attachment_url &&
+                                      m.attachment_type === "image" && (
+                                        <img
+                                          src={m.attachment_url}
+                                          alt="attachment"
+                                          className="mp-bubble-image"
+                                          onClick={() =>
+                                            window.open(
+                                              m.attachment_url,
+                                              "_blank",
+                                            )
+                                          }
+                                          onDoubleClick={() =>
+                                            toggleReaction(m, "❤️")
+                                          }
+                                        />
+                                      )}
 
-                              <span className="mp-bubble-footer">
-                                <span className="mp-bubble-time">
-                                  {timeShort(m.created_at)}
-                                </span>
-                                {mine && (
-                                  <span
-                                    className={`mp-ticks mp-ticks-${getTickStatus(m)}`}
-                                  >
-                                    {getTickStatus(m) === "sent" ? "✓" : "✓✓"}
-                                  </span>
+                                    {m.attachment_url &&
+                                      m.attachment_type === "video" && (
+                                        <video
+                                          src={m.attachment_url}
+                                          controls
+                                          className="mp-bubble-video"
+                                        />
+                                      )}
+
+                                    {m.attachment_url &&
+                                      m.attachment_type === "file" && (
+                                        <a
+                                          href={m.attachment_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="mp-bubble-file"
+                                          style={{
+                                            "--file-color": fileInfo.color,
+                                          }}
+                                        >
+                                          <span className="mp-file-icon">
+                                            {fileInfo.icon}
+                                          </span>
+                                          <span className="mp-file-meta">
+                                            <span
+                                              className="mp-file-name"
+                                              title={m.attachment_name}
+                                            >
+                                              {m.attachment_name ||
+                                                "Attachment"}
+                                            </span>
+                                            <span className="mp-file-sub">
+                                              {fileInfo.label}
+                                              {m.attachment_size
+                                                ? ` · ${formatFileSize(m.attachment_size)}`
+                                                : ""}
+                                            </span>
+                                          </span>
+                                          <span className="mp-file-download">
+                                            ⬇
+                                          </span>
+                                        </a>
+                                      )}
+
+                                    {m.text &&
+                                      (isEmojiOnlyMessage(m.text) ? (
+                                        <span className="mp-emoji-only-text">
+                                          {m.text}
+                                        </span>
+                                      ) : (
+                                        <span>
+                                          {renderMessageText(m.text, mine)}
+                                        </span>
+                                      ))}
+
+                                    <span className="mp-bubble-footer">
+                                      {m.edited_at && (
+                                        <span className="mp-edited-tag">
+                                          edited
+                                        </span>
+                                      )}
+                                      <span className="mp-bubble-time">
+                                        {timeShort(m.created_at)}
+                                      </span>
+                                      {mine && (
+                                        <span
+                                          className={`mp-ticks mp-ticks-${getTickStatus(m)}`}
+                                        >
+                                          {getTickStatus(m) === "sent"
+                                            ? "✓"
+                                            : "✓✓"}
+                                        </span>
+                                      )}
+                                    </span>
+                                  </>
                                 )}
-                              </span>
+                              </div>
+
+                              {reactionEntries.length > 0 && (
+                                <div
+                                  className={`mp-reactions-row ${mine ? "mine" : ""}`}
+                                >
+                                  {reactionEntries.map(([emoji, users]) => (
+                                    <button
+                                      key={emoji}
+                                      type="button"
+                                      className={`mp-reaction-pill ${
+                                        users.includes(currentUser)
+                                          ? "mine-reacted"
+                                          : ""
+                                      }`}
+                                      onClick={() => toggleReaction(m, emoji)}
+                                      title={users.join(", ")}
+                                    >
+                                      {emoji}{" "}
+                                      {users.length > 1 ? users.length : ""}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
                         );

@@ -61,7 +61,7 @@
 .reel_video_wrapper {
   position: relative;
   width: 380px;
-  height: 680px;
+  height: 640px;
   border-radius: 24px;
   overflow: hidden;
   background: #1e1b4b;
@@ -808,10 +808,10 @@ body.reels-open .reel_item   { height: 100dvh; }
 
 .reel_progress_track {
   position: absolute;
-  bottom: 0;
+  bottom: max(4px, env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
-  height: 3px;
+  height: 6px;
   background: rgba(255,255,255,0.25);
   z-index: 16;
   cursor: pointer;
@@ -820,18 +820,22 @@ body.reels-open .reel_item   { height: 100dvh; }
 .reel_progress_track::before {
   content: '';
   position: absolute;
-  top: -10px;
+  top: -14px;
   left: 0;
   right: 0;
-  bottom: -3px;
+  bottom: -6px;
 }
 
 .reel_progress_fill {
   height: 100%;
   background: linear-gradient(90deg, var(--zx-primary), var(--zx-accent2));
+  box-shadow: 0 0 8px rgba(220,38,38,0.6);
   transition: width 0.1s linear;
 }
 
 @media (max-width: 768px) {
-  .reel_progress_track { height: 2.5px; }
+  .reel_progress_track {
+    bottom: max(6px, env(safe-area-inset-bottom, 0px));
+    height: 5px;
+  }
 }

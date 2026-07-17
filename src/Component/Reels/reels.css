@@ -801,3 +801,37 @@ body.reels-open .reel_item   { height: 100dvh; }
 .reel_description_toggle:hover {
   opacity: 1;
 }
+
+/* ══════════════════════════════════════
+   PROGRESS BAR
+══════════════════════════════════════ */
+
+.reel_progress_track {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.25);
+  z-index: 16;
+  cursor: pointer;
+}
+
+.reel_progress_track::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+}
+
+.reel_progress_fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--zx-primary), var(--zx-accent2));
+  transition: width 0.1s linear;
+}
+
+@media (max-width: 768px) {
+  .reel_progress_track { height: 2.5px; }
+}

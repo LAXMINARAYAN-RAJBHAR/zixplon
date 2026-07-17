@@ -171,6 +171,7 @@ const ReelItem = ({ reel, allReels }) => {
   const lastTapRef      = useRef(0);
   const tapTimeoutRef   = useRef(null);
   const muteBtnTimerRef = useRef(null);
+  const progressBarRef  = useRef(null); // 🆕 progress bar hit area
 
   const loggedInUser = localStorage.getItem("username") || "Guest";
 
@@ -195,6 +196,7 @@ const ReelItem = ({ reel, allReels }) => {
   const [showMuteBtn, setShowMuteBtn]           = useState(true);
   const [showNewBadge, setShowNewBadge]         = useState(false); // "New" badge
   const [showReportModal, setShowReportModal]   = useState(false);
+  const [progress, setProgress]                 = useState(0); // 🆕 playback progress %
 
   // ── Adaptive resolution based on real-time network conditions ─────────────
   const quality = useNetworkQuality();
@@ -292,6 +294,23 @@ const ReelItem = ({ reel, allReels }) => {
   }, [reel.id]);
 
   useViewTracker({ contentId: reel.id, contentType: "reel", isPlaying });
+
+  // 🆕 Track playback progress for the progress bar
+  useEffect(() => {
+    if (isYouTube(reel.src)) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleTimeUpdate = () => {
+      if (video.duration) {
+        setProgress((video.currentTime / video.duration) * 100);
+      }
+    };
+
+    video.addEventListener("timeupdate", handleTimeUpdate);
+    return () => video.removeEventListener("timeupdate", handleTimeUpdate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reel.src]);
 
   const handleSubscribe = async (e) => {
     e.preventDefault();
@@ -536,6 +555,19 @@ const ReelItem = ({ reel, allReels }) => {
     muteBtnTimerRef.current = setTimeout(() => setShowMuteBtn(false), 3000);
   };
 
+  // 🆕 Seek handler — click/drag anywhere on the progress bar to jump
+  const handleSeek = (e) => {
+    e.stopPropagation();
+    const bar = progressBarRef.current;
+    const video = videoRef.current;
+    if (!bar || !video || !video.duration) return;
+    const rect = bar.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const pct = Math.min(Math.max(clickX / rect.width, 0), 1);
+    video.currentTime = pct * video.duration;
+    setProgress(pct * 100);
+  };
+
   const handleLike = async () => {
     const userId = localStorage.getItem("userId");
     if (!userId) { alert("Please login to like"); return; }
@@ -651,6 +683,17 @@ const ReelItem = ({ reel, allReels }) => {
         {/* ── "New" badge — shows on fresh uploads, disappears on first view ── */}
         {showNewBadge && (
           <div className="reel_new_badge">✨ New</div>
+        )}
+
+        {/* 🆕 ── Progress bar — click/tap anywhere to seek ── */}
+        {!isYouTube(reel.src) && (
+          <div
+            className="reel_progress_track"
+            ref={progressBarRef}
+            onClick={handleSeek}
+          >
+            <div className="reel_progress_fill" style={{ width: `${progress}%` }} />
+          </div>
         )}
 
         {/* ══════════════════════════════════════

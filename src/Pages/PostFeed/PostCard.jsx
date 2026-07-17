@@ -747,13 +747,16 @@ const PostCard = ({
               />
             ) : (
               post.video_url && (
-                <video
-                  src={post.video_url}
-                  controls
-                  playsInline
-                  className="pf-card-video"
-                />
-              )
+  <video
+    src={post.video_url}
+    controls
+    playsInline
+    className="pf-card-video"
+    controlsList="nodownload noplaybackrate nofullscreen"
+    disablePictureInPicture
+    onContextMenu={(e) => e.preventDefault()}
+  />
+)
             )}
 
             {post.link && (

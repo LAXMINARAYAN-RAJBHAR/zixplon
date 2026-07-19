@@ -382,7 +382,7 @@ const Video = ({ sideNavbar }) => {
   };
 
   const handleShare = () => {
-    const ogUrl = `https://zixplon-tawny.vercel.app/api/og?type=video&id=${id}`;
+    const ogUrl = `https://zixplon.in/api/og?type=video&id=${id}`;
     if (navigator.share) {
       navigator
         .share({

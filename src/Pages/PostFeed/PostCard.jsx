@@ -463,7 +463,7 @@ const PostCard = ({
   const [editText, setEditText] = useState(post.text || "");
   const [editPrivacy, setEditPrivacy] = useState(post.privacy || "public");
   const [editImages, setEditImages] = useState(
-    post.image_urls || (post.image_url ? [post.image_url] : [])
+    post.image_urls || (post.image_url ? [post.image_url] : []),
   );
   const [showEditEmoji, setShowEditEmoji] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -507,7 +507,7 @@ const PostCard = ({
   };
 
   const handleCopyLink = () => {
-    const shareUrl = `https://zixplon-tawny.vercel.app/api/og?type=post&id=${post.id}`;
+    const shareUrl = `https://zixplon.in/api/og?type=post&id=${post.id}`;
     navigator.clipboard?.writeText(shareUrl).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -611,11 +611,13 @@ const PostCard = ({
                     <button
                       className="pf-dropdown-item"
                       onClick={() => {
-  window.dispatchEvent(
-    new CustomEvent("openMessages", { detail: { username: post.username } })
-  );
-  setShowMenu(false);
-}}
+                        window.dispatchEvent(
+                          new CustomEvent("openMessages", {
+                            detail: { username: post.username },
+                          }),
+                        );
+                        setShowMenu(false);
+                      }}
                     >
                       ✉️ Message {post.username}
                     </button>
@@ -713,7 +715,9 @@ const PostCard = ({
               <button
                 className="pf-post-btn"
                 onClick={saveEdit}
-                disabled={savingEdit || (!editText.trim() && editImages.length === 0)}
+                disabled={
+                  savingEdit || (!editText.trim() && editImages.length === 0)
+                }
               >
                 {savingEdit ? "Saving…" : "Save changes"}
               </button>
@@ -722,10 +726,10 @@ const PostCard = ({
         ) : (
           <div className="pf-card-body">
             {post.text && (
-  <p className="pf-card-text">
-    <ExpandableText text={post.text} maxChars={220} />
-  </p>
-)}
+              <p className="pf-card-text">
+                <ExpandableText text={post.text} maxChars={220} />
+              </p>
+            )}
 
             {post.image_urls && post.image_urls.length > 0 ? (
               <ImageCarousel
@@ -747,16 +751,16 @@ const PostCard = ({
               />
             ) : (
               post.video_url && (
-  <video
-    src={post.video_url}
-    controls
-    playsInline
-    className="pf-card-video"
-    controlsList="nodownload noplaybackrate nofullscreen"
-    disablePictureInPicture
-    onContextMenu={(e) => e.preventDefault()}
-  />
-)
+                <video
+                  src={post.video_url}
+                  controls
+                  playsInline
+                  className="pf-card-video"
+                  controlsList="nodownload noplaybackrate nofullscreen"
+                  disablePictureInPicture
+                  onContextMenu={(e) => e.preventDefault()}
+                />
+              )
             )}
 
             {post.link && (

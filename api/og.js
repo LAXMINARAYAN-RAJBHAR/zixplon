@@ -51,8 +51,8 @@ export default async function handler(req) {
         item?.image_url ||
         item?.image_urls?.[0] ||
         getVideoThumbnail(item?.video_url) || // adjust field name if your video column is named differently
-        "https://zixplon-tawny.vercel.app/logo192.png";
-      url = `https://zixplon-tawny.vercel.app/feed?post=${id}`;
+        "https://zixplon.in/logo192.png";
+      url = `https://zixplon.in/feed?post=${id}`;
     } else {
       const table = type === "reel" ? "reels" : "videos";
       const res = await fetch(
@@ -74,8 +74,8 @@ export default async function handler(req) {
         item?.thumbnail_url ||
         item?.thumbnail ||
         getVideoThumbnail(item?.video_url) ||
-        "https://zixplon-tawny.vercel.app/logo192.png";
-      url = `https://zixplon-tawny.vercel.app/${type === "reel" ? `reels/db_${id}` : `video/${id}`}`;
+        "https://zixplon.in/logo192.png";
+      url = `https://zixplon.in/${type === "reel" ? `reels/db_${id}` : `video/${id}`}`;
     }
 
     const safeTitle = escapeHtml(title);

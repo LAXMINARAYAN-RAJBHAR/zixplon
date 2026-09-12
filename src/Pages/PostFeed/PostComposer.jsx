@@ -212,9 +212,19 @@ const PostComposer = ({ currentUser, onPost }) => {
   const fileRef = useRef();
   const videoRef = useRef();
   const linkDebounceRef = useRef(null);
+  // NEW: lets HomeHub's "+ Upload" -> "Post" menu item scroll this
+  // composer into view and focus it, via the "zx:focus-composer"
+  // window event dispatched from HomeHub.jsx.
+  const textareaRef = useRef();
 
   useEffect(() => {
+    const focusComposer = () => {
+      textareaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      textareaRef.current?.focus();
+    };
+    window.addEventListener("zx:focus-composer", focusComposer);
     return () => {
+      window.removeEventListener("zx:focus-composer", focusComposer);
       if (linkDebounceRef.current) clearTimeout(linkDebounceRef.current);
     };
   }, []);
@@ -492,6 +502,7 @@ const PostComposer = ({ currentUser, onPost }) => {
         <div className="pf-avatar">{initials}</div>
         <div className="pf-composer-body">
           <textarea
+            ref={textareaRef}
             className="pf-composer-input"
             value={text}
             onChange={(e) => setText(e.target.value)}

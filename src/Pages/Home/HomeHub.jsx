@@ -1,8 +1,12 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import NewspaperOutlinedIcon from "@mui/icons-material/NewspaperOutlined";
+import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
+import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
+import MovieOutlinedIcon from "@mui/icons-material/MovieOutlined";
+import SensorsOutlinedIcon from "@mui/icons-material/SensorsOutlined";
 import "./homeHub.css";
 
 // HomePageContent is the component App.js originally imported as `Home`
@@ -10,6 +14,15 @@ import "./homeHub.css";
 // PostFeed is the same file already used by App.js's old "/feed" route.
 import HomePageContent from "./home";
 import PostFeed from "../PostFeed/PostFeed";
+
+// NOTE: Video's real route is confirmed ("/videoUpload", same as the old
+// goToUpload()). Reel and Live are NOT confirmed — these are reasonable
+// guesses; update them to match your actual routes before shipping.
+const UPLOAD_ROUTES = {
+  video: "/videoUpload",
+  reel: "/reelUpload", // TODO: confirm — may actually be "/videoUpload" with a type toggle, or something like "/763/upload"
+  live: "/live", // TODO: confirm your Go Live route
+};
 
 // ── HomeHub ──────────────────────────────────────────────────────────────
 // Single merged tab: a small segmented control (Home / Posts) plus an
@@ -37,10 +50,38 @@ import PostFeed from "../PostFeed/PostFeed";
 // the Navbar when it's not (i.e. on the Posts tab). Since only this
 // component knows which tab is active, it passes that down as a class
 // so homeHub.css can pick the right `top` offset for .hh-tabbar.
+//
+// NEW: the Upload button ("+ Upload") no longer navigates straight to
+// the video uploader — it opens a small dropdown (Post / Video / Reel /
+// Live). Picking "Post" doesn't navigate anywhere; PostComposer already
+// lives at the top of the Posts tab, so this just switches to that tab
+// (if not already on it) and fires a "zx:focus-composer" window event
+// that PostComposer.jsx listens for to scroll itself into view and
+// focus its textarea — same idea as clicking a normal compose box.
 const HomeHub = ({ sideNavbar, currentUser }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") === "posts" ? "posts" : "home";
+
+  const [showUploadMenu, setShowUploadMenu] = useState(false);
+  const uploadMenuRef = useRef(null);
+  const uploadBtnRef = useRef(null);
+
+  useEffect(() => {
+    if (!showUploadMenu) return;
+    const handleClickOutside = (e) => {
+      if (
+        uploadMenuRef.current &&
+        !uploadMenuRef.current.contains(e.target) &&
+        uploadBtnRef.current &&
+        !uploadBtnRef.current.contains(e.target)
+      ) {
+        setShowUploadMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showUploadMenu]);
 
   const setTab = (tab) => {
     const next = new URLSearchParams(searchParams);
@@ -49,12 +90,48 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
     setSearchParams(next, { replace: false });
   };
 
-  const goToUpload = () => {
+  const requireLogin = () => {
     if (!currentUser) {
       window.dispatchEvent(new CustomEvent("openLogin"));
-      return;
+      return false;
     }
-    navigate("/videoUpload");
+    return true;
+  };
+
+  const handleUploadPost = () => {
+    if (!requireLogin()) return;
+    setShowUploadMenu(false);
+
+    const focusComposer = () => window.dispatchEvent(new CustomEvent("zx:focus-composer"));
+
+    if (activeTab === "posts") {
+      // Already there — PostComposer is already mounted, focus it now.
+      focusComposer();
+    } else {
+      // Switching from Home unmounts HomePageContent and mounts
+      // PostFeed fresh — give it a tick to actually render before
+      // trying to focus something inside it.
+      setTab("posts");
+      requestAnimationFrame(() => setTimeout(focusComposer, 60));
+    }
+  };
+
+  const handleUploadVideo = () => {
+    if (!requireLogin()) return;
+    setShowUploadMenu(false);
+    navigate(UPLOAD_ROUTES.video);
+  };
+
+  const handleUploadReel = () => {
+    if (!requireLogin()) return;
+    setShowUploadMenu(false);
+    navigate(UPLOAD_ROUTES.reel);
+  };
+
+  const handleGoLive = () => {
+    if (!requireLogin()) return;
+    setShowUploadMenu(false);
+    navigate(UPLOAD_ROUTES.live);
   };
 
   return (
@@ -73,19 +150,50 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
           onClick={() => setTab("home")}
         >
           <HomeOutlinedIcon sx={{ fontSize: 18 }} />
-          <span>Home</span>
+          <span className="hh-tab-label">Home</span>
         </button>
         <button
           className={"hh-tab-btn" + (activeTab === "posts" ? " hh-tab-active" : "")}
           onClick={() => setTab("posts")}
         >
           <NewspaperOutlinedIcon sx={{ fontSize: 18 }} />
-          <span>Posts</span>
+          <span className="hh-tab-label">Posts</span>
         </button>
-        <button className="hh-upload-btn" onClick={goToUpload} title="Upload">
-          <AddCircleOutlineIcon sx={{ fontSize: 20 }} />
-          <span>Upload</span>
-        </button>
+
+        <div className="hh-upload-wrap">
+          <button
+            ref={uploadBtnRef}
+            className="hh-upload-btn"
+            onClick={() => setShowUploadMenu((v) => !v)}
+            title="Upload"
+            aria-haspopup="true"
+            aria-expanded={showUploadMenu}
+          >
+            <AddCircleOutlineIcon sx={{ fontSize: 20 }} />
+            <span>Upload</span>
+          </button>
+
+          {showUploadMenu && (
+            <div className="hh-upload-menu" ref={uploadMenuRef}>
+              <button className="hh-upload-menu-item" onClick={handleUploadPost}>
+                <ArticleOutlinedIcon sx={{ fontSize: 18 }} />
+                <span>Post</span>
+              </button>
+              <button className="hh-upload-menu-item" onClick={handleUploadVideo}>
+                <VideocamOutlinedIcon sx={{ fontSize: 18 }} />
+                <span>Video</span>
+              </button>
+              <button className="hh-upload-menu-item" onClick={handleUploadReel}>
+                <MovieOutlinedIcon sx={{ fontSize: 18 }} />
+                <span>Reel</span>
+              </button>
+              <button className="hh-upload-menu-item" onClick={handleGoLive}>
+                <SensorsOutlinedIcon sx={{ fontSize: 18 }} />
+                <span>Live</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="hh-tab-content">

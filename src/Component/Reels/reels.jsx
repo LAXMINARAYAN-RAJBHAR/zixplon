@@ -964,6 +964,29 @@ const ReelItem = ({ reel, allReels }) => {
     muteBtnTimerRef.current = setTimeout(() => setShowMuteBtn(false), 3000);
   };
 
+  // NEW: persistent Play/Pause button click handler — sits to the left
+  // of the progress bar, mirrored on the right by the Mute button. Does
+  // the same play/pause toggle as a single-tap on the video
+  // (handleVideoClick's non-double-tap branch) but is always visible
+  // (while showMuteBtn is true) instead of only reachable by tapping
+  // the video itself. Also resets the same auto-hide timer the mute
+  // button uses so both stay in sync.
+  const handlePlayPauseClick = (e) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play().catch(() => {});
+      setIsPlaying(true);
+    } else {
+      video.pause();
+      setIsPlaying(false);
+    }
+    setShowMuteBtn(true);
+    clearTimeout(muteBtnTimerRef.current);
+    muteBtnTimerRef.current = setTimeout(() => setShowMuteBtn(false), 3000);
+  };
+
   const handleSeek = (e) => {
     e.stopPropagation();
     const bar = progressBarRef.current;
@@ -1057,6 +1080,20 @@ const ReelItem = ({ reel, allReels }) => {
         {!isYouTube(reel.src) && showIcon       && <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>}
         {!isYouTube(reel.src) && showHeartBurst && <div className="reel_heart_burst">❤️</div>}
 
+        {/* CHANGED: the old centered "Tap to mute/unmute" pill is now
+            two small circular buttons sitting just above the progress
+            bar — Play/Pause on the left, Mute on the right — both
+            sharing the same showMuteBtn visibility + auto-hide timer. */}
+        {!isYouTube(reel.src) && showMuteBtn && (
+          <button
+            className="reel_playpause_btn"
+            onClick={handlePlayPauseClick}
+            aria-label={isPlaying ? "Pause" : "Play"}
+          >
+            <span className="reel_playpause_icon">{isPlaying ? "⏸" : "▶"}</span>
+          </button>
+        )}
+
         {!isYouTube(reel.src) && showMuteBtn && (
           <button
             key={muted ? "muted" : "unmuted"}
@@ -1064,8 +1101,7 @@ const ReelItem = ({ reel, allReels }) => {
             onClick={handleToggleMute}
             aria-label={muted ? "Unmute" : "Mute"}
           >
-            {muted ? <VolumeOffIcon sx={{ fontSize: 26 }} /> : <VolumeUpIcon sx={{ fontSize: 26 }} />}
-            <span className="reel_mute_btn_label">{muted ? "Tap to unmute" : "Tap to mute"}</span>
+            {muted ? <VolumeOffIcon sx={{ fontSize: 20 }} /> : <VolumeUpIcon sx={{ fontSize: 20 }} />}
           </button>
         )}
 

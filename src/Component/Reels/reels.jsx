@@ -1082,9 +1082,11 @@ const ReelItem = ({ reel, allReels }) => {
 
         {/* CHANGED: the old centered "Tap to mute/unmute" pill is now
             two small circular buttons sitting just above the progress
-            bar — Play/Pause on the left, Mute on the right — both
-            sharing the same showMuteBtn visibility + auto-hide timer. */}
-        {!isYouTube(reel.src) && showMuteBtn && (
+            bar — Play/Pause on the left, Mute on the right. Unlike the
+            old pill, these are ALWAYS visible (not tied to the
+            showMuteBtn auto-hide timer) so the controls are reachable
+            at any time, not just for 3s after a tap/seek. */}
+        {!isYouTube(reel.src) && (
           <button
             className="reel_playpause_btn"
             onClick={handlePlayPauseClick}
@@ -1094,7 +1096,7 @@ const ReelItem = ({ reel, allReels }) => {
           </button>
         )}
 
-        {!isYouTube(reel.src) && showMuteBtn && (
+        {!isYouTube(reel.src) && (
           <button
             key={muted ? "muted" : "unmuted"}
             className="reel_mute_btn"

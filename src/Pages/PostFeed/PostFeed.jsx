@@ -5,6 +5,7 @@ import "./PostFeed.css";
 import PostComposer from "./PostComposer";
 import PostCard from "./PostCard";
 import ReelsStrip from "./ReelsStrip";
+import VideoFeedCard from "./VideoFeedCard";
 import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 import AdUnit from "../../Component/Ads/AdUnit";
 // CHANGED: now also imports notifyUser — needed for post like/comment
@@ -38,26 +39,15 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   // fetchViewCounts pattern already used for videos/reels on the
   // homepage (see homePage.js) — same "views" table, content_type: "post".
   const [viewCounts, setViewCounts] = useState({});
-
-  // ── Reels pool (interleaved strips) ──────────────────────────────────
-  // CHANGED: reels used to be fetched ONCE, capped at 20, and rendered
-  // as a single strip above the composer. Now they're paginated exactly
-  // like posts — fetched in pages of REELS_PAGE_SIZE — and the growing
-  // pool is sliced into REELS_PER_STRIP-sized chunks, one chunk per
-  // <ReelsStrip> inserted after every 2 posts in the feed below. The
-  // effect further down keeps topping up this pool as more posts (and
-  // therefore more strip slots) load, so strips keep appearing for as
-  // long as the post feed itself keeps scrolling — effectively
-  // unlimited, instead of stopping after the first 20 reels.
-  const REELS_PAGE_SIZE = 20; // fetched per Supabase round-trip
-  const REELS_PER_STRIP = 10; // reels shown per individual strip
-  const [reels, setReels] = useState([]);
-  const [reelsHasMore, setReelsHasMore] = useState(true);
-  const reelsOffsetRef = useRef(0);
-  const reelsLoadingRef = useRef(false);
-
   const PAGE_SIZE = 10;
   const offsetRef = useRef(0);
+  // NEW: a videos pool kept the same length as `posts`, so
+  // videos[index] can be handed to the Video slot that follows
+  // posts[index] in the Post -> Video -> ReelsStrip sequence below.
+  // Wraps back to the start of the videos table if it runs out
+  // rather than leaving later slots empty.
+  const [videos, setVideos] = useState([]);
+  const videosOffsetRef = useRef(0);
 
   // Normalized so every existing `currentUser === "anonymous"` /
   // `!currentUser || currentUser === "anonymous"` check below keeps
@@ -153,6 +143,41 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     } catch (_) {}
   }, []);
 
+  // Pulls `count` more videos into the pool, oldest-appended so
+  // videos[i] lines up with posts[i]. Wraps the offset back to 0 once
+  // the videos table is exhausted, same "never dead-end" approach
+  // ReelsStrip already uses for its own pagination.
+  const fetchMoreVideos = useCallback(async (count) => {
+    if (!count) return;
+    const { data, error: fetchErr } = await supabase
+      .from("videos")
+      .select("id, short_id, video_url, thumbnail_url, title, channel, username, duration")
+      .order("created_at", { ascending: false })
+      .range(videosOffsetRef.current, videosOffsetRef.current + count - 1);
+
+    if (!fetchErr && data && data.length > 0) {
+      setVideos((prev) => [
+        ...prev,
+        ...data.map((v) => ({
+          id: v.id,
+          short_id: v.short_id,
+          src: v.video_url,
+          thumbnail: v.thumbnail_url || null,
+          title: v.title,
+          duration: v.duration || "00:00",
+          channel: v.channel,
+          username: v.username || v.channel?.toLowerCase() || "unknown",
+        })),
+      ]);
+      videosOffsetRef.current += data.length;
+      if (data.length < count) {
+        videosOffsetRef.current = 0; // hit the end — loop back next time
+      }
+    } else {
+      videosOffsetRef.current = 0; // empty page — reset and try again next call
+    }
+  }, []);
+
   const fetchPosts = useCallback(async (reset = false) => {
     try {
       const offset = reset ? 0 : offsetRef.current;
@@ -173,9 +198,13 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       if (reset) {
         setPosts(enriched);
         offsetRef.current = enriched.length;
+        setVideos([]);
+        videosOffsetRef.current = 0;
+        fetchMoreVideos(enriched.length);
       } else {
         setPosts((prev) => [...prev, ...enriched]);
         offsetRef.current += enriched.length;
+        fetchMoreVideos(enriched.length);
       }
 
       // NEW: pull view counts for whichever page of posts just loaded.
@@ -224,11 +253,18 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         if (prev.some((p) => p.id === newId)) return prev;
         return [enrichedPost, ...prev];
       });
+      // Keeps the videos pool at least as large as the posts pool. This
+      // is a "top up the supply" step, not a perfectly realigned index
+      // shift — a realtime post prepend shifts every existing post's
+      // effective position by one, so the very next Video slot can be
+      // off-by-one right after this fires. It re-settles to a correct
+      // 1:1 pairing on the next full fetchPosts(true) (e.g. a refresh).
+      fetchMoreVideos(1);
 
       // NEW: seed a view-count entry (0) for the freshly inserted post.
       fetchViewCounts([newId]);
     },
-    [enrichPost]
+    [enrichPost, fetchMoreVideos]
   );
 
   useEffect(() => {
@@ -256,99 +292,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
     return () => supabase.removeChannel(channel);
   }, [fetchPosts, handleRealtimeInsert]);
-
-  // ── Reels pool — paginated fetch, mirrors fetchPosts above ──────────
-  // Formats a raw Supabase `reels` row into the shape ReelsStrip/
-  // ReelStripCard expect.
-  const formatReel = (r) => ({
-    id: "db_" + r.id,
-    dbId: r.id,
-    src: r.video_url,
-    thumbnail: r.thumbnail || null,
-    title: r.title || "Untitled",
-    duration: r.duration || "00:00",
-    user: r.user || r.username || "Unknown",
-    username: r.username || "unknown",
-  });
-
-  const fetchReels = useCallback(async (reset = false) => {
-    if (reelsLoadingRef.current) return;
-    reelsLoadingRef.current = true;
-    try {
-      const offset = reset ? 0 : reelsOffsetRef.current;
-      const { data, error: fetchErr } = await supabase
-        .from("reels")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .range(offset, offset + REELS_PAGE_SIZE - 1);
-
-      if (!fetchErr && data) {
-        const formatted = data.map(formatReel);
-
-        if (reset) {
-          setReels(formatted);
-          reelsOffsetRef.current = formatted.length;
-        } else {
-          setReels((prev) => {
-            const existingIds = new Set(prev.map((r) => r.dbId));
-            const newOnes = formatted.filter((r) => !existingIds.has(r.dbId));
-            return [...prev, ...newOnes];
-          });
-          reelsOffsetRef.current += formatted.length;
-        }
-
-        setReelsHasMore(data.length === REELS_PAGE_SIZE);
-      }
-    } finally {
-      reelsLoadingRef.current = false;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    fetchReels(true);
-
-    const reelsSub = supabase
-      .channel("reels-channel-postfeed")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "reels" },
-        (payload) => {
-          const r = payload.new;
-          setReels((prev) => {
-            if (prev.some((x) => x.dbId === r.id)) return prev;
-            return [formatReel(r), ...prev];
-          });
-          reelsOffsetRef.current += 1;
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "reels" },
-        (payload) => {
-          setReels((prev) => prev.filter((r) => r.dbId !== payload.old.id));
-        },
-      )
-      .subscribe();
-
-    return () => supabase.removeChannel(reelsSub);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // NEW: keeps the reels pool topped up as the post feed grows. A strip
-  // is inserted after every 2 posts, so as `posts` gets longer more
-  // strip slots exist — this fetches additional pages of reels whenever
-  // the loaded pool is smaller than what all current strip slots need,
-  // so strips keep appearing (instead of running dry after 20 reels)
-  // for as long as posts keep loading below.
-  useEffect(() => {
-    const stripsNeeded = Math.floor(posts.length / 2);
-    const requiredReels = stripsNeeded * REELS_PER_STRIP;
-    if (reels.length < requiredReels && reelsHasMore && !reelsLoadingRef.current) {
-      fetchReels(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts.length, reels.length, reelsHasMore]);
 
   // ── Infinite scroll observer ──
   useEffect(() => {
@@ -944,61 +887,52 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           </div>
         )}
 
-        {/* ── Interleaved feed: a ReelsStrip is inserted after every 2
-            posts, pulling the next unused REELS_PER_STRIP-sized chunk
-            from the growing `reels` pool. The effect above keeps
-            fetching more reels as `posts` grows, so strips keep
-            appearing for as long as the feed keeps scrolling instead of
-            stopping after a fixed 20-reel cap. Ad units keep their
-            original every-5th-post placement, independent of the strip
-            placement. ── */}
-        {posts.map((post, index) => {
-          const showStripAfter = (index + 1) % 2 === 0;
-          const stripChunkIndex = showStripAfter
-            ? Math.floor((index + 1) / 2) - 1
-            : -1;
-          const stripReels = showStripAfter
-            ? reels.slice(
-                stripChunkIndex * REELS_PER_STRIP,
-                (stripChunkIndex + 1) * REELS_PER_STRIP,
-              )
-            : [];
+        {posts.map((post, index) => (
+          <React.Fragment key={post.id}>
+            <div id={`post-${post.id}`}>
+              <PostCard
+                post={post}
+                currentUser={currentUser}
+                onReaction={handleReaction}
+                onComment={handleComment}
+                onToggleComments={handleToggleComments}
+                onShare={handleShare}
+                onDelete={handleDeletePost}
+                onEdit={handleEditPost}
+                onReport={handleReportPost}
+                onLikeComment={(postId, commentId) =>
+                  handleCommentReaction(postId, commentId, "like")
+                }
+                onDislikeComment={(postId, commentId) =>
+                  handleCommentReaction(postId, commentId, "dislike")
+                }
+                onSaveComment={handleSaveComment}
+                viewCount={viewCounts[String(post.id)] ?? 0}
+                onView={incrementView}
+              />
+            </div>
 
-          return (
-            <React.Fragment key={post.id}>
-              <div id={`post-${post.id}`}>
-                <PostCard
-                  post={post}
-                  currentUser={currentUser}
-                  onReaction={handleReaction}
-                  onComment={handleComment}
-                  onToggleComments={handleToggleComments}
-                  onShare={handleShare}
-                  onDelete={handleDeletePost}
-                  onEdit={handleEditPost}
-                  onReport={handleReportPost}
-                  onLikeComment={(postId, commentId) =>
-                    handleCommentReaction(postId, commentId, "like")
-                  }
-                  onDislikeComment={(postId, commentId) =>
-                    handleCommentReaction(postId, commentId, "dislike")
-                  }
-                  onSaveComment={handleSaveComment}
-                  viewCount={viewCounts[String(post.id)] ?? 0}
-                  onView={incrementView}
-                />
-              </div>
+            {/* NEW: Post -> Video -> ReelsStrip, repeating after every
+                single post. The video pool (`videos`) is fetched in
+                lockstep with the posts pool so videos[index] always
+                exists once posts[index] has loaded — falls back to
+                nothing rendered if the videos table has fewer rows than
+                posts (no placeholder shown for a missing slot). */}
+            {videos[index] && <VideoFeedCard video={videos[index]} />}
 
-              {showStripAfter && stripReels.length > 0 && (
-                <ReelsStrip reels={stripReels} />
-              )}
+            {/* A fresh, independently infinite-scrolling Reels strip
+                after every post. Each instance gets its own startOffset
+                (stepping by 10, the strip's own page size) so
+                consecutive strips down the feed open on a different
+                slice of reels instead of all starting from the same
+                ones. */}
+            <ReelsStrip key={`reels-${index}`} startOffset={index * 10} />
 
-              {(index + 1) % 5 === 0 && (
-                <AdUnit slot="7412839650" format="fluid" layout="in-feed" />
-              )}
-            </React.Fragment>
-          );
-        })}
+            {(index + 1) % 5 === 0 && (
+              <AdUnit slot="7412839650" format="fluid" layout="in-feed" />
+            )}
+          </React.Fragment>
+        ))}
 
         {hasMore && (
           <div ref={setSentinelNode} className="pf-scroll-sentinel">

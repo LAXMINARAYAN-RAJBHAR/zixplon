@@ -5,8 +5,6 @@ import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import NewspaperOutlinedIcon from "@mui/icons-material/NewspaperOutlined";
 import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
 import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
-import MovieOutlinedIcon from "@mui/icons-material/MovieOutlined";
-import SensorsOutlinedIcon from "@mui/icons-material/SensorsOutlined";
 import "./homeHub.css";
 
 // HomePageContent is the component App.js originally imported as `Home`
@@ -15,13 +13,11 @@ import "./homeHub.css";
 import HomePageContent from "./home";
 import PostFeed from "../PostFeed/PostFeed";
 
-// NOTE: Video's real route is confirmed ("/videoUpload", same as the old
-// goToUpload()). Reel and Live are NOT confirmed — these are reasonable
-// guesses; update them to match your actual routes before shipping.
+// Video's real route (same as the old goToUpload()). Reel and Live
+// aren't separate menu items anymore — that page already lets the
+// person choose Reel/Live/Video from within it.
 const UPLOAD_ROUTES = {
   video: "/videoUpload",
-  reel: "/reelUpload", // TODO: confirm — may actually be "/videoUpload" with a type toggle, or something like "/763/upload"
-  live: "/live", // TODO: confirm your Go Live route
 };
 
 // ── HomeHub ──────────────────────────────────────────────────────────────
@@ -52,8 +48,10 @@ const UPLOAD_ROUTES = {
 // so homeHub.css can pick the right `top` offset for .hh-tabbar.
 //
 // NEW: the Upload button ("+ Upload") no longer navigates straight to
-// the video uploader — it opens a small dropdown (Post / Video / Reel /
-// Live). Picking "Post" doesn't navigate anywhere; PostComposer already
+// the video uploader — it opens a small dropdown (Post / Video). Reel
+// and Live aren't separate entries here since the video uploader
+// itself already lets the person choose between Video/Reel/Live.
+// Picking "Post" doesn't navigate anywhere; PostComposer already
 // lives at the top of the Posts tab, so this just switches to that tab
 // (if not already on it) and fires a "zx:focus-composer" window event
 // that PostComposer.jsx listens for to scroll itself into view and
@@ -122,18 +120,6 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
     navigate(UPLOAD_ROUTES.video);
   };
 
-  const handleUploadReel = () => {
-    if (!requireLogin()) return;
-    setShowUploadMenu(false);
-    navigate(UPLOAD_ROUTES.reel);
-  };
-
-  const handleGoLive = () => {
-    if (!requireLogin()) return;
-    setShowUploadMenu(false);
-    navigate(UPLOAD_ROUTES.live);
-  };
-
   return (
     <div className="hh-wrap">
       <div
@@ -182,14 +168,6 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
               <button className="hh-upload-menu-item" onClick={handleUploadVideo}>
                 <VideocamOutlinedIcon sx={{ fontSize: 18 }} />
                 <span>Video</span>
-              </button>
-              <button className="hh-upload-menu-item" onClick={handleUploadReel}>
-                <MovieOutlinedIcon sx={{ fontSize: 18 }} />
-                <span>Reel</span>
-              </button>
-              <button className="hh-upload-menu-item" onClick={handleGoLive}>
-                <SensorsOutlinedIcon sx={{ fontSize: 18 }} />
-                <span>Live</span>
               </button>
             </div>
           )}

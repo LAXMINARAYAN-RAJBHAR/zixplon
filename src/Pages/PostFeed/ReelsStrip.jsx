@@ -1,12 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "../../config/supabase";
+import { ThreeDotMenu, ReportModal, shareContent } from "../../Component/Shared/ContentMenu";
 
 const HOVER_PREVIEW_DELAY = 350; // ms
 const PAGE_SIZE = 10;
-// How close to the right edge (px) triggers loading the next page —
-// fires a little before the user actually hits the end so more cards
-// are ready by the time they get there.
 const LOAD_MORE_THRESHOLD_PX = 300;
 
 const mapReelRow = (r) => ({
@@ -20,8 +18,6 @@ const mapReelRow = (r) => ({
   username: r.username || "unknown",
 });
 
-// ── View count formatting — mirrors formatViews() used elsewhere in the
-// app (homePage.js, PostFeed.jsx) so counts read consistently everywhere. ──
 const formatViews = (n) => {
   if (!n || n === 0) return "0";
   if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
@@ -32,14 +28,15 @@ const formatViews = (n) => {
 // ── One reel card in the strip. Desktop hovers-to-preview (muted, looping
 // clip in place of the thumbnail); mobile just shows the static thumbnail
 // (or the video's own first frame if no thumbnail_url exists) and relies
-// on the tap to open the reel. Clicking/tapping navigates into the full
-// Reels swipe player, passing the reel object as `clickedReel` state so
-// it opens instantly there instead of waiting on a fresh fetch — same
-// pattern Homepage's ShortCard uses today. ──
-const ReelStripCard = ({ reel, viewCount, navigate }) => {
+// on the tap to open the reel. Carries a three-dots menu (Share, Go to
+// Profile, Report, and owner-only Delete) — matching the video/reel
+// cards on the Home feed. ──
+const ReelStripCard = ({ reel, viewCount, navigate, loggedInUsername, onReport, onDeleted }) => {
   const [previewing, setPreviewing] = useState(false);
   const videoRef = useRef(null);
   const timeoutRef = useRef(null);
+
+  const isOwner = loggedInUsername && reel.username && reel.username === loggedInUsername;
 
   const onEnter = () => {
     if (!reel.src) return;
@@ -48,37 +45,82 @@ const ReelStripCard = ({ reel, viewCount, navigate }) => {
       videoRef.current?.play().catch(() => {});
     }, HOVER_PREVIEW_DELAY);
   };
-
   const onLeave = () => {
     clearTimeout(timeoutRef.current);
     setPreviewing(false);
     if (videoRef.current) {
-      try {
-        videoRef.current.pause();
-        videoRef.current.currentTime = 0;
-      } catch (_) {}
+      try { videoRef.current.pause(); videoRef.current.currentTime = 0; } catch (_) {}
     }
   };
 
-  const goToReel = () => {
-    navigate(`/reels/${reel.id}`, { state: { clickedReel: reel } });
+  const goToReel = () => navigate(`/reels/${reel.id}`, { state: { clickedReel: reel } });
+
+  const handleDelete = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm("Delete this reel? This cannot be undone.")) return;
+    const { error } = await supabase.from("reels").delete().eq("id", reel.dbId);
+    if (error) alert("Failed to delete reel.");
+    else onDeleted(reel.dbId);
   };
+
+  const menuItems = [
+    {
+      id: "share",
+      icon: <span style={{ fontSize: 15 }}>🔗</span>,
+      label: "Share",
+      onClick: (e) => {
+        e.preventDefault(); e.stopPropagation();
+        shareContent({
+          contentType: "reel",
+          contentId: reel.dbId,
+          title: reel.title,
+          text: `Watch "${reel.title}" on Zixplon`,
+        });
+      },
+    },
+    {
+      id: "profile",
+      icon: <span style={{ fontSize: 15 }}>👤</span>,
+      label: "Go to Profile",
+      onClick: (e) => {
+        e.preventDefault(); e.stopPropagation();
+        navigate("/user/" + (reel.username || "unknown"));
+      },
+    },
+    {
+      id: "report",
+      icon: <span style={{ fontSize: 15 }}>🚩</span>,
+      label: "Report reel",
+      onClick: (e) => {
+        e.preventDefault(); e.stopPropagation();
+        onReport({ contentType: "reel", contentId: reel.dbId, title: reel.title });
+      },
+    },
+    ...(isOwner
+      ? [{
+          id: "delete",
+          icon: <span style={{ fontSize: 15 }}>🗑️</span>,
+          label: "Delete reel",
+          danger: true,
+          onClick: handleDelete,
+        }]
+      : []),
+  ];
 
   return (
     <div
       className="pf-reel-card"
+      style={{ position: "relative" }}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       onClick={goToReel}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          goToReel();
-        }
-      }}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToReel(); } }}
     >
+      <ThreeDotMenu items={menuItems} />
+
       <div className="pf-reel-thumb-wrap">
         {reel.thumbnail ? (
           <>
@@ -118,9 +160,6 @@ const ReelStripCard = ({ reel, viewCount, navigate }) => {
         {reel.duration && reel.duration !== "00:00" && (
           <span className="pf-reel-duration">{reel.duration}</span>
         )}
-        {/* NEW: view count badge, bottom-left — mirrors Homepage's
-            ShortCard (👁 count), sourced from the "views" table tallied
-            per reel in ReelsStrip's loadPage below. */}
         <span className="pf-reel-viewcount">👁 {formatViews(viewCount)}</span>
       </div>
       <div className="pf-reel-title">{reel.title}</div>
@@ -138,28 +177,45 @@ const ReelStripCard = ({ reel, viewCount, navigate }) => {
 // ── The strip. Fully self-contained: fetches its own first page starting
 // at `startOffset` (so multiple strips interleaved down the feed each
 // show a different slice of reels instead of repeating the same ones),
-// then keeps loading further pages as the user scrolls it horizontally —
-// an infinite strip, not a fixed batch. `wrapAround` (default true) means
-// once the underlying reels table is exhausted, it loops back to offset 0
-// instead of just stopping, so the strip never visibly "runs out" — set
-// it to false if you'd rather it stop at the real end of the table. ──
+// then keeps loading further pages as the user scrolls it horizontally.
+// Owns its own report modal so a report from any card in this strip has
+// somewhere to render. ──
 const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
   const navigate = useNavigate();
   const [reels, setReels] = useState([]);
-  // NEW: view counts keyed by reel dbId (number) -> count. Fetched
-  // alongside each page of reels rather than one-by-one per card, so a
-  // page of 10 reels costs one extra query, not ten.
   const [viewCounts, setViewCounts] = useState({});
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const offsetRef = useRef(startOffset);
   const loadingRef = useRef(false);
   const trackRef = useRef(null);
+  const loggedInUsername = localStorage.getItem("username") || "";
 
-  // Fetches the view count for a batch of reels (by their numeric dbId)
-  // from the shared "views" table, same content_type: "reel" rows the
-  // rest of the app already writes via incrementView(). Tallies rows
-  // client-side into a { dbId: count } map and merges it into state.
+  const [reportTarget, setReportTarget] = useState(null);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+
+  const submitReport = async (reason, details) => {
+    if (!reportTarget) return;
+    setReportSubmitting(true);
+    try {
+      const { error } = await supabase.from("reports").insert({
+        content_id: String(reportTarget.contentId),
+        content_type: reportTarget.contentType,
+        reason,
+        details: details || null,
+        reporter_username: loggedInUsername || null,
+        created_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      alert("Thanks — your report has been submitted for review.");
+      setReportTarget(null);
+    } catch (_) {
+      alert("Couldn't submit the report right now. Please try again.");
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
   const fetchViewCountsFor = useCallback(async (dbIds) => {
     if (!dbIds || dbIds.length === 0) return;
     try {
@@ -202,16 +258,13 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
       fetchViewCountsFor(mapped.map((r) => r.dbId));
       offsetRef.current += data.length;
       if (data.length < PAGE_SIZE) {
-        // Hit the real end of the table.
         if (wrapAround) {
-          offsetRef.current = 0; // loop back around for the next page
+          offsetRef.current = 0;
         } else {
           setHasMore(false);
         }
       }
     } else {
-      // Empty page — either genuinely out of reels, or (if wrapping) the
-      // table itself is empty. Either way, stop trying.
       setHasMore(false);
     }
 
@@ -231,6 +284,10 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
     if (distanceFromEnd < LOAD_MORE_THRESHOLD_PX) {
       loadPage();
     }
+  };
+
+  const handleDeleted = (dbId) => {
+    setReels((prev) => prev.filter((r) => r.dbId !== dbId));
   };
 
   if (reels.length === 0 && !loading) return null;
@@ -255,6 +312,9 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
             reel={r}
             viewCount={viewCounts[r.dbId] ?? 0}
             navigate={navigate}
+            loggedInUsername={loggedInUsername}
+            onReport={setReportTarget}
+            onDeleted={handleDeleted}
           />
         ))}
         {loading && (
@@ -265,6 +325,13 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
           </div>
         )}
       </div>
+
+      <ReportModal
+        target={reportTarget}
+        onClose={() => !reportSubmitting && setReportTarget(null)}
+        onSubmit={submitReport}
+        submitting={reportSubmitting}
+      />
     </div>
   );
 };

@@ -8,22 +8,9 @@ import ReelsStrip from "./ReelsStrip";
 import VideoFeedCard from "./VideoFeedCard";
 import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 import AdUnit from "../../Component/Ads/AdUnit";
-// CHANGED: now also imports notifyUser — needed for post like/comment
-// notifications added below. notifyConnections already handled new-post
-// notifications; likes/comments on posts previously never notified
-// anyone at all (unlike Video.jsx/Reels.jsx, which both call notifyUser
-// inline right after their like/comment Supabase writes).
 import { notifyConnections, notifyUser } from "../../utils/notifications";
-// NEW: parses @mentions out of post/comment text so the mentioned user
-// gets notified, same as a like or comment would. See src/utils/linkify.js
-// (also used by ExpandableText to render #hashtags/@mentions as links).
 import { extractMentions } from "../../utils/linkify";
 
-// currentUser now comes from App.js via HomeHub — the same auth state
-// that drives the Navbar's Upload button, BottomNav, etc — instead of
-// being read independently from localStorage here. That mismatch was
-// why the feed could show you as logged in while Upload still asked you
-// to log in: two different, occasionally-out-of-sync sources of truth.
 const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const location = useLocation();
   const [posts, setPosts] = useState([]);
@@ -33,53 +20,22 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const [error, setError] = useState("");
   const [highlightedPostId, setHighlightedPostId] = useState(null);
   const [postNotFound, setPostNotFound] = useState(false);
-  // NEW: per-post view counts, keyed by post id (string) → count.
-  // Populated by fetchViewCounts() and bumped locally (then persisted)
-  // by incrementView(), mirroring the viewCounts state + incrementView/
-  // fetchViewCounts pattern already used for videos/reels on the
-  // homepage (see homePage.js) — same "views" table, content_type: "post".
   const [viewCounts, setViewCounts] = useState({});
   const PAGE_SIZE = 10;
   const offsetRef = useRef(0);
-  // NEW: a videos pool kept the same length as `posts`, so
-  // videos[index] can be handed to the Video slot that follows
-  // posts[index] in the Post -> Video -> ReelsStrip sequence below.
-  // Wraps back to the start of the videos table if it runs out
-  // rather than leaving later slots empty.
   const [videos, setVideos] = useState([]);
   const videosOffsetRef = useRef(0);
 
-  // Normalized so every existing `currentUser === "anonymous"` /
-  // `!currentUser || currentUser === "anonymous"` check below keeps
-  // working unchanged — App.js's currentUser state is `null` when
-  // logged out, this file's convention is the string "anonymous".
   const currentUser = currentUserProp || "anonymous";
 
   const [sentinelNode, setSentinelNode] = useState(null);
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
-  // NEW: unique per-mount suffix for this feed's realtime channel.
-  // Supabase's client REUSES a channel object whenever `.channel(name)`
-  // is called with a name that's already subscribed elsewhere. HomeHub
-  // mounts/unmounts PostFeed every time the person switches between the
-  // Home and Posts tabs — with a static channel name, the SECOND (and
-  // every later) visit to the Posts tab collided with the previous
-  // mount's still-closing subscription and silently failed to attach,
-  // which is why new posts stopped appearing without a hard refresh.
-  // Same channelInstanceIdRef pattern already used for the per-card
-  // connection-status channels in PostCard.jsx / Video.jsx / Reels.jsx.
   const channelInstanceIdRef = useRef(Math.random().toString(36).slice(2));
 
   useEffect(() => { loadingMoreRef.current = loadingMore; }, [loadingMore]);
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
 
-  // NEW: select list for post_comments, shared across fetchPosts,
-  // handleRealtimeInsert, and ensurePostLoaded below — now also pulls
-  // saved_by (kebab-menu "Save" action), parent_comment_id (one-level
-  // reply threading), and attachment_url/attachment_type (GIF/sticker
-  // comments), in addition to the existing liked_by/disliked_by. See
-  // comment_features_migration.sql and the attachment_url/
-  // attachment_type migration for the columns this depends on.
   const POST_COMMENTS_SELECT =
     "id, text, username, created_at, liked_by, disliked_by, saved_by, parent_comment_id, attachment_url, attachment_type";
 
@@ -100,11 +56,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     }),
     [currentUser]
   );
-
-  // ── NEW: view-count helpers, mirroring homePage.js's fetchViewCounts /
-  // incrementView exactly (same "views" table, same upsert conflict
-  // target, same 24h-per-user de-dupe via localStorage) but scoped to
-  // content_type: "post". ──
 
   const fetchViewCounts = async (ids) => {
     if (!ids || !ids.length) return;
@@ -154,32 +105,53 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     } catch (_) {}
   }, []);
 
-  // Pulls `count` more videos into the pool, oldest-appended so
-  // videos[i] lines up with posts[i]. Wraps the offset back to 0 once
-  // the videos table is exhausted, same "never dead-end" approach
-  // ReelsStrip already uses for its own pagination.
+  // Fetches the next `count` videos into the pool, and, once the batch
+  // is in, does one follow-up query against `likes` to seed each
+  // video's real like count (mirrors homePage.js's fetchDbVideos exactly).
+  // Also selects created_at, so VideoFeedCard's "posted X ago" label has
+  // something to render.
   const fetchMoreVideos = useCallback(async (count) => {
     if (!count) return;
     const { data, error: fetchErr } = await supabase
       .from("videos")
-      .select("id, short_id, video_url, thumbnail_url, title, channel, username, duration")
+      .select("id, short_id, video_url, thumbnail_url, title, channel, username, duration, created_at")
       .order("created_at", { ascending: false })
       .range(videosOffsetRef.current, videosOffsetRef.current + count - 1);
 
     if (!fetchErr && data && data.length > 0) {
-      setVideos((prev) => [
-        ...prev,
-        ...data.map((v) => ({
-          id: v.id,
-          short_id: v.short_id,
-          src: v.video_url,
-          thumbnail: v.thumbnail_url || null,
-          title: v.title,
-          duration: v.duration || "00:00",
-          channel: v.channel,
-          username: v.username || v.channel?.toLowerCase() || "unknown",
-        })),
-      ]);
+      const mapped = data.map((v) => ({
+        id: v.id,
+        short_id: v.short_id,
+        src: v.video_url,
+        thumbnail: v.thumbnail_url || null,
+        title: v.title,
+        duration: v.duration || "00:00",
+        channel: v.channel,
+        username: v.username || v.channel?.toLowerCase() || "unknown",
+        created_at: v.created_at || null,
+        likes: 0, // filled in below once likesData resolves
+      }));
+
+      const videoIds = mapped.map((v) => String(v.id));
+      const { data: likesData } = await supabase
+        .from("likes")
+        .select("content_id")
+        .eq("content_type", "video")
+        .in("content_id", videoIds);
+
+      let withLikes = mapped;
+      if (likesData) {
+        const likesMap = {};
+        likesData.forEach((row) => {
+          likesMap[row.content_id] = (likesMap[row.content_id] || 0) + 1;
+        });
+        withLikes = mapped.map((v) => ({
+          ...v,
+          likes: likesMap[String(v.id)] ?? 0,
+        }));
+      }
+
+      setVideos((prev) => [...prev, ...withLikes]);
       videosOffsetRef.current += data.length;
       if (data.length < count) {
         videosOffsetRef.current = 0; // hit the end — loop back next time
@@ -218,7 +190,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         fetchMoreVideos(enriched.length);
       }
 
-      // NEW: pull view counts for whichever page of posts just loaded.
       fetchViewCounts(enriched.map((p) => p.id));
 
       setHasMore((data || []).length === PAGE_SIZE);
@@ -236,11 +207,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     fetchPosts(false);
   }, [fetchPosts]);
 
-  // ── Fetch a single newly-inserted post and prepend it ──
-  // Fetches only the one new row and prepends it, leaving every other
-  // post's object reference untouched — avoids remounting every PostCard
-  // (and resetting in-progress comment input) whenever ANYONE creates a
-  // post, which is what a full fetchPosts(true) reset used to do.
   const handleRealtimeInsert = useCallback(
     async (payload) => {
       const newId = payload.new?.id;
@@ -264,15 +230,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         if (prev.some((p) => p.id === newId)) return prev;
         return [enrichedPost, ...prev];
       });
-      // Keeps the videos pool at least as large as the posts pool. This
-      // is a "top up the supply" step, not a perfectly realigned index
-      // shift — a realtime post prepend shifts every existing post's
-      // effective position by one, so the very next Video slot can be
-      // off-by-one right after this fires. It re-settles to a correct
-      // 1:1 pairing on the next full fetchPosts(true) (e.g. a refresh).
       fetchMoreVideos(1);
 
-      // NEW: seed a view-count entry (0) for the freshly inserted post.
       fetchViewCounts([newId]);
     },
     [enrichPost, fetchMoreVideos]
@@ -304,7 +263,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     return () => supabase.removeChannel(channel);
   }, [fetchPosts, handleRealtimeInsert]);
 
-  // ── Infinite scroll observer ──
   useEffect(() => {
     if (!sentinelNode) return;
 
@@ -321,7 +279,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     return () => observer.disconnect();
   }, [sentinelNode, loadMore]);
 
-  // ── Handle shared post links: /feed?post=<id> ──────────────────────────
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const sharedPostId = params.get("post");
@@ -356,24 +313,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         return [enrichedPost, ...current];
       });
 
-      // NEW: make sure a directly-linked-to post also gets its view
-      // count loaded, since it may not have come through fetchPosts.
       fetchViewCounts([sharedPostId]);
     };
 
     ensurePostLoaded();
   }, [location.search, currentUser, enrichPost]);
 
-  // Scrolls to and highlights the shared post exactly once per
-  // highlightedPostId. `posts` stays a dependency because the target
-  // post may not be in the DOM yet on first render (still being fetched
-  // by ensurePostLoaded above) — but every OTHER state update that also
-  // touches `posts` (commenting/reacting on any post, realtime inserts,
-  // etc.) was re-triggering this effect too, re-scrolling and
-  // re-highlighting the same post every time, which made it feel
-  // "locked" on screen. scrolledForIdRef guards against that: once
-  // we've successfully scrolled for a given id, later `posts` changes
-  // are ignored until highlightedPostId itself changes.
   const scrolledForIdRef = useRef(null);
   useEffect(() => {
     if (!highlightedPostId) {
@@ -394,7 +339,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
   const handleNewPost = async (post) => {
     setPosts((prev) => [post, ...prev]);
-    // NEW: seed a view-count entry for a post the current user just made.
     fetchViewCounts([post.id]);
 
     const uploaderUsername = currentUser;
@@ -405,9 +349,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       contentType: "post",
     });
 
-    // NEW: notify anyone @mentioned in the post's own text — independent
-    // of the connections broadcast above, since a mentioned person isn't
-    // necessarily connected to the poster.
     extractMentions(post.text).forEach((mentioned) => {
       if (mentioned === uploaderUsername) return;
       notifyUser({
@@ -455,10 +396,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           .from("post_reactions")
           .insert({ post_id: postId, username: currentUser, type: reactionType });
 
-        // NEW: notify the post owner about the reaction — only on an
-        // actual new reaction (not on removing/undoing one), and never
-        // for reacting to your own post. Mirrors the like-notification
-        // pattern already used in Video.jsx / Reels.jsx.
         if (post.username && post.username !== currentUser) {
           notifyUser({
             recipientUsername: post.username,
@@ -475,18 +412,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     }
   };
 
-  // CHANGED: now accepts an optional parentId — omitted (or null) for a
-  // fresh top-level comment, or a top-level comment's id when posting a
-  // one-level-deep reply (see PostCard.jsx's Reply button). Notifies the
-  // post owner as before, and ALSO notifies the parent comment's author
-  // when replying (unless that's the same person, to avoid a double
-  // notification, or the person replying to their own comment).
-  //
-  // NEW: also accepts an optional `attachment` — { url, type } — for a
-  // GIF/sticker picked from CommentMediaPicker in PostCard.jsx. When
-  // present, the comment posts immediately with that as its
-  // attachment_url/attachment_type, independent of whatever text was
-  // passed (PostCard always passes "" as text for a media-only comment).
   const handleComment = async (postId, text, parentId = null, attachment = null) => {
     if (!currentUser || currentUser === "anonymous") {
       window.dispatchEvent(new CustomEvent("openLogin"));
@@ -494,9 +419,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     }
     if (!text.trim() && !attachment) return;
 
-    // NEW: look up the post so we know who to notify below (handleReaction
-    // and handleShare already do this same lookup; handleComment
-    // previously didn't need `post` for anything else).
     const post = posts.find((p) => p.id === postId);
     const parentComment = parentId
       ? post?.comments.find((c) => c.id === parentId)
@@ -523,8 +445,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       )
     );
 
-    // NEW: notify the comment's parent author when this is a reply,
-    // unless they're replying to their own comment.
     if (
       parentComment?.username &&
       parentComment.username !== currentUser
@@ -539,10 +459,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       });
     }
 
-    // NEW: notify the post owner about the comment, unless they're
-    // commenting on their own post, or they're the same person already
-    // notified above as the parent comment's author (avoids a double
-    // notification for one reply).
     if (
       post?.username &&
       post.username !== currentUser &&
@@ -558,10 +474,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       });
     }
 
-    // NEW: notify anyone @mentioned in the comment — skipping the
-    // commenter themselves and anyone already notified above (post
-    // owner / parent comment author), so a mention doesn't triple up.
-    // Skipped entirely for a media-only comment (no text to mention in).
     if (text.trim()) {
       extractMentions(text).forEach((mentioned) => {
         if (
@@ -582,22 +494,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     }
   };
 
-  // NEW: like/dislike a single comment. `type` is "like" or "dislike";
-  // the two are mutually exclusive per-user — picking one removes you
-  // from the other list, same relationship as post reactions vs. their
-  // opposite. Mirrors handleReaction's pattern (optimistic local update
-  // first, then persist, then roll back with a re-fetch if the write
-  // fails).
-  //
-  // Storage model: post_comments.liked_by / disliked_by are text[]
-  // columns holding the usernames who currently like/dislike that
-  // comment — no separate join table needed since a comment's
-  // like/dislike lists are small and only ever read alongside the
-  // comment itself.
-  //
-  // Migration required once, in Supabase SQL editor:
-  //   alter table post_comments add column liked_by text[] default '{}';
-  //   alter table post_comments add column disliked_by text[] default '{}';
   const handleCommentReaction = async (postId, commentId, type) => {
     if (!currentUser || currentUser === "anonymous") {
       window.dispatchEvent(new CustomEvent("openLogin"));
@@ -616,9 +512,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     const otherList = isLike ? dislikedBy : likedBy;
     const alreadyActive = sameList.includes(currentUser);
 
-    // Toggling the same reaction off just removes you from that list.
-    // Picking the opposite reaction removes you from the other list too
-    // (you can't like AND dislike the same comment at once).
     const nextSameList = alreadyActive
       ? sameList.filter((u) => u !== currentUser)
       : [...sameList, currentUser];
@@ -627,7 +520,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     const nextLikedBy = isLike ? nextSameList : nextOtherList;
     const nextDislikedBy = isLike ? nextOtherList : nextSameList;
 
-    // Optimistic update
     setPosts((all) =>
       all.map((p) =>
         p.id !== postId
@@ -649,14 +541,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       .eq("id", commentId);
 
     if (err) {
-      // Roll back by re-syncing from the server on failure.
       fetchPosts(true);
       return;
     }
 
-    // Notify the comment's author only on a genuinely new LIKE (not on
-    // unliking, not on dislikes, and never for reacting to your own
-    // comment) — matches how post reactions only notify on a new like.
     if (
       isLike &&
       !alreadyActive &&
@@ -674,9 +562,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     }
   };
 
-  // NEW: kebab menu "Save" action for a single comment — toggles the
-  // current user in that comment's saved_by list. Same optimistic
-  // update + rollback-via-refetch shape as handleCommentReaction above.
   const handleSaveComment = async (postId, commentId) => {
     if (!currentUser || currentUser === "anonymous") {
       window.dispatchEvent(new CustomEvent("openLogin"));
@@ -721,7 +606,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     );
   };
 
-  // ── Share to feed ──
   const handleShare = async (postId) => {
     if (!currentUser || currentUser === "anonymous") {
       window.dispatchEvent(new CustomEvent("openLogin"));
@@ -761,7 +645,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         ...prev,
       ]);
 
-      // NEW: seed a view-count entry for the newly-created shared post.
       fetchViewCounts([data.id]);
     } catch (err) {
       console.error("Share to feed failed:", err);
@@ -772,13 +655,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     }
   };
 
-  // ── Report a post ──
-  // FIX: previously inserted into a "post_reports" table that AdminPanel
-  // never queries (AdminPanel reads only from "reports"). Reports were
-  // being saved but were invisible to admins. Now writes to the same
-  // "reports" table used by video/reel reporting, with the same shape
-  // AdminPanel expects (content_type, content_id, content_title,
-  // content_owner, reporter_username, reason, details, status).
   const handleReportPost = async (postId, reason, details) => {
     const post = posts.find((p) => p.id === postId);
 
@@ -923,20 +799,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               />
             </div>
 
-            {/* NEW: Post -> Video -> ReelsStrip, repeating after every
-                single post. The video pool (`videos`) is fetched in
-                lockstep with the posts pool so videos[index] always
-                exists once posts[index] has loaded — falls back to
-                nothing rendered if the videos table has fewer rows than
-                posts (no placeholder shown for a missing slot). */}
             {videos[index] && <VideoFeedCard video={videos[index]} />}
 
-            {/* A fresh, independently infinite-scrolling Reels strip
-                after every post. Each instance gets its own startOffset
-                (stepping by 10, the strip's own page size) so
-                consecutive strips down the feed open on a different
-                slice of reels instead of all starting from the same
-                ones. */}
             <ReelsStrip key={`reels-${index}`} startOffset={index * 10} />
 
             {(index + 1) % 5 === 0 && (

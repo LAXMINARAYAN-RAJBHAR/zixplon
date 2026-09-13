@@ -2,20 +2,22 @@ import React, { useState, useEffect } from "react";
 import "./AdminPanel.css";
 import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
-// NEW: SheetJS — generates the .xlsx workbook entirely client-side and
+// SheetJS — generates the .xlsx workbook entirely client-side and
 // triggers a browser download via XLSX.writeFile. Requires the "xlsx"
 // package to be installed: `npm install xlsx`.
 import * as XLSX from "xlsx";
-// NEW: jsPDF + jspdf-autotable — generates the .pdf report entirely
+// jsPDF + jspdf-autotable — generates the .pdf report entirely
 // client-side. Requires both packages installed:
 // `npm install jspdf jspdf-autotable`
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// RENAMED from ADMIN_USERNAMES — the check below has only ever compared
-// against an email address, never a username, so the old name was
-// misleading about what actually gates access here.
-// ── Change this to your admin email address(es) ────────────────────────────
+// ── Root admin(s) ────────────────────────────────────────────────────────────
+// Hardcoded fallback so the app can never be locked out even if the
+// admin_users table is empty, unreachable, or something goes wrong with
+// the API route below. Anyone in this list is ALWAYS an admin, and can
+// never be removed via the Admins tab (see revokeAdmin's guard and the
+// matching guard in api/manage-admin.js).
 const ADMIN_EMAILS = ["laxminarayan.rajbhar@gmail.com"];
 
 const STATUS_COLORS = {
@@ -37,7 +39,7 @@ const REASON_LABELS = {
   other:          "📝 Other",
 };
 
-// NEW: truncates long free-text fields (post text, comment text) so a
+// Truncates long free-text fields (post text, comment text) so a
 // single row never blows out a table's column width in either export.
 const truncate = (str, max = 80) => {
   if (!str) return "";
@@ -45,7 +47,7 @@ const truncate = (str, max = 80) => {
   return s.length > max ? s.slice(0, max) + "…" : s;
 };
 
-// NEW: formats a duration in seconds as "Xh Ym" / "Xm Ys" / "Xs" for
+// Formats a duration in seconds as "Xh Ym" / "Xm Ys" / "Xs" for
 // the Visitors tab. Durations here come from last_active_at -
 // started_at on a site_visits row (see useVisitTracking.js) — accurate
 // to within one heartbeat interval (20s), not to the exact second.
@@ -59,17 +61,24 @@ const formatDuration = (totalSeconds) => {
   return `${secs}s`;
 };
 
+// Very light client-side email shape check for the Admins form. The
+// real validation of "does this look like an email" ultimately happens
+// server-side (Supabase auth itself will reject a malformed address on
+// account creation) — this is just to stop obviously-empty/garbage
+// submissions before making a network call.
+const looksLikeEmail = (v) => /\S+@\S+\.\S+/.test(v);
+
 const AdminPanel = () => {
   const currentUser = localStorage.getItem("username") || "";
 
-  // ── FIX: admin check no longer trusts localStorage("email") alone.
+  // ── Auth check, step 1: Supabase auth-session email ──
   // Profile.js's own PATH 2 (Supabase auth-session login, as opposed to
   // the localStorage-cache login path) never calls
   // localStorage.setItem("email", ...) — it only persists username/
   // channelName/profilePic/about. An admin who authenticated through
   // that path would have an empty localStorage "email" and get bounced
-  // to "Access Denied" with no indication why. We now also check the
-  // live Supabase session's email (the same source Profile.js's PATH 2
+  // to "Access Denied" with no indication why. We check the live
+  // Supabase session's email (the same source Profile.js's PATH 2
   // itself reads from), and gate rendering on that check completing so
   // we don't flash "Access Denied" before it resolves.
   const [authChecked, setAuthChecked] = useState(false);
@@ -87,7 +96,52 @@ const AdminPanel = () => {
   }, []);
 
   const localEmail = (localStorage.getItem("email") || "").trim().toLowerCase();
-  const isAdmin = ADMIN_EMAILS.includes(localEmail) || ADMIN_EMAILS.includes(authEmail);
+  const isHardcodedAdmin = ADMIN_EMAILS.includes(localEmail) || ADMIN_EMAILS.includes(authEmail);
+
+  // ── Auth check, step 2: DB-backed admin_users table ──
+  // admin_users has no RLS policies granting client access on purpose —
+  // it's only ever read/written via api/manage-admin.js using the
+  // service-role key server-side. So membership is checked by asking
+  // that API ("action: check"), not by querying the table directly.
+  // Hardcoded admins skip this round-trip entirely.
+  const [dbAdminChecked, setDbAdminChecked] = useState(false);
+  const [isDbAdmin,      setIsDbAdmin]      = useState(false);
+
+  const getAccessToken = async () => {
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.access_token || "";
+  };
+
+  const callManageAdmin = async (body) => {
+    const token = await getAccessToken();
+    const res = await fetch("/api/manage-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    return data;
+  };
+
+  useEffect(() => {
+    if (!authChecked) return;
+    if (isHardcodedAdmin) {
+      // Already an admin via the hardcoded list — no need to ask the API.
+      setIsDbAdmin(true);
+      setDbAdminChecked(true);
+      return;
+    }
+    let active = true;
+    callManageAdmin({ action: "check" })
+      .then((r) => { if (active) setIsDbAdmin(!!r.isAdmin); })
+      .catch(() => { if (active) setIsDbAdmin(false); })
+      .finally(() => { if (active) setDbAdminChecked(true); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, authEmail]);
+
+  const isAdmin = isHardcodedAdmin || isDbAdmin;
 
   const [reports,       setReports]       = useState([]);
   const [bannedWords,   setBannedWords]   = useState([]);
@@ -98,17 +152,26 @@ const AdminPanel = () => {
   const [wordSaving,    setWordSaving]    = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const [toast,         setToast]         = useState("");
-  // NEW: separate loading flags for each export button, so exporting to
+  // Separate loading flags for each export button, so exporting to
   // Excel doesn't grey out the PDF button (and vice versa) — each kicks
   // off its own independent data fetch + file generation.
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportingPdf,   setExportingPdf]   = useState(false);
-  // NEW: "Visitors" tab data — populated lazily the first time that tab
+  // "Visitors" tab data — populated lazily the first time that tab
   // is opened (see the activeTab effect below), not on initial mount,
   // since site_visits can grow large and most admin visits won't need it.
   const [visits,        setVisits]        = useState([]);
   const [visitsLoading, setVisitsLoading]  = useState(false);
   const [visitsLoaded,  setVisitsLoaded]   = useState(false);
+
+  // ── "Admins" tab state ──────────────────────────────────────────────────
+  const [admins,           setAdmins]           = useState([]);
+  const [adminsLoading,    setAdminsLoading]    = useState(false);
+  const [adminsLoaded,     setAdminsLoaded]     = useState(false);
+  const [newAdminEmail,    setNewAdminEmail]    = useState("");
+  const [newAdminPassword, setNewAdminPassword] = useState("");
+  const [grantLoading,     setGrantLoading]     = useState(false);
+  const [revokingEmail,    setRevokingEmail]    = useState(null);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -287,6 +350,78 @@ const AdminPanel = () => {
       : 0;
     return { totalVisits, uniqueSessions, loggedIn, guests, avgDurationSec };
   }, [visits]);
+
+  // ── Admins tab: list / grant / revoke ───────────────────────────────────────
+  const fetchAdmins = async () => {
+    setAdminsLoading(true);
+    try {
+      const { admins: rows } = await callManageAdmin({ action: "list" });
+      setAdmins(rows || []);
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setAdminsLoading(false);
+    setAdminsLoaded(true);
+  };
+
+  useEffect(() => {
+    if (activeTab === "admins" && !adminsLoaded && !adminsLoading) {
+      fetchAdmins();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // Grants admin access for newAdminEmail. If newAdminPassword is set,
+  // the API first tries to create a brand-new Supabase auth account
+  // with that email/password (email_confirm: true, so they can log in
+  // immediately with no email verification step) — if an account with
+  // that email already exists, the API just skips creation and grants
+  // admin to the existing account. So this one form covers both "make
+  // an existing user an admin" and "create a new admin from scratch".
+  const grantAdmin = async () => {
+    const email = newAdminEmail.trim().toLowerCase();
+    if (!email || grantLoading) return;
+    if (!looksLikeEmail(email)) {
+      showToast("❌ Enter a valid email address");
+      return;
+    }
+    if (newAdminPassword && newAdminPassword.length < 6) {
+      showToast("❌ Password must be at least 6 characters");
+      return;
+    }
+    setGrantLoading(true);
+    try {
+      const r = await callManageAdmin({
+        action: "grant",
+        email,
+        password: newAdminPassword || undefined,
+      });
+      showToast(
+        r.createdAccount
+          ? `✅ Account created & admin granted for ${email}`
+          : `✅ Admin access granted for ${email}`
+      );
+      setNewAdminEmail("");
+      setNewAdminPassword("");
+      fetchAdmins();
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setGrantLoading(false);
+  };
+
+  const revokeAdmin = async (email) => {
+    if (ADMIN_EMAILS.includes(email)) return; // guarded in UI too, belt & suspenders
+    setRevokingEmail(email);
+    try {
+      await callManageAdmin({ action: "remove", email });
+      setAdmins((prev) => prev.filter((a) => a.email !== email));
+      showToast(`"${email}" removed from admins`);
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setRevokingEmail(null);
+  };
 
   // ── Shared export data fetcher ──────────────────────────────────────────────
   // Pulls every table both exports rely on (profiles, videos, reels,
@@ -533,10 +668,11 @@ const AdminPanel = () => {
     }
   };
 
-  // ── Still resolving the Supabase auth-session check — avoid flashing
-  // "Access Denied" for admins whose email only lives in the live session
-  // (see the authChecked note above). ──
-  if (!authChecked) {
+  // ── Still resolving auth (Supabase session email AND/OR the
+  // DB-backed admin check) — avoid flashing "Access Denied" for admins
+  // whose access only lives in the live session or the admin_users
+  // table (see the notes above). ──
+  if (!authChecked || !dbAdminChecked) {
     return (
       <div className="admin_blocked">
         <div className="admin_spinner" />
@@ -570,7 +706,7 @@ const AdminPanel = () => {
           <p className="admin_subtitle">ZIXPLON Content Moderation</p>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          {/* NEW: Export to Excel — pulls users + videos/reels/posts/
+          {/* Export to Excel — pulls users + videos/reels/posts/
               comments/likes/views and downloads a multi-sheet .xlsx
               workbook. See fetchExportData()/exportToExcel() above. */}
           <button
@@ -580,7 +716,7 @@ const AdminPanel = () => {
           >
             {exportingExcel ? "⏳ Exporting..." : "⬇ Export to Excel"}
           </button>
-          {/* NEW: Export to PDF — same underlying data as the Excel
+          {/* Export to PDF — same underlying data as the Excel
               export, rendered as a printable multi-page report instead.
               See exportToPDF() above. */}
           <button
@@ -618,11 +754,16 @@ const AdminPanel = () => {
         <button className={`admin_tab ${activeTab === "words" ? "active" : ""}`} onClick={() => setActiveTab("words")}>
           🔤 Banned Words ({bannedWords.length})
         </button>
-        {/* NEW: site_visits totals + recent sessions — see fetchVisits/
+        {/* site_visits totals + recent sessions — see fetchVisits/
             visitStats above and useVisitTracking.js for how rows land
             in this table. */}
         <button className={`admin_tab ${activeTab === "visitors" ? "active" : ""}`} onClick={() => setActiveTab("visitors")}>
           📈 Visitors
+        </button>
+        {/* Grant/revoke admin access — backed by the admin_users table
+            via api/manage-admin.js. See the Admins tab section below. */}
+        <button className={`admin_tab ${activeTab === "admins" ? "active" : ""}`} onClick={() => setActiveTab("admins")}>
+          👑 Admins {admins.length > 0 && <span className="admin_badge" style={{ background: "#7c3aed" }}>{admins.length}</span>}
         </button>
       </div>
 
@@ -811,6 +952,82 @@ const AdminPanel = () => {
                 </div>
               )}
             </>
+          )}
+        </div>
+      ) : activeTab === "admins" ? (
+        /* ── Admins Tab ── */
+        <div className="admin_admins_section">
+          <div className="admin_grant_card">
+            <h3 className="admin_grant_title">Grant admin access</h3>
+            <p className="admin_words_hint">
+              Enter an email to make that person an admin. If they don't have an
+              account yet, set a password too and one will be created for them —
+              leave it blank if they already have an account.
+            </p>
+            <div className="admin_grant_row">
+              <input
+                type="email"
+                className="admin_word_input"
+                placeholder="person@example.com"
+                value={newAdminEmail}
+                onChange={(e) => setNewAdminEmail(e.target.value)}
+                disabled={grantLoading}
+              />
+              <input
+                type="password"
+                className="admin_word_input"
+                placeholder="New password (optional)"
+                value={newAdminPassword}
+                onChange={(e) => setNewAdminPassword(e.target.value)}
+                disabled={grantLoading}
+              />
+              <button className="admin_add_word_btn" onClick={grantAdmin} disabled={grantLoading}>
+                {grantLoading ? "Granting..." : "+ Grant Admin"}
+              </button>
+            </div>
+          </div>
+
+          <h3 className="admin_grant_title" style={{ marginTop: "22px" }}>Current admins</h3>
+          {adminsLoading ? (
+            <div className="admin_loading">
+              <div className="admin_spinner" />
+              <p>Loading admins...</p>
+            </div>
+          ) : admins.length === 0 ? (
+            <div className="admin_empty">
+              <div style={{ fontSize: "48px" }}>👑</div>
+              <p>No admins found</p>
+            </div>
+          ) : (
+            <div className="admin_admins_list">
+              {admins.map((a) => (
+                <div key={a.email} className="admin_admin_row">
+                  <div>
+                    <div className="admin_admin_email">
+                      {a.email}
+                      {(a.root || ADMIN_EMAILS.includes(a.email)) && (
+                        <span className="admin_admin_root_badge">ROOT</span>
+                      )}
+                    </div>
+                    {a.added_by && (
+                      <div className="admin_admin_meta">
+                        added by {a.added_by}
+                        {a.created_at ? ` · ${new Date(a.created_at).toLocaleDateString("en-IN")}` : ""}
+                      </div>
+                    )}
+                  </div>
+                  {!(a.root || ADMIN_EMAILS.includes(a.email)) && (
+                    <button
+                      className="admin_action_btn admin_action_btn--delete"
+                      onClick={() => revokeAdmin(a.email)}
+                      disabled={revokingEmail === a.email}
+                    >
+                      {revokingEmail === a.email ? "Removing..." : "Remove"}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
       ) : (

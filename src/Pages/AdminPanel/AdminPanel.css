@@ -545,3 +545,100 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   ADMINS TAB — grant/revoke admin access form + admin list.
+   Append this block to the end of your existing AdminPanel.css.
+   ══════════════════════════════════════════════════════════════════ */
+
+.admin_admins_section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin_grant_card {
+  background: var(--zx-surface);
+  border: 2px solid var(--zx-border);
+  border-radius: var(--zx-radius);
+  padding: 18px 20px;
+  box-shadow: var(--zx-shadow2);
+}
+
+.admin_grant_title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 900;
+  font-family: 'Nunito', sans-serif;
+  color: var(--zx-text);
+}
+
+.admin_grant_row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.admin_grant_row .admin_word_input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.admin_admins_list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin_admin_row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--zx-surface);
+  border: 2px solid var(--zx-border);
+  border-radius: 14px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 10px rgba(124,58,237,0.06);
+}
+
+.admin_admin_email {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--zx-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin_admin_root_badge {
+  background: #1e1b4b;
+  color: white;
+  font-size: 9px;
+  font-weight: 900;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.08em;
+  font-family: 'Nunito', sans-serif;
+}
+
+.admin_admin_meta {
+  font-size: 11px;
+  color: var(--zx-text3);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+@media (max-width: 768px) {
+  .admin_grant_row {
+    flex-direction: column;
+  }
+  .admin_grant_row .admin_word_input {
+    min-width: 0;
+  }
+  .admin_admin_row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

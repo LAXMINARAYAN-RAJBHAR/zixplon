@@ -216,22 +216,33 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
     }
   };
 
-  const fetchViewCountsFor = useCallback(async (dbIds) => {
-    if (!dbIds || dbIds.length === 0) return;
+  // FIXED: this used to receive raw numeric `dbId`s and query the
+  // `views` table with them directly. But views are written with the
+  // *prefixed* content_id (e.g. "db_123" — same convention ReelItem in
+  // Reels.jsx uses via `reel.id`), so `.in("content_id", ["123", ...])`
+  // never matched any row and every count silently fell back to 0.
+  // Also fixed a related bug where `Number(row.content_id)` on a
+  // prefixed id like "db_123" produced NaN, which would have broken
+  // the counts map even if the query above had matched.
+  // Now takes the full prefixed ids (e.g. "db_123") end-to-end, matching
+  // how Reels.jsx / ReelItem identify content everywhere else (likes,
+  // views, comments).
+  const fetchViewCountsFor = useCallback(async (fullIds) => {
+    if (!fullIds || fullIds.length === 0) return;
     try {
       const { data, error } = await supabase
         .from("views")
         .select("content_id")
         .eq("content_type", "reel")
-        .in("content_id", dbIds.map(String));
+        .in("content_id", fullIds.map(String));
 
       const counts = {};
-      dbIds.forEach((id) => {
+      fullIds.forEach((id) => {
         counts[id] = 0;
       });
       if (!error && data) {
         data.forEach((row) => {
-          const id = Number(row.content_id);
+          const id = row.content_id;
           counts[id] = (counts[id] || 0) + 1;
         });
       }
@@ -255,7 +266,9 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
     if (!error && data && data.length > 0) {
       const mapped = data.map(mapReelRow);
       setReels((prev) => [...prev, ...mapped]);
-      fetchViewCountsFor(mapped.map((r) => r.dbId));
+      // FIXED: pass the prefixed `id` (e.g. "db_123"), not the raw
+      // numeric `dbId` — see fetchViewCountsFor above for why.
+      fetchViewCountsFor(mapped.map((r) => r.id));
       offsetRef.current += data.length;
       if (data.length < PAGE_SIZE) {
         if (wrapAround) {
@@ -310,7 +323,10 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
           <ReelStripCard
             key={`${r.id}-${i}`}
             reel={r}
-            viewCount={viewCounts[r.dbId] ?? 0}
+            // FIXED: read the count keyed by the prefixed `r.id`
+            // (matches how fetchViewCountsFor now stores it), not by
+            // the raw numeric `r.dbId`.
+            viewCount={viewCounts[r.id] ?? 0}
             navigate={navigate}
             loggedInUsername={loggedInUsername}
             onReport={setReportTarget}

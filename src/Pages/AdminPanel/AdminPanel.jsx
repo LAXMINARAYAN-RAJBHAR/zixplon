@@ -2,6 +2,15 @@ import React, { useState, useEffect } from "react";
 import "./AdminPanel.css";
 import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
+// NEW: SheetJS — generates the .xlsx workbook entirely client-side and
+// triggers a browser download via XLSX.writeFile. Requires the "xlsx"
+// package to be installed: `npm install xlsx`.
+import * as XLSX from "xlsx";
+// NEW: jsPDF + jspdf-autotable — generates the .pdf report entirely
+// client-side. Requires both packages installed:
+// `npm install jspdf jspdf-autotable`
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // RENAMED from ADMIN_USERNAMES — the check below has only ever compared
 // against an email address, never a username, so the old name was
@@ -26,6 +35,28 @@ const REASON_LABELS = {
   harassment:     "😡 Harassment",
   child_safety:   "🛡️ Child Safety",
   other:          "📝 Other",
+};
+
+// NEW: truncates long free-text fields (post text, comment text) so a
+// single row never blows out a table's column width in either export.
+const truncate = (str, max = 80) => {
+  if (!str) return "";
+  const s = String(str);
+  return s.length > max ? s.slice(0, max) + "…" : s;
+};
+
+// NEW: formats a duration in seconds as "Xh Ym" / "Xm Ys" / "Xs" for
+// the Visitors tab. Durations here come from last_active_at -
+// started_at on a site_visits row (see useVisitTracking.js) — accurate
+// to within one heartbeat interval (20s), not to the exact second.
+const formatDuration = (totalSeconds) => {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  if (hrs > 0) return `${hrs}h ${mins}m`;
+  if (mins > 0) return `${mins}m ${secs}s`;
+  return `${secs}s`;
 };
 
 const AdminPanel = () => {
@@ -67,6 +98,17 @@ const AdminPanel = () => {
   const [wordSaving,    setWordSaving]    = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const [toast,         setToast]         = useState("");
+  // NEW: separate loading flags for each export button, so exporting to
+  // Excel doesn't grey out the PDF button (and vice versa) — each kicks
+  // off its own independent data fetch + file generation.
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportingPdf,   setExportingPdf]   = useState(false);
+  // NEW: "Visitors" tab data — populated lazily the first time that tab
+  // is opened (see the activeTab effect below), not on initial mount,
+  // since site_visits can grow large and most admin visits won't need it.
+  const [visits,        setVisits]        = useState([]);
+  const [visitsLoading, setVisitsLoading]  = useState(false);
+  const [visitsLoaded,  setVisitsLoaded]   = useState(false);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -204,6 +246,293 @@ const AdminPanel = () => {
     showToast(`"${word}" removed`);
   };
 
+  // ── Visitors tab ─────────────────────────────────────────────────────────────
+  // Pulls every site_visits row client-side (same pattern the rest of
+  // this file already uses for reports/banned_words) and derives totals
+  // in JS: unique sessions (distinct session_id), logged-in vs guest
+  // split, and average duration. For a very large table this should
+  // move to a Postgres view/RPC that pre-aggregates — flagged here for
+  // when that becomes necessary, but fine for moderate traffic as-is.
+  const fetchVisits = async () => {
+    setVisitsLoading(true);
+    const { data, error } = await supabase
+      .from("site_visits")
+      .select("*")
+      .order("started_at", { ascending: false })
+      .limit(2000);
+    if (!error && data) setVisits(data);
+    setVisitsLoading(false);
+    setVisitsLoaded(true);
+  };
+
+  useEffect(() => {
+    if (activeTab === "visitors" && !visitsLoaded && !visitsLoading) {
+      fetchVisits();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const visitStats = React.useMemo(() => {
+    const totalVisits = visits.length;
+    const uniqueSessions = new Set(visits.map((v) => v.session_id)).size;
+    const loggedIn = visits.filter((v) => !!v.username).length;
+    const guests = totalVisits - loggedIn;
+    const durationsSec = visits.map((v) => {
+      const start = new Date(v.started_at).getTime();
+      const last = new Date(v.last_active_at).getTime();
+      return Math.max(0, (last - start) / 1000);
+    });
+    const avgDurationSec = durationsSec.length
+      ? durationsSec.reduce((a, b) => a + b, 0) / durationsSec.length
+      : 0;
+    return { totalVisits, uniqueSessions, loggedIn, guests, avgDurationSec };
+  }, [visits]);
+
+  // ── Shared export data fetcher ──────────────────────────────────────────────
+  // Pulls every table both exports rely on (profiles, videos, reels,
+  // posts, post_reactions, post_comments, likes, views) in parallel, and
+  // builds the same per-user summary rows used by both the Excel and PDF
+  // exports below, so that logic only lives in one place.
+  //
+  // ASSUMPTIONS (update these table/column names if your schema differs):
+  //  - profiles.id matches auth.users.id, which is also what's stored as
+  //    likes.user_id and views.user_id elsewhere in this app (see
+  //    homePage.js's handleLikeVideo / incrementView).
+  //  - videos/reels/posts/post_comments/post_reactions all key off a
+  //    plain `username` text column (not a foreign key to profiles.id) —
+  //    matches every other query in this codebase.
+  //  - There is currently no persisted "video comments" / "reel
+  //    comments" table in what's been shared (MOCK_COMMENTS in
+  //    homePage.js is hardcoded client-side data, not a Supabase table),
+  //    so only post-level comments are exported. If you do have a real
+  //    table for those, tell me its name and I'll add it to both exports.
+  const fetchExportData = async () => {
+    const [
+      { data: profiles,      error: profilesErr },
+      { data: videos,        error: videosErr },
+      { data: reels,         error: reelsErr },
+      { data: posts,         error: postsErr },
+      { data: postComments,  error: postCommentsErr },
+      { data: postReactions, error: postReactionsErr },
+      { data: likes,         error: likesErr },
+      { data: views,         error: viewsErr },
+    ] = await Promise.all([
+      supabase.from("profiles").select("*"),
+      supabase.from("videos").select("*"),
+      supabase.from("reels").select("*"),
+      supabase.from("posts").select("*"),
+      supabase.from("post_comments").select("*"),
+      supabase.from("post_reactions").select("*"),
+      supabase.from("likes").select("*"),
+      supabase.from("views").select("*"),
+    ]);
+
+    const firstError =
+      profilesErr || videosErr || reelsErr || postsErr ||
+      postCommentsErr || postReactionsErr || likesErr || viewsErr;
+    if (firstError) throw firstError;
+
+    const usersSheet = (profiles || []).map((p) => {
+      const username = p.username;
+      return {
+        Username: username || "",
+        About: p.about || "",
+        "Profile Pic URL": p.profile_pic || "",
+        Joined: p.created_at ? new Date(p.created_at).toLocaleString("en-IN") : "",
+        "Videos Uploaded": (videos || []).filter((v) => v.username === username).length,
+        "Reels Uploaded": (reels || []).filter((r) => r.username === username).length,
+        "Posts Made": (posts || []).filter((po) => po.username === username).length,
+        "Post Comments Made": (postComments || []).filter((c) => c.username === username).length,
+        "Post Reactions Given": (postReactions || []).filter((r) => r.username === username).length,
+        "Video/Reel Likes Given": (likes || []).filter((l) => l.user_id === p.id).length,
+        "Content Views Logged": (views || []).filter((v) => v.user_id === p.id).length,
+      };
+    });
+
+    return { profiles, videos, reels, posts, postComments, postReactions, likes, views, usersSheet };
+  };
+
+  // ── Export to Excel ──────────────────────────────────────────────────────────
+  // Builds a multi-sheet .xlsx workbook — one "Users" summary sheet plus
+  // one raw-data sheet per table — and downloads it via XLSX.writeFile.
+  const exportToExcel = async () => {
+    if (exportingExcel) return;
+    setExportingExcel(true);
+    try {
+      const { videos, reels, posts, postComments, postReactions, likes, views, usersSheet } =
+        await fetchExportData();
+
+      const wb = XLSX.utils.book_new();
+      const addSheet = (rows, name) => {
+        // Cap each sheet at Excel's row limit just in case a table is huge.
+        const safeRows = (rows || []).slice(0, 1_048_575);
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(safeRows), name);
+      };
+
+      addSheet(usersSheet,     "Users");
+      addSheet(videos,         "Videos");
+      addSheet(reels,          "Reels");
+      addSheet(posts,          "Posts");
+      addSheet(postComments,   "Post Comments");
+      addSheet(postReactions,  "Post Reactions");
+      addSheet(likes,          "Likes");
+      addSheet(views,          "Views");
+
+      const filename = `zixplon_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, filename);
+      showToast("✅ Excel export downloaded");
+    } catch (e) {
+      console.error("[admin] Excel export failed:", e);
+      showToast(`❌ Excel export failed: ${e.message || "unknown error"}`);
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  // ── Export to PDF ────────────────────────────────────────────────────────────
+  // Builds a landscape, multi-page PDF report — one table per section —
+  // via jspdf-autotable. Unlike the Excel export, columns here are
+  // trimmed down to what's readable on a printed page rather than every
+  // raw field (a PDF page is much narrower than a spreadsheet column
+  // set), and long free-text fields are truncated via truncate() above.
+  const exportToPDF = async () => {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      const { videos, reels, posts, postComments, postReactions, likes, views, usersSheet } =
+        await fetchExportData();
+
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const PRIMARY_RGB = [158, 18, 38]; // matches --zx-primary
+
+      const addSectionTitle = (text) => {
+        doc.setFontSize(16);
+        doc.setTextColor(...PRIMARY_RGB);
+        doc.text(text, 40, 40);
+      };
+
+      const addTable = (head, body) => {
+        autoTable(doc, {
+          startY: 55,
+          head: [head],
+          body,
+          styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
+          headStyles: { fillColor: PRIMARY_RGB, textColor: 255, fontStyle: "bold" },
+          alternateRowStyles: { fillColor: [254, 242, 242] }, // matches --zx-surface2
+          margin: { left: 40, right: 40 },
+        });
+      };
+
+      // ── Users summary ──
+      addSectionTitle("ZIXPLON — Users Summary");
+      addTable(
+        ["Username", "Joined", "Videos", "Reels", "Posts", "Comments", "Reactions", "Likes Given", "Views Logged"],
+        usersSheet.map((u) => [
+          u.Username,
+          u.Joined,
+          u["Videos Uploaded"],
+          u["Reels Uploaded"],
+          u["Posts Made"],
+          u["Post Comments Made"],
+          u["Post Reactions Given"],
+          u["Video/Reel Likes Given"],
+          u["Content Views Logged"],
+        ]),
+      );
+
+      // ── Videos ──
+      doc.addPage();
+      addSectionTitle("Videos");
+      addTable(
+        ["Title", "Username", "Category", "Duration", "Likes", "Uploaded"],
+        (videos || []).map((v) => [
+          truncate(v.title, 50),
+          v.username || "",
+          v.category || "",
+          v.duration || "",
+          v.likes ?? 0,
+          v.created_at ? new Date(v.created_at).toLocaleDateString("en-IN") : "",
+        ]),
+      );
+
+      // ── Reels ──
+      doc.addPage();
+      addSectionTitle("Reels");
+      addTable(
+        ["Title", "Username", "Duration", "Likes", "Uploaded"],
+        (reels || []).map((r) => [
+          truncate(r.title, 50),
+          r.username || "",
+          r.duration || "",
+          r.likes ?? 0,
+          r.created_at ? new Date(r.created_at).toLocaleDateString("en-IN") : "",
+        ]),
+      );
+
+      // ── Posts ──
+      doc.addPage();
+      addSectionTitle("Posts");
+      addTable(
+        ["Username", "Text", "Posted"],
+        (posts || []).map((p) => [
+          p.username || "",
+          truncate(p.text, 90),
+          p.created_at ? new Date(p.created_at).toLocaleDateString("en-IN") : "",
+        ]),
+      );
+
+      // ── Post Comments ──
+      doc.addPage();
+      addSectionTitle("Post Comments");
+      addTable(
+        ["Username", "Comment", "Posted"],
+        (postComments || []).map((c) => [
+          c.username || "",
+          truncate(c.text, 90),
+          c.created_at ? new Date(c.created_at).toLocaleDateString("en-IN") : "",
+        ]),
+      );
+
+      // ── Post Reactions ──
+      doc.addPage();
+      addSectionTitle("Post Reactions");
+      addTable(
+        ["Username", "Reaction Type", "Post ID"],
+        (postReactions || []).map((r) => [r.username || "", r.type || "", String(r.post_id ?? "")]),
+      );
+
+      // ── Likes (videos/reels) ──
+      doc.addPage();
+      addSectionTitle("Likes (Videos / Reels)");
+      addTable(
+        ["User ID", "Content Type", "Content ID"],
+        (likes || []).map((l) => [String(l.user_id ?? ""), l.content_type || "", String(l.content_id ?? "")]),
+      );
+
+      // ── Views ──
+      doc.addPage();
+      addSectionTitle("Content Views");
+      addTable(
+        ["User ID", "Content Type", "Content ID", "Viewed At"],
+        (views || []).map((v) => [
+          String(v.user_id ?? ""),
+          v.content_type || "",
+          String(v.content_id ?? ""),
+          v.viewed_at ? new Date(v.viewed_at).toLocaleString("en-IN") : "",
+        ]),
+      );
+
+      const filename = `zixplon_export_${new Date().toISOString().slice(0, 10)}.pdf`;
+      doc.save(filename);
+      showToast("✅ PDF export downloaded");
+    } catch (e) {
+      console.error("[admin] PDF export failed:", e);
+      showToast(`❌ PDF export failed: ${e.message || "unknown error"}`);
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   // ── Still resolving the Supabase auth-session check — avoid flashing
   // "Access Denied" for admins whose email only lives in the live session
   // (see the authChecked note above). ──
@@ -240,7 +569,29 @@ const AdminPanel = () => {
           <h1 className="admin_title">🛡️ Admin Panel</h1>
           <p className="admin_subtitle">ZIXPLON Content Moderation</p>
         </div>
-        <Link to="/" className="admin_back_btn">← Back to ZIXPLON</Link>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          {/* NEW: Export to Excel — pulls users + videos/reels/posts/
+              comments/likes/views and downloads a multi-sheet .xlsx
+              workbook. See fetchExportData()/exportToExcel() above. */}
+          <button
+            className="admin_export_btn"
+            onClick={exportToExcel}
+            disabled={exportingExcel}
+          >
+            {exportingExcel ? "⏳ Exporting..." : "⬇ Export to Excel"}
+          </button>
+          {/* NEW: Export to PDF — same underlying data as the Excel
+              export, rendered as a printable multi-page report instead.
+              See exportToPDF() above. */}
+          <button
+            className="admin_export_btn admin_export_btn--pdf"
+            onClick={exportToPDF}
+            disabled={exportingPdf}
+          >
+            {exportingPdf ? "⏳ Exporting..." : "⬇ Export to PDF"}
+          </button>
+          <Link to="/" className="admin_back_btn">← Back to ZIXPLON</Link>
+        </div>
       </div>
 
       {/* Stats bar */}
@@ -266,6 +617,12 @@ const AdminPanel = () => {
         </button>
         <button className={`admin_tab ${activeTab === "words" ? "active" : ""}`} onClick={() => setActiveTab("words")}>
           🔤 Banned Words ({bannedWords.length})
+        </button>
+        {/* NEW: site_visits totals + recent sessions — see fetchVisits/
+            visitStats above and useVisitTracking.js for how rows land
+            in this table. */}
+        <button className={`admin_tab ${activeTab === "visitors" ? "active" : ""}`} onClick={() => setActiveTab("visitors")}>
+          📈 Visitors
         </button>
       </div>
 
@@ -378,6 +735,84 @@ const AdminPanel = () => {
             </div>
           )}
         </>
+      ) : activeTab === "visitors" ? (
+        /* ── Visitors Tab ── */
+        <div className="admin_visitors_section">
+          {visitsLoading ? (
+            <div className="admin_loading">
+              <div className="admin_spinner" />
+              <p>Loading visitor data...</p>
+            </div>
+          ) : (
+            <>
+              <div className="admin_stats" style={{ marginBottom: "20px" }}>
+                {[
+                  { label: "Total Visits",   value: visitStats.totalVisits,   color: "#7c3aed" },
+                  { label: "Unique Sessions", value: visitStats.uniqueSessions, color: "#3b82f6" },
+                  { label: "Logged-in",      value: visitStats.loggedIn,      color: "#22c55e" },
+                  { label: "Guests",         value: visitStats.guests,        color: "#f97316" },
+                  { label: "Avg. Duration",  value: formatDuration(visitStats.avgDurationSec), color: "#ef4444" },
+                ].map((s) => (
+                  <div key={s.label} className="admin_stat_card">
+                    <div className="admin_stat_value" style={{ color: s.color, fontSize: typeof s.value === "string" ? "20px" : "28px" }}>
+                      {s.value}
+                    </div>
+                    <div className="admin_stat_label">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                <p className="admin_words_hint" style={{ margin: 0 }}>
+                  Showing the {visits.length} most recent visits. Duration is accurate to within ~20s (heartbeat interval).
+                </p>
+                <button className="admin_add_word_btn" onClick={fetchVisits} disabled={visitsLoading}>
+                  ↻ Refresh
+                </button>
+              </div>
+
+              {visits.length === 0 ? (
+                <div className="admin_empty">
+                  <div style={{ fontSize: "48px" }}>📭</div>
+                  <p>No visits recorded yet</p>
+                </div>
+              ) : (
+                <div className="admin_visits_table_wrap">
+                  <table className="admin_visits_table">
+                    <thead>
+                      <tr>
+                        <th>User</th>
+                        <th>Started</th>
+                        <th>Duration</th>
+                        <th>Entry Page</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visits.slice(0, 300).map((v) => {
+                        const durationSec = Math.max(
+                          0,
+                          (new Date(v.last_active_at).getTime() - new Date(v.started_at).getTime()) / 1000,
+                        );
+                        return (
+                          <tr key={v.id}>
+                            <td>{v.username ? `@${v.username}` : "Guest"}</td>
+                            <td>
+                              {new Date(v.started_at).toLocaleDateString("en-IN", {
+                                day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+                              })}
+                            </td>
+                            <td>{formatDuration(durationSec)}</td>
+                            <td className="admin_visits_path">{v.entry_path || "/"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       ) : (
         /* ── Banned Words Tab ── */
         <div className="admin_words_section">

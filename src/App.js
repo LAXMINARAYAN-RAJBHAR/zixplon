@@ -47,6 +47,10 @@ import LiveBrowser      from "./Component/Live/LiveViewer";
 import MessagesPanel    from "./Pages/Messages/MessagesPanel";
 import { PresenceProvider } from "./context/PresenceContext";
 import useRequireUsernameSetup from "./hooks/useRequireUsernameSetup";
+// NEW: records a `site_visits` row per browser tab and heartbeats its
+// duration — see src/hooks/useVisitTracking.js and the "Visitors" tab
+// in AdminPanel.jsx.
+import useVisitTracking from "./hooks/useVisitTracking";
 import UsernameSetupModal from "./Component/Auth/UsernameSetupModal";
 import ExploreGrid from "./Pages/Explore/ExploreGrid";
 // NEW: /tag/:tag — every post containing a given #hashtag. See
@@ -269,6 +273,11 @@ function App() {
   // auto-generated fallback username (e.g. "user_41859fe2") ──
   const { needsSetup: needsUsernameSetup, markComplete: markUsernameSetupComplete } =
     useRequireUsernameSetup(currentUser);
+
+  // ── NEW: starts/resumes this tab's visit tracking and keeps it
+  // heartbeating in the background for the rest of the session. See
+  // src/hooks/useVisitTracking.js and AdminPanel.jsx's "Visitors" tab. ──
+  useVisitTracking(currentUser);
 
   // ── Supabase warmup ──
   useEffect(() => {

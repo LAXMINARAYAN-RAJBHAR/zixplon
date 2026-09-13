@@ -431,3 +431,117 @@
   .admin_report_header { flex-direction: column; gap: 6px; }
   .admin_action_btn { font-size: 11px; padding: 7px 12px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   EXPORT TO EXCEL / PDF BUTTONS
+   Sit next to .admin_back_btn in the header; styled as solid action
+   buttons (vs. the back button's outline style) so they read as
+   "do something" buttons rather than navigation.
+   ══════════════════════════════════════════════════════════════════ */
+
+.admin_export_btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 20px;
+  background: var(--zx-primary);
+  border: 2px solid var(--zx-primary);
+  border-radius: 20px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.admin_export_btn:hover:not(:disabled) {
+  background: var(--zx-accent1);
+  border-color: var(--zx-accent1);
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3);
+}
+
+.admin_export_btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* PDF variant — same shape/size as the Excel button, distinct color so
+   the two are easy to tell apart at a glance. */
+.admin_export_btn--pdf {
+  background: var(--zx-accent2);
+  border-color: var(--zx-accent2);
+}
+.admin_export_btn--pdf:hover:not(:disabled) {
+  background: #ea580c;
+  border-color: #ea580c;
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.35);
+}
+
+@media (max-width: 768px) {
+  .admin_export_btn {
+    font-size: 12px;
+    padding: 8px 16px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   VISITORS TAB — recent-visits table.
+   ══════════════════════════════════════════════════════════════════ */
+
+.admin_visitors_section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin_visits_table_wrap {
+  overflow-x: auto;
+  border: 2px solid var(--zx-border);
+  border-radius: 14px;
+  background: var(--zx-surface);
+}
+
+.admin_visits_table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.admin_visits_table thead th {
+  text-align: left;
+  padding: 10px 14px;
+  background: var(--zx-surface2);
+  color: var(--zx-text3);
+  font-family: 'Nunito', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 2px solid var(--zx-border);
+  position: sticky;
+  top: 0;
+}
+
+.admin_visits_table tbody td {
+  padding: 9px 14px;
+  border-bottom: 1px solid #f0ebff;
+  color: var(--zx-text2);
+  font-weight: 600;
+}
+
+.admin_visits_table tbody tr:hover td {
+  background: var(--zx-surface2);
+}
+
+.admin_visits_path {
+  color: var(--zx-text3);
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

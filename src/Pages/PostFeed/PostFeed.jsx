@@ -58,6 +58,17 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const [sentinelNode, setSentinelNode] = useState(null);
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
+  // NEW: unique per-mount suffix for this feed's realtime channel.
+  // Supabase's client REUSES a channel object whenever `.channel(name)`
+  // is called with a name that's already subscribed elsewhere. HomeHub
+  // mounts/unmounts PostFeed every time the person switches between the
+  // Home and Posts tabs — with a static channel name, the SECOND (and
+  // every later) visit to the Posts tab collided with the previous
+  // mount's still-closing subscription and silently failed to attach,
+  // which is why new posts stopped appearing without a hard refresh.
+  // Same channelInstanceIdRef pattern already used for the per-card
+  // connection-status channels in PostCard.jsx / Video.jsx / Reels.jsx.
+  const channelInstanceIdRef = useRef(Math.random().toString(36).slice(2));
 
   useEffect(() => { loadingMoreRef.current = loadingMore; }, [loadingMore]);
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
@@ -271,7 +282,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     fetchPosts(true);
 
     const channel = supabase
-      .channel("posts-realtime")
+      .channel(`posts-realtime-${channelInstanceIdRef.current}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "posts" },

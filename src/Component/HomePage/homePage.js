@@ -3407,7 +3407,12 @@ const HomePage = ({ sideNavbar }) => {
   const isMobile = useIsMobile();
   const [selectedOption, setSelectedOption] = useState("All");
 
-  const liveBrowserRef = useRef(null);
+    const liveBrowserRef = useRef(null);
+  // Unique per-mount suffix for this page's realtime channels. Fixes
+  // stale/colliding channel names when HomeHub mounts/unmounts this
+  // component on every Home <-> Posts tab switch — see channelInstanceIdRef
+  // used the same way in PostCard.jsx / Video.jsx / Reels.jsx.
+  const channelInstanceIdRef = useRef(Math.random().toString(36).slice(2));
 
   const searchQuery = (() => {
     const params = new URLSearchParams(location.search);
@@ -3620,7 +3625,7 @@ const HomePage = ({ sideNavbar }) => {
     fetchDbVideos();
 
     const subscription = supabase
-      .channel("videos-channel")
+      .channel(`videos-channel-${channelInstanceIdRef.current}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "videos" },
@@ -3696,7 +3701,7 @@ const HomePage = ({ sideNavbar }) => {
     fetchDbReels();
 
     const reelsSub = supabase
-      .channel("reels-channel")
+      .channel(`reels-channel-${channelInstanceIdRef.current}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "reels" },
@@ -3763,7 +3768,7 @@ const HomePage = ({ sideNavbar }) => {
     fetchDbPosts();
 
     const postsSub = supabase
-      .channel("posts-channel-home")
+      .channel(`posts-channel-home-${channelInstanceIdRef.current}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "posts" },

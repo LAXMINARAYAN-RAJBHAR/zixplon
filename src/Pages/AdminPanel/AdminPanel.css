@@ -644,31 +644,28 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   TABS ROW — allow horizontal scroll so extra tabs (Admins, etc.)
-   never get clipped by the screen edge on mobile.
+   TABS ROW — wrap onto a second line on narrow screens instead of
+   scrolling, so every tab (including Admins) is always visible
+   without swiping.
    ══════════════════════════════════════════════════════════════════ */
 
 .admin_tabs {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  flex-wrap: nowrap;
-  scrollbar-width: none;      /* Firefox: hide scrollbar */
-  -ms-overflow-style: none;   /* old Edge/IE: hide scrollbar */
-}
-
-.admin_tabs::-webkit-scrollbar {
-  display: none;              /* Chrome/Safari: hide scrollbar */
+  overflow-x: visible;
+  flex-wrap: wrap;
+  row-gap: 6px;
 }
 
 .admin_tab {
-  flex-shrink: 0;             /* stop tabs from squeezing/wrapping mid-word */
+  flex-shrink: 0;
   white-space: nowrap;
 }
 
-/* Give the row a little breathing room on the right so the last tab
-   isn't flush against the screen edge when scrolled all the way. */
 @media (max-width: 768px) {
   .admin_tabs {
-    padding-right: 12px;
+    gap: 6px;
+  }
+  .admin_tab {
+    padding: 8px 14px;
+    font-size: 13px;
   }
 }

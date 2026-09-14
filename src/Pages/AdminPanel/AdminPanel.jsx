@@ -11,6 +11,20 @@ import * as XLSX from "xlsx";
 // `npm install jspdf jspdf-autotable`
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+// docx — generates a .docx (Word) report entirely client-side, used by
+// the Logins tab's "Export to Word" button. Requires:
+// `npm install docx`
+import {
+  Document,
+  Packer,
+  Paragraph,
+  Table,
+  TableRow,
+  TableCell,
+  TextRun,
+  HeadingLevel,
+  WidthType,
+} from "docx";
 
 // ── Root admin(s) ────────────────────────────────────────────────────────────
 // Hardcoded fallback so the app can never be locked out even if the
@@ -39,8 +53,9 @@ const REASON_LABELS = {
   other:          "📝 Other",
 };
 
-// Truncates long free-text fields (post text, comment text) so a
-// single row never blows out a table's column width in either export.
+// Truncates long free-text fields (post text, comment text, user-agent
+// strings) so a single row never blows out a table's column width in
+// either export.
 const truncate = (str, max = 80) => {
   if (!str) return "";
   const s = String(str);
@@ -68,19 +83,23 @@ const formatDuration = (totalSeconds) => {
 // submissions before making a network call.
 const looksLikeEmail = (v) => /\S+@\S+\.\S+/.test(v);
 
+// Downloads an in-memory Blob as a file — shared by the Word export
+// below (jsPDF and XLSX have their own built-in .save()/.writeFile()).
+const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+
 const AdminPanel = () => {
   const currentUser = localStorage.getItem("username") || "";
 
   // ── Auth check, step 1: Supabase auth-session email ──
-  // Profile.js's own PATH 2 (Supabase auth-session login, as opposed to
-  // the localStorage-cache login path) never calls
-  // localStorage.setItem("email", ...) — it only persists username/
-  // channelName/profilePic/about. An admin who authenticated through
-  // that path would have an empty localStorage "email" and get bounced
-  // to "Access Denied" with no indication why. We check the live
-  // Supabase session's email (the same source Profile.js's PATH 2
-  // itself reads from), and gate rendering on that check completing so
-  // we don't flash "Access Denied" before it resolves.
   const [authChecked, setAuthChecked] = useState(false);
   const [authEmail,   setAuthEmail]   = useState("");
 
@@ -99,11 +118,6 @@ const AdminPanel = () => {
   const isHardcodedAdmin = ADMIN_EMAILS.includes(localEmail) || ADMIN_EMAILS.includes(authEmail);
 
   // ── Auth check, step 2: DB-backed admin_users table ──
-  // admin_users has no RLS policies granting client access on purpose —
-  // it's only ever read/written via api/manage-admin.js using the
-  // service-role key server-side. So membership is checked by asking
-  // that API ("action: check"), not by querying the table directly.
-  // Hardcoded admins skip this round-trip entirely.
   const [dbAdminChecked, setDbAdminChecked] = useState(false);
   const [isDbAdmin,      setIsDbAdmin]      = useState(false);
 
@@ -112,9 +126,9 @@ const AdminPanel = () => {
     return data?.session?.access_token || "";
   };
 
-  const callManageAdmin = async (body) => {
+  const callApi = async (path, body) => {
     const token = await getAccessToken();
-    const res = await fetch("/api/manage-admin", {
+    const res = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
@@ -124,10 +138,12 @@ const AdminPanel = () => {
     return data;
   };
 
+  const callManageAdmin = (body) => callApi("/api/manage-admin", body);
+  const callUserLoginInfo = () => callApi("/api/user-login-info", {});
+
   useEffect(() => {
     if (!authChecked) return;
     if (isHardcodedAdmin) {
-      // Already an admin via the hardcoded list — no need to ask the API.
       setIsDbAdmin(true);
       setDbAdminChecked(true);
       return;
@@ -152,14 +168,8 @@ const AdminPanel = () => {
   const [wordSaving,    setWordSaving]    = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const [toast,         setToast]         = useState("");
-  // Separate loading flags for each export button, so exporting to
-  // Excel doesn't grey out the PDF button (and vice versa) — each kicks
-  // off its own independent data fetch + file generation.
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportingPdf,   setExportingPdf]   = useState(false);
-  // "Visitors" tab data — populated lazily the first time that tab
-  // is opened (see the activeTab effect below), not on initial mount,
-  // since site_visits can grow large and most admin visits won't need it.
   const [visits,        setVisits]        = useState([]);
   const [visitsLoading, setVisitsLoading]  = useState(false);
   const [visitsLoaded,  setVisitsLoaded]   = useState(false);
@@ -172,6 +182,16 @@ const AdminPanel = () => {
   const [newAdminPassword, setNewAdminPassword] = useState("");
   const [grantLoading,     setGrantLoading]     = useState(false);
   const [revokingEmail,    setRevokingEmail]    = useState(null);
+
+  // ── "Logins" tab state ───────────────────────────────────────────────────
+  // Login method (Google / Email-Password / etc), last login time, and
+  // last known IP + device per user. See api/user-login-info.js.
+  const [loginRows,          setLoginRows]          = useState([]);
+  const [loginsLoading,      setLoginsLoading]      = useState(false);
+  const [loginsLoaded,       setLoginsLoaded]       = useState(false);
+  const [exportingLoginsXlsx, setExportingLoginsXlsx] = useState(false);
+  const [exportingLoginsWord, setExportingLoginsWord] = useState(false);
+  const [exportingLoginsPdf,  setExportingLoginsPdf]  = useState(false);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -199,7 +219,6 @@ const AdminPanel = () => {
     setLoading(true);
     Promise.all([fetchReports(), fetchBannedWords()]).finally(() => setLoading(false));
 
-    // Realtime for new reports
     const channel = supabase
       .channel("admin-reports")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "reports" }, () => {
@@ -223,15 +242,6 @@ const AdminPanel = () => {
     setActionLoading(null);
   };
 
-  // Deletes the underlying reported content and closes the report.
-  // "message" reports are handled separately from video/reel/post
-  // reports: those live in direct_messages (not videos/reels/posts), and
-  // getting soft-deleted (deleted_at + fields cleared) rather than a hard
-  // row delete, matching MessagesPanel's own deleteMessage() behavior.
-  // Without this explicit branch, a message report's content_type
-  // ("message") would fall through to the `: "posts"` default below and
-  // attempt to delete a row from the posts table using a message's id —
-  // silently touching the wrong table.
   const deleteContent = async (report) => {
     setActionLoading(report.id + "delete");
     try {
@@ -259,7 +269,6 @@ const AdminPanel = () => {
         : report.content_type === "video" ? "videos"
         : "posts";
 
-      // Strip db_ prefix for reels
       const rawId = String(report.content_id).replace("db_", "");
       await supabase.from(table).delete().eq("id", rawId);
       await updateReportStatus(report.id, "removed", "Content deleted by admin");
@@ -271,14 +280,6 @@ const AdminPanel = () => {
   };
 
   // ── Banned words actions ────────────────────────────────────────────────────
-  // FIX: this previously pushed a fake `{ id: Date.now(), ... }` row into
-  // state instead of the row Supabase actually created. removeBannedWord()
-  // deletes by that same `id`, so every removal was calling
-  // `.delete().eq("id", <fake Date.now() id>)` — a match for no real row.
-  // The chip vanished from the UI, but the word was NEVER actually removed
-  // from the banned_words table, so it silently kept blocking uploads.
-  // Selecting the inserted row back (same pattern used for comment/post
-  // inserts elsewhere in the app) fixes that at the source.
   const addBannedWord = async () => {
     const word = newWord.trim().toLowerCase();
     if (!word || wordSaving) return;
@@ -310,12 +311,6 @@ const AdminPanel = () => {
   };
 
   // ── Visitors tab ─────────────────────────────────────────────────────────────
-  // Pulls every site_visits row client-side (same pattern the rest of
-  // this file already uses for reports/banned_words) and derives totals
-  // in JS: unique sessions (distinct session_id), logged-in vs guest
-  // split, and average duration. For a very large table this should
-  // move to a Postgres view/RPC that pre-aggregates — flagged here for
-  // when that becomes necessary, but fine for moderate traffic as-is.
   const fetchVisits = async () => {
     setVisitsLoading(true);
     const { data, error } = await supabase
@@ -371,13 +366,6 @@ const AdminPanel = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // Grants admin access for newAdminEmail. If newAdminPassword is set,
-  // the API first tries to create a brand-new Supabase auth account
-  // with that email/password (email_confirm: true, so they can log in
-  // immediately with no email verification step) — if an account with
-  // that email already exists, the API just skips creation and grants
-  // admin to the existing account. So this one form covers both "make
-  // an existing user an admin" and "create a new admin from scratch".
   const grantAdmin = async () => {
     const email = newAdminEmail.trim().toLowerCase();
     if (!email || grantLoading) return;
@@ -411,7 +399,7 @@ const AdminPanel = () => {
   };
 
   const revokeAdmin = async (email) => {
-    if (ADMIN_EMAILS.includes(email)) return; // guarded in UI too, belt & suspenders
+    if (ADMIN_EMAILS.includes(email)) return;
     setRevokingEmail(email);
     try {
       await callManageAdmin({ action: "remove", email });
@@ -423,24 +411,148 @@ const AdminPanel = () => {
     setRevokingEmail(null);
   };
 
-  // ── Shared export data fetcher ──────────────────────────────────────────────
-  // Pulls every table both exports rely on (profiles, videos, reels,
-  // posts, post_reactions, post_comments, likes, views) in parallel, and
-  // builds the same per-user summary rows used by both the Excel and PDF
-  // exports below, so that logic only lives in one place.
-  //
-  // ASSUMPTIONS (update these table/column names if your schema differs):
-  //  - profiles.id matches auth.users.id, which is also what's stored as
-  //    likes.user_id and views.user_id elsewhere in this app (see
-  //    homePage.js's handleLikeVideo / incrementView).
-  //  - videos/reels/posts/post_comments/post_reactions all key off a
-  //    plain `username` text column (not a foreign key to profiles.id) —
-  //    matches every other query in this codebase.
-  //  - There is currently no persisted "video comments" / "reel
-  //    comments" table in what's been shared (MOCK_COMMENTS in
-  //    homePage.js is hardcoded client-side data, not a Supabase table),
-  //    so only post-level comments are exported. If you do have a real
-  //    table for those, tell me its name and I'll add it to both exports.
+  // ── Logins tab: login method + last login + IP/device per user ─────────────
+  const fetchLogins = async () => {
+    setLoginsLoading(true);
+    try {
+      const { users } = await callUserLoginInfo();
+      setLoginRows(users || []);
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setLoginsLoading(false);
+    setLoginsLoaded(true);
+  };
+
+  useEffect(() => {
+    if (activeTab === "logins" && !loginsLoaded && !loginsLoading) {
+      fetchLogins();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const ensureLoginRows = async () => {
+    if (loginRows.length) return loginRows;
+    const { users } = await callUserLoginInfo();
+    setLoginRows(users || []);
+    setLoginsLoaded(true);
+    return users || [];
+  };
+
+  const loginRowsToTableData = (rows) =>
+    rows.map((r) => [
+      r.username || "—",
+      r.email || "—",
+      (r.providers || []).join(", "),
+      r.last_sign_in_at ? new Date(r.last_sign_in_at).toLocaleString("en-IN") : "Never",
+      r.last_ip || "—",
+      truncate(r.last_device, 60) || "—",
+    ]);
+
+  const exportLoginsToExcel = async () => {
+    if (exportingLoginsXlsx) return;
+    setExportingLoginsXlsx(true);
+    try {
+      const rows = await ensureLoginRows();
+      const sheetRows = rows.map((r) => ({
+        Username: r.username || "",
+        Email: r.email || "",
+        "Login Method": (r.providers || []).join(", "),
+        "Last Login": r.last_sign_in_at ? new Date(r.last_sign_in_at).toLocaleString("en-IN") : "Never",
+        "Last IP": r.last_ip || "",
+        "Last Device": r.last_device || "",
+        "Account Created": r.created_at ? new Date(r.created_at).toLocaleString("en-IN") : "",
+      }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetRows), "Logins");
+      XLSX.writeFile(wb, `zixplon_logins_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      showToast("✅ Excel report downloaded");
+    } catch (e) {
+      showToast(`❌ Excel export failed: ${e.message}`);
+    }
+    setExportingLoginsXlsx(false);
+  };
+
+  const exportLoginsToWord = async () => {
+    if (exportingLoginsWord) return;
+    setExportingLoginsWord(true);
+    try {
+      const rows = await ensureLoginRows();
+      const headerCells = ["Username", "Email", "Login Method", "Last Login", "Last IP", "Last Device"];
+
+      const headerRow = new TableRow({
+        children: headerCells.map(
+          (h) =>
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: h, bold: true })] })],
+            }),
+        ),
+      });
+
+      const bodyRows = loginRowsToTableData(rows).map(
+        (cells) =>
+          new TableRow({
+            children: cells.map((text) => new TableCell({ children: [new Paragraph(String(text))] })),
+          }),
+      );
+
+      const doc = new Document({
+        sections: [
+          {
+            children: [
+              new Paragraph({ text: "ZIXPLON — User Login Report", heading: HeadingLevel.HEADING_1 }),
+              new Paragraph({
+                text: `Generated ${new Date().toLocaleString("en-IN")} · ${rows.length} users`,
+                spacing: { after: 200 },
+              }),
+              new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [headerRow, ...bodyRows] }),
+            ],
+          },
+        ],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      downloadBlob(blob, `zixplon_logins_${new Date().toISOString().slice(0, 10)}.docx`);
+      showToast("✅ Word report downloaded");
+    } catch (e) {
+      console.error("[admin] Word export failed:", e);
+      showToast(`❌ Word export failed: ${e.message || "unknown error"}`);
+    }
+    setExportingLoginsWord(false);
+  };
+
+  const exportLoginsToPDF = async () => {
+    if (exportingLoginsPdf) return;
+    setExportingLoginsPdf(true);
+    try {
+      const rows = await ensureLoginRows();
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      const PRIMARY_RGB = [158, 18, 38];
+
+      doc.setFontSize(16);
+      doc.setTextColor(...PRIMARY_RGB);
+      doc.text("ZIXPLON — User Login Report", 40, 40);
+
+      autoTable(doc, {
+        startY: 55,
+        head: [["Username", "Email", "Login Method", "Last Login", "Last IP", "Last Device"]],
+        body: loginRowsToTableData(rows),
+        styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
+        headStyles: { fillColor: PRIMARY_RGB, textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [254, 242, 242] },
+        margin: { left: 40, right: 40 },
+      });
+
+      doc.save(`zixplon_logins_${new Date().toISOString().slice(0, 10)}.pdf`);
+      showToast("✅ PDF report downloaded");
+    } catch (e) {
+      console.error("[admin] Logins PDF export failed:", e);
+      showToast(`❌ PDF export failed: ${e.message || "unknown error"}`);
+    }
+    setExportingLoginsPdf(false);
+  };
+
+  // ── Shared export data fetcher (existing header Excel/PDF export) ──────────
   const fetchExportData = async () => {
     const [
       { data: profiles,      error: profilesErr },
@@ -467,8 +579,21 @@ const AdminPanel = () => {
       postCommentsErr || postReactionsErr || likesErr || viewsErr;
     if (firstError) throw firstError;
 
+    // Best-effort — if the login-info endpoint fails for any reason,
+    // the export should still succeed, just without those columns.
+    let loginByUsername = new Map();
+    try {
+      const { users: loginData } = await callUserLoginInfo();
+      loginByUsername = new Map(
+        (loginData || []).filter((r) => r.username).map((r) => [r.username, r]),
+      );
+    } catch (e) {
+      console.warn("[admin] login info unavailable for export:", e.message);
+    }
+
     const usersSheet = (profiles || []).map((p) => {
       const username = p.username;
+      const login = loginByUsername.get(username);
       return {
         Username: username || "",
         About: p.about || "",
@@ -481,15 +606,17 @@ const AdminPanel = () => {
         "Post Reactions Given": (postReactions || []).filter((r) => r.username === username).length,
         "Video/Reel Likes Given": (likes || []).filter((l) => l.user_id === p.id).length,
         "Content Views Logged": (views || []).filter((v) => v.user_id === p.id).length,
+        "Login Method": login ? (login.providers || []).join(", ") : "",
+        "Last Login": login?.last_sign_in_at ? new Date(login.last_sign_in_at).toLocaleString("en-IN") : "",
+        "Last IP": login?.last_ip || "",
+        "Last Device": login?.last_device || "",
       };
     });
 
     return { profiles, videos, reels, posts, postComments, postReactions, likes, views, usersSheet };
   };
 
-  // ── Export to Excel ──────────────────────────────────────────────────────────
-  // Builds a multi-sheet .xlsx workbook — one "Users" summary sheet plus
-  // one raw-data sheet per table — and downloads it via XLSX.writeFile.
+  // ── Export to Excel (header button) ─────────────────────────────────────────
   const exportToExcel = async () => {
     if (exportingExcel) return;
     setExportingExcel(true);
@@ -499,7 +626,6 @@ const AdminPanel = () => {
 
       const wb = XLSX.utils.book_new();
       const addSheet = (rows, name) => {
-        // Cap each sheet at Excel's row limit just in case a table is huge.
         const safeRows = (rows || []).slice(0, 1_048_575);
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(safeRows), name);
       };
@@ -524,12 +650,7 @@ const AdminPanel = () => {
     }
   };
 
-  // ── Export to PDF ────────────────────────────────────────────────────────────
-  // Builds a landscape, multi-page PDF report — one table per section —
-  // via jspdf-autotable. Unlike the Excel export, columns here are
-  // trimmed down to what's readable on a printed page rather than every
-  // raw field (a PDF page is much narrower than a spreadsheet column
-  // set), and long free-text fields are truncated via truncate() above.
+  // ── Export to PDF (header button) ───────────────────────────────────────────
   const exportToPDF = async () => {
     if (exportingPdf) return;
     setExportingPdf(true);
@@ -538,7 +659,7 @@ const AdminPanel = () => {
         await fetchExportData();
 
       const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-      const PRIMARY_RGB = [158, 18, 38]; // matches --zx-primary
+      const PRIMARY_RGB = [158, 18, 38];
 
       const addSectionTitle = (text) => {
         doc.setFontSize(16);
@@ -553,29 +674,26 @@ const AdminPanel = () => {
           body,
           styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
           headStyles: { fillColor: PRIMARY_RGB, textColor: 255, fontStyle: "bold" },
-          alternateRowStyles: { fillColor: [254, 242, 242] }, // matches --zx-surface2
+          alternateRowStyles: { fillColor: [254, 242, 242] },
           margin: { left: 40, right: 40 },
         });
       };
 
-      // ── Users summary ──
       addSectionTitle("ZIXPLON — Users Summary");
       addTable(
-        ["Username", "Joined", "Videos", "Reels", "Posts", "Comments", "Reactions", "Likes Given", "Views Logged"],
+        ["Username", "Videos", "Reels", "Posts", "Comments", "Login Method", "Last Login", "Last IP"],
         usersSheet.map((u) => [
           u.Username,
-          u.Joined,
           u["Videos Uploaded"],
           u["Reels Uploaded"],
           u["Posts Made"],
           u["Post Comments Made"],
-          u["Post Reactions Given"],
-          u["Video/Reel Likes Given"],
-          u["Content Views Logged"],
+          u["Login Method"],
+          u["Last Login"],
+          u["Last IP"],
         ]),
       );
 
-      // ── Videos ──
       doc.addPage();
       addSectionTitle("Videos");
       addTable(
@@ -590,7 +708,6 @@ const AdminPanel = () => {
         ]),
       );
 
-      // ── Reels ──
       doc.addPage();
       addSectionTitle("Reels");
       addTable(
@@ -604,7 +721,6 @@ const AdminPanel = () => {
         ]),
       );
 
-      // ── Posts ──
       doc.addPage();
       addSectionTitle("Posts");
       addTable(
@@ -616,7 +732,6 @@ const AdminPanel = () => {
         ]),
       );
 
-      // ── Post Comments ──
       doc.addPage();
       addSectionTitle("Post Comments");
       addTable(
@@ -628,7 +743,6 @@ const AdminPanel = () => {
         ]),
       );
 
-      // ── Post Reactions ──
       doc.addPage();
       addSectionTitle("Post Reactions");
       addTable(
@@ -636,7 +750,6 @@ const AdminPanel = () => {
         (postReactions || []).map((r) => [r.username || "", r.type || "", String(r.post_id ?? "")]),
       );
 
-      // ── Likes (videos/reels) ──
       doc.addPage();
       addSectionTitle("Likes (Videos / Reels)");
       addTable(
@@ -644,7 +757,6 @@ const AdminPanel = () => {
         (likes || []).map((l) => [String(l.user_id ?? ""), l.content_type || "", String(l.content_id ?? "")]),
       );
 
-      // ── Views ──
       doc.addPage();
       addSectionTitle("Content Views");
       addTable(
@@ -668,10 +780,6 @@ const AdminPanel = () => {
     }
   };
 
-  // ── Still resolving auth (Supabase session email AND/OR the
-  // DB-backed admin check) — avoid flashing "Access Denied" for admins
-  // whose access only lives in the live session or the admin_users
-  // table (see the notes above). ──
   if (!authChecked || !dbAdminChecked) {
     return (
       <div className="admin_blocked">
@@ -696,41 +804,24 @@ const AdminPanel = () => {
 
   return (
     <div className="admin_panel">
-      {/* Toast */}
       {toast && <div className="admin_toast">{toast}</div>}
 
-      {/* Header */}
       <div className="admin_header">
         <div>
           <h1 className="admin_title">🛡️ Admin Panel</h1>
           <p className="admin_subtitle">ZIXPLON Content Moderation</p>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          {/* Export to Excel — pulls users + videos/reels/posts/
-              comments/likes/views and downloads a multi-sheet .xlsx
-              workbook. See fetchExportData()/exportToExcel() above. */}
-          <button
-            className="admin_export_btn"
-            onClick={exportToExcel}
-            disabled={exportingExcel}
-          >
+          <button className="admin_export_btn" onClick={exportToExcel} disabled={exportingExcel}>
             {exportingExcel ? "⏳ Exporting..." : "⬇ Export to Excel"}
           </button>
-          {/* Export to PDF — same underlying data as the Excel
-              export, rendered as a printable multi-page report instead.
-              See exportToPDF() above. */}
-          <button
-            className="admin_export_btn admin_export_btn--pdf"
-            onClick={exportToPDF}
-            disabled={exportingPdf}
-          >
+          <button className="admin_export_btn admin_export_btn--pdf" onClick={exportToPDF} disabled={exportingPdf}>
             {exportingPdf ? "⏳ Exporting..." : "⬇ Export to PDF"}
           </button>
           <Link to="/" className="admin_back_btn">← Back to ZIXPLON</Link>
         </div>
       </div>
 
-      {/* Stats bar */}
       <div className="admin_stats">
         {[
           { label: "Pending",   value: reports.filter((r) => r.status === "pending").length,   color: "#f97316" },
@@ -746,7 +837,6 @@ const AdminPanel = () => {
         ))}
       </div>
 
-      {/* Tabs */}
       <div className="admin_tabs">
         <button className={`admin_tab ${activeTab === "reports" ? "active" : ""}`} onClick={() => setActiveTab("reports")}>
           🚩 Reports {pendingCount > 0 && <span className="admin_badge">{pendingCount}</span>}
@@ -754,16 +844,14 @@ const AdminPanel = () => {
         <button className={`admin_tab ${activeTab === "words" ? "active" : ""}`} onClick={() => setActiveTab("words")}>
           🔤 Banned Words ({bannedWords.length})
         </button>
-        {/* site_visits totals + recent sessions — see fetchVisits/
-            visitStats above and useVisitTracking.js for how rows land
-            in this table. */}
         <button className={`admin_tab ${activeTab === "visitors" ? "active" : ""}`} onClick={() => setActiveTab("visitors")}>
           📈 Visitors
         </button>
-        {/* Grant/revoke admin access — backed by the admin_users table
-            via api/manage-admin.js. See the Admins tab section below. */}
         <button className={`admin_tab ${activeTab === "admins" ? "active" : ""}`} onClick={() => setActiveTab("admins")}>
           👑 Admins {admins.length > 0 && <span className="admin_badge" style={{ background: "#7c3aed" }}>{admins.length}</span>}
+        </button>
+        <button className={`admin_tab ${activeTab === "logins" ? "active" : ""}`} onClick={() => setActiveTab("logins")}>
+          🔐 Logins
         </button>
       </div>
 
@@ -774,7 +862,6 @@ const AdminPanel = () => {
         </div>
       ) : activeTab === "reports" ? (
         <>
-          {/* Status filter */}
           <div className="admin_filter_row">
             {["all", "pending", "reviewed", "removed", "dismissed"].map((s) => (
               <button
@@ -788,7 +875,6 @@ const AdminPanel = () => {
             ))}
           </div>
 
-          {/* Reports list */}
           {filteredReports.length === 0 ? (
             <div className="admin_empty">
               <div style={{ fontSize: "48px" }}>✅</div>
@@ -800,7 +886,6 @@ const AdminPanel = () => {
                 const sc = STATUS_COLORS[report.status] || STATUS_COLORS.pending;
                 return (
                   <div key={report.id} className="admin_report_card">
-                    {/* Card header */}
                     <div className="admin_report_header">
                       <div className="admin_report_meta">
                         <span className="admin_report_type">{report.content_type.toUpperCase()}</span>
@@ -814,7 +899,6 @@ const AdminPanel = () => {
                       </span>
                     </div>
 
-                    {/* Content info */}
                     <div className="admin_report_content">
                       <div className="admin_report_field">
                         <span className="admin_report_field_label">Content</span>
@@ -842,7 +926,6 @@ const AdminPanel = () => {
                       )}
                     </div>
 
-                    {/* Actions — only show if pending or reviewed */}
                     {(report.status === "pending" || report.status === "reviewed") && (
                       <div className="admin_report_actions">
                         <button
@@ -877,7 +960,6 @@ const AdminPanel = () => {
           )}
         </>
       ) : activeTab === "visitors" ? (
-        /* ── Visitors Tab ── */
         <div className="admin_visitors_section">
           {visitsLoading ? (
             <div className="admin_loading">
@@ -955,7 +1037,6 @@ const AdminPanel = () => {
           )}
         </div>
       ) : activeTab === "admins" ? (
-        /* ── Admins Tab ── */
         <div className="admin_admins_section">
           <div className="admin_grant_card">
             <h3 className="admin_grant_title">Grant admin access</h3>
@@ -1030,10 +1111,75 @@ const AdminPanel = () => {
             </div>
           )}
         </div>
+      ) : activeTab === "logins" ? (
+        <div className="admin_visitors_section">
+          {loginsLoading ? (
+            <div className="admin_loading">
+              <div className="admin_spinner" />
+              <p>Loading login info...</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
+                <p className="admin_words_hint" style={{ margin: 0 }}>
+                  Login method comes from each account's sign-in provider. Passwords
+                  are never retrievable — Supabase stores only irreversible hashes.
+                  IP/device reflect the user's most recent site visit.
+                </p>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <button className="admin_add_word_btn" onClick={fetchLogins} disabled={loginsLoading}>
+                    ↻ Refresh
+                  </button>
+                  <button className="admin_export_btn" onClick={exportLoginsToExcel} disabled={exportingLoginsXlsx}>
+                    {exportingLoginsXlsx ? "⏳..." : "⬇ Excel"}
+                  </button>
+                  <button className="admin_export_btn" style={{ background: "#2563eb", borderColor: "#2563eb" }} onClick={exportLoginsToWord} disabled={exportingLoginsWord}>
+                    {exportingLoginsWord ? "⏳..." : "⬇ Word"}
+                  </button>
+                  <button className="admin_export_btn admin_export_btn--pdf" onClick={exportLoginsToPDF} disabled={exportingLoginsPdf}>
+                    {exportingLoginsPdf ? "⏳..." : "⬇ PDF"}
+                  </button>
+                </div>
+              </div>
+
+              {loginRows.length === 0 ? (
+                <div className="admin_empty">
+                  <div style={{ fontSize: "48px" }}>🔐</div>
+                  <p>No login data found</p>
+                </div>
+              ) : (
+                <div className="admin_visits_table_wrap">
+                  <table className="admin_visits_table">
+                    <thead>
+                      <tr>
+                        <th>User</th>
+                        <th>Login Method</th>
+                        <th>Last Login</th>
+                        <th>Last IP</th>
+                        <th>Last Device</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loginRows.map((r) => (
+                        <tr key={r.id}>
+                          <td>{r.username ? `@${r.username}` : r.email}</td>
+                          <td>{(r.providers || []).join(", ")}</td>
+                          <td>{r.last_sign_in_at ? new Date(r.last_sign_in_at).toLocaleString("en-IN") : "Never"}</td>
+                          <td>{r.last_ip || "—"}</td>
+                          <td className="admin_visits_path" title={r.last_device || ""}>
+                            {truncate(r.last_device, 40) || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       ) : (
-        /* ── Banned Words Tab ── */
         <div className="admin_words_section">
-          {/* Add word */}
           <div className="admin_add_word_row">
             <input
               type="text"
@@ -1050,7 +1196,6 @@ const AdminPanel = () => {
           </div>
           <p className="admin_words_hint">These words are automatically blocked at upload time. Case-insensitive.</p>
 
-          {/* Words grid */}
           <div className="admin_words_grid">
             {bannedWords.map((w) => (
               <div key={w.id} className="admin_word_chip">

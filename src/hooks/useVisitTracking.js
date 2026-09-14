@@ -28,6 +28,12 @@ const makeSessionId = () =>
 // browsers (especially iOS Safari and installed PWAs), which is exactly
 // why a heartbeat-based approach is used instead of a single
 // insert-on-arrival / update-on-leave pair.
+//
+// NEW: right after creating a brand-new visit row (not on a reload that
+// resumes an existing one), calls api/record-visit-ip.js so the row's
+// ip_address gets filled in from what the server actually sees — the
+// browser itself can't determine its own public IP reliably. This is
+// what powers the "Last IP" column in AdminPanel's Logins tab.
 const useVisitTracking = (currentUser) => {
   const rowIdRef = useRef(null);
 
@@ -74,6 +80,14 @@ const useVisitTracking = (currentUser) => {
 
       if (!error && data && !cancelled) {
         rowIdRef.current = data.id;
+
+        // Best-effort IP capture — never blocks or throws into the
+        // visit-tracking flow if it fails.
+        fetch("/api/record-visit-ip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visitId: data.id }),
+        }).catch(() => {});
       }
     };
 

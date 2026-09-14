@@ -30,8 +30,7 @@ import {
 // Hardcoded fallback so the app can never be locked out even if the
 // admin_users table is empty, unreachable, or something goes wrong with
 // the API route below. Anyone in this list is ALWAYS an admin, and can
-// never be removed via the Admins tab (see revokeAdmin's guard and the
-// matching guard in api/manage-admin.js).
+// never be removed via the Admins tab or deleted via the Users tab.
 const ADMIN_EMAILS = ["laxminarayan.rajbhar@gmail.com"];
 
 const STATUS_COLORS = {
@@ -138,8 +137,9 @@ const AdminPanel = () => {
     return data;
   };
 
-  const callManageAdmin = (body) => callApi("/api/manage-admin", body);
+  const callManageAdmin   = (body) => callApi("/api/manage-admin", body);
   const callUserLoginInfo = () => callApi("/api/user-login-info", {});
+  const callModerateUser  = (body) => callApi("/api/moderate-user", body);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -184,14 +184,25 @@ const AdminPanel = () => {
   const [revokingEmail,    setRevokingEmail]    = useState(null);
 
   // ── "Logins" tab state ───────────────────────────────────────────────────
-  // Login method (Google / Email-Password / etc), last login time, and
-  // last known IP + device per user. See api/user-login-info.js.
   const [loginRows,          setLoginRows]          = useState([]);
   const [loginsLoading,      setLoginsLoading]      = useState(false);
   const [loginsLoaded,       setLoginsLoaded]       = useState(false);
   const [exportingLoginsXlsx, setExportingLoginsXlsx] = useState(false);
   const [exportingLoginsWord, setExportingLoginsWord] = useState(false);
   const [exportingLoginsPdf,  setExportingLoginsPdf]  = useState(false);
+
+  // ── "Users" tab state ────────────────────────────────────────────────────
+  // Reuses the same data source as the Logins tab (api/user-login-info.js
+  // returns everything needed: username, email, ban status). Kept as a
+  // SEPARATE fetch/loaded flag from the Logins tab so opening one doesn't
+  // silently also mark the other as "loaded" with stale data — each tab
+  // refreshes independently.
+  const [userRows,        setUserRows]        = useState([]);
+  const [usersLoading,    setUsersLoading]    = useState(false);
+  const [usersLoaded,     setUsersLoaded]     = useState(false);
+  const [userSearch,      setUserSearch]      = useState("");
+  const [moderatingId,    setModeratingId]    = useState(null); // userId currently being acted on
+  const [removeContentMap, setRemoveContentMap] = useState({}); // userId -> bool, "also delete content" checkbox state
 
   const showToast = (msg) => {
     setToast(msg);
@@ -275,6 +286,29 @@ const AdminPanel = () => {
       showToast(`✅ Content deleted and report closed`);
     } catch (e) {
       showToast("❌ Failed to delete content");
+    }
+    setActionLoading(null);
+  };
+
+  // NEW: bans the account that uploaded/owns the reported content,
+  // directly from a report card. Resolves the target purely by
+  // username (report.content_owner) — the server looks up the actual
+  // auth user id via the profiles table. Does NOT delete their content;
+  // use the existing "Delete Content" button for the reported item, or
+  // the Users tab for a full content wipe.
+  const banUploaderFromReport = async (report) => {
+    if (!report.content_owner) return;
+    const confirmed = window.confirm(
+      `Ban @${report.content_owner}? They will no longer be able to log in. This does not delete their existing content.`,
+    );
+    if (!confirmed) return;
+
+    setActionLoading(report.id + "ban");
+    try {
+      await callModerateUser({ action: "ban", username: report.content_owner });
+      showToast(`🚫 @${report.content_owner} has been banned`);
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
     }
     setActionLoading(null);
   };
@@ -552,6 +586,100 @@ const AdminPanel = () => {
     setExportingLoginsPdf(false);
   };
 
+  // ── Users tab: search + ban/unban/delete ────────────────────────────────────
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const { users } = await callUserLoginInfo();
+      setUserRows(users || []);
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setUsersLoading(false);
+    setUsersLoaded(true);
+  };
+
+  useEffect(() => {
+    if (activeTab === "users" && !usersLoaded && !usersLoading) {
+      fetchUsers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const toggleRemoveContent = (userId) => {
+    setRemoveContentMap((prev) => ({ ...prev, [userId]: !prev[userId] }));
+  };
+
+  const banUser = async (user) => {
+    const confirmed = window.confirm(
+      `Ban ${user.username ? `@${user.username}` : user.email}? They will no longer be able to log in.${
+        removeContentMap[user.id] ? " Their videos, reels, and posts will ALSO be permanently deleted." : ""
+      }`,
+    );
+    if (!confirmed) return;
+
+    setModeratingId(user.id);
+    try {
+      await callModerateUser({
+        action: "ban",
+        userId: user.id,
+        username: user.username,
+        removeContent: !!removeContentMap[user.id],
+      });
+      setUserRows((prev) => prev.map((u) => (u.id === user.id ? { ...u, is_banned: true } : u)));
+      showToast(`🚫 ${user.username ? `@${user.username}` : user.email} banned`);
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setModeratingId(null);
+  };
+
+  const unbanUser = async (user) => {
+    setModeratingId(user.id);
+    try {
+      await callModerateUser({ action: "unban", userId: user.id, username: user.username });
+      setUserRows((prev) => prev.map((u) => (u.id === user.id ? { ...u, is_banned: false } : u)));
+      showToast(`✅ ${user.username ? `@${user.username}` : user.email} unbanned`);
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setModeratingId(null);
+  };
+
+  const deleteUserAccount = async (user) => {
+    const wipeContent = !!removeContentMap[user.id];
+    const confirmed = window.confirm(
+      `Permanently delete the account for ${user.username ? `@${user.username}` : user.email}? This cannot be undone.${
+        wipeContent ? " Their videos, reels, and posts will ALSO be permanently deleted." : " Their existing content will be kept but no longer tied to a valid login."
+      }`,
+    );
+    if (!confirmed) return;
+
+    setModeratingId(user.id);
+    try {
+      await callModerateUser({
+        action: "delete",
+        userId: user.id,
+        username: user.username,
+        removeContent: wipeContent,
+      });
+      setUserRows((prev) => prev.filter((u) => u.id !== user.id));
+      showToast(`🗑️ Account deleted`);
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setModeratingId(null);
+  };
+
+  const normalizedUserSearch = userSearch.trim().toLowerCase();
+  const filteredUserRows = normalizedUserSearch
+    ? userRows.filter(
+        (u) =>
+          (u.username || "").toLowerCase().includes(normalizedUserSearch) ||
+          (u.email || "").toLowerCase().includes(normalizedUserSearch),
+      )
+    : userRows;
+
   // ── Shared export data fetcher (existing header Excel/PDF export) ──────────
   const fetchExportData = async () => {
     const [
@@ -579,8 +707,6 @@ const AdminPanel = () => {
       postCommentsErr || postReactionsErr || likesErr || viewsErr;
     if (firstError) throw firstError;
 
-    // Best-effort — if the login-info endpoint fails for any reason,
-    // the export should still succeed, just without those columns.
     let loginByUsername = new Map();
     try {
       const { users: loginData } = await callUserLoginInfo();
@@ -610,6 +736,7 @@ const AdminPanel = () => {
         "Last Login": login?.last_sign_in_at ? new Date(login.last_sign_in_at).toLocaleString("en-IN") : "",
         "Last IP": login?.last_ip || "",
         "Last Device": login?.last_device || "",
+        "Account Status": login?.is_banned ? "Banned" : "Active",
       };
     });
 
@@ -681,7 +808,7 @@ const AdminPanel = () => {
 
       addSectionTitle("ZIXPLON — Users Summary");
       addTable(
-        ["Username", "Videos", "Reels", "Posts", "Comments", "Login Method", "Last Login", "Last IP"],
+        ["Username", "Videos", "Reels", "Posts", "Comments", "Login Method", "Last Login", "Status"],
         usersSheet.map((u) => [
           u.Username,
           u["Videos Uploaded"],
@@ -690,7 +817,7 @@ const AdminPanel = () => {
           u["Post Comments Made"],
           u["Login Method"],
           u["Last Login"],
-          u["Last IP"],
+          u["Account Status"],
         ]),
       );
 
@@ -853,6 +980,10 @@ const AdminPanel = () => {
         <button className={`admin_tab ${activeTab === "logins" ? "active" : ""}`} onClick={() => setActiveTab("logins")}>
           🔐 Logins
         </button>
+        {/* NEW: ban/unban/delete any user account. See api/moderate-user.js. */}
+        <button className={`admin_tab ${activeTab === "users" ? "active" : ""}`} onClick={() => setActiveTab("users")}>
+          👥 Users
+        </button>
       </div>
 
       {loading ? (
@@ -934,6 +1065,14 @@ const AdminPanel = () => {
                           disabled={!!actionLoading}
                         >
                           {actionLoading === report.id + "delete" ? "Deleting..." : "🗑️ Delete Content"}
+                        </button>
+                        {/* NEW: bans the reported content's owner outright. */}
+                        <button
+                          className="admin_action_btn admin_action_btn--delete"
+                          onClick={() => banUploaderFromReport(report)}
+                          disabled={!!actionLoading}
+                        >
+                          {actionLoading === report.id + "ban" ? "Banning..." : "🚫 Ban Uploader"}
                         </button>
                         <button
                           className="admin_action_btn admin_action_btn--dismiss"
@@ -1173,6 +1312,103 @@ const AdminPanel = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ) : activeTab === "users" ? (
+        /* ── Users Tab: ban / unban / delete any account ── */
+        <div className="admin_users_mgmt_section">
+          {usersLoading ? (
+            <div className="admin_loading">
+              <div className="admin_spinner" />
+              <p>Loading users...</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
+                <input
+                  type="text"
+                  className="admin_word_input"
+                  style={{ maxWidth: "280px" }}
+                  placeholder="Search by username or email..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                />
+                <button className="admin_add_word_btn" onClick={fetchUsers} disabled={usersLoading}>
+                  ↻ Refresh
+                </button>
+              </div>
+
+              {filteredUserRows.length === 0 ? (
+                <div className="admin_empty">
+                  <div style={{ fontSize: "48px" }}>👥</div>
+                  <p>No users found</p>
+                </div>
+              ) : (
+                <div className="admin_users_mgmt_list">
+                  {filteredUserRows.map((u) => {
+                    const isRoot = ADMIN_EMAILS.includes((u.email || "").toLowerCase());
+                    const busy = moderatingId === u.id;
+                    return (
+                      <div key={u.id} className="admin_user_mgmt_row">
+                        <div className="admin_user_mgmt_info">
+                          <div className="admin_user_mgmt_name">
+                            {u.username ? `@${u.username}` : u.email}
+                            {isRoot && <span className="admin_admin_root_badge">ROOT</span>}
+                            {u.is_banned && <span className="admin_user_banned_badge">BANNED</span>}
+                          </div>
+                          <div className="admin_admin_meta">
+                            {u.email} · {(u.providers || []).join(", ")}
+                            {u.last_sign_in_at
+                              ? ` · last login ${new Date(u.last_sign_in_at).toLocaleDateString("en-IN")}`
+                              : " · never logged in"}
+                          </div>
+                        </div>
+
+                        {!isRoot && (
+                          <div className="admin_user_mgmt_actions">
+                            <label className="admin_user_remove_content_label">
+                              <input
+                                type="checkbox"
+                                checked={!!removeContentMap[u.id]}
+                                onChange={() => toggleRemoveContent(u.id)}
+                                disabled={busy}
+                              />
+                              also delete their content
+                            </label>
+                            <div style={{ display: "flex", gap: "8px" }}>
+                              {u.is_banned ? (
+                                <button
+                                  className="admin_action_btn admin_action_btn--dismiss"
+                                  onClick={() => unbanUser(u)}
+                                  disabled={busy}
+                                >
+                                  {busy ? "..." : "✓ Unban"}
+                                </button>
+                              ) : (
+                                <button
+                                  className="admin_action_btn admin_action_btn--delete"
+                                  onClick={() => banUser(u)}
+                                  disabled={busy}
+                                >
+                                  {busy ? "..." : "🚫 Ban"}
+                                </button>
+                              )}
+                              <button
+                                className="admin_action_btn admin_action_btn--delete"
+                                onClick={() => deleteUserAccount(u)}
+                                disabled={busy}
+                              >
+                                {busy ? "..." : "🗑️ Delete Account"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </>

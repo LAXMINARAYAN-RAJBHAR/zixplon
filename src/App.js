@@ -5,7 +5,7 @@ import Navbar from "./Component/Navbar/navbar";
 // src/Pages/Home/HomeHub.jsx. The old `Home` import/route is removed.
 import HomeHub from "./Pages/Home/HomeHub";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Route, Routes, useLocation, Navigate } from "react-router-dom";
+import { Route, Routes, useLocation, Navigate, Link } from "react-router-dom";
 import Video from "./Pages/Video/video";
 import Profile from "./Pages/Profile/profile";
 import VideoUpload from "./Pages/VideoUpload/videoUpload";
@@ -51,6 +51,11 @@ import useRequireUsernameSetup from "./hooks/useRequireUsernameSetup";
 // duration — see src/hooks/useVisitTracking.js and the "Visitors" tab
 // in AdminPanel.jsx.
 import useVisitTracking from "./hooks/useVisitTracking";
+// NEW: lightweight admin check used ONLY to decide whether to show the
+// floating Admin Panel button below. The actual /admin route is
+// protected independently by AdminPanel.jsx's own (authoritative) check
+// — this hook just controls a UI shortcut, not access itself.
+import useIsAdmin from "./hooks/useIsAdmin";
 import UsernameSetupModal from "./Component/Auth/UsernameSetupModal";
 import ExploreGrid from "./Pages/Explore/ExploreGrid";
 // NEW: /tag/:tag — every post containing a given #hashtag. See
@@ -224,6 +229,38 @@ const ExitToast = ({ visible }) => (
   </div>
 );
 
+// ── Floating Admin Panel Button ─────────────────────────────────────────────
+// Only rendered when useIsAdmin() resolves true for the logged-in user
+// (root email OR granted via the admin_users table). This is purely a
+// UI shortcut to reach /admin — the route itself is independently
+// protected by AdminPanel.jsx's own auth check, so this button being
+// visible/hidden has no bearing on actual access control.
+const AdminFab = () => (
+  <Link
+    to="/admin"
+    title="Admin Panel"
+    style={{
+      position: "fixed",
+      bottom: "90px",
+      right: "20px",
+      width: "48px",
+      height: "48px",
+      borderRadius: "50%",
+      background: "#dc2626",
+      color: "#fff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "22px",
+      boxShadow: "0 4px 16px rgba(220,38,38,0.4)",
+      zIndex: 9998,
+      textDecoration: "none",
+    }}
+  >
+    🛡️
+  </Link>
+);
+
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
   const location = useLocation();
@@ -274,10 +311,15 @@ function App() {
   const { needsSetup: needsUsernameSetup, markComplete: markUsernameSetupComplete } =
     useRequireUsernameSetup(currentUser);
 
-  // ── NEW: starts/resumes this tab's visit tracking and keeps it
+  // ── starts/resumes this tab's visit tracking and keeps it
   // heartbeating in the background for the rest of the session. See
   // src/hooks/useVisitTracking.js and AdminPanel.jsx's "Visitors" tab. ──
   useVisitTracking(currentUser);
+
+  // ── NEW: resolves whether the logged-in user is an admin, purely to
+  // decide whether to render the floating Admin Panel button (AdminFab)
+  // below. See src/hooks/useIsAdmin.js. ──
+  const { isAdmin } = useIsAdmin(currentUser);
 
   // ── Supabase warmup ──
   useEffect(() => {
@@ -681,6 +723,10 @@ function App() {
             onClose={() => setShowMessagesPanel(false)}
           />
         )}
+
+        {/* Floating Admin Panel shortcut — only visible to admins.
+            See useIsAdmin() above and src/hooks/useIsAdmin.js. */}
+        {currentUser && isAdmin && <AdminFab />}
 
         <Navbar
           currentUser={currentUser}

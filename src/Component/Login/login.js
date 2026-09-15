@@ -7,6 +7,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [errorType, setErrorType] = useState("");
   const [success, setSuccess] = useState("");
@@ -221,7 +222,13 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
           {["login", "forgot"].map((m) => (
             <button
               key={m}
-              onClick={() => { setMode(m); setError(""); setErrorType(""); setSuccess(""); }}
+              onClick={() => {
+                setMode(m);
+                setError("");
+                setErrorType("");
+                setSuccess("");
+                setShowPassword(false);
+              }}
               style={{
                 flex: 1,
                 background: "none",
@@ -252,16 +259,37 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
             inputMode="email"
           />
           {mode === "login" && (
-            <input
-              className="userNameLoginUserName"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(""); setErrorType(""); }}
-              onBlur={(e) => { passwordRef.current = e.target.value; }}
-              placeholder="Password"
-              type="password"
-              autoComplete="current-password"
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-            />
+            <div className="password_input_wrapper">
+              <input
+                className="userNameLoginUserName"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(""); setErrorType(""); }}
+                onBlur={(e) => { passwordRef.current = e.target.value; }}
+                placeholder="Password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+              />
+              <button
+                type="button"
+                className="password_toggle_btn"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
           )}
         </div>
 

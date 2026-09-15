@@ -128,27 +128,30 @@
 
 .password_toggle_btn {
   position: absolute;
+  right: 6px;
   top: 50%;
-  right: 12px;
   transform: translateY(-50%);
   background: none;
   border: none;
-  padding: 4px;
+  padding: 6px;
+  margin: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   color: var(--zx-text3);
-  transition: color 0.2s;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
 }
 
 .password_toggle_btn:hover {
   color: var(--zx-primary);
+  background: rgba(220, 38, 38, 0.08);
 }
 
-.password_toggle_btn:focus {
-  outline: none;
-  color: var(--zx-primary);
+.password_toggle_btn:focus-visible {
+  outline: 2px solid var(--zx-primary);
+  outline-offset: 2px;
 }
 
 /* ── Feedback messages ── */

@@ -64,6 +64,15 @@ import ExploreGrid from "./Pages/Explore/ExploreGrid";
 // descriptions) now routes here (or to /user/:username for mentions,
 // which already existed).
 import HashtagPage from "./Pages/Hashtag/HashtagPage";
+// NEW: password-reset completion modal. Supabase's client uses
+// flowType: 'implicit' (kept deliberately for mobile Google OAuth — see
+// config/supabase.js), so a recovery link's tokens arrive as a raw
+// #access_token hash rather than a routable ?code= param. Rather than a
+// dedicated /reset-password route (which HashRouter can't reliably match
+// against that hash shape), we listen for the PASSWORD_RECOVERY event
+// in the auth effect below and pop this modal on top of whatever page
+// the user landed on.
+import ResetPassword from "./Component/Auth/ResetPassword";
 
 // ── FeedRedirect ──────────────────────────────────────────────────────────
 // FIX: old links to /feed?post=<id> — from the navbar's post-notification
@@ -274,6 +283,12 @@ function App() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
+  // ── NEW: Password recovery modal — set true when the auth listener
+  // below catches a PASSWORD_RECOVERY event (user clicked a reset-email
+  // link). Rendered as a floating modal, same pattern as LoginOptionsModal
+  // and UsernameSetupModal below. ──
+  const [showResetPassword, setShowResetPassword] = useState(false);
+
   // ── Google One Tap state ──
   const [oneTapAttempted, setOneTapAttempted] = useState(false);
   const oneTapCancelledRef = useRef(false);
@@ -453,7 +468,17 @@ function App() {
 
     // Listen for login/logout
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        // NEW: password-recovery link was clicked — Supabase has already
+        // established a temporary recovery session from the URL's
+        // #access_token hash. Pop the reset-password modal; the hash
+        // cleanup below (inside the session?.user branch that already
+        // runs for any session) takes care of scrubbing the tokens from
+        // the address bar, same as it already does for OAuth logins.
+        if (event === "PASSWORD_RECOVERY") {
+          setShowResetPassword(true);
+        }
+
         if (!session) {
           setCurrentUser(null);
           localStorage.removeItem("username");
@@ -468,6 +493,9 @@ function App() {
         resolveUsername(session.user).then((name) => {
           setCurrentUser(name);
           setShowLoginModal(false);
+          if (window.location.hash?.includes("access_token")) {
+            window.history.replaceState({}, document.title, "/");
+          }
         });
       }
     );
@@ -499,7 +527,9 @@ function App() {
 
     // Don't race with an in-flight OAuth redirect that's still resolving
     // its own #access_token hash (this is the exact race you're chasing
-    // on mobile PWA — One Tap must not touch it).
+    // on mobile PWA — One Tap must not touch it). This also correctly
+    // covers a PASSWORD_RECOVERY link, since that arrives with the same
+    // #access_token hash shape.
     const hasAuthPayload =
       window.location.hash.includes("access_token") ||
       window.location.hash.includes("error") ||
@@ -698,6 +728,14 @@ function App() {
             needed); if it can't be shown, this modal is the fallback */}
         {shouldShowLoginModal && (
           <LoginOptionsModal onDismiss={handleDismissLoginModal} />
+        )}
+
+        {/* NEW: Password recovery modal — takes priority over the login
+            modal / username setup so a user coming in from a reset-email
+            link sees the "set new password" form immediately, on top of
+            whatever page they landed on. */}
+        {showResetPassword && (
+          <ResetPassword setResetModal={setShowResetPassword} />
         )}
 
         {/* Username setup prompt — shown when a logged-in user still has

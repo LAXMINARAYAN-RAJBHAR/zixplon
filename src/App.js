@@ -73,6 +73,7 @@ import HashtagPage from "./Pages/Hashtag/HashtagPage";
 // in the auth effect below and pop this modal on top of whatever page
 // the user landed on.
 import ResetPassword from "./Component/Auth/ResetPassword";
+import SignInPage from "./Pages/SignIn/SignInPage";
 
 // ── FeedRedirect ──────────────────────────────────────────────────────────
 // FIX: old links to /feed?post=<id> — from the navbar's post-notification
@@ -838,6 +839,8 @@ function App() {
               <Route path="/admin"                 element={<AdminPanel />} />
               <Route path="/live"                  element={<LiveBrowser currentUser={currentUser} />} />
               <Route path="/foryou"                element={<ExploreGrid />} />
+              <Route path="/signup"                element={<SignUp />} />
+              <Route path="/signin"                element={<SignInPage />} />
               {/* NEW: hashtag pages — /tag/:tag. Linked from every
                   #hashtag rendered via ExpandableText/linkifyText. */}
               <Route path="/tag/:tag"              element={<HashtagPage sideNavbar={sideNavbar} currentUser={currentUser} />} />

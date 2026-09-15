@@ -2,8 +2,15 @@ import React, { useState } from "react";
 import "./signUp.css";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import { Link, useNavigate } from "react-router-dom";
-import axios from "axios";
 import { supabase } from "../../config/supabase";
+// FIX: was uploading directly to Cloudinary (api.cloudinary.com) with an
+// upload_preset of "zixplon-data". The app moved off Cloudinary entirely
+// when video/reel thumbnails switched to Cloudflare R2 (see the "no
+// Cloudinary fallback since the move to R2" note in VideoUpload.jsx) —
+// this page was simply never migrated, so every profile-pic upload here
+// was silently hitting a Cloudinary account/preset that's no longer
+// valid, producing "Image upload failed" for every single signup.
+import { uploadToR2, buildTransformUrl } from "../../utils/mediaUpload";
 
 const DEFAULT_PIC =
   "https://ui-avatars.com/api/?name=User&background=7c3aed&color=fff&size=100";
@@ -22,28 +29,41 @@ const SignUp = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // NEW: separate loading flag for the profile-pic upload itself, so the
+  // avatar preview and any future disabled-state UI can distinguish
+  // "uploading the photo" from "submitting the whole form".
+  const [picUploading, setPicUploading] = useState(false);
 
   const handleInputField = (event, name) => {
     setSignUpField({ ...signUpField, [name]: event.target.value });
     setError("");
   };
 
+  // FIX: now goes through the same Cloudflare R2 upload helper used by
+  // VideoUpload.jsx's manual thumbnail upload, instead of the old
+  // Cloudinary direct-upload call. Also transforms down to a small
+  // square (matches the 90x90 circular avatar this feeds), rather than
+  // storing/serving the original full-resolution file.
   const uploadImage = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const data = new FormData();
-    data.append("file", files[0]);
-    data.append("upload_preset", "zixplon-data");
+    setError("");
+    setPicUploading(true);
     try {
-      const response = await axios.post(
-        "https://api.cloudinary.com/v1_1/uaa756bj/image/upload",
-        data,
-      );
-      const imageUrl = response.data.secure_url;
-      setUploadedImageUrl(imageUrl);
-      setSignUpField((prev) => ({ ...prev, profilePic: imageUrl }));
+      const { url } = await uploadToR2(files[0]);
+      const transformedUrl = buildTransformUrl(url, {
+        width: 200,
+        height: 200,
+        fit: "cover",
+        format: "jpeg",
+      });
+      setUploadedImageUrl(transformedUrl);
+      setSignUpField((prev) => ({ ...prev, profilePic: transformedUrl }));
     } catch (err) {
+      console.error("Profile picture upload failed:", err);
       setError("Image upload failed. Please try again.");
+    } finally {
+      setPicUploading(false);
     }
   };
 
@@ -239,15 +259,19 @@ const SignUp = () => {
 
           {/* Profile Picture Upload */}
           <div className="image_upload_signup">
-            <input type="file" accept="image/*" onChange={uploadImage} />
+            <input type="file" accept="image/*" onChange={uploadImage} disabled={picUploading} />
             <div className="image_upload_signup_div">
               <img
                 className="image_default_signup"
                 src={uploadedImageUrl}
                 alt="Profile Preview"
                 onError={(e) => { e.target.src = DEFAULT_PIC; }}
+                style={{ opacity: picUploading ? 0.5 : 1 }}
               />
             </div>
+            {picUploading && (
+              <span style={{ color: "#8b84c4", fontSize: "13px" }}>Uploading...</span>
+            )}
           </div>
 
           {/* Error / Success Messages */}

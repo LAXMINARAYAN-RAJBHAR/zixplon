@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import "./signUp.css";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 // FIX: was uploading directly to Cloudinary (api.cloudinary.com) with an
@@ -33,6 +35,9 @@ const SignUp = () => {
   // avatar preview and any future disabled-state UI can distinguish
   // "uploading the photo" from "submitting the whole form".
   const [picUploading, setPicUploading] = useState(false);
+  // NEW: toggles the password field between masked dots and readable
+  // text via the eye icon below.
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleInputField = (event, name) => {
     setSignUpField({ ...signUpField, [name]: event.target.value });
@@ -240,14 +245,30 @@ const SignUp = () => {
             onKeyDown={handleKeyDown}
             placeholder="Email Address *"
           />
-          <input
-            type="password"
-            className="signUp_Inputs_inp"
-            value={signUpField.password}
-            onChange={(e) => handleInputField(e, "password")}
-            onKeyDown={handleKeyDown}
-            placeholder="Password * (min 6 chars)"
-          />
+          {/* Password field with show/hide toggle */}
+          <div className="signUp_password_wrap">
+            <input
+              type={showPassword ? "text" : "password"}
+              className="signUp_Inputs_inp signUp_password_input"
+              value={signUpField.password}
+              onChange={(e) => handleInputField(e, "password")}
+              onKeyDown={handleKeyDown}
+              placeholder="Password * (min 6 chars)"
+            />
+            <button
+              type="button"
+              className="signUp_password_toggle"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              title={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <VisibilityOff sx={{ fontSize: "20px" }} />
+              ) : (
+                <Visibility sx={{ fontSize: "20px" }} />
+              )}
+            </button>
+          </div>
           <input
             type="text"
             className="signUp_Inputs_inp"

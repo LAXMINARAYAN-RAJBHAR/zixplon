@@ -182,3 +182,53 @@
   cursor: not-allowed !important;
   opacity: 0.7;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   PASSWORD SHOW/HIDE TOGGLE — append to the end of signUp.css.
+   Wraps the password input so an eye icon button can sit inside it,
+   right-aligned, without disturbing the existing .signUp_Inputs_inp
+   width/spacing used by every other field.
+   ══════════════════════════════════════════════════════════════════ */
+
+.signUp_password_wrap {
+  position: relative;
+  width: 70%; /* matches .signUp_Inputs_inp's own width */
+  display: flex;
+  align-items: center;
+}
+
+/* Reuse the standard input width/height/border styling, but let the
+   wrapper above own the 70% width so the eye button can be positioned
+   relative to it. */
+.signUp_password_input {
+  width: 100% !important;
+  padding-right: 44px !important; /* room for the eye button */
+}
+
+.signUp_password_toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 6px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--zx-text3);
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+}
+
+.signUp_password_toggle:hover {
+  color: var(--zx-primary);
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.signUp_password_toggle:focus-visible {
+  outline: 2px solid var(--zx-primary);
+  outline-offset: 2px;
+}

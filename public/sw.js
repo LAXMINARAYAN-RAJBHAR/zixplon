@@ -11,17 +11,27 @@
 // usePushNotifications.js to register this file instead (see the note
 // at the bottom of this file).
 
-const CACHE_NAME = "zixplon-v3";
+const CACHE_NAME = "zixplon-v4";
+const APP_SHELL = ["/", "/index.html"];
 
 self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+  );
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.map((key) => caches.delete(key)))
-    )
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key !== CACHE_NAME)
+            .map((key) => caches.delete(key))
+        )
+      )
   );
   self.clients.claim();
 });
@@ -29,7 +39,21 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   if (event.request.url.includes("supabase")) return;
-  event.respondWith(fetch(event.request));
+
+  event.respondWith(
+    fetch(event.request).catch(() => {
+      // Network fetch failed — try cache, then fall back to the app
+      // shell for navigations so the user doesn't get a hard network
+      // error instead of the page.
+      return caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        if (event.request.mode === "navigate") {
+          return caches.match("/index.html");
+        }
+        return Response.error();
+      });
+    })
+  );
 });
 
 // ── Push notifications ──

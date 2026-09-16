@@ -27,8 +27,19 @@ const REPORT_REASONS = [
   "Other",
 ];
 
+// Hard cap on how many files can be queued in one send — mirrors
+// MessagesPanel's MAX_ATTACHMENTS.
+const MAX_ATTACHMENTS = 10;
+
 const timeShort = (dateStr) =>
   new Date(dateStr).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 // Short label used for a reply/forward preview when the source message
 // has no text (e.g. it's an attachment-only message). Mirrors the same
@@ -90,8 +101,25 @@ const TypingBubble = () => (
   </div>
 );
 
+// ── Small upload-progress bar shown over an in-flight attachment,
+// whether that's a chip in the compose tray or a bubble already in the
+// message list that's still uploading. ──
+const UploadProgressBar = ({ progress, status }) => (
+  <div className={`gcw-pending-progress-wrap ${status === "error" ? "error" : ""}`}>
+    <div
+      className={`gcw-pending-progress-bar ${status === "error" ? "error" : ""}`}
+      style={{ width: `${status === "error" ? 100 : Math.max(4, progress)}%` }}
+    />
+    <span className="gcw-pending-progress-label">
+      {status === "error" ? "Failed" : `${Math.round(progress)}%`}
+    </span>
+  </div>
+);
+
 let optimisticCounter = 0;
 const makeTempId = () => `temp-${Date.now()}-${++optimisticCounter}`;
+let attachmentIdCounter = 0;
+const makeAttachmentId = () => `att-${Date.now()}-${++attachmentIdCounter}`;
 
 const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }) => {
   const [messages, setMessages] = useState([]);
@@ -101,8 +129,11 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   const [members, setMembers] = useState([]);
   const [showMembers, setShowMembers] = useState(false);
   const [showAddMembers, setShowAddMembers] = useState(false);
-  const [pendingAttachment, setPendingAttachment] = useState(null);
-  const [uploading, setUploading] = useState(false);
+  // Queue of not-yet-sent attachments (images/videos/files picked
+  // together). Each item tracks its own upload `progress` (0-100) and
+  // `status` ("pending" | "uploading" | "error") — mirrors
+  // MessagesPanel's pendingAttachments.
+  const [pendingAttachments, setPendingAttachments] = useState([]);
 
   // ── Emoji / GIF / Sticker picker ──
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -140,7 +171,11 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   const [reportSubmitted, setReportSubmitted] = useState(false);
 
   // ── Optimistic send tracking ──
-  const pendingOptimisticIdRef = useRef(null);
+  // Maps a temp (optimistic) message id -> true while it's still
+  // in-flight, so the realtime INSERT listener knows to reconcile
+  // instead of appending a duplicate. Was a single ref before; now a
+  // Set, since multiple attachments can be uploading/sending at once.
+  const pendingOptimisticIdsRef = useRef(new Set());
 
   // ── Typing indicator state ──
   const [typingUsers, setTypingUsers] = useState(new Set());
@@ -195,14 +230,22 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
           setMessages((prev) => {
             if (prev.some((m) => m.id === incoming.id)) return prev;
 
-            const pendingId = pendingOptimisticIdRef.current;
-            if (
-              pendingId &&
-              incoming.sender_username === currentUser &&
-              prev.some((m) => m.id === pendingId)
-            ) {
-              pendingOptimisticIdRef.current = null;
-              return prev.map((m) => (m.id === pendingId ? incoming : m));
+            // If this is our own message coming back from Realtime,
+            // reconcile it with whichever optimistic placeholder is
+            // still waiting for it (matched on attachment_url once the
+            // upload finished, or the oldest still-uploading one as a
+            // fallback) instead of appending a duplicate.
+            if (incoming.sender_username === currentUser && pendingOptimisticIdsRef.current.size > 0) {
+              const placeholder = prev.find(
+                (m) =>
+                  pendingOptimisticIdsRef.current.has(m.id) &&
+                  (m.attachment_url || null) === (incoming.attachment_url || null) &&
+                  (m.text || null) === (incoming.text || null),
+              );
+              if (placeholder) {
+                pendingOptimisticIdsRef.current.delete(placeholder.id);
+                return prev.map((m) => (m.id === placeholder.id ? incoming : m));
+              }
             }
 
             wasAppended = true;
@@ -400,17 +443,74 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
     return () => clearTimeout(timer);
   }, [forwardQuery, forwardTarget, currentUser]);
 
+  // ── Multi-file attachment picking (mirrors MessagesPanel) ──
   const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = "";
-    if (!file) return;
-    if (file.size > 25 * 1024 * 1024) {
-      alert("File too large. Max size is 25MB.");
+    if (!files.length) return;
+
+    const room = MAX_ATTACHMENTS - pendingAttachments.length;
+    if (room <= 0) {
+      alert(`You can attach up to ${MAX_ATTACHMENTS} files at once.`);
       return;
     }
-    const type = file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : "file";
-    const previewUrl = type !== "file" ? URL.createObjectURL(file) : null;
-    setPendingAttachment({ file, previewUrl, type, name: file.name, size: file.size });
+    if (files.length > room) {
+      alert(`Only ${room} more file${room === 1 ? "" : "s"} can be added (max ${MAX_ATTACHMENTS} per send).`);
+    }
+
+    const accepted = files.slice(0, room);
+    const newAttachments = [];
+    for (const file of accepted) {
+      if (file.size > 25 * 1024 * 1024) {
+        alert(`"${file.name}" is too large. Max size is 25MB.`);
+        continue;
+      }
+      const type = file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : "file";
+      const previewUrl = type !== "file" ? URL.createObjectURL(file) : null;
+      newAttachments.push({
+        id: makeAttachmentId(),
+        file,
+        previewUrl,
+        type,
+        name: file.name,
+        size: file.size,
+        progress: 0,
+        status: "pending",
+      });
+    }
+    if (newAttachments.length) {
+      setPendingAttachments((prev) => [...prev, ...newAttachments]);
+    }
+  };
+
+  const removePendingAttachment = (id) => {
+    setPendingAttachments((prev) => {
+      const target = prev.find((a) => a.id === id);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((a) => a.id !== id);
+    });
+  };
+
+  const clearAllPendingAttachments = () => {
+    setPendingAttachments((prev) => {
+      prev.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+      return [];
+    });
+  };
+
+  const updateAttachmentProgress = (id, progress, status = "uploading") => {
+    setPendingAttachments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, progress, status } : a)),
+    );
+  };
+
+  // Updates the live upload progress shown ON an optimistic bubble
+  // that's already in the message list (as opposed to still sitting in
+  // the compose tray) — used while its file is uploading.
+  const updateOptimisticProgress = (tempId, progress) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === tempId ? { ...m, _progress: progress } : m)),
+    );
   };
 
   const insertEmoji = (emoji) => {
@@ -418,14 +518,98 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
     inputRef.current?.focus();
   };
 
+  // Sends ONE attachment (already uploaded or about to be) as its own
+  // optimistic bubble that appears immediately, fills in a live
+  // progress bar while uploadAttachmentToR2 reports progress, then
+  // reconciles with the real row once the insert completes. Returns
+  // true/false for success so the batch loop in handleSend can track
+  // failures without aborting the rest of the queue.
+  const sendOneAttachment = async (att, { captionText, reply_to_id, reply_to_text, reply_to_sender }) => {
+    const tempId = makeTempId();
+    pendingOptimisticIdsRef.current.add(tempId);
+
+    const optimisticMessage = {
+      id: tempId,
+      group_id: group.id,
+      sender_username: currentUser,
+      text: captionText,
+      attachment_url: null,
+      attachment_type: att.type,
+      attachment_name: att.name,
+      attachment_size: att.size,
+      reply_to_id,
+      reply_to_text,
+      reply_to_sender,
+      forwarded: false,
+      created_at: new Date().toISOString(),
+      deleted_at: null,
+      _uploading: true,
+      _progress: 0,
+      _previewUrl: att.previewUrl,
+    };
+    setMessages((prev) => [...prev, optimisticMessage]);
+
+    let attachment_url;
+    try {
+      const uploaded = await uploadAttachmentToR2(att.file, (pct) =>
+        updateOptimisticProgress(tempId, pct),
+      );
+      attachment_url = uploaded.url;
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      pendingOptimisticIdsRef.current.delete(tempId);
+      alert(`"${att.name}" failed to upload: ${err?.message || "please try again."}`);
+      return false;
+    }
+
+    // Upload done — fill in the real URL and drop the "_uploading" flag
+    // so the bubble switches from the progress overlay to the normal
+    // attachment rendering (image/video/file) right away, even before
+    // the DB insert below resolves.
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === tempId ? { ...m, attachment_url, _uploading: false, _progress: 100 } : m,
+      ),
+    );
+
+    try {
+      const sentMessage = await sendGroupMessage({
+        groupId: group.id,
+        senderUsername: currentUser,
+        text: captionText || "",
+        attachmentUrl: attachment_url,
+        attachmentType: att.type,
+        attachmentName: att.name,
+        attachmentSize: att.size,
+        replyToId: reply_to_id,
+        replyToText: reply_to_text,
+        replyToSender: reply_to_sender,
+      });
+
+      if (sentMessage && sentMessage.id) {
+        pendingOptimisticIdsRef.current.delete(tempId);
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? sentMessage : m)));
+      }
+      // If sentMessage came back empty (RLS denies select, etc.), the
+      // bubble stays as the optimistic version — the realtime INSERT
+      // listener above will reconcile it once that event arrives.
+      return true;
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      pendingOptimisticIdsRef.current.delete(tempId);
+      alert(`"${att.name}" failed to send: ${err?.message || "please try again."}`);
+      return false;
+    }
+  };
+
   const handleSend = async () => {
-    if ((!text.trim() && !pendingAttachment) || sending || uploading) return;
+    if ((!text.trim() && pendingAttachments.length === 0) || sending) return;
     setSending(true);
     const trimmed = text.trim();
     setText("");
 
     // Snapshot the reply target now — it gets cleared right after the
-    // optimistic bubble is appended, same as pendingAttachment below.
+    // first optimistic bubble is appended.
     const replyTargetSnapshot = replyTarget;
     const reply_to_id = replyTargetSnapshot?.id || null;
     const reply_to_sender = replyTargetSnapshot?.sender_username || null;
@@ -437,46 +621,12 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
             replyTargetSnapshot.attachment_name,
           )
       : null;
-
-    // ── Optimistic append happens FIRST, before anything else that could
-    // possibly throw (e.g. the typing-stop broadcast below, which has
-    // been known to throw if the realtime channel isn't fully joined
-    // yet). If any later step fails, the worst case is the message gets
-    // removed again in the catch block — but it's never simply invisible
-    // with no feedback, which is what "blank until refresh" looked like
-    // before this reordering. For messages WITH an attachment, the
-    // attachment_url starts null and gets filled in once the upload
-    // finishes (see below) — the text/bubble itself still shows instantly. ──
-    const pendingAttachmentSnapshot = pendingAttachment;
-    const tempId = makeTempId();
-    pendingOptimisticIdRef.current = tempId;
-    const optimisticMessage = {
-      id: tempId,
-      group_id: group.id,
-      sender_username: currentUser,
-      text: trimmed || null,
-      attachment_url: null,
-      attachment_type: pendingAttachmentSnapshot?.type || null,
-      attachment_name: pendingAttachmentSnapshot?.name || null,
-      attachment_size: pendingAttachmentSnapshot?.size || null,
-      reply_to_id,
-      reply_to_text,
-      reply_to_sender,
-      forwarded: false,
-      created_at: new Date().toISOString(),
-      deleted_at: null,
-    };
-    setMessages((prev) => [...prev, optimisticMessage]);
-    playSendSound();
     setReplyTarget(null);
-
-    if (pendingAttachmentSnapshot?.previewUrl) URL.revokeObjectURL(pendingAttachmentSnapshot.previewUrl);
-    setPendingAttachment(null);
 
     // Sending counts as "done typing" — clear the debounce and notify
     // the group right away instead of waiting out the delay. Wrapped in
     // its own try/catch: this is a nice-to-have side effect, and must
-    // never be allowed to block or break the actual message send above.
+    // never be allowed to block or break the actual message send below.
     try {
       clearTimeout(stopTypingTimeoutRef.current);
       typingChannelRef.current?.send({
@@ -488,68 +638,81 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
       /* no-op — typing indicator is best-effort, never critical */
     }
 
-    let attachment_url = null;
-    let attachment_type = null;
-    let attachment_name = null;
-    let attachment_size = null;
-
-    try {
-      if (pendingAttachmentSnapshot) {
-        setUploading(true);
-        const { url } = await uploadAttachmentToR2(pendingAttachmentSnapshot.file);
-        attachment_url = url;
-        attachment_type = pendingAttachmentSnapshot.type;
-        attachment_name = pendingAttachmentSnapshot.name;
-        attachment_size = pendingAttachmentSnapshot.size;
-        setUploading(false);
-
-        // Fill in the real attachment URL on the optimistic bubble now
-        // that the upload has finished, so image/video/file previews
-        // render even before the server row comes back.
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === tempId ? { ...m, attachment_url, attachment_type } : m,
-          ),
-        );
-      }
-
-      const sentMessage = await sendGroupMessage({
-        groupId: group.id,
-        senderUsername: currentUser,
+    if (pendingAttachments.length === 0) {
+      // Text-only send — optimistic append first (before anything that
+      // could throw), same "never simply invisible" guarantee as before.
+      const tempId = makeTempId();
+      pendingOptimisticIdsRef.current.add(tempId);
+      const optimisticMessage = {
+        id: tempId,
+        group_id: group.id,
+        sender_username: currentUser,
         text: trimmed,
-        attachmentUrl: attachment_url,
-        attachmentType: attachment_type,
-        attachmentName: attachment_name,
-        attachmentSize: attachment_size,
-        replyToId: reply_to_id,
-        replyToText: reply_to_text,
-        replyToSender: reply_to_sender,
-      });
+        attachment_url: null,
+        attachment_type: null,
+        attachment_name: null,
+        attachment_size: null,
+        reply_to_id,
+        reply_to_text,
+        reply_to_sender,
+        forwarded: false,
+        created_at: new Date().toISOString(),
+        deleted_at: null,
+      };
+      setMessages((prev) => [...prev, optimisticMessage]);
+      playSendSound();
 
-      // Happy path: the insert's .select() came back with a real row —
-      // swap the placeholder for it right away. If it DIDN'T come back
-      // (RLS denies the select, or any other reason sentMessage is
-      // falsy), we leave the optimistic bubble as-is; the realtime
-      // listener above will reconcile it with the real row once that
-      // event arrives, using pendingOptimisticIdRef as the match key.
-      if (sentMessage && sentMessage.id) {
-        pendingOptimisticIdRef.current = null;
-        setMessages((prev) =>
-          prev.map((m) => (m.id === tempId ? sentMessage : m)),
-        );
+      try {
+        const sentMessage = await sendGroupMessage({
+          groupId: group.id,
+          senderUsername: currentUser,
+          text: trimmed,
+          attachmentUrl: null,
+          attachmentType: null,
+          attachmentName: null,
+          attachmentSize: null,
+          replyToId: reply_to_id,
+          replyToText: reply_to_text,
+          replyToSender: reply_to_sender,
+        });
+        if (sentMessage && sentMessage.id) {
+          pendingOptimisticIdsRef.current.delete(tempId);
+          setMessages((prev) => prev.map((m) => (m.id === tempId ? sentMessage : m)));
+        }
+      } catch (err) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        pendingOptimisticIdsRef.current.delete(tempId);
+        setText(trimmed);
+        alert(`Failed to send: ${err?.message || "please try again."}`);
+      } finally {
+        setSending(false);
       }
-    } catch (err) {
-      // The insert itself failed (not just the select-after-insert) —
-      // remove the optimistic bubble since it was never actually sent,
-      // and give the user their text back to retry.
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      pendingOptimisticIdRef.current = null;
-      setText(trimmed);
-      alert(`Failed to send: ${err?.message || "please try again."}`);
-    } finally {
-      setSending(false);
-      setUploading(false);
+      return;
     }
+
+    // One or more attachments queued: send each as its own optimistic
+    // bubble with a live progress bar, one at a time, so the group sees
+    // them arrive individually instead of the whole batch appearing to
+    // hang until every file finishes uploading. The typed caption (if
+    // any) rides along with the FIRST attachment only.
+    const batch = pendingAttachments;
+    playSendSound();
+
+    for (let i = 0; i < batch.length; i++) {
+      const att = batch[i];
+      const ok = await sendOneAttachment(att, {
+        captionText: i === 0 ? trimmed || null : null,
+        reply_to_id: i === 0 ? reply_to_id : null,
+        reply_to_text: i === 0 ? reply_to_text : null,
+        reply_to_sender: i === 0 ? reply_to_sender : null,
+      });
+      if (ok) {
+        setPendingAttachments((prev) => prev.filter((a) => a.id !== att.id));
+        if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
+      }
+    }
+
+    setSending(false);
   };
 
   // Sends a GIF or sticker picked from EmojiGifStickerPicker straight
@@ -574,7 +737,7 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
       : null;
 
     const tempId = makeTempId();
-    pendingOptimisticIdRef.current = tempId;
+    pendingOptimisticIdsRef.current.add(tempId);
     const optimisticMessage = {
       id: tempId,
       group_id: group.id,
@@ -621,14 +784,14 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
       });
 
       if (sentMessage && sentMessage.id) {
-        pendingOptimisticIdRef.current = null;
+        pendingOptimisticIdsRef.current.delete(tempId);
         setMessages((prev) =>
           prev.map((m) => (m.id === tempId ? sentMessage : m)),
         );
       }
     } catch (err) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      pendingOptimisticIdRef.current = null;
+      pendingOptimisticIdsRef.current.delete(tempId);
       alert(`Failed to send: ${err?.message || "please try again."}`);
     } finally {
       setSending(false);
@@ -911,6 +1074,7 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   };
 
   const typingLabel = formatTypingLabel(typingUsers);
+  const isUploadingAny = pendingAttachments.some((a) => a.status === "uploading");
 
   return (
     <div className="gcw-window">
@@ -1012,11 +1176,14 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
         ) : (
           messages.map((m) => {
             const mine = m.sender_username === currentUser;
-            const hasContent = !!(m.text || m.attachment_url);
+            const hasContent = !!(m.text || m.attachment_url || m._uploading);
+            // While an attachment is uploading, use the local blob preview
+            // instead of attachment_url (which is still null at that point).
+            const displayUrl = m._uploading ? m._previewUrl : m.attachment_url;
             return (
               <div key={m.id} className={`gcw-bubble-row ${mine ? "mine" : ""}`}>
                 <div className="gcw-bubble-stack">
-                  {editingId !== m.id && !m.deleted_at && hasContent && (
+                  {editingId !== m.id && !m.deleted_at && hasContent && !m._uploading && (
                     <div className="gcw-bubble-actions">
                       <div className="gcw-menu-wrap">
                         <button
@@ -1093,7 +1260,11 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
                     </div>
                   )}
 
-                  <div className={`gcw-bubble ${m.attachment_type === "sticker" ? "gcw-bubble-sticker-wrap" : ""}`}>
+                  <div
+                    className={`gcw-bubble ${m.attachment_type === "sticker" ? "gcw-bubble-sticker-wrap" : ""} ${
+                      m._uploading ? "gcw-bubble-uploading" : ""
+                    }`}
+                  >
                     {!mine && <div className="gcw-sender-name">{m.sender_username}</div>}
                     {m.deleted_at ? (
                       <span className="gcw-deleted-text">🚫 This message was deleted</span>
@@ -1130,35 +1301,64 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
                           </div>
                         )}
 
-                        {m.attachment_url && m.attachment_type === "image" && (
-                          <img
-                            src={m.attachment_url}
-                            alt="attachment"
-                            className="gcw-bubble-image"
-                            onClick={() => window.open(m.attachment_url, "_blank")}
-                          />
+                        {/* Uploading placeholder: local preview + live
+                            progress bar for images/videos; a small
+                            labelled bar for files (no local preview). */}
+                        {m._uploading ? (
+                          <div className="gcw-uploading-attachment">
+                            {(m.attachment_type === "image" || m.attachment_type === "video") && displayUrl ? (
+                              m.attachment_type === "image" ? (
+                                <img src={displayUrl} alt="uploading" className="gcw-bubble-image" />
+                              ) : (
+                                <video src={displayUrl} muted className="gcw-bubble-video" />
+                              )
+                            ) : (
+                              <div className="gcw-uploading-file-chip">
+                                📎 {m.attachment_name || "Attachment"}
+                              </div>
+                            )}
+                            <UploadProgressBar progress={m._progress || 0} status="uploading" />
+                          </div>
+                        ) : (
+                          <>
+                            {m.attachment_url && m.attachment_type === "image" && (
+                              <img
+                                src={m.attachment_url}
+                                alt="attachment"
+                                className="gcw-bubble-image"
+                                onClick={() => window.open(m.attachment_url, "_blank")}
+                              />
+                            )}
+                            {m.attachment_url && m.attachment_type === "video" && (
+                              <video src={m.attachment_url} controls className="gcw-bubble-video" />
+                            )}
+                            {m.attachment_url && m.attachment_type === "gif" && (
+                              <img src={m.attachment_url} alt="GIF" className="gcw-bubble-gif" />
+                            )}
+                            {m.attachment_url && m.attachment_type === "sticker" && (
+                              <img src={m.attachment_url} alt="sticker" className="gcw-bubble-sticker" />
+                            )}
+                            {m.attachment_url && m.attachment_type === "file" && (
+                              <a
+                                href={m.attachment_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="gcw-bubble-file"
+                              >
+                                📎 {m.attachment_name || "Attachment"}
+                                {m.attachment_size ? ` · ${formatFileSize(m.attachment_size)}` : ""}
+                              </a>
+                            )}
+                          </>
                         )}
-                        {m.attachment_url && m.attachment_type === "video" && (
-                          <video src={m.attachment_url} controls className="gcw-bubble-video" />
-                        )}
-                        {m.attachment_url && m.attachment_type === "gif" && (
-                          <img src={m.attachment_url} alt="GIF" className="gcw-bubble-gif" />
-                        )}
-                        {m.attachment_url && m.attachment_type === "sticker" && (
-                          <img src={m.attachment_url} alt="sticker" className="gcw-bubble-sticker" />
-                        )}
-                        {m.attachment_url && m.attachment_type === "file" && (
-                          <a href={m.attachment_url} target="_blank" rel="noopener noreferrer" className="gcw-bubble-file">
-                            📎 {m.attachment_name || "Attachment"}
-                          </a>
-                        )}
+
                         {m.text && <span>{renderGroupMessageText(m.text, mine)}</span>}
-                        {m.text && extractFirstUrl(m.text) && (
+                        {m.text && !m._uploading && extractFirstUrl(m.text) && (
                           <LinkPreviewCard url={extractFirstUrl(m.text)} mine={mine} classPrefix="gcw" />
                         )}
                         <span className="gcw-bubble-time">
                           {m.edited_at && <span className="gcw-edited-tag">edited </span>}
-                          {timeShort(m.created_at)}
+                          {m._uploading ? "Sending…" : timeShort(m.created_at)}
                         </span>
                       </>
                     )}
@@ -1196,19 +1396,65 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
         </div>
       )}
 
-      {pendingAttachment && (
-        <div className="gcw-pending-attachment">
-          {pendingAttachment.type === "image" && <img src={pendingAttachment.previewUrl} alt="preview" />}
-          {pendingAttachment.type === "video" && <video src={pendingAttachment.previewUrl} />}
-          {pendingAttachment.type === "file" && <span>📎 {pendingAttachment.name}</span>}
-          <button onClick={() => setPendingAttachment(null)}>✕</button>
-          {uploading && <span className="gcw-uploading">Uploading…</span>}
+      {/* NEW: multi-file compose tray — mirrors MessagesPanel's. Each
+          queued attachment gets its own chip with a thumbnail/name, a
+          remove button, and — while handleSend is working through the
+          batch — a live progress bar. */}
+      {pendingAttachments.length > 0 && (
+        <div className="gcw-pending-attachments-row">
+          <div className="gcw-pending-attachments-scroll">
+            {pendingAttachments.map((att) => (
+              <div
+                key={att.id}
+                className={`gcw-pending-attachment-chip ${
+                  att.status === "error" ? "gcw-pending-error" : ""
+                }`}
+              >
+                {att.type === "image" && <img src={att.previewUrl} alt="preview" />}
+                {att.type === "video" && <video src={att.previewUrl} muted />}
+                {att.type === "file" &&
+                  (() => (
+                    <div className="gcw-pending-file-chip">
+                      <span>📎</span>
+                      <span className="gcw-pending-file-label" title={att.name}>
+                        {att.name}
+                      </span>
+                    </div>
+                  ))()}
+
+                {(att.status === "uploading" || att.status === "error") && (
+                  <UploadProgressBar progress={att.progress} status={att.status} />
+                )}
+
+                <button
+                  type="button"
+                  className="gcw-pending-remove"
+                  onClick={() => removePendingAttachment(att.id)}
+                  aria-label="Remove attachment"
+                  disabled={att.status === "uploading"}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+          {pendingAttachments.length > 1 && !isUploadingAny && (
+            <button type="button" className="gcw-pending-clear-all" onClick={clearAllPendingAttachments}>
+              Clear all
+            </button>
+          )}
         </div>
       )}
 
       <div className="gcw-input-row">
-        <input type="file" ref={fileInputRef} style={{ display: "none" }} onChange={handleFileSelect} />
-        <button className="gcw-icon-btn" onClick={() => fileInputRef.current?.click()}>📎</button>
+        <input type="file" ref={fileInputRef} style={{ display: "none" }} onChange={handleFileSelect} multiple />
+        <button
+          className="gcw-icon-btn"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
+        >
+          📎
+        </button>
 
         <button
           type="button"
@@ -1242,7 +1488,11 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
           }}
           onKeyDown={handleKeyDown}
         />
-        <button className="gcw-send-btn" onClick={handleSend} disabled={sending || uploading || (!text.trim() && !pendingAttachment)}>
+        <button
+          className="gcw-send-btn"
+          onClick={handleSend}
+          disabled={sending || (!text.trim() && pendingAttachments.length === 0)}
+        >
           ➤
         </button>
       </div>

@@ -121,6 +121,12 @@ const formatDuration = (totalSeconds) => {
 // huge upload. Auto-stops and hands off to the preview stage.
 const MAX_VOICE_SECONDS = 180;
 
+// Hard cap on how many files can be queued in one send — mirrors the
+// WhatsApp/Telegram-style "pick a batch, send it as a batch" flow
+// instead of an unbounded multi-select that could hammer the upload
+// endpoint or bloat the compose tray.
+const MAX_ATTACHMENTS = 10;
+
 // ── Typing indicator tuning ──
 // How long after the last keystroke we broadcast "stopped typing".
 const TYPING_STOP_DELAY_MS = 1500;
@@ -177,6 +183,13 @@ const attachmentTypeFromFile = (file) => {
   return "file";
 };
 
+// Monotonically-increasing id for items in the pending-attachment tray —
+// lets multiple files queued from the same picker action, or a voice
+// note added alongside them, each be tracked, progressed and removed
+// independently.
+let attachmentIdCounter = 0;
+const makeAttachmentId = () => `att-${Date.now()}-${++attachmentIdCounter}`;
+
 // ── Small three-dot "typing…" bubble, rendered as its own row in the
 // message list, styled to match the other person's bubble shape. ──
 const TypingBubble = () => (
@@ -186,6 +199,22 @@ const TypingBubble = () => (
       <span />
       <span />
     </div>
+  </div>
+);
+
+// ── Small circular/linear progress indicator shown over a queued
+// attachment (in the compose tray) while it uploads. Shared shape for
+// image/video/voice/file chips — the caller decides layout, this just
+// renders the bar + percentage. ──
+const UploadProgressBar = ({ progress, status }) => (
+  <div className={`mp-pending-progress-wrap ${status === "error" ? "error" : ""}`}>
+    <div
+      className={`mp-pending-progress-bar ${status === "error" ? "error" : ""}`}
+      style={{ width: `${status === "error" ? 100 : Math.max(4, progress)}%` }}
+    />
+    <span className="mp-pending-progress-label">
+      {status === "error" ? "Failed" : `${Math.round(progress)}%`}
+    </span>
   </div>
 );
 
@@ -301,8 +330,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const emojiBtnRef = useRef();
 
   const fileInputRef = useRef();
-  const [pendingAttachment, setPendingAttachment] = useState(null); // { file, previewUrl, type, name, size, duration? }
-  const [uploading, setUploading] = useState(false);
+  // Queue of not-yet-sent attachments (images/videos/files picked
+  // together, plus an optional voice note). Each item tracks its own
+  // upload `progress` (0-100) and `status` ("pending" | "uploading" |
+  // "error") so the compose tray can show a per-file progress bar and
+  // the send loop can retry/report failures individually instead of
+  // treating the whole batch as one unit.
+  const [pendingAttachments, setPendingAttachments] = useState([]);
 
   // ── Voice message recording ──
   const [recording, setRecording] = useState(false);
@@ -1122,37 +1156,78 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, otherTyping]);
 
+  // ── Multi-file attachment picking ──
+  // Accepts everything selected in one go (the <input> below has the
+  // `multiple` attribute) and queues each valid file as its own tray
+  // item. Oversized files are skipped individually (with an alert) so
+  // one bad file in a batch doesn't block the rest.
   const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = "";
-    if (!file) return;
+    if (!files.length) return;
 
-    if (file.size > 25 * 1024 * 1024) {
-      alert("File too large. Max size is 25MB.");
+    const room = MAX_ATTACHMENTS - pendingAttachments.length;
+    if (room <= 0) {
+      alert(`You can attach up to ${MAX_ATTACHMENTS} files at once.`);
       return;
     }
+    if (files.length > room) {
+      alert(`Only ${room} more file${room === 1 ? "" : "s"} can be added (max ${MAX_ATTACHMENTS} per send).`);
+    }
 
-    const type = attachmentTypeFromFile(file);
-    const previewUrl =
-      type === "image" || type === "video" ? URL.createObjectURL(file) : null;
-    setPendingAttachment({
-      file,
-      previewUrl,
-      type,
-      name: file.name,
-      size: file.size,
+    const accepted = files.slice(0, room);
+    const newAttachments = [];
+    for (const file of accepted) {
+      if (file.size > 25 * 1024 * 1024) {
+        alert(`"${file.name}" is too large. Max size is 25MB.`);
+        continue;
+      }
+      const type = attachmentTypeFromFile(file);
+      const previewUrl =
+        type === "image" || type === "video" ? URL.createObjectURL(file) : null;
+      newAttachments.push({
+        id: makeAttachmentId(),
+        file,
+        previewUrl,
+        type,
+        name: file.name,
+        size: file.size,
+        progress: 0,
+        status: "pending",
+      });
+    }
+    if (newAttachments.length) {
+      setPendingAttachments((prev) => [...prev, ...newAttachments]);
+    }
+  };
+
+  const removePendingAttachment = (id) => {
+    setPendingAttachments((prev) => {
+      const target = prev.find((a) => a.id === id);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((a) => a.id !== id);
     });
   };
 
-  const clearPendingAttachment = () => {
-    if (pendingAttachment?.previewUrl)
-      URL.revokeObjectURL(pendingAttachment.previewUrl);
-    setPendingAttachment(null);
+  const clearAllPendingAttachments = () => {
+    setPendingAttachments((prev) => {
+      prev.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+      return [];
+    });
+  };
+
+  // Updates one tray item's upload progress/status in place — passed as
+  // the onProgress callback into uploadAttachmentToR2 for each file, and
+  // also used to flip an item to "error" if its upload/send fails.
+  const updateAttachmentProgress = (id, progress, status = "uploading") => {
+    setPendingAttachments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, progress, status } : a)),
+    );
   };
 
   // ── Voice message recording ──
   const startRecording = async () => {
-    if (pendingAttachment || recording) return;
+    if (recording || pendingAttachments.length >= MAX_ATTACHMENTS) return;
 
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       alert("Voice messages aren't supported in this browser.");
@@ -1191,14 +1266,20 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
         });
         const previewUrl = URL.createObjectURL(blob);
 
-        setPendingAttachment({
-          file,
-          previewUrl,
-          type: "voice",
-          name: file.name,
-          size: file.size,
-          duration: recordingSecondsRef.current,
-        });
+        setPendingAttachments((prev) => [
+          ...prev,
+          {
+            id: makeAttachmentId(),
+            file,
+            previewUrl,
+            type: "voice",
+            name: file.name,
+            size: file.size,
+            duration: recordingSecondsRef.current,
+            progress: 0,
+            status: "pending",
+          },
+        ]);
 
         streamRef.current?.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
@@ -1338,12 +1419,53 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     }
   };
 
+  // Sends the queued text-only message (no attachments) — the original
+  // fast path, unchanged apart from checking pendingAttachments.length.
+  const sendTextOnlyMessage = async (trimmed, replyToIdSnapshot, replyToTextSnapshot, replyToSenderSnapshot) => {
+    const { data: inserted, error } = await supabase
+      .from("direct_messages")
+      .insert({
+        conversation_id: activeConvo.id,
+        sender_username: currentUser,
+        text: trimmed || null,
+        attachment_url: null,
+        attachment_type: null,
+        attachment_name: null,
+        attachment_size: null,
+        reply_to_id: replyToIdSnapshot,
+        reply_to_text: replyToTextSnapshot,
+        reply_to_sender: replyToSenderSnapshot,
+      })
+      .select()
+      .single();
+
+    if (!error && inserted) {
+      setMessages((prev) =>
+        prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted],
+      );
+      playSendSound();
+      requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      });
+      await supabase
+        .from("conversations")
+        .update({
+          last_message: trimmed,
+          last_message_at: new Date().toISOString(),
+          last_message_sender: currentUser,
+        })
+        .eq("id", activeConvo.id);
+      return true;
+    }
+    setText(trimmed);
+    return false;
+  };
+
   const handleSend = async () => {
     if (
-      (!text.trim() && !pendingAttachment) ||
+      (!text.trim() && pendingAttachments.length === 0) ||
       !activeConvo ||
       sending ||
-      uploading ||
       // Defense-in-depth: the input row is hidden entirely for an
       // incoming, not-yet-accepted request (see the render below), but
       // guard the actual send path too in case this is ever reachable
@@ -1351,6 +1473,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       isIncomingRequest
     )
       return;
+
     setSending(true);
     const trimmed = text.trim();
     setText("");
@@ -1364,35 +1487,12 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       payload: { username: currentUser, typing: false },
     });
 
-    let attachment_url = null;
-    let attachment_type = null;
-    let attachment_name = null;
-    let attachment_size = null;
-
-    try {
-      if (pendingAttachment) {
-        setUploading(true);
-        const { url } = await uploadAttachmentToR2(pendingAttachment.file);
-        attachment_url = url;
-        attachment_type = pendingAttachment.type;
-        attachment_name = pendingAttachment.name;
-        attachment_size = pendingAttachment.size;
-        setUploading(false);
-      }
-    } catch (err) {
-      setUploading(false);
-      setSending(false);
-      setText(trimmed);
-      alert(`Attachment upload failed: ${err?.message || "please try again."}`);
-      return;
-    }
-
     // If replying, snapshot a short preview of the quoted message now —
     // storing it directly on the new row means the quote still renders
     // correctly even if the original message is edited or deleted later.
-    const reply_to_id = replyTarget?.id || null;
-    const reply_to_sender = replyTarget?.sender_username || null;
-    const reply_to_text = replyTarget
+    const replyToIdSnapshot = replyTarget?.id || null;
+    const replyToSenderSnapshot = replyTarget?.sender_username || null;
+    const replyToTextSnapshot = replyTarget
       ? replyTarget.text
         ? replyTarget.text.slice(0, 120)
         : attachmentPreviewLabel(
@@ -1400,49 +1500,75 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
             replyTarget.attachment_name,
           )
       : null;
+    setReplyTarget(null);
 
-    // .select().single() hands back the inserted row so we can show it
-    // immediately instead of waiting on the Realtime broadcast to echo
-    // it back — that round trip is what made sent messages feel delayed.
-    const { data: inserted, error } = await supabase
-      .from("direct_messages")
-      .insert({
-        conversation_id: activeConvo.id,
-        sender_username: currentUser,
-        text: trimmed || null,
-        attachment_url,
-        attachment_type,
-        attachment_name,
-        attachment_size,
-        reply_to_id,
-        reply_to_text,
-        reply_to_sender,
-      })
-      .select()
-      .single();
+    if (pendingAttachments.length === 0) {
+      await sendTextOnlyMessage(trimmed, replyToIdSnapshot, replyToTextSnapshot, replyToSenderSnapshot);
+      setSending(false);
+      return;
+    }
 
-    if (!error && inserted) {
+    // One or more attachments queued: upload + insert them ONE AT A TIME
+    // so each shows up (and reaches the recipient) as soon as it's
+    // ready, with its own live progress bar in the compose tray, rather
+    // than the whole batch appearing to hang until every file finishes
+    // uploading. The typed caption (if any) rides along with the FIRST
+    // attachment only — the rest send as plain attachments, same as
+    // WhatsApp/Telegram's "one caption per batch" behavior.
+    const batch = pendingAttachments;
+    let anyFailed = false;
+
+    for (let i = 0; i < batch.length; i++) {
+      const att = batch[i];
+      updateAttachmentProgress(att.id, 0, "uploading");
+
+      let uploaded;
+      try {
+        uploaded = await uploadAttachmentToR2(att.file, (pct) =>
+          updateAttachmentProgress(att.id, pct, "uploading"),
+        );
+      } catch (err) {
+        updateAttachmentProgress(att.id, 0, "error");
+        anyFailed = true;
+        alert(`"${att.name}" failed to upload: ${err?.message || "please try again."}`);
+        continue; // keep going — one bad file shouldn't sink the rest of the batch
+      }
+
+      const captionText = i === 0 ? trimmed || null : null;
+      const previewText = captionText || attachmentPreviewLabel(att.type, att.name);
+
+      const { data: inserted, error } = await supabase
+        .from("direct_messages")
+        .insert({
+          conversation_id: activeConvo.id,
+          sender_username: currentUser,
+          text: captionText,
+          attachment_url: uploaded.url,
+          attachment_type: att.type,
+          attachment_name: att.name,
+          attachment_size: att.size,
+          reply_to_id: i === 0 ? replyToIdSnapshot : null,
+          reply_to_text: i === 0 ? replyToTextSnapshot : null,
+          reply_to_sender: i === 0 ? replyToSenderSnapshot : null,
+        })
+        .select()
+        .single();
+
+      if (error || !inserted) {
+        updateAttachmentProgress(att.id, 100, "error");
+        anyFailed = true;
+        alert(`"${att.name}" failed to send: ${error?.message || "please try again."}`);
+        continue;
+      }
+
       setMessages((prev) =>
         prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted],
       );
       playSendSound();
-      setReplyTarget(null);
-
-      // Force the scroll on the very next frame instead of relying only
-      // on the `messages`-effect above. On mobile, sending a message
-      // often happens while the keyboard is still open/animating; a
-      // scroll that fires in the same tick as the state update can run
-      // against a layout that hasn't settled yet (see the --mp-vh fix
-      // above) and end up scrolling to a position that's stale the
-      // instant the keyboard finishes moving. Doing it on the next
-      // animation frame lets layout catch up first.
       requestAnimationFrame(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
       });
 
-      const previewText =
-        trimmed ||
-        attachmentPreviewLabel(attachment_type, attachment_name);
       await supabase
         .from("conversations")
         .update({
@@ -1451,10 +1577,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           last_message_sender: currentUser,
         })
         .eq("id", activeConvo.id);
-      clearPendingAttachment();
-    } else {
-      setText(trimmed);
+
+      // Sent successfully — drop it from the tray so only the
+      // still-in-flight/failed ones remain visible.
+      setPendingAttachments((prev) => prev.filter((a) => a.id !== att.id));
+      if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
     }
+
     setSending(false);
   };
 
@@ -1870,6 +1999,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   };
 
   const anyDetailOpen = !!(activeUsername || activeGroup || activeBroadcast);
+
+  const isUploadingAny = pendingAttachments.some((a) => a.status === "uploading");
+  const canSend = (text.trim() || pendingAttachments.length > 0) && !sending;
 
   // Shared render for a single conversation row in the inbox list —
   // used for both the "Message Requests" section and the regular list,
@@ -2717,53 +2849,78 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                         </div>
                       )}
 
-                      {pendingAttachment && (
-                        <div className="mp-pending-attachment">
-                          {pendingAttachment.type === "image" && (
-                            <img src={pendingAttachment.previewUrl} alt="preview" />
-                          )}
-                          {pendingAttachment.type === "video" && (
-                            <video src={pendingAttachment.previewUrl} />
-                          )}
-                          {pendingAttachment.type === "voice" && (
-                            <div className="mp-pending-voice">
-                              <VoiceMessagePlayer
-                                src={pendingAttachment.previewUrl}
-                                mine={false}
-                                initialDuration={pendingAttachment.duration}
-                              />
-                              <span className="mp-pending-voice-label">
-                                🎤 Voice message
-                              </span>
-                            </div>
-                          )}
-                          {pendingAttachment.type === "file" &&
-                            (() => {
-                              const info = getFileTypeInfo(pendingAttachment.name);
-                              return (
-                                <span
-                                  className="mp-pending-file-name"
-                                  style={{ "--file-color": info.color }}
+                      {/* NEW: multi-file compose tray. Each queued
+                          attachment (images, videos, files, plus an
+                          optional voice note) gets its own chip with a
+                          thumbnail/name, a remove button, and — while
+                          handleSend is working through the batch — a
+                          live progress bar driven by uploadAttachmentToR2's
+                          onProgress callback. */}
+                      {pendingAttachments.length > 0 && (
+                        <div className="mp-pending-attachments-row">
+                          <div className="mp-pending-attachments-scroll">
+                            {pendingAttachments.map((att) => (
+                              <div
+                                key={att.id}
+                                className={`mp-pending-attachment-chip ${
+                                  att.status === "error" ? "mp-pending-error" : ""
+                                } ${att.status === "uploading" ? "mp-pending-uploading-chip" : ""}`}
+                              >
+                                {att.type === "image" && (
+                                  <img src={att.previewUrl} alt="preview" />
+                                )}
+                                {att.type === "video" && (
+                                  <video src={att.previewUrl} muted />
+                                )}
+                                {att.type === "voice" && (
+                                  <div className="mp-pending-voice-chip">
+                                    <span>🎤</span>
+                                    <span>{formatDuration(att.duration)}</span>
+                                  </div>
+                                )}
+                                {att.type === "file" &&
+                                  (() => {
+                                    const info = getFileTypeInfo(att.name);
+                                    return (
+                                      <div
+                                        className="mp-pending-file-chip"
+                                        style={{ "--file-color": info.color }}
+                                      >
+                                        <span className="mp-file-icon">{info.icon}</span>
+                                        <span
+                                          className="mp-pending-file-label"
+                                          title={att.name}
+                                        >
+                                          {att.name}
+                                        </span>
+                                      </div>
+                                    );
+                                  })()}
+
+                                {(att.status === "uploading" || att.status === "error") && (
+                                  <UploadProgressBar progress={att.progress} status={att.status} />
+                                )}
+
+                                <button
+                                  type="button"
+                                  className="mp-pending-remove"
+                                  onClick={() => removePendingAttachment(att.id)}
+                                  aria-label="Remove attachment"
+                                  disabled={att.status === "uploading"}
                                 >
-                                  <span className="mp-file-icon">{info.icon}</span>
-                                  {pendingAttachment.name}
-                                  <span className="mp-file-sub">
-                                    {" "}
-                                    · {info.label} ·{" "}
-                                    {formatFileSize(pendingAttachment.size)}
-                                  </span>
-                                </span>
-                              );
-                            })()}
-                          <button
-                            className="mp-pending-remove"
-                            onClick={clearPendingAttachment}
-                            aria-label="Remove attachment"
-                          >
-                            ✕
-                          </button>
-                          {uploading && (
-                            <span className="mp-pending-uploading">Uploading…</span>
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          {pendingAttachments.length > 1 && !isUploadingAny && (
+                            <button
+                              type="button"
+                              className="mp-pending-clear-all"
+                              onClick={clearAllPendingAttachments}
+                            >
+                              Clear all
+                            </button>
                           )}
                         </div>
                       )}
@@ -2774,6 +2931,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                           ref={fileInputRef}
                           style={{ display: "none" }}
                           onChange={handleFileSelect}
+                          multiple
                           accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.csv"
                         />
 
@@ -2806,7 +2964,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               type="button"
                               className="mp-icon-btn"
                               onClick={() => fileInputRef.current?.click()}
-                              aria-label="Attach file"
+                              aria-label="Attach files"
+                              disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
                             >
                               📎
                             </button>
@@ -2844,11 +3003,11 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               onKeyDown={handleKeyDown}
                             />
 
-                            {text.trim() || pendingAttachment ? (
+                            {text.trim() || pendingAttachments.length > 0 ? (
                               <button
                                 className="mp-send-btn"
                                 onClick={handleSend}
-                                disabled={sending || uploading}
+                                disabled={!canSend}
                               >
                                 ➤
                               </button>

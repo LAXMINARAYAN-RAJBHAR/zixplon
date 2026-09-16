@@ -148,6 +148,12 @@
   border-radius: 14px 14px 4px 14px;
 }
 
+/* Bubble is still uploading its attachment — slightly dimmed so it
+   visually reads as "in progress" rather than a fully sent message. */
+.gcw-bubble.gcw-bubble-uploading {
+  opacity: 0.85;
+}
+
 .gcw-sender-name {
   font-size: 10px;
   font-weight: 800;
@@ -180,28 +186,186 @@
   opacity: 0.7;
 }
 
-.gcw-pending-attachment {
+/* ══════════════════════════════════════════════════════════════════════
+   IN-BUBBLE UPLOAD PROGRESS — shown on an optimistic message bubble
+   while its attachment is still uploading (as opposed to the compose
+   tray chips below, which are for files not sent yet).
+   ══════════════════════════════════════════════════════════════════════ */
+
+.gcw-uploading-attachment {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.gcw-uploading-attachment .gcw-bubble-image,
+.gcw-uploading-attachment .gcw-bubble-video {
+  filter: brightness(0.8);
+}
+
+.gcw-uploading-file-chip {
+  font-size: 12px;
+  padding: 6px 2px;
+}
+
+.gcw-uploading-attachment .gcw-pending-progress-wrap {
+  position: relative;
+  margin-top: -18px;
+  height: 18px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   MULTI-FILE COMPOSE TRAY — replaces the old single-attachment preview.
+   Mirrors MessagesPanel.css's .mp-pending-* rules 1:1 so 1:1 chat and
+   group chat compose look/behave identically.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.gcw-pending-attachments-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
+  padding: 10px 14px;
   border-top: 2px solid #fbd5d5;
   background: #fff5f5;
 }
-.gcw-pending-attachment img, .gcw-pending-attachment video {
-  width: 44px; height: 44px; object-fit: cover; border-radius: 8px;
+
+.gcw-pending-attachments-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  flex: 1;
+  min-width: 0;
 }
-.gcw-pending-attachment button {
-  margin-left: auto;
-  background: #dc2626;
+.gcw-pending-attachments-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.gcw-pending-attachments-scroll::-webkit-scrollbar-thumb {
+  background: #fbd5d5;
+  border-radius: 4px;
+}
+
+.gcw-pending-attachment-chip {
+  position: relative;
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  border: 1.5px solid #fbd5d5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gcw-pending-attachment-chip img,
+.gcw-pending-attachment-chip video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.gcw-pending-attachment-chip.gcw-pending-error {
+  border-color: #dc2626;
+}
+
+.gcw-pending-file-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+}
+.gcw-pending-file-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #7a3a3a;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.gcw-pending-progress-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 16px;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.gcw-pending-progress-wrap.error {
+  background: rgba(220,38,38,0.85);
+}
+
+.gcw-pending-progress-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: #10b981;
+  transition: width 0.15s ease-out;
+}
+.gcw-pending-progress-bar.error {
+  background: transparent;
+}
+
+.gcw-pending-progress-label {
+  position: relative;
+  width: 100%;
+  text-align: center;
+  font-size: 8.5px;
+  font-weight: 800;
+  color: #fff;
+  z-index: 1;
+}
+
+.gcw-pending-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(0,0,0,0.55);
   color: #fff;
   border: none;
-  width: 20px; height: 20px;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
   border-radius: 50%;
-  font-size: 11px;
+  font-size: 10px;
   cursor: pointer;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.gcw-uploading { font-size: 11px; color: #dc2626; font-weight: 700; }
+.gcw-pending-remove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.gcw-pending-clear-all {
+  flex-shrink: 0;
+  background: none;
+  border: 1.5px solid #fbd5d5;
+  color: #7a3a3a;
+  border-radius: 14px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.gcw-pending-clear-all:hover {
+  border-color: #dc2626;
+  color: #dc2626;
+}
 
 .gcw-input-row {
   display: flex;
@@ -219,6 +383,10 @@
   font-size: 18px;
   cursor: pointer;
   padding: 4px 6px;
+}
+.gcw-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .gcw-text-input {
@@ -495,6 +663,9 @@
 
 @media (max-width: 768px) {
   .gcw-bubble-actions { opacity: 0.85; }
+  .gcw-pending-attachments-row {
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* ── Reply preview bar above the input ── */

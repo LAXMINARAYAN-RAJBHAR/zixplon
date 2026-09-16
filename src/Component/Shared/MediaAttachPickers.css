@@ -1,4 +1,16 @@
 /* /src/Component/Shared/MediaAttachPickers.css */
+
+/* ── Global mobile overflow guard ──
+   Prevents any absolutely-positioned popover in this file from being
+   able to widen the page and trigger horizontal scroll on mobile —
+   this is what was clipping content on the left edge whenever the
+   Music/Location picker opened. Lives here (rather than a global
+   stylesheet) so it's guaranteed to load on every page that uses
+   either picker. */
+html, body {
+  overflow-x: hidden;
+}
+
 .map-picker {
   position: absolute;
   background: #ffffff;
@@ -12,11 +24,42 @@
   display: flex;
   flex-direction: column;
   font-family: 'Outfit', sans-serif;
+  box-sizing: border-box;
 }
 .map-picker--left  { left: 0; }
 .map-picker--right { right: 0; }
 .map-picker-top     { top: calc(100% + 6px); }
 .map-picker-bottom  { bottom: calc(100% + 6px); }
+
+/* ── Mobile: dock as a fixed bottom sheet ──
+   Anchoring to the trigger button (as the desktop rules above do)
+   breaks on narrow screens because a 280px-wide absolutely-positioned
+   panel can land far enough right that its edge pushes past the
+   viewport, which forces the whole page to become horizontally
+   scrollable. Switching to `position: fixed` anchors the panel to the
+   viewport instead of the button, so it can never overflow no matter
+   where the 🎵/📍 trigger sits in the footer row. The anchor/position
+   props MusicPicker/LocationPicker pass in (left/right/top/bottom)
+   become no-ops below this breakpoint — intentional, since a fixed
+   bottom-sheet position is the same regardless of where the trigger
+   button is. */
+@media (max-width: 480px) {
+  .map-picker,
+  .map-picker--left,
+  .map-picker--right,
+  .map-picker-top,
+  .map-picker-bottom {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    top: auto;
+    width: auto;
+    max-width: none;
+    max-height: 70vh;
+    z-index: 999;
+  }
+}
 
 .map-picker-search {
   width: 100%;

@@ -1,5 +1,5 @@
 // /src/Component/Shared/LocationPicker.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import "./MediaAttachPickers.css";
 
 // Free, no-key reverse/forward geocoding via OpenStreetMap Nominatim.
@@ -22,6 +22,9 @@ const reverseGeocode = async (lat, lng) => {
   return data.display_name || `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
 };
 
+const PANEL_MAX_HEIGHT = 320; // must match .map-picker's max-height in CSS
+const VIEWPORT_MARGIN = 12;   // breathing room from the screen edge
+
 const LocationPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) => {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -29,6 +32,32 @@ const LocationPicker = ({ onSelect, onClose, anchor = "left", position = "top" }
   const [locating, setLocating] = useState(false);
   const ref = useRef(null);
   const debounceRef = useRef(null);
+
+  // NEW: same auto-flip/clamp logic as MusicPicker — see its comment
+  // for the full explanation. Fixes the panel opening upward from a
+  // trigger near the top of the page and getting clipped by the
+  // viewport/sticky header.
+  const [resolvedPosition, setResolvedPosition] = useState(position);
+  const [panelMaxHeight, setPanelMaxHeight] = useState(PANEL_MAX_HEIGHT);
+
+  useLayoutEffect(() => {
+    const wrap = ref.current?.parentElement;
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    const spaceAbove = rect.top - VIEWPORT_MARGIN;
+    const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_MARGIN;
+
+    let finalPosition = position;
+    if (position === "bottom" && spaceAbove < PANEL_MAX_HEIGHT && spaceBelow > spaceAbove) {
+      finalPosition = "top";
+    } else if (position === "top" && spaceBelow < PANEL_MAX_HEIGHT && spaceAbove > spaceBelow) {
+      finalPosition = "bottom";
+    }
+    setResolvedPosition(finalPosition);
+
+    const available = finalPosition === "bottom" ? spaceAbove : spaceBelow;
+    setPanelMaxHeight(Math.max(160, Math.min(PANEL_MAX_HEIGHT, available)));
+  }, [position]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -83,7 +112,10 @@ const LocationPicker = ({ onSelect, onClose, anchor = "left", position = "top" }
   return (
     <div
       ref={ref}
-      className={`map-picker map-picker--${anchor} map-picker-${position}`}
+      className={`map-picker map-picker--${anchor} map-picker-${resolvedPosition}`}
+      // NEW: inline max-height overrides the CSS default with whatever
+      // actually fits in the space measured above.
+      style={{ maxHeight: panelMaxHeight }}
     >
       <button
         type="button"

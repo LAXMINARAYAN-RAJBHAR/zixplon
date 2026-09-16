@@ -1,5 +1,5 @@
 // /src/Component/Shared/MusicPicker.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { supabase } from "../../config/supabase";
 import "./MediaAttachPickers.css";
 
@@ -13,6 +13,9 @@ const FALLBACK_SONGS = [
   { title: "Street Beat", artist: "DJ Nova", cover: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=100&q=60", url: "https://actions.google.com/sounds/v1/ambiences/city_traffic.ogg" },
 ];
 
+const PANEL_MAX_HEIGHT = 320; // must match .map-picker's max-height in CSS
+const VIEWPORT_MARGIN = 12;   // breathing room from the screen edge
+
 const MusicPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) => {
   const [query, setQuery] = useState("");
   const [songs, setSongs] = useState(FALLBACK_SONGS);
@@ -20,6 +23,35 @@ const MusicPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) =
   const [playingUrl, setPlayingUrl] = useState(null);
   const audioRef = useRef(null);
   const ref = useRef(null);
+
+  // NEW: resolvedPosition/panelMaxHeight — the `position` prop is a
+  // preference, not a guarantee. Composers can sit right under a sticky
+  // header (no room to open upward) or near the bottom of a tall page
+  // (no room to open downward). On mount, measure actual space above vs.
+  // below the trigger and flip + clamp height so the panel always stays
+  // fully on-screen instead of getting clipped, as it was doing when
+  // opened from a trigger near the top of the viewport.
+  const [resolvedPosition, setResolvedPosition] = useState(position);
+  const [panelMaxHeight, setPanelMaxHeight] = useState(PANEL_MAX_HEIGHT);
+
+  useLayoutEffect(() => {
+    const wrap = ref.current?.parentElement;
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    const spaceAbove = rect.top - VIEWPORT_MARGIN;
+    const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_MARGIN;
+
+    let finalPosition = position;
+    if (position === "bottom" && spaceAbove < PANEL_MAX_HEIGHT && spaceBelow > spaceAbove) {
+      finalPosition = "top";
+    } else if (position === "top" && spaceBelow < PANEL_MAX_HEIGHT && spaceAbove > spaceBelow) {
+      finalPosition = "bottom";
+    }
+    setResolvedPosition(finalPosition);
+
+    const available = finalPosition === "bottom" ? spaceAbove : spaceBelow;
+    setPanelMaxHeight(Math.max(160, Math.min(PANEL_MAX_HEIGHT, available)));
+  }, [position]);
 
   useEffect(() => {
     const load = async () => {
@@ -83,7 +115,12 @@ const MusicPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) =
   return (
     <div
       ref={ref}
-      className={`map-picker map-picker--${anchor} map-picker-${position}`}
+      className={`map-picker map-picker--${anchor} map-picker-${resolvedPosition}`}
+      // NEW: inline max-height overrides the CSS default (320px) with
+      // whatever actually fits in the space we measured above — this
+      // is the belt-and-braces guard for viewports too short for even
+      // the flipped side to fit the full 320px.
+      style={{ maxHeight: panelMaxHeight }}
     >
       <input
         className="map-picker-search"

@@ -2,6 +2,9 @@ import React, { useState, useRef, useEffect } from "react";
 import { supabase } from "../../config/supabase";
 import axios from "axios";
 import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
+import MusicPicker from "../../Component/Shared/MusicPicker";
+import LocationPicker from "../../Component/Shared/LocationPicker";
+import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
 import { uploadToR2, buildTransformUrl, uploadVideoToR2 } from "../../utils/mediaUpload";
 
 // NOTE: no cap on image count anymore — ImageGrid/HomeImageGrid already
@@ -209,6 +212,16 @@ const PostComposer = ({ currentUser, onPost }) => {
   const [posting, setPosting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState("");
+
+  // NEW: song ({ title, artist, cover, url }) and location-name attachments,
+  // Facebook-style. Both are purely decorative metadata — neither is
+  // required, and either can be attached independent of (and alongside)
+  // images/video/link/feeling.
+  const [song, setSong] = useState(null);
+  const [locationName, setLocationName] = useState(null);
+  const [showMusicPicker, setShowMusicPicker] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+
   const fileRef = useRef();
   const videoRef = useRef();
   const linkDebounceRef = useRef(null);
@@ -457,6 +470,12 @@ const PostComposer = ({ currentUser, onPost }) => {
         thumbnail_url: thumbnailUrl,
         link: linkPreview || null,
         feeling: feeling || null,
+        // NEW: song ({ title, artist, cover, url }) and location_name —
+        // requires:
+        //   alter table posts add column song jsonb;
+        //   alter table posts add column location_name text;
+        song: song || null,
+        location_name: locationName || null,
         privacy,
       };
 
@@ -486,6 +505,10 @@ const PostComposer = ({ currentUser, onPost }) => {
       setShowLinkInput(false);
       setFeeling("");
       setShowFeelings(false);
+      setSong(null);
+      setLocationName(null);
+      setShowMusicPicker(false);
+      setShowLocationPicker(false);
       setUploadProgress(0);
     } catch (err) {
       setError(err.message || "Failed to post. Please try again.");
@@ -512,6 +535,24 @@ const PostComposer = ({ currentUser, onPost }) => {
 
           {feeling && (
             <p className="pf-feeling-badge">— feeling {feeling}</p>
+          )}
+
+          {/* NEW: attached song preview — playable, removable */}
+          {song && (
+            <SongAttachmentCard song={song} onRemove={() => setSong(null)} />
+          )}
+
+          {/* NEW: attached location preview — removable */}
+          {locationName && (
+            <p className="pf-feeling-badge">
+              📍 at <b>{locationName}</b>{" "}
+              <span
+                style={{ cursor: "pointer", color: "#b08585", marginLeft: "4px" }}
+                onClick={() => setLocationName(null)}
+              >
+                ✕
+              </span>
+            </p>
           )}
 
           {imageFiles.length > 0 && (
@@ -676,6 +717,46 @@ const PostComposer = ({ currentUser, onPost }) => {
             title="Feeling"
             onClick={() => setShowFeelings((v) => !v)}
           >😊</button>
+
+          {/* NEW: Music attach trigger */}
+          <div className="map-attach-trigger-wrap">
+            <button
+              type="button"
+              className="pf-attach-btn"
+              title="Music"
+              onClick={() => setShowMusicPicker((v) => !v)}
+            >
+              🎵
+            </button>
+            {showMusicPicker && (
+              <MusicPicker
+                anchor="left"
+                position="bottom"
+                onSelect={(s) => setSong(s)}
+                onClose={() => setShowMusicPicker(false)}
+              />
+            )}
+          </div>
+
+          {/* NEW: Location ("check in") attach trigger */}
+          <div className="map-attach-trigger-wrap">
+            <button
+              type="button"
+              className="pf-attach-btn"
+              title="Check in"
+              onClick={() => setShowLocationPicker((v) => !v)}
+            >
+              📍
+            </button>
+            {showLocationPicker && (
+              <LocationPicker
+                anchor="left"
+                position="bottom"
+                onSelect={(name) => setLocationName(name)}
+                onClose={() => setShowLocationPicker(false)}
+              />
+            )}
+          </div>
 
           {/* CHANGED: was the plain EmojiPicker (emoji only). Now opens
               CommentMediaPicker instead, which adds GIF/Sticker tabs

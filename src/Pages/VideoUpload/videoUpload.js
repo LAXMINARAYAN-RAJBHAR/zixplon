@@ -10,6 +10,9 @@ import RecordModal from "../RecordModal/RecordModal";
 import { checkContent } from "../../Component/Moderation/useModerationFilter";
 import { notifyConnections } from "../../utils/notifications";
 import { uploadToR2, buildTransformUrl, uploadVideoToR2 } from "../../utils/mediaUpload";
+import MusicPicker from "../../Component/Shared/MusicPicker";
+import LocationPicker from "../../Component/Shared/LocationPicker";
+import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
 
 const INITIAL_FIELDS = {
   title: "",
@@ -93,6 +96,15 @@ const VideoUpload = () => {
   // it finishes uploading — even if auto thumbnail capture fails. ──
   const [localPreviewUrl, setLocalPreviewUrl] = useState("");
 
+  // NEW: song ({ title, artist, cover, url }) and location-name
+  // attachments — Facebook/Instagram-style "attach music" / "check in",
+  // shared across both Video and Reel upload modes (and any of the
+  // feature modes, since they all flow through this same form).
+  const [song, setSong] = useState(null);
+  const [locationName, setLocationName] = useState(null);
+  const [showMusicPicker, setShowMusicPicker] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+
   const uploadStartTime  = useRef(null);
   const uploadedBytesRef = useRef(0);
   const durationRef      = useRef("00:00");
@@ -140,6 +152,10 @@ const VideoUpload = () => {
     setUploadProgress(0);
     setUploadSpeed(0);
     setTimeRemaining("");
+    setSong(null);
+    setLocationName(null);
+    setShowMusicPicker(false);
+    setShowLocationPicker(false);
     uploadStartTime.current  = null;
     uploadedBytesRef.current = 0;
     durationRef.current      = "00:00";
@@ -559,6 +575,11 @@ const VideoUpload = () => {
           channel:       localStorage.getItem("username") || "Anonymous",
           username:      uploaderUsername,
           duration:      durationRef.current,
+          // NEW — requires:
+          //   alter table videos add column song jsonb;
+          //   alter table videos add column location_name text;
+          song:          song || null,
+          location_name: locationName || null,
         };
 
         const { data: newVideo, error: videoError } = await supabase
@@ -585,6 +606,11 @@ const VideoUpload = () => {
           duration:    durationRef.current,
           likes:       0,
           comments:    0,
+          // NEW — requires:
+          //   alter table reels add column song jsonb;
+          //   alter table reels add column location_name text;
+          song:          song || null,
+          location_name: locationName || null,
         };
 
         if (featureMode === "remix" && featureData) {
@@ -655,6 +681,12 @@ const VideoUpload = () => {
             {uploadMode === "video" && !isFeatureMode ? `${inputField.videoType} • ` : ""}
             {inputField.description}
           </p>
+          {(song || locationName) && (
+            <p className="upload_success_meta" style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+              {song && <span>🎵 {song.title} · {song.artist}</span>}
+              {locationName && <span>📍 {locationName}</span>}
+            </p>
+          )}
           <div className="uploadBtns">
             <div className="uploadBtns-form" onClick={() => { setSubmitted(false); resetState(); }}>Upload Another</div>
             <div className="uploadBtns-form" onClick={() => navigate(isFeatureMode || uploadMode === "reel" ? "/reels" : "/")}>
@@ -737,6 +769,72 @@ const VideoUpload = () => {
               className="uploadFormInputs"
             />
           )}
+
+          {/* NEW: Music + Location attachments — shown for both Video
+              and Reel modes (and feature modes, since they share this
+              form). */}
+          <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "8px" }}>
+            {song && (
+              <SongAttachmentCard song={song} onRemove={() => setSong(null)} />
+            )}
+            {locationName && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontFamily: "'Nunito', sans-serif",
+                  fontSize: "12.5px",
+                  fontWeight: 700,
+                  color: "var(--zx-primary)",
+                }}
+              >
+                📍 at {locationName}
+                <span
+                  style={{ cursor: "pointer", color: "var(--zx-text3)" }}
+                  onClick={() => setLocationName(null)}
+                >
+                  ✕
+                </span>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <div className="map-attach-trigger-wrap">
+                <span
+                  className="upload_file_btn"
+                  onClick={() => setShowMusicPicker((v) => !v)}
+                >
+                  🎵 {song ? "Change Song" : "Add Music"}
+                </span>
+                {showMusicPicker && (
+                  <MusicPicker
+                    anchor="left"
+                    position="bottom"
+                    onSelect={(s) => setSong(s)}
+                    onClose={() => setShowMusicPicker(false)}
+                  />
+                )}
+              </div>
+
+              <div className="map-attach-trigger-wrap">
+                <span
+                  className="upload_file_btn"
+                  onClick={() => setShowLocationPicker((v) => !v)}
+                >
+                  📍 {locationName ? "Change Location" : "Add Location"}
+                </span>
+                {showLocationPicker && (
+                  <LocationPicker
+                    anchor="left"
+                    position="bottom"
+                    onSelect={(name) => setLocationName(name)}
+                    onClose={() => setShowLocationPicker(false)}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
 
           <div className="upload_file_row">
             <span className="upload_file_label">

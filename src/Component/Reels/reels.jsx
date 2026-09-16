@@ -24,6 +24,10 @@ import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
 import ExpandableText from "../ExpandableText/ExpandableText";
 import AdUnit from "../../Component/Ads/AdUnit";
 import CommentMediaPicker from "../Shared/CommentMediaPicker";
+// NEW: attached-song mini player — shown when a reel carries `song`
+// ({ title, artist, cover, url }), same component used in PostCard.jsx /
+// Video.jsx / the composers.
+import SongAttachmentCard from "../Shared/SongAttachmentCard";
 // NOTE: notifyUser() is no longer imported/used anywhere in this file.
 // Like/comment notifications are owned by the notify_on_like /
 // notify_on_comment DB triggers, and Connect requests/accepts are owned
@@ -1080,6 +1084,27 @@ const ReelItem = ({ reel, allReels }) => {
         {!isYouTube(reel.src) && showIcon       && <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>}
         {!isYouTube(reel.src) && showHeartBurst && <div className="reel_heart_burst">❤️</div>}
 
+        {/* NEW: "now playing" song ticker — Instagram-Reels-style,
+            top-left of the reel, above the "New" badge. Purely
+            decorative attribution; doesn't control the reel's own audio
+            track. */}
+        {reel.song && (
+          <div
+            className="map-song-ticker"
+            style={{ position: "absolute", top: "16px", left: "16px", zIndex: 10 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {reel.song.cover ? (
+              <img src={reel.song.cover} className="map-song-ticker-cover" alt="" />
+            ) : (
+              <span>🎵</span>
+            )}
+            <span className="map-song-ticker-text">
+              {reel.song.title} · {reel.song.artist}
+            </span>
+          </div>
+        )}
+
         {/* CHANGED: the old centered "Tap to mute/unmute" pill is now
             two small circular buttons sitting just above the progress
             bar — Play/Pause on the left, Mute on the right. Unlike the
@@ -1385,6 +1410,20 @@ const ReelItem = ({ reel, allReels }) => {
             <Link to={`/user/${reel.username}`} style={{ textDecoration: "none", color: "white" }}>
               <span className="reel_username">{reel.user}</span>
             </Link>
+            {/* NEW: location, shown right after the username — mirrors
+                the "📍 at <place>" badge on PostCard.jsx / Video.jsx. */}
+            {reel.location_name && (
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: "#fff",
+                  opacity: 0.85,
+                  fontWeight: 700,
+                }}
+              >
+                📍 {reel.location_name}
+              </span>
+            )}
             {/* CHANGED: three-state label (Connect / Requested / ✓
                 Connected), same as PostCard.jsx and Video.jsx. */}
             {loggedInUser !== reel.username && (
@@ -1451,6 +1490,12 @@ const Reels = () => {
             created_at:            r.created_at  || null,
             remixed_from_id:       r.remixed_from_id       || null,
             remixed_from_username: r.remixed_from_username || null,
+            // NEW: attached song ({ title, artist, cover, url }) and
+            // location name — requires:
+            //   alter table reels add column song jsonb;
+            //   alter table reels add column location_name text;
+            song:          r.song || null,
+            location_name: r.location_name || null,
           }))
         );
       }
@@ -1478,6 +1523,10 @@ const Reels = () => {
           created_at:            r.created_at  || null,
           remixed_from_id:       r.remixed_from_id       || null,
           remixed_from_username: r.remixed_from_username || null,
+          // NEW: same song/location fields, kept in sync for realtime
+          // INSERTs (new reels posted while the Reels page is open).
+          song:          r.song || null,
+          location_name: r.location_name || null,
         }, ...prev]);
       })
       .subscribe();

@@ -20,6 +20,10 @@ import ReportModal from "../../Component/Moderation/ReportModal";
 // connection_request_migration.sql that added the pending/accepted
 // status column).
 import { supabase } from "../../config/supabase";
+// NEW: attached-song mini player — shown when a post carries `song`
+// ({ title, artist, cover, url }), same component used in Video.jsx /
+// Reels.jsx / PostComposer.jsx.
+import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
 
 const REACTIONS = [
   { key: "like", emoji: "👍", label: "Like", color: "#1877f2" },
@@ -390,6 +394,11 @@ const PostCard = ({
   const [editImages, setEditImages] = useState(
     post.image_urls || (post.image_url ? [post.image_url] : []),
   );
+  // NEW: editable location while editing a post — song is intentionally
+  // NOT re-pickable here (kept from creation), but the location can be
+  // cleared, matching how a Facebook "check-in" can be removed from an
+  // existing post via Edit.
+  const [editLocation, setEditLocation] = useState(post.location_name || "");
   const [showEditEmoji, setShowEditEmoji] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -737,6 +746,7 @@ const PostCard = ({
     setEditText(post.text || "");
     setEditPrivacy(post.privacy || "public");
     setEditImages(post.image_urls || (post.image_url ? [post.image_url] : []));
+    setEditLocation(post.location_name || "");
     setIsEditing(true);
     setShowMenu(false);
   };
@@ -759,6 +769,7 @@ const PostCard = ({
         privacy: editPrivacy,
         image_url: editImages[0] || null,
         image_urls: editImages.length > 0 ? editImages : null,
+        location_name: editLocation || null,
       });
       setIsEditing(false);
     } finally {
@@ -882,6 +893,14 @@ const PostCard = ({
                 <span className="pf-card-feeling">
                   {" "}
                   — feeling {post.feeling}
+                </span>
+              )}
+              {/* NEW: Facebook-style "— at <place>" check-in, shown
+                  alongside "— feeling X" in the author line. */}
+              {post.location_name && (
+                <span className="pf-card-feeling">
+                  {" "}
+                  — at <b>{post.location_name}</b>
                 </span>
               )}
             </p>
@@ -1025,6 +1044,34 @@ const PostCard = ({
               </div>
             )}
 
+            {/* NEW: attached song shown read-only while editing — song
+                itself isn't re-pickable here, only removable via the
+                original post's own attachment card if you want that
+                supported later. */}
+            {post.song && (
+              <SongAttachmentCard song={post.song} />
+            )}
+
+            {/* NEW: editable location — can be cleared during edit. */}
+            {editLocation && (
+              <div
+                style={{
+                  marginTop: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                <span className="pf-feeling-badge">📍 at {editLocation}</span>
+                <span
+                  style={{ cursor: "pointer", color: "#b08585", fontSize: "12px" }}
+                  onClick={() => setEditLocation("")}
+                >
+                  ✕ remove
+                </span>
+              </div>
+            )}
+
             <div style={{ marginTop: "10px" }}>
               <select
                 className="pf-privacy-select"
@@ -1060,6 +1107,10 @@ const PostCard = ({
           </div>
         ) : (
           <div className="pf-card-body">
+            {/* NEW: attached song — shown above the post text, same as
+                Facebook's "🎵 Song — Artist" attachment card. */}
+            {post.song && <SongAttachmentCard song={post.song} />}
+
             {post.text && (
               <p className="pf-card-text">
                 <ExpandableText text={post.text} maxChars={220} />

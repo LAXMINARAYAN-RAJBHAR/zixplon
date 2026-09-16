@@ -16,6 +16,10 @@ import ReportModal from "../../Component/Moderation/ReportModal";
 import ExpandableText from "../../Component/ExpandableText/ExpandableText";
 import AdSlot from "../../Component/Ads/AdSlot";
 import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
+// NEW: attached-song mini player — shown when a video carries `song`
+// ({ title, artist, cover, url }), same component used in PostCard.jsx /
+// Reels.jsx / PostComposer.jsx / VideoUpload.jsx.
+import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
 // NOTE: notifyUser() is no longer imported/used anywhere in this file.
 // Like/comment notifications are owned by the notify_on_like /
 // notify_on_comment DB triggers (client-side calls were removed earlier
@@ -513,6 +517,12 @@ const Video = ({ sideNavbar }) => {
             tags: [v.category || "All"],
             description: v.description || "",
             created_at: v.created_at,
+            // NEW: attached song ({ title, artist, cover, url }) and
+            // location name — requires:
+            //   alter table videos add column song jsonb;
+            //   alter table videos add column location_name text;
+            song: v.song || null,
+            location_name: v.location_name || null,
             isDb: true,
           })),
         );
@@ -1459,6 +1469,23 @@ const Video = ({ sideNavbar }) => {
         <div className="video_youtubeAbout">
           <div className="video_uTubeTitle">{video.title}</div>
 
+          {/* NEW: location badge, shown right under the title — mirrors
+              the "📍 at <place>" check-in shown on PostCard.jsx and the
+              reel info block in Reels.jsx. */}
+          {video.location_name && (
+            <div
+              style={{
+                color: "#8b84c4",
+                fontSize: "12px",
+                fontWeight: 700,
+                marginTop: "4px",
+                fontFamily: "'Nunito', sans-serif",
+              }}
+            >
+              📍 {video.location_name}
+            </div>
+          )}
+
           <div
             style={{
               display: "flex",
@@ -1537,6 +1564,10 @@ const Video = ({ sideNavbar }) => {
               )}
             </div>
           </div>
+
+          {/* NEW: attached song — shown as a playable mini-card, same
+              component used on PostCard.jsx / Reels.jsx / composers. */}
+          {video.song && <SongAttachmentCard song={video.song} />}
 
           {shareToast && (
             <div

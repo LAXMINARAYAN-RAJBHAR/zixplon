@@ -308,3 +308,28 @@ html, body {
 
 /* ── Attach trigger buttons (composer footer) ── */
 .map-attach-trigger-wrap { position: relative; display: inline-flex; }
+
+/* ── Region filter chips (Bollywood/Hollywood/regional search) ── */
+.map-region-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.map-region-chip {
+  background: #fef2f2;
+  border: 1.5px solid #fbd5d5;
+  color: #7a3a3a;
+  font-family: 'Nunito', sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.map-region-chip.active {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}

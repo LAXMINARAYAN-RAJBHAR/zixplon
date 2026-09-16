@@ -4,9 +4,7 @@ import { supabase } from "../../config/supabase";
 import "./MediaAttachPickers.css";
 
 // Fallback catalog — used only if the `songs` table doesn't exist yet
-// AND no search term has been typed. Once the user types anything,
-// iTunes search takes over (see searchItunes below), so this list no
-// longer caps how much music is reachable.
+// AND no search term has been typed.
 const FALLBACK_SONGS = [
   { title: "Sunny Days", artist: "Lo-Fi Collective", cover: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=100&q=60", url: "https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg" },
   { title: "Night Drive", artist: "Synthwave Kid", cover: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=100&q=60", url: "https://actions.google.com/sounds/v1/ambiences/light_rain.ogg" },
@@ -14,19 +12,32 @@ const FALLBACK_SONGS = [
   { title: "Street Beat", artist: "DJ Nova", cover: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=100&q=60", url: "https://actions.google.com/sounds/v1/ambiences/city_traffic.ogg" },
 ];
 
-const PANEL_MAX_HEIGHT = 320; // must match .map-picker's max-height in CSS
-const VIEWPORT_MARGIN = 12;   // breathing room from the screen edge
-const PAGE_SIZE = 20;         // rows fetched per Supabase "trending" page
+const PANEL_MAX_HEIGHT = 320;
+const VIEWPORT_MARGIN = 12;
+const PAGE_SIZE = 20;
 const ITUNES_SEARCH_URL = "https://itunes.apple.com/search";
 
-// NEW: unlimited catalog search. Apple's Search API is free, needs no
-// key, allows CORS from the browser, and returns a 30s previewUrl per
-// track — a direct drop-in for the { title, artist, cover, url } shape
-// this component already uses everywhere else (rows, preview button,
-// SongAttachmentCard, etc).
-const searchItunes = async (term) => {
+// NEW: region presets. `country` picks the iTunes storefront (this is
+// what actually gates Bollywood/regional availability — it was
+// silently defaulting to "us" before). `hint` is an optional keyword
+// appended to the user's query to nudge results toward a language,
+// since iTunes' API has no direct language filter.
+const REGIONS = [
+  { id: "bollywood", label: "🇮🇳 Bollywood", country: "in", hint: "" },
+  { id: "hollywood", label: "🇺🇸 Hollywood", country: "us", hint: "" },
+  { id: "punjabi",   label: "Punjabi",        country: "in", hint: "punjabi" },
+  { id: "tamil",     label: "Tamil",          country: "in", hint: "tamil" },
+  { id: "telugu",    label: "Telugu",         country: "in", hint: "telugu" },
+];
+
+// NEW: unlimited catalog search, now storefront-aware. Same free,
+// no-key, CORS-enabled Apple endpoint as before — the only change is
+// the `country` param, which is what actually unlocks Bollywood and
+// regional Indian results instead of the US-only catalog.
+const searchItunes = async (term, country) => {
+  const q = term.trim();
   const res = await fetch(
-    `${ITUNES_SEARCH_URL}?term=${encodeURIComponent(term)}&media=music&limit=25`,
+    `${ITUNES_SEARCH_URL}?term=${encodeURIComponent(q)}&country=${country}&media=music&limit=25`,
   );
   const data = await res.json();
   return (data.results || [])
@@ -41,6 +52,11 @@ const searchItunes = async (term) => {
 
 const MusicPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) => {
   const [query, setQuery] = useState("");
+  // NEW: defaults to Bollywood/India storefront, since that's the
+  // catalog missing before — pick whichever default suits your userbase.
+  const [regionId, setRegionId] = useState("bollywood");
+  const region = REGIONS.find((r) => r.id === regionId);
+
   const [songs, setSongs] = useState(FALLBACK_SONGS);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -49,9 +65,6 @@ const MusicPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) =
   const ref = useRef(null);
   const listRef = useRef(null);
 
-  // NEW: pagination state for the no-search "trending" view, and a flag
-  // for whether we're currently showing search results (which are
-  // never paginated — a fresh query just replaces the list).
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [usingFallback, setUsingFallback] = useState(false);
@@ -79,7 +92,6 @@ const MusicPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) =
     setPanelMaxHeight(Math.max(160, Math.min(PANEL_MAX_HEIGHT, available)));
   }, [position]);
 
-  // ── Trending/browse page loader (Supabase "songs" table) ──
   const loadPage = useCallback(async (pageNum) => {
     try {
       const from = pageNum * PAGE_SIZE;
@@ -93,8 +105,6 @@ const MusicPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) =
       if (error || !data) throw error || new Error("no data");
 
       if (data.length === 0 && pageNum === 0) {
-        // Table exists but is empty — nothing to paginate; keep the
-        // static fallback list so the picker isn't blank.
         setUsingFallback(true);
         setSongs(FALLBACK_SONGS);
         setHasMore(false);
@@ -112,8 +122,6 @@ const MusicPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) =
       setSongs((prev) => (pageNum === 0 ? mapped : [...prev, ...mapped]));
       setHasMore(data.length === PAGE_SIZE);
     } catch (_) {
-      // Table may not exist yet — fall back to the static list, and
-      // don't try to paginate further.
       if (pageNum === 0) {
         setUsingFallback(true);
         setSongs(FALLBACK_SONGS);
@@ -129,13 +137,16 @@ const MusicPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) =
     loadPage(0);
   }, [loadPage]);
 
-  // ── Search (debounced) — switches the list to iTunes results ──
+  // ── Search (debounced) — re-runs on query OR region change, since
+  // switching region should re-search with the new storefront/hint
+  // immediately if there's already a query typed. ──
   useEffect(() => {
-    if (!isSearching) return; // empty query: trending list above handles it
+    if (!isSearching) return;
     setLoading(true);
     const t = setTimeout(async () => {
       try {
-        const results = await searchItunes(query.trim());
+        const term = region.hint ? `${query.trim()} ${region.hint}` : query.trim();
+        const results = await searchItunes(term, region.country);
         setSongs(results);
       } catch (_) {
         setSongs([]);
@@ -144,11 +155,8 @@ const MusicPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) =
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [query, isSearching]);
+  }, [query, isSearching, regionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // NEW: infinite scroll — only active for the trending (non-search,
-  // non-fallback) list, since search results are a fixed batch and the
-  // static fallback has nothing more to fetch.
   const handleScroll = () => {
     if (isSearching || usingFallback || loadingMore || !hasMore) return;
     const el = listRef.current;
@@ -186,9 +194,6 @@ const MusicPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) =
     setPlayingUrl(url);
   };
 
-  // When browsing the trending list (not searching), client-side filter
-  // is no longer needed — pagination + the query itself now drives what
-  // shows. `songs` already IS the right list for either mode.
   const filtered = songs;
 
   return (
@@ -197,9 +202,24 @@ const MusicPicker = ({ onSelect, onClose, anchor = "left", position = "top" }) =
       className={`map-picker map-picker--${anchor} map-picker-${resolvedPosition}`}
       style={{ maxHeight: panelMaxHeight }}
     >
+      {/* NEW: region chips — only meaningful while searching, since the
+          empty-state trending list still comes from Supabase, not iTunes. */}
+      <div className="map-region-chips">
+        {REGIONS.map((r) => (
+          <button
+            key={r.id}
+            type="button"
+            className={`map-region-chip${regionId === r.id ? " active" : ""}`}
+            onClick={() => setRegionId(r.id)}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
+
       <input
         className="map-picker-search"
-        placeholder="Search any song or artist…"
+        placeholder={`Search ${region.label.replace(/^\S+\s/, "")} songs or artists…`}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         autoFocus

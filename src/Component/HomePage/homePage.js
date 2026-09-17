@@ -652,6 +652,10 @@ const HomeImageGrid = ({ images }) => {
 // content_type: "post" entries in viewCounts, keyed "post_<id>". A post
 // card counts as "viewed" once it's scrolled ≥60% into view, exactly
 // like ShortCard's reel-view tracking below.
+//
+// NEW: also surfaces feeling / song / location_name — the same
+// attachments PostComposer.jsx saves onto every post row, which this
+// card previously never read at all.
 // ─────────────────────────────────────────────────────────────────────────────
 const PostCard = ({
   post,
@@ -717,6 +721,12 @@ const PostCard = ({
     return () => observer.disconnect();
   }, [post.id, incrementView]);
 
+  // NEW: whether any of feeling/song/location exist, so the extras row
+  // only renders (and only takes up card space) when there's something
+  // to show — mirrors the same fields PostComposer.jsx writes onto the
+  // post row (post.feeling, post.song, post.location_name).
+  const hasExtras = !!(post.feeling || post.song || post.location_name);
+
   return (
     <Link
       ref={cardRef}
@@ -765,6 +775,32 @@ const PostCard = ({
         <p className="homePage_postCaption">
   {post.text ? linkifyText(post.text, { disableLinks: true, boldClassName: "homePage_postBold" }) : "View post"}
 </p>
+
+        {/* NEW: feeling / song / location — same data PostComposer.jsx
+            saves (post.feeling, post.song, post.location_name), which
+            this card previously never rendered at all. Each line is
+            independently optional. */}
+        {hasExtras && (
+          <div className="homePage_postExtras">
+            {post.feeling && (
+              <span className="homePage_postExtraChip">
+                — feeling {post.feeling}
+              </span>
+            )}
+            {post.song && (
+              <span className="homePage_postExtraChip">
+                🎵 {post.song.title}
+                {post.song.artist ? ` · ${post.song.artist}` : ""}
+              </span>
+            )}
+            {post.location_name && (
+              <span className="homePage_postExtraChip">
+                📍 {post.location_name}
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="homePage_postFooter">
           <p className="homePage_postUser">@{post.username}</p>
           <span className="homePage_postStats">

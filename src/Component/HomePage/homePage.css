@@ -1719,3 +1719,23 @@
   color: inherit;
   font-weight: 800;
 }
+
+/* ── Post extras: feeling / song / location, shown on the Homepage's
+   PostCard grid (see PostCard in homePage.js). Each chip truncates
+   independently so a long song title or place name can't push the
+   others off the card or blow out its fixed height. ── */
+.homePage_postExtras {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 6px;
+}
+.homePage_postExtraChip {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--zx-primary2);
+  font-family: 'Nunito', sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

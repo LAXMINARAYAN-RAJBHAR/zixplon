@@ -656,6 +656,15 @@ const HomeImageGrid = ({ images }) => {
 // NEW: also surfaces feeling / song / location_name — the same
 // attachments PostComposer.jsx saves onto every post row, which this
 // card previously never read at all.
+//
+// NEW: also surfaces post.link — the YouTube/Facebook/etc. link-preview
+// object PostComposer.jsx's fetchLinkPreview() saves (shape:
+// { url, domain, title, desc, image }). Previously a link-only post (no
+// images, no video) fell straight through to the plain caption-text
+// fallback box below, showing a blank-looking solid color card instead
+// of the link's own thumbnail — this is what the Posts tab already
+// avoided by rendering .pf-link-preview, which this card had no
+// equivalent of at all.
 // ─────────────────────────────────────────────────────────────────────────────
 const PostCard = ({
   post,
@@ -683,6 +692,11 @@ const PostCard = ({
     !!previewSrc,
   );
   const showPreview = isPreviewing && !!previewSrc;
+
+  // NEW: link-preview object saved by PostComposer.jsx's link attach
+  // flow. Only relevant as a thumbnail source when there's no image and
+  // no video — images/video always take priority, same as the Posts tab.
+  const hasLink = !hasImages && !post.video_url && !!post.link;
 
   // Per-post counts — NOT a site-wide total. Sourced from the
   // post_reactions/post_comments joined onto each post row in
@@ -721,11 +735,12 @@ const PostCard = ({
     return () => observer.disconnect();
   }, [post.id, incrementView]);
 
-  // NEW: whether any of feeling/song/location exist, so the extras row
-  // only renders (and only takes up card space) when there's something
-  // to show — mirrors the same fields PostComposer.jsx writes onto the
-  // post row (post.feeling, post.song, post.location_name).
-  const hasExtras = !!(post.feeling || post.song || post.location_name);
+  // NEW: whether any of feeling/song/location/link exist, so the extras
+  // row only renders (and only takes up card space) when there's
+  // something to show — mirrors the same fields PostComposer.jsx writes
+  // onto the post row (post.feeling, post.song, post.location_name,
+  // post.link).
+  const hasExtras = !!(post.feeling || post.song || post.location_name || post.link);
 
   return (
     <Link
@@ -764,22 +779,46 @@ const PostCard = ({
             muted
             preload="metadata"
           />
+        ) : hasLink ? (
+          // NEW: link-only post — use the saved link preview's own
+          // image (YouTube thumbnail, Facebook OG image, etc.) as the
+          // card thumbnail. Falls back to a domain/title chip if the
+          // link preview has no image (e.g. the fetch failed and
+          // PostComposer.jsx's catch-block placeholder was saved).
+          post.link.image ? (
+            <img
+              src={post.link.image}
+              alt=""
+              className="homePage_postThumbImg"
+              loading="lazy"
+            />
+          ) : (
+            <div className="homePage_postLinkThumb">
+              <span className="homePage_postLinkThumbDomain">
+                🔗 {post.link.domain || "Link"}
+              </span>
+              <span className="homePage_postLinkThumbTitle">
+                {post.link.title || post.link.url}
+              </span>
+            </div>
+          )
         ) : (
           <div className="homePage_postThumbText">
   <p>{linkifyText(post.text, { disableLinks: true, boldClassName: "homePage_postBold" })}</p>
 </div>
         )}
-        <span className="homePage_postBadge">📝 Post</span>
+        <span className="homePage_postBadge">
+          {hasLink ? "🔗 Link" : "📝 Post"}
+        </span>
       </div>
       <div className="homePage_postMeta">
         <p className="homePage_postCaption">
   {post.text ? linkifyText(post.text, { disableLinks: true, boldClassName: "homePage_postBold" }) : "View post"}
 </p>
 
-        {/* NEW: feeling / song / location — same data PostComposer.jsx
-            saves (post.feeling, post.song, post.location_name), which
-            this card previously never rendered at all. Each line is
-            independently optional. */}
+        {/* NEW: feeling / song / location / link domain — same data
+            PostComposer.jsx saves, which this card previously never
+            rendered at all. Each line is independently optional. */}
         {hasExtras && (
           <div className="homePage_postExtras">
             {post.feeling && (
@@ -796,6 +835,11 @@ const PostCard = ({
             {post.location_name && (
               <span className="homePage_postExtraChip">
                 📍 {post.location_name}
+              </span>
+            )}
+            {post.link && (
+              <span className="homePage_postExtraChip">
+                🔗 {post.link.domain || post.link.title || "Link"}
               </span>
             )}
           </div>

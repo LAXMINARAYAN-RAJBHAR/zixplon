@@ -361,6 +361,12 @@ const ReelItem = ({ reel, allReels }) => {
   const [showCommentEmoji, setShowCommentEmoji] = useState(false);
   const [showReplyEmoji, setShowReplyEmoji]     = useState(false);
 
+  // NEW: hidden <audio> element for an attached song, kept in lockstep
+  // with the reel's own play/pause/mute state — see the sync effects
+  // below.
+  const songAudioRef = useRef(null);
+  const [songPlaying, setSongPlaying] = useState(false);
+
   const quality = useNetworkQuality();
 
   useEffect(() => {
@@ -543,6 +549,35 @@ const ReelItem = ({ reel, allReels }) => {
     return () => video.removeEventListener("timeupdate", handleTimeUpdate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reel.src]);
+
+  // NEW: mirror the reel video's isPlaying state onto the attached
+  // song's <audio> element, so background music autoplays with the
+  // reel and stops the instant the reel pauses (tap-to-pause,
+  // scrolling away, etc. — all of those already flow through
+  // setIsPlaying elsewhere in this component, which is what makes this
+  // single effect enough to cover every play/pause path).
+  useEffect(() => {
+    const audio = songAudioRef.current;
+    if (!audio || !reel.song) return;
+
+    if (isPlaying) {
+      audio.muted = muted;
+      audio.play().catch(() => {});
+      setSongPlaying(true);
+    } else {
+      audio.pause();
+      setSongPlaying(false);
+    }
+  }, [isPlaying, reel.song, muted]);
+
+  // NEW: reset the song to the start whenever this reel pauses (scrolls
+  // out of view, tapped to pause, etc.) — keeps the song from drifting
+  // out of sync with the video across repeated views of the same reel.
+  useEffect(() => {
+    if (!isPlaying && songAudioRef.current) {
+      songAudioRef.current.currentTime = 0;
+    }
+  }, [isPlaying]);
 
   // ── Connect / Withdraw-Disconnect — now wired identically to
   //    PostCard.jsx and Video.jsx: dispatch "openLogin" instead of
@@ -895,6 +930,7 @@ const ReelItem = ({ reel, allReels }) => {
       clearTimeout(tapTimeoutRef.current);
       clearTimeout(muteBtnTimerRef.current);
       if (videoRef.current) { videoRef.current.pause(); videoRef.current.src = ""; }
+      if (songAudioRef.current) { songAudioRef.current.pause(); }
     };
   }, []);
 
@@ -963,6 +999,7 @@ const ReelItem = ({ reel, allReels }) => {
     const newMuted = !globalMuted;
     setGlobalMuted(newMuted);
     if (videoRef.current) videoRef.current.muted = newMuted;
+    if (songAudioRef.current) songAudioRef.current.muted = newMuted;
     setShowMuteBtn(true);
     clearTimeout(muteBtnTimerRef.current);
     muteBtnTimerRef.current = setTimeout(() => setShowMuteBtn(false), 3000);
@@ -1079,6 +1116,19 @@ const ReelItem = ({ reel, allReels }) => {
             <source src={getAdaptiveVideoSrc(reel.src, quality)} type={getVideoType(reel.src)} />
             Your browser does not support this video.
           </video>
+        )}
+
+        {/* NEW: hidden audio element for the attached song — playback
+            driven entirely by the isPlaying sync effect above, never
+            played/paused directly from JSX here. */}
+        {reel.song && (
+          <audio
+            ref={songAudioRef}
+            src={reel.song.url}
+            loop
+            preload="auto"
+            style={{ display: "none" }}
+          />
         )}
 
         {!isYouTube(reel.src) && showIcon       && <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>}
@@ -1445,6 +1495,17 @@ const ReelItem = ({ reel, allReels }) => {
     toggleClassName="reel_description_toggle"
   />
 </div>
+
+          {/* NEW: optional full song card in the bottom info block, in
+              addition to the top-left "now playing" ticker — gives a
+              tap-friendly title/artist readout with the equalizer
+              animation. Remove this block if the ticker alone is
+              enough. */}
+          {reel.song && (
+            <div style={{ marginTop: "8px", maxWidth: "260px" }}>
+              <SongAttachmentCard song={reel.song} synced isPlaying={songPlaying} />
+            </div>
+          )}
         </div>
 
       </div>

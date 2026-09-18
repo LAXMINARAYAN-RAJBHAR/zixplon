@@ -2,19 +2,38 @@
 import React, { useRef, useState, useEffect } from "react";
 import "./MediaAttachPickers.css";
 
-// Reusable mini audio player for an attached song — used in PostCard,
-// Video.jsx, and Reels.jsx. `compact` renders as a small pill (good for
-// composer previews / reel overlays); default renders the full card.
-const SongAttachmentCard = ({ song, onRemove }) => {
+// Reusable mini "attached song" card — used in PostCard, Video.jsx, and
+// Reels.jsx.
+//
+// Two modes:
+//  - Standalone (default): manages its own <audio> element, tappable
+//    play/pause button. Used on Posts, where there's no host video to
+//    sync against.
+//  - Synced (`synced` prop true): the PARENT owns an <audio> element and
+//    controls actual playback (kept in lockstep with the host video's
+//    play/pause/mute state, so the song autoplays along with the video/
+//    reel). This card just reflects that state visually — `isPlaying`
+//    is passed in, and the tappable play button is replaced with a
+//    plain music-note indicator since tapping it wouldn't control
+//    anything by itself.
+const SongAttachmentCard = ({
+  song,
+  onRemove,
+  synced = false,
+  isPlaying: externalIsPlaying = false,
+}) => {
   const [playing, setPlaying] = useState(false);
   const audioRef = useRef(null);
 
-  useEffect(() => () => audioRef.current?.pause(), []);
+  useEffect(() => {
+    if (synced) return;
+    return () => audioRef.current?.pause();
+  }, [synced]);
 
   if (!song) return null;
 
   const toggle = () => {
-    if (!audioRef.current) return;
+    if (synced || !audioRef.current) return;
     if (playing) {
       audioRef.current.pause();
       setPlaying(false);
@@ -24,34 +43,49 @@ const SongAttachmentCard = ({ song, onRemove }) => {
     }
   };
 
+  const active = synced ? externalIsPlaying : playing;
+
   return (
     <div className="map-song-attachment">
-      <audio
-        ref={audioRef}
-        src={song.url}
-        onEnded={() => setPlaying(false)}
-        preload="none"
-      />
+      {!synced && (
+        <audio
+          ref={audioRef}
+          src={song.url}
+          onEnded={() => setPlaying(false)}
+          preload="none"
+        />
+      )}
       {song.cover ? (
         <img src={song.cover} alt="" className="map-song-attachment-cover" />
       ) : (
         <div className="map-song-cover-fallback">🎵</div>
       )}
-      <button
-        type="button"
-        className="map-song-attachment-play"
-        onClick={toggle}
-        aria-label={playing ? "Pause" : "Play"}
-      >
-        {playing ? "⏸" : "▶"}
-      </button>
+      {synced ? (
+        <div
+          className="map-song-attachment-play map-song-attachment-play--static"
+          aria-label="Attached song"
+        >
+          🎵
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="map-song-attachment-play"
+          onClick={toggle}
+          aria-label={playing ? "Pause" : "Play"}
+        >
+          {playing ? "⏸" : "▶"}
+        </button>
+      )}
       <div className="map-song-attachment-info">
         <div className="map-song-attachment-title">{song.title}</div>
         <div className="map-song-attachment-artist">{song.artist}</div>
       </div>
-      {playing && (
+      {active && (
         <div className="map-song-attachment-eq">
-          <span /><span /><span />
+          <span />
+          <span />
+          <span />
         </div>
       )}
       {onRemove && (

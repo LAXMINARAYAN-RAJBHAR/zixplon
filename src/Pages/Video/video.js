@@ -406,6 +406,13 @@ const Video = ({ sideNavbar }) => {
   // fullscreening the <video> alone only shows the video and native chrome.
   const playerWrapperRef = useRef(null);
 
+  // NEW: hidden <audio> element for an attached song, kept in lockstep
+  // with the video's own play/pause/mute state so it "autoplays along
+  // with" the video rather than being a separate manual preview — see
+  // the sync effect below.
+  const songAudioRef = useRef(null);
+  const [songPlaying, setSongPlaying] = useState(false);
+
   // NEW: unique per-mount suffix for this page's connection-status
   // realtime channel (see the connection useEffect below). Supabase's
   // client REUSES a channel object whenever `.channel(name)` is called
@@ -1109,6 +1116,70 @@ const Video = ({ sideNavbar }) => {
     scrollToTopDeferred();
   }, [id]);
 
+  // NEW: reset/restart the attached song whenever the video changes.
+  // video.song is looked up fresh each render from `video`, so this
+  // just needs to reset playback position and let the play/pause
+  // listeners in the sync effect below take it from there.
+  useEffect(() => {
+    const audio = songAudioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    setSongPlaying(false);
+  }, [id]);
+
+  // NEW: mirror the <video>'s play/pause/volume state onto the attached
+  // song's <audio> element, so the two always start and stop together —
+  // the song autoplays along with the video and pauses when it does.
+  useEffect(() => {
+    const vid = videoRef.current;
+    const audio = songAudioRef.current;
+    if (!vid || !audio || !video?.song) return;
+
+    const syncPlay = () => {
+      audio.currentTime = 0;
+      audio.muted = vid.muted;
+      audio.volume = vid.volume;
+      audio.play().catch(() => {});
+      setSongPlaying(true);
+    };
+    const syncPause = () => {
+      audio.pause();
+      setSongPlaying(false);
+    };
+    const syncVolume = () => {
+      audio.muted = vid.muted;
+      audio.volume = vid.volume;
+    };
+    const syncEnd = () => {
+      audio.pause();
+      audio.currentTime = 0;
+      setSongPlaying(false);
+    };
+    const syncSeek = () => {
+      audio.currentTime = 0;
+    };
+
+    vid.addEventListener("play", syncPlay);
+    vid.addEventListener("pause", syncPause);
+    vid.addEventListener("volumechange", syncVolume);
+    vid.addEventListener("ended", syncEnd);
+    vid.addEventListener("seeked", syncSeek);
+
+    // If the video is already playing by the time this effect attaches
+    // (e.g. autoplay fired before the listener was registered), catch up.
+    if (!vid.paused) syncPlay();
+
+    return () => {
+      vid.removeEventListener("play", syncPlay);
+      vid.removeEventListener("pause", syncPause);
+      vid.removeEventListener("volumechange", syncVolume);
+      vid.removeEventListener("ended", syncEnd);
+      vid.removeEventListener("seeked", syncSeek);
+      audio.pause();
+    };
+  }, [video?.id, video?.song]);
+
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid || !video?.src?.includes("cloudinary.com")) return;
@@ -1350,6 +1421,19 @@ const Video = ({ sideNavbar }) => {
             Your browser does not support the video tag.
           </video>
 
+          {/* NEW: hidden audio element for the attached song — playback
+              is entirely driven by the sync effect above, so this
+              element is never played/paused directly from JSX. */}
+          {video.song && (
+            <audio
+              ref={songAudioRef}
+              src={video.song.url}
+              loop
+              preload="auto"
+              style={{ display: "none" }}
+            />
+          )}
+
           {/* Double-tap-to-like overlay — sits above the video, below the
                 controls bar & floating action buttons. A single tap/click
                 toggles play/pause; a double tap/click likes the video and
@@ -1565,9 +1649,13 @@ const Video = ({ sideNavbar }) => {
             </div>
           </div>
 
-          {/* NEW: attached song — shown as a playable mini-card, same
-              component used on PostCard.jsx / Reels.jsx / composers. */}
-          {video.song && <SongAttachmentCard song={video.song} />}
+          {/* NEW: attached song — synced to the video's own play/pause/
+              mute state (see the sync effect above), so this card only
+              reflects status; it no longer has its own independent play
+              button here. */}
+          {video.song && (
+            <SongAttachmentCard song={video.song} synced isPlaying={songPlaying} />
+          )}
 
           {shareToast && (
             <div

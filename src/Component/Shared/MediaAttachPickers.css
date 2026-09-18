@@ -333,3 +333,11 @@ html, body {
   border-color: #dc2626;
   color: #fff;
 }
+
+.map-song-attachment-play--static {
+  cursor: default;
+  font-size: 14px;
+}
+.map-song-attachment-play--static:hover {
+  transform: none;
+}

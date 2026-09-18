@@ -1474,6 +1474,20 @@ const ReelItem = ({ reel, allReels }) => {
                 📍 {reel.location_name}
               </span>
             )}
+            {/* NEW: feeling, shown right after location — same "—
+                feeling X" badge as PostCard.jsx / Video.jsx. */}
+            {reel.feeling && (
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: "#fff",
+                  opacity: 0.85,
+                  fontWeight: 700,
+                }}
+              >
+                — feeling {reel.feeling}
+              </span>
+            )}
             {/* CHANGED: three-state label (Connect / Requested / ✓
                 Connected), same as PostCard.jsx and Video.jsx. */}
             {loggedInUser !== reel.username && (
@@ -1551,12 +1565,14 @@ const Reels = () => {
             created_at:            r.created_at  || null,
             remixed_from_id:       r.remixed_from_id       || null,
             remixed_from_username: r.remixed_from_username || null,
-            // NEW: attached song ({ title, artist, cover, url }) and
-            // location name — requires:
+            // NEW: attached song ({ title, artist, cover, url }),
+            // location name, and feeling — requires:
             //   alter table reels add column song jsonb;
             //   alter table reels add column location_name text;
+            //   alter table reels add column feeling text;
             song:          r.song || null,
             location_name: r.location_name || null,
+            feeling:       r.feeling || null,
           }))
         );
       }
@@ -1584,10 +1600,12 @@ const Reels = () => {
           created_at:            r.created_at  || null,
           remixed_from_id:       r.remixed_from_id       || null,
           remixed_from_username: r.remixed_from_username || null,
-          // NEW: same song/location fields, kept in sync for realtime
-          // INSERTs (new reels posted while the Reels page is open).
+          // NEW: same song/location/feeling fields, kept in sync for
+          // realtime INSERTs (new reels posted while the Reels page is
+          // open).
           song:          r.song || null,
           location_name: r.location_name || null,
+          feeling:       r.feeling || null,
         }, ...prev]);
       })
       .subscribe();

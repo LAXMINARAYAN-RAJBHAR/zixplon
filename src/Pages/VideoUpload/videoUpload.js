@@ -22,6 +22,13 @@ const INITIAL_FIELDS = {
   videoType: "",
 };
 
+// NEW: same feeling list Posts use (PostComposer.jsx), reused here so
+// Videos/Reels can attach a "— feeling X" badge the same way a Post can.
+const FEELINGS = [
+  "Happy 😊", "Excited 🤩", "Grateful 🙏", "Blessed ✨",
+  "Motivated 💪", "Tired 😴", "Loved ❤️", "Proud 🎉",
+];
+
 const resolveFeature = (state) => {
   if (!state) return { mode: null, data: null };
   if (state.remixData)       return { mode: "remix",       data: state.remixData };
@@ -105,6 +112,12 @@ const VideoUpload = () => {
   const [showMusicPicker, setShowMusicPicker] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
+  // NEW: "feeling" attachment — same idea, same FEELINGS list used by
+  // Posts, so a video/reel can say "— feeling Happy 😊" the same way a
+  // Post can.
+  const [feeling, setFeeling] = useState("");
+  const [showFeelings, setShowFeelings] = useState(false);
+
   const uploadStartTime  = useRef(null);
   const uploadedBytesRef = useRef(0);
   const durationRef      = useRef("00:00");
@@ -156,6 +169,8 @@ const VideoUpload = () => {
     setLocationName(null);
     setShowMusicPicker(false);
     setShowLocationPicker(false);
+    setFeeling("");
+    setShowFeelings(false);
     uploadStartTime.current  = null;
     uploadedBytesRef.current = 0;
     durationRef.current      = "00:00";
@@ -578,8 +593,10 @@ const VideoUpload = () => {
           // NEW — requires:
           //   alter table videos add column song jsonb;
           //   alter table videos add column location_name text;
+          //   alter table videos add column feeling text;
           song:          song || null,
           location_name: locationName || null,
+          feeling:       feeling || null,
         };
 
         const { data: newVideo, error: videoError } = await supabase
@@ -609,8 +626,10 @@ const VideoUpload = () => {
           // NEW — requires:
           //   alter table reels add column song jsonb;
           //   alter table reels add column location_name text;
+          //   alter table reels add column feeling text;
           song:          song || null,
           location_name: locationName || null,
+          feeling:       feeling || null,
         };
 
         if (featureMode === "remix" && featureData) {
@@ -681,8 +700,9 @@ const VideoUpload = () => {
             {uploadMode === "video" && !isFeatureMode ? `${inputField.videoType} • ` : ""}
             {inputField.description}
           </p>
-          {(song || locationName) && (
+          {(song || locationName || feeling) && (
             <p className="upload_success_meta" style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+              {feeling && <span>— feeling {feeling}</span>}
               {song && <span>🎵 {song.title} · {song.artist}</span>}
               {locationName && <span>📍 {locationName}</span>}
             </p>
@@ -770,9 +790,9 @@ const VideoUpload = () => {
             />
           )}
 
-          {/* NEW: Music + Location attachments — shown for both Video
-              and Reel modes (and feature modes, since they share this
-              form). */}
+          {/* NEW: Music + Location + Feeling attachments — shown for
+              both Video and Reel modes (and feature modes, since they
+              share this form). */}
           <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "8px" }}>
             {song && (
               <SongAttachmentCard song={song} onRemove={() => setSong(null)} />
@@ -793,6 +813,27 @@ const VideoUpload = () => {
                 <span
                   style={{ cursor: "pointer", color: "var(--zx-text3)" }}
                   onClick={() => setLocationName(null)}
+                >
+                  ✕
+                </span>
+              </div>
+            )}
+            {feeling && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontFamily: "'Nunito', sans-serif",
+                  fontSize: "12.5px",
+                  fontWeight: 700,
+                  color: "var(--zx-primary)",
+                }}
+              >
+                — feeling {feeling}
+                <span
+                  style={{ cursor: "pointer", color: "var(--zx-text3)" }}
+                  onClick={() => setFeeling("")}
                 >
                   ✕
                 </span>
@@ -831,6 +872,38 @@ const VideoUpload = () => {
                     onSelect={(name) => setLocationName(name)}
                     onClose={() => setShowLocationPicker(false)}
                   />
+                )}
+              </div>
+
+              {/* NEW: Feeling picker trigger */}
+              <div className="map-attach-trigger-wrap">
+                <span
+                  className="upload_file_btn"
+                  onClick={() => setShowFeelings((v) => !v)}
+                >
+                  😊 {feeling ? "Change Feeling" : "Add Feeling"}
+                </span>
+                {showFeelings && (
+                  <div
+                    className="map-picker map-picker--left map-picker-bottom"
+                    style={{ padding: "10px" }}
+                  >
+                    <div className="pf-feelings-grid" style={{ margin: 0 }}>
+                      {FEELINGS.map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          className={`pf-feeling-btn ${feeling === f ? "active" : ""}`}
+                          onClick={() => {
+                            setFeeling(feeling === f ? "" : f);
+                            setShowFeelings(false);
+                          }}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

@@ -524,12 +524,14 @@ const Video = ({ sideNavbar }) => {
             tags: [v.category || "All"],
             description: v.description || "",
             created_at: v.created_at,
-            // NEW: attached song ({ title, artist, cover, url }) and
-            // location name — requires:
+            // NEW: attached song ({ title, artist, cover, url }),
+            // location name, and feeling — requires:
             //   alter table videos add column song jsonb;
             //   alter table videos add column location_name text;
+            //   alter table videos add column feeling text;
             song: v.song || null,
             location_name: v.location_name || null,
+            feeling: v.feeling || null,
             isDb: true,
           })),
         );
@@ -1553,10 +1555,9 @@ const Video = ({ sideNavbar }) => {
         <div className="video_youtubeAbout">
           <div className="video_uTubeTitle">{video.title}</div>
 
-          {/* NEW: location badge, shown right under the title — mirrors
-              the "📍 at <place>" check-in shown on PostCard.jsx and the
-              reel info block in Reels.jsx. */}
-          {video.location_name && (
+          {/* NEW: feeling + location line, shown right under the title —
+              mirrors the "— feeling X / 📍 at Y" combo on PostCard.jsx. */}
+          {(video.feeling || video.location_name) && (
             <div
               style={{
                 color: "#8b84c4",
@@ -1564,9 +1565,13 @@ const Video = ({ sideNavbar }) => {
                 fontWeight: 700,
                 marginTop: "4px",
                 fontFamily: "'Nunito', sans-serif",
+                display: "flex",
+                gap: "10px",
+                flexWrap: "wrap",
               }}
             >
-              📍 {video.location_name}
+              {video.feeling && <span>— feeling {video.feeling}</span>}
+              {video.location_name && <span>📍 {video.location_name}</span>}
             </div>
           )}
 

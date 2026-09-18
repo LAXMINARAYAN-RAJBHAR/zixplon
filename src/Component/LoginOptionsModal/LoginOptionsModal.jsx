@@ -1,11 +1,14 @@
 import React, { useState } from "react";
 import { supabase } from "../../config/supabase";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import "./LoginOptionsModal.css";
 
 export default function LoginOptionsModal({ onDismiss }) {
   const [mode, setMode] = useState("options"); // 'options' | 'email'
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -67,13 +70,29 @@ export default function LoginOptionsModal({ onDismiss }) {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div className="login-modal-password-wrap">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="login-modal-password-toggle"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                title={showPassword ? "Hide password" : "Show password"}
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <VisibilityOff sx={{ fontSize: "18px" }} />
+                ) : (
+                  <Visibility sx={{ fontSize: "18px" }} />
+                )}
+              </button>
+            </div>
             {error && <p className="login-modal-error">{error}</p>}
             <button type="submit" className="login-option-btn google" disabled={loading}>
               {loading ? "Signing in..." : "Sign In"}

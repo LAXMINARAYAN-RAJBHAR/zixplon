@@ -95,6 +95,40 @@
   color: #fff;
 }
 
+/* ── Password show/hide toggle ── */
+.login-modal-password-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.login-modal-password-wrap input {
+  padding-right: 40px;
+  margin-bottom: 0;
+}
+
+.login-modal-password-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #a894c9;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+}
+
+.login-modal-password-toggle:hover {
+  color: #f1f0f5;
+  background: rgba(168, 85, 247, 0.15);
+}
+
 .login-modal-error {
   color: #ff6b6b;
   font-size: 13px;

@@ -99,6 +99,7 @@
 .login-modal-password-wrap {
   position: relative;
   width: 100%;
+  margin-bottom: 12px;
 }
 
 .login-modal-password-wrap input {

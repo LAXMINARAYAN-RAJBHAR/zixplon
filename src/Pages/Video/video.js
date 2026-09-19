@@ -525,13 +525,17 @@ const Video = ({ sideNavbar }) => {
             description: v.description || "",
             created_at: v.created_at,
             // NEW: attached song ({ title, artist, cover, url }),
-            // location name, and feeling — requires:
+            // location name, feeling, and the creator's chosen mix
+            // between the original clip's own audio and the attached
+            // song — requires:
             //   alter table videos add column song jsonb;
             //   alter table videos add column location_name text;
             //   alter table videos add column feeling text;
+            //   alter table videos add column original_audio_volume numeric default 1;
             song: v.song || null,
             location_name: v.location_name || null,
             feeling: v.feeling || null,
+            original_audio_volume: v.original_audio_volume ?? 1,
             isDb: true,
           })),
         );
@@ -1130,18 +1134,34 @@ const Video = ({ sideNavbar }) => {
     setSongPlaying(false);
   }, [id]);
 
-  // NEW: mirror the <video>'s play/pause/volume state onto the attached
+  // NEW: mirror the <video>'s play/pause/mute state onto the attached
   // song's <audio> element, so the two always start and stop together —
   // the song autoplays along with the video and pauses when it does.
+  //
+  // CHANGED: this effect used to also mirror the video's VOLUME level
+  // onto the song (audio.volume = vid.volume), which meant the song
+  // always competed equally with whatever the video's own audio was
+  // doing. Now the video's volume is instead set to the creator's
+  // chosen mix (video.original_audio_volume, picked at upload time via
+  // the slider in VideoUpload.jsx) and the song always plays at full
+  // strength — so turning that mix down actually lets the attached
+  // song come through clearly instead of the two fighting for the same
+  // headroom. Only mute state is still mirrored, since muting the
+  // player should silence everything, mix setting notwithstanding.
   useEffect(() => {
     const vid = videoRef.current;
     const audio = songAudioRef.current;
     if (!vid || !audio || !video?.song) return;
 
+    // Apply the creator's mix: the original clip's own audio is pulled
+    // down (or left full) to whatever level they chose, while the song
+    // itself always plays at full strength.
+    vid.volume = video.original_audio_volume ?? 1;
+    audio.volume = 1;
+
     const syncPlay = () => {
       audio.currentTime = 0;
       audio.muted = vid.muted;
-      audio.volume = vid.volume;
       audio.play().catch(() => {});
       setSongPlaying(true);
     };
@@ -1149,9 +1169,8 @@ const Video = ({ sideNavbar }) => {
       audio.pause();
       setSongPlaying(false);
     };
-    const syncVolume = () => {
+    const syncMute = () => {
       audio.muted = vid.muted;
-      audio.volume = vid.volume;
     };
     const syncEnd = () => {
       audio.pause();
@@ -1164,7 +1183,7 @@ const Video = ({ sideNavbar }) => {
 
     vid.addEventListener("play", syncPlay);
     vid.addEventListener("pause", syncPause);
-    vid.addEventListener("volumechange", syncVolume);
+    vid.addEventListener("volumechange", syncMute);
     vid.addEventListener("ended", syncEnd);
     vid.addEventListener("seeked", syncSeek);
 
@@ -1175,12 +1194,12 @@ const Video = ({ sideNavbar }) => {
     return () => {
       vid.removeEventListener("play", syncPlay);
       vid.removeEventListener("pause", syncPause);
-      vid.removeEventListener("volumechange", syncVolume);
+      vid.removeEventListener("volumechange", syncMute);
       vid.removeEventListener("ended", syncEnd);
       vid.removeEventListener("seeked", syncSeek);
       audio.pause();
     };
-  }, [video?.id, video?.song]);
+  }, [video?.id, video?.song, video?.original_audio_volume]);
 
   useEffect(() => {
     const vid = videoRef.current;

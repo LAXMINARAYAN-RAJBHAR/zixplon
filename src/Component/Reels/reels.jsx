@@ -555,10 +555,14 @@ const ReelItem = ({ reel, allReels }) => {
   // reel and stops the instant the reel pauses (tap-to-pause,
   // scrolling away, etc. — all of those already flow through
   // setIsPlaying elsewhere in this component, which is what makes this
-  // single effect enough to cover every play/pause path).
+  // single effect enough to cover every play/pause path). The song
+  // always plays at full strength (audio.volume = 1) — the reel's OWN
+  // volume is instead pulled down separately by the mix effect below.
   useEffect(() => {
     const audio = songAudioRef.current;
     if (!audio || !reel.song) return;
+
+    audio.volume = 1;
 
     if (isPlaying) {
       audio.muted = muted;
@@ -569,6 +573,18 @@ const ReelItem = ({ reel, allReels }) => {
       setSongPlaying(false);
     }
   }, [isPlaying, reel.song, muted]);
+
+  // NEW: apply the creator's chosen audio mix — pulls the reel's own
+  // video volume down to whatever level was set at upload
+  // (reel.original_audio_volume), so the attached song (which always
+  // plays at full volume, see the effect above) comes through clearly
+  // instead of the two competing equally for the same headroom. Only
+  // meaningful once a song is attached; without one the video simply
+  // plays at its normal, unmodified volume.
+  useEffect(() => {
+    if (!videoRef.current || !reel.song) return;
+    videoRef.current.volume = reel.original_audio_volume ?? 1;
+  }, [reel.song, reel.original_audio_volume]);
 
   // NEW: reset the song to the start whenever this reel pauses (scrolls
   // out of view, tapped to pause, etc.) — keeps the song from drifting
@@ -1566,13 +1582,17 @@ const Reels = () => {
             remixed_from_id:       r.remixed_from_id       || null,
             remixed_from_username: r.remixed_from_username || null,
             // NEW: attached song ({ title, artist, cover, url }),
-            // location name, and feeling — requires:
+            // location name, feeling, and the creator's chosen mix
+            // between the reel's own audio and the attached song —
+            // requires:
             //   alter table reels add column song jsonb;
             //   alter table reels add column location_name text;
             //   alter table reels add column feeling text;
+            //   alter table reels add column original_audio_volume numeric default 1;
             song:          r.song || null,
             location_name: r.location_name || null,
             feeling:       r.feeling || null,
+            original_audio_volume: r.original_audio_volume ?? 1,
           }))
         );
       }
@@ -1600,12 +1620,13 @@ const Reels = () => {
           created_at:            r.created_at  || null,
           remixed_from_id:       r.remixed_from_id       || null,
           remixed_from_username: r.remixed_from_username || null,
-          // NEW: same song/location/feeling fields, kept in sync for
-          // realtime INSERTs (new reels posted while the Reels page is
-          // open).
+          // NEW: same song/location/feeling/mix fields, kept in sync
+          // for realtime INSERTs (new reels posted while the Reels
+          // page is open).
           song:          r.song || null,
           location_name: r.location_name || null,
           feeling:       r.feeling || null,
+          original_audio_volume: r.original_audio_volume ?? 1,
         }, ...prev]);
       })
       .subscribe();

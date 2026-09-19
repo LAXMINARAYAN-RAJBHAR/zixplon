@@ -118,6 +118,13 @@ const VideoUpload = () => {
   const [feeling, setFeeling] = useState("");
   const [showFeelings, setShowFeelings] = useState(false);
 
+  // NEW: creator-side audio mix — how loud the video's OWN audio
+  // should play relative to the attached song. Only meaningful once a
+  // song is attached; defaults to 1 (full volume, i.e. unchanged from
+  // today's behavior) so uploads without a song are unaffected. Stored
+  // per video/reel and applied on playback in Video.jsx / Reels.jsx.
+  const [originalAudioVolume, setOriginalAudioVolume] = useState(1);
+
   const uploadStartTime  = useRef(null);
   const uploadedBytesRef = useRef(0);
   const durationRef      = useRef("00:00");
@@ -171,6 +178,7 @@ const VideoUpload = () => {
     setShowLocationPicker(false);
     setFeeling("");
     setShowFeelings(false);
+    setOriginalAudioVolume(1);
     uploadStartTime.current  = null;
     uploadedBytesRef.current = 0;
     durationRef.current      = "00:00";
@@ -594,9 +602,13 @@ const VideoUpload = () => {
           //   alter table videos add column song jsonb;
           //   alter table videos add column location_name text;
           //   alter table videos add column feeling text;
+          //   alter table videos add column original_audio_volume numeric default 1;
           song:          song || null,
           location_name: locationName || null,
           feeling:       feeling || null,
+          // Only meaningful with a song attached — otherwise stored as
+          // the neutral default (full volume, unchanged playback).
+          original_audio_volume: song ? originalAudioVolume : 1,
         };
 
         const { data: newVideo, error: videoError } = await supabase
@@ -627,9 +639,11 @@ const VideoUpload = () => {
           //   alter table reels add column song jsonb;
           //   alter table reels add column location_name text;
           //   alter table reels add column feeling text;
+          //   alter table reels add column original_audio_volume numeric default 1;
           song:          song || null,
           location_name: locationName || null,
           feeling:       feeling || null,
+          original_audio_volume: song ? originalAudioVolume : 1,
         };
 
         if (featureMode === "remix" && featureData) {
@@ -703,7 +717,12 @@ const VideoUpload = () => {
           {(song || locationName || feeling) && (
             <p className="upload_success_meta" style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
               {feeling && <span>— feeling {feeling}</span>}
-              {song && <span>🎵 {song.title} · {song.artist}</span>}
+              {song && (
+                <span>
+                  🎵 {song.title} · {song.artist}
+                  {originalAudioVolume < 1 && ` (original audio at ${Math.round(originalAudioVolume * 100)}%)`}
+                </span>
+              )}
               {locationName && <span>📍 {locationName}</span>}
             </p>
           )}
@@ -797,6 +816,66 @@ const VideoUpload = () => {
             {song && (
               <SongAttachmentCard song={song} onRemove={() => setSong(null)} />
             )}
+
+            {/* NEW: creator-side audio mix — only shown once a song is
+                attached, since it's meaningless otherwise. Turning this
+                down lowers the ORIGINAL video's volume relative to the
+                song, so the attached song can actually be heard over
+                whatever audio was already in the clip. */}
+            {song && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px",
+                  background: "var(--zx-surface2)",
+                  border: "2px solid var(--zx-border)",
+                  borderRadius: "10px",
+                  padding: "10px 12px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span
+                    style={{
+                      fontFamily: "'Nunito', sans-serif",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                      color: "var(--zx-text2)",
+                    }}
+                  >
+                    🔊 Original video volume
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "'Nunito', sans-serif",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                      color: "var(--zx-primary)",
+                    }}
+                  >
+                    {Math.round(originalAudioVolume * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={Math.round(originalAudioVolume * 100)}
+                  onChange={(e) => setOriginalAudioVolume(Number(e.target.value) / 100)}
+                  style={{ width: "100%", accentColor: "var(--zx-primary)" }}
+                />
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "var(--zx-text3)",
+                    fontFamily: "'Outfit', sans-serif",
+                  }}
+                >
+                  Turn this down so your song comes through clearly over the video's own sound.
+                </span>
+              </div>
+            )}
+
             {locationName && (
               <div
                 style={{

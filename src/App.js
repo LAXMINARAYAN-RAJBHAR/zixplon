@@ -46,6 +46,10 @@ import AdminPanel       from "./Pages/AdminPanel/AdminPanel";
 import LiveBrowser      from "./Component/Live/LiveViewer";
 import MessagesPanel    from "./Pages/Messages/MessagesPanel";
 import { PresenceProvider } from "./context/PresenceContext";
+import UtilityPage from "./Pages/Utility/UtilityPage";
+import RechargeForm from "./Pages/Utility/RechargeForm";
+import BillPaymentForm from "./Pages/Utility/BillPaymentForm";
+import TransactionHistory from "./Pages/Utility/TransactionHistory";
 import useRequireUsernameSetup from "./hooks/useRequireUsernameSetup";
 // NEW: records a `site_visits` row per browser tab and heartbeats its
 // duration — see src/hooks/useVisitTracking.js and the "Visitors" tab
@@ -684,10 +688,16 @@ function App() {
   }, [location.pathname]);
   // ──────────────────────────────────────────────────────────────────────────
 
-  const hideFooter =
-    ["/youtube", "/local-player", "/videoUpload"].includes(location.pathname) ||
-    location.pathname.startsWith("/reels") ||
-    location.pathname.endsWith("/upload");
+  const isUtilityTab =
+  location.pathname === "/" &&
+  new URLSearchParams(location.search).get("tab") === "utility";
+
+const hideFooter =
+  ["/youtube", "/local-player", "/videoUpload"].includes(location.pathname) ||
+  location.pathname.startsWith("/reels") ||
+  location.pathname.endsWith("/upload") ||
+  location.pathname.startsWith("/utility") ||
+  isUtilityTab;
 
   // Don't stack the auto-login modal on top of the dedicated signup/login page
   const shouldShowLoginModal =
@@ -841,6 +851,10 @@ function App() {
               <Route path="/foryou"                element={<ExploreGrid />} />
               <Route path="/signup"                element={<SignUp />} />
               <Route path="/signin"                element={<SignInPage />} />
+              <Route path="/utility"               element={<UtilityPage />} />
+              <Route path="/utility/recharge"      element={<RechargeForm />} />
+              <Route path="/utility/electricity"   element={<BillPaymentForm />} />
+              <Route path="/utility/history"       element={<TransactionHistory />} />
               {/* NEW: hashtag pages — /tag/:tag. Linked from every
                   #hashtag rendered via ExpandableText/linkifyText. */}
               <Route path="/tag/:tag"              element={<HashtagPage sideNavbar={sideNavbar} currentUser={currentUser} />} />

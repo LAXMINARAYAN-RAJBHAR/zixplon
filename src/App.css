@@ -5,11 +5,24 @@
   width: 100%;
   min-height: 100vh;
   background-color: #f0f4ff;
+  display: flex;
+  flex-direction: column;
   /* overflow-x: hidden;  ← REMOVED — moved to .hh-tab-content in homeHub.css,
      since this was an ancestor of the sticky .hh-tabbar and silently
      forced this element into a scroll container, breaking sticky's
      "top" resolution against the viewport. */
 }
+
+/* Makes the routed content area grow to fill any leftover vertical
+   space so the Footer sits flush at the bottom instead of leaving a
+   gap on short pages (e.g. Utility tab) — a sticky-footer pattern.
+   Works alongside .App's flex-direction: column above. */
+.zx-content-shift {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 @media (max-width: 768px) {
   .zx-content-shift {
     margin-left: 0 !important;

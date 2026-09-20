@@ -5,6 +5,7 @@ import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import NewspaperOutlinedIcon from "@mui/icons-material/NewspaperOutlined";
 import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
 import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
+import BoltOutlinedIcon from "@mui/icons-material/BoltOutlined";
 import "./homeHub.css";
 
 // HomePageContent is the component App.js originally imported as `Home`
@@ -12,6 +13,7 @@ import "./homeHub.css";
 // PostFeed is the same file already used by App.js's old "/feed" route.
 import HomePageContent from "./home";
 import PostFeed from "../PostFeed/PostFeed";
+import UtilityPage from "../Utility/UtilityPage";
 
 // Video's real route (same as the old goToUpload()). Reel and Live
 // aren't separate menu items anymore — that page already lets the
@@ -21,45 +23,35 @@ const UPLOAD_ROUTES = {
 };
 
 // ── HomeHub ──────────────────────────────────────────────────────────────
-// Single merged tab: a small segmented control (Home / Posts) plus an
-// Upload button, replacing what used to be three separate nav entries
-// (Home, Upload, Posts) in BottomNav.jsx and SideNavbar.jsx.
+// Merged tab bar: Home / Posts / Utility, plus an Upload button.
 //
-// Active sub-tab is stored in the URL as ?tab=posts so back/forward and
-// shared links still work (default, no param, is the Home feed).
+// Active sub-tab is stored in the URL as ?tab=posts|utility (default, no
+// param, is the Home feed) so back/forward and shared links still work.
 // Switching tabs unmounts the inactive one — each tab owns its own
-// Supabase queries/realtime subscriptions, so keeping both mounted at
-// once would double up on network calls and background video playback
-// for no benefit.
+// Supabase queries/realtime subscriptions, so keeping more than one
+// mounted at once would double up on network calls and background
+// video playback for no benefit.
 //
 // currentUser is passed down from App.js (the single source of truth for
 // auth state, kept in sync with the real Supabase session) and forwarded
 // to PostFeed below, rather than PostFeed reading localStorage on its
 // own — that split used to let the Posts tab and the rest of the app
 // (e.g. the navbar's Upload button) disagree about whether you were
-// logged in.
+// logged in. Utility doesn't need currentUser forwarded the same way —
+// it reads the session itself via supabase.auth.getUser() at the point
+// of a transaction, same as RechargeForm/BillPaymentForm already do.
 //
 // STACKING ORDER: HomePageContent renders its own fixed category-chip
 // bar (.homePage_options, in homePage.css) only when the Home sub-tab
-// is active — Posts has no equivalent bar. Home/Posts/Upload should
-// always render BELOW that chip row when it's present, but flush under
-// the Navbar when it's not (i.e. on the Posts tab). Since only this
-// component knows which tab is active, it passes that down as a class
-// so homeHub.css can pick the right `top` offset for .hh-tabbar.
-//
-// NEW: the Upload button ("+ Upload") no longer navigates straight to
-// the video uploader — it opens a small dropdown (Post / Video). Reel
-// and Live aren't separate entries here since the video uploader
-// itself already lets the person choose between Video/Reel/Live.
-// Picking "Post" doesn't navigate anywhere; PostComposer already
-// lives at the top of the Posts tab, so this just switches to that tab
-// (if not already on it) and fires a "zx:focus-composer" window event
-// that PostComposer.jsx listens for to scroll itself into view and
-// focus its textarea — same idea as clicking a normal compose box.
+// is active — Posts and Utility have no equivalent bar. Home/Posts/
+// Utility/Upload should always render BELOW that chip row when it's
+// present, but flush under the Navbar when it's not.
 const HomeHub = ({ sideNavbar, currentUser }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") === "posts" ? "posts" : "home";
+  const rawTab = searchParams.get("tab");
+  const activeTab =
+    rawTab === "posts" ? "posts" : rawTab === "utility" ? "utility" : "home";
 
   const [showUploadMenu, setShowUploadMenu] = useState(false);
   const uploadMenuRef = useRef(null);
@@ -106,7 +98,7 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
       // Already there — PostComposer is already mounted, focus it now.
       focusComposer();
     } else {
-      // Switching from Home unmounts HomePageContent and mounts
+      // Switching from Home/Utility unmounts the current tab and mounts
       // PostFeed fresh — give it a tick to actually render before
       // trying to focus something inside it.
       setTab("posts");
@@ -127,7 +119,7 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
           "hh-tabbar" +
           (sideNavbar ? " sidebar-open" : "") +
           // Home tab renders homePage_options above this bar — push down.
-          // Posts tab has no chip row — sit right under the Navbar.
+          // Posts/Utility have no chip row — sit right under the Navbar.
           (activeTab === "home" ? " hh-tabbar-below-options" : "")
         }
       >
@@ -144,6 +136,13 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
         >
           <NewspaperOutlinedIcon sx={{ fontSize: 18 }} />
           <span className="hh-tab-label">Posts</span>
+        </button>
+        <button
+          className={"hh-tab-btn" + (activeTab === "utility" ? " hh-tab-active" : "")}
+          onClick={() => setTab("utility")}
+        >
+          <BoltOutlinedIcon sx={{ fontSize: 18 }} />
+          <span className="hh-tab-label">Utility</span>
         </button>
 
         <div className="hh-upload-wrap">
@@ -177,8 +176,10 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
       <div className="hh-tab-content">
         {activeTab === "home" ? (
           <HomePageContent sideNavbar={sideNavbar} />
-        ) : (
+        ) : activeTab === "posts" ? (
           <PostFeed sideNavbar={sideNavbar} currentUser={currentUser} />
+        ) : (
+          <UtilityPage sideNavbar={sideNavbar} currentUser={currentUser} />
         )}
       </div>
     </div>

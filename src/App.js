@@ -851,7 +851,7 @@ const hideFooter =
               <Route path="/foryou"                element={<ExploreGrid />} />
               <Route path="/signup"                element={<SignUp />} />
               <Route path="/signin"                element={<SignInPage />} />
-              <Route path="/utility"               element={<UtilityPage />} />
+              <Route path="/utility"               element={<div style={{ paddingTop: 80 }}><UtilityPage /></div>} />
               <Route path="/utility/recharge"      element={<RechargeForm />} />
               <Route path="/utility/electricity"   element={<BillPaymentForm />} />
               <Route path="/utility/history"       element={<TransactionHistory />} />

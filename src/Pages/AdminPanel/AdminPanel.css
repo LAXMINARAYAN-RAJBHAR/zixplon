@@ -754,3 +754,299 @@
     width: 100%;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   MOBILE / RESPONSIVE
+   Append this to the END of AdminPanel.css so it wins on order.
+   Breakpoints: 768px (tablet & down), 600px (phone), 380px (small phone)
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Nothing inside the panel may push the page wider than the screen. */
+.admin_panel,
+.admin_panel * {
+  box-sizing: border-box;
+}
+.admin_panel {
+  max-width: 100%;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* ── Header: stack on phones, buttons become a full-width row ────── */
+@media (max-width: 768px) {
+  .admin_panel {
+    padding: 64px 12px 40px;
+  }
+
+  .admin_header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* the button cluster is an inline style in JSX; target it structurally */
+  .admin_header > div:last-child {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .admin_header .admin_export_btn,
+  .admin_header .admin_back_btn {
+    flex: 1 1 auto;
+    justify-content: center;
+    text-align: center;
+    min-width: 0;
+  }
+  .admin_header .admin_back_btn {
+    flex-basis: 100%;
+  }
+}
+
+/* ── Stats: real grid instead of five squeezed flex children ─────── */
+@media (max-width: 768px) {
+  .admin_stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .admin_stat_card {
+    min-width: 0;
+    padding: 10px 8px;
+  }
+  .admin_stat_value {
+    font-size: 20px;
+  }
+  .admin_stat_label {
+    font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+}
+@media (max-width: 380px) {
+  .admin_stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ── Tabs: single scrollable strip, no wrapping into ragged rows ─── */
+@media (max-width: 768px) {
+  .admin_tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 2px;
+    margin-left: -12px;
+    margin-right: -12px;
+    padding: 0 12px;
+  }
+  .admin_tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .admin_tab {
+    padding: 9px 12px;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+}
+
+/* ── Inputs: 16px stops iOS Safari auto-zooming on focus ─────────── */
+@media (max-width: 768px) {
+  .admin_word_input {
+    font-size: 16px;
+    width: 100%;
+    max-width: none !important;
+  }
+  .admin_add_word_row,
+  .admin_grant_row {
+    flex-direction: column;
+  }
+  .admin_add_word_btn {
+    width: 100%;
+  }
+}
+
+/* ── Report cards: label above value, full-width action buttons ──── */
+@media (max-width: 600px) {
+  .admin_report_field {
+    flex-direction: column;
+    gap: 2px;
+  }
+  .admin_report_field_label {
+    min-width: 0;
+  }
+  .admin_report_actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .admin_report_actions .admin_action_btn {
+    width: 100%;
+    padding: 10px 8px;
+    font-size: 11px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   TABLES → STACKED CARDS
+   Below 600px each <tr> becomes a card and each <td> becomes a
+   "Label: value" line. The label text comes from a data-label
+   attribute you add to each <td> in the JSX — see the note below.
+   ══════════════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  .admin_visits_table_wrap {
+    border: none;
+    background: none;
+    overflow-x: visible;
+  }
+
+  .admin_visits_table,
+  .admin_visits_table tbody,
+  .admin_visits_table tr,
+  .admin_visits_table td {
+    display: block;
+    width: 100%;
+  }
+
+  .admin_visits_table thead {
+    position: absolute;
+    left: -9999px;
+  }
+
+  .admin_visits_table tr {
+    background: var(--zx-surface);
+    border: 2px solid var(--zx-border);
+    border-radius: 14px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 10px rgba(220, 38, 38, 0.06);
+  }
+
+  .admin_visits_table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 5px 0;
+    border-bottom: 1px solid #f7ecec;
+    white-space: normal;
+    word-break: break-word;
+    text-align: right;
+  }
+  .admin_visits_table tbody tr td:last-child {
+    border-bottom: none;
+  }
+
+  .admin_visits_table tbody td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    text-align: left;
+    font-family: 'Nunito', sans-serif;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--zx-text3);
+  }
+
+  .admin_visits_table tbody tr:hover td {
+    background: none;
+  }
+
+  .admin_visits_path {
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+  }
+}
+
+/* ── Logins tab toolbar: export buttons as an even grid ──────────── */
+@media (max-width: 600px) {
+  .admin_visitors_section > div:first-child {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .admin_visitors_section > div:first-child > div {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+  .admin_visitors_section .admin_export_btn,
+  .admin_visitors_section .admin_add_word_btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+/* ── Users tab: actions go full width under the user info ────────── */
+@media (max-width: 600px) {
+  .admin_user_mgmt_row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .admin_user_mgmt_actions {
+    align-items: stretch;
+    width: 100%;
+  }
+  .admin_user_mgmt_actions > div {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .admin_user_mgmt_actions .admin_action_btn {
+    width: 100%;
+    padding: 10px 8px;
+  }
+  .admin_user_remove_content_label {
+    white-space: normal;
+  }
+}
+
+/* ── Admins tab rows ─────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .admin_admin_row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .admin_admin_row .admin_action_btn {
+    width: 100%;
+  }
+  .admin_admin_email {
+    word-break: break-all;
+  }
+}
+
+/* ── Toast: never wider than the screen ──────────────────────────── */
+@media (max-width: 600px) {
+  .admin_toast {
+    white-space: normal;
+    text-align: center;
+    max-width: calc(100vw - 32px);
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ── Touch targets & motion preferences ──────────────────────────── */
+@media (hover: none) {
+  .admin_action_btn,
+  .admin_add_word_btn,
+  .admin_export_btn,
+  .admin_back_btn,
+  .admin_filter_btn {
+    min-height: 40px;
+  }
+  .admin_report_card:hover,
+  .admin_word_chip:hover {
+    border-color: var(--zx-border);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin_toast,
+  .admin_spinner {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}

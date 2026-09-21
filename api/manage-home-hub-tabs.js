@@ -11,10 +11,19 @@
 // differs from this.
 //
 // Actions:
-//   { action: "list" }                                   -> { tabs }
+//   { action: "list" }                                   -> { tabs, overrides }
 //   { action: "toggle", key, is_visible }                 -> { ok }
 //   { action: "reorder", updates: [{ key, sort_order }] } -> { ok }
 //   { action: "rename", key, label }                      -> { ok }
+//   { action: "set_audience", key, audience }             -> { ok }
+//     audience: 'everyone' | 'logged_in' | 'guests_only'
+//   { action: "set_rollout", key, rollout_percent }        -> { ok }
+//     rollout_percent: 0-100, the stable slice of matching viewers who
+//     see the tab (see hashToPercent() in HomeHub.jsx for the bucketing)
+//   { action: "add_override", key, username, show }        -> { ok }
+//     Force a specific username in (show: true) or out (show: false),
+//     overriding is_visible/audience/rollout_percent entirely.
+//   { action: "remove_override", key, username }           -> { ok }
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -66,12 +75,14 @@ export default async function handler(req, res) {
 
   try {
     if (action === "list") {
-      const { data, error } = await supabaseAdmin
-        .from("home_hub_tabs")
-        .select("*")
-        .order("sort_order", { ascending: true });
-      if (error) throw error;
-      return res.status(200).json({ tabs: data || [] });
+      const [{ data: tabs, error: tabsErr }, { data: overrides, error: overridesErr }] =
+        await Promise.all([
+          supabaseAdmin.from("home_hub_tabs").select("*").order("sort_order", { ascending: true }),
+          supabaseAdmin.from("home_hub_tab_overrides").select("*").order("created_at", { ascending: false }),
+        ]);
+      if (tabsErr) throw tabsErr;
+      if (overridesErr) throw overridesErr;
+      return res.status(200).json({ tabs: tabs || [], overrides: overrides || [] });
     }
 
     if (action === "toggle") {
@@ -102,6 +113,20 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
+    if (action === "set_audience") {
+      const { key, audience } = req.body;
+      const VALID = ["everyone", "logged_in", "guests_only"];
+      if (!key || !VALID.includes(audience)) {
+        return res.status(400).json({ error: "key and a valid audience are required" });
+      }
+      const { error } = await supabaseAdmin
+        .from("home_hub_tabs")
+        .update({ audience })
+        .eq("key", key);
+      if (error) throw error;
+      return res.status(200).json({ ok: true });
+    }
+
     if (action === "rename") {
       const { key, label } = req.body;
       if (!key || !label) {
@@ -111,6 +136,46 @@ export default async function handler(req, res) {
         .from("home_hub_tabs")
         .update({ label })
         .eq("key", key);
+      if (error) throw error;
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === "set_rollout") {
+      const { key, rollout_percent } = req.body;
+      const pct = Number(rollout_percent);
+      if (!key || !Number.isInteger(pct) || pct < 0 || pct > 100) {
+        return res.status(400).json({ error: "key and rollout_percent (0-100) are required" });
+      }
+      const { error } = await supabaseAdmin
+        .from("home_hub_tabs")
+        .update({ rollout_percent: pct })
+        .eq("key", key);
+      if (error) throw error;
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === "add_override") {
+      const { key, username, show } = req.body;
+      if (!key || !username || typeof show !== "boolean") {
+        return res.status(400).json({ error: "key, username, and show are required" });
+      }
+      const { error } = await supabaseAdmin
+        .from("home_hub_tab_overrides")
+        .upsert({ tab_key: key, username: username.trim(), show }, { onConflict: "tab_key,username" });
+      if (error) throw error;
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === "remove_override") {
+      const { key, username } = req.body;
+      if (!key || !username) {
+        return res.status(400).json({ error: "key and username are required" });
+      }
+      const { error } = await supabaseAdmin
+        .from("home_hub_tab_overrides")
+        .delete()
+        .eq("tab_key", key)
+        .eq("username", username);
       if (error) throw error;
       return res.status(200).json({ ok: true });
     }

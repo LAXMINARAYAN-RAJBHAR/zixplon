@@ -725,6 +725,25 @@ const AdminPanel = () => {
     setHubTabBusyKey(null);
   };
 
+  const AUDIENCE_LABELS = {
+    everyone: "Everyone",
+    logged_in: "Logged-in only",
+    guests_only: "Guests only",
+  };
+
+  const setHubTabAudience = async (tab, audience) => {
+    if (audience === tab.audience) return;
+    setHubTabBusyKey(tab.key);
+    try {
+      await callManageHomeHub({ action: "set_audience", key: tab.key, audience });
+      setHubTabs((prev) => prev.map((t) => (t.key === tab.key ? { ...t, audience } : t)));
+      showToast(`"${tab.label}" now shown to: ${AUDIENCE_LABELS[audience]}`);
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setHubTabBusyKey(null);
+  };
+
   const moveHubTab = async (tab, direction) => {
     const idx = hubTabs.findIndex((t) => t.key === tab.key);
     const swapIdx = idx + direction;
@@ -1486,10 +1505,11 @@ const AdminPanel = () => {
         /* ── Home Hub Tab: show/hide/reorder HomeHub.jsx's tabs ── */
         <div className="admin_hub_section">
           <p className="admin_words_hint">
-            Controls which tabs appear in the homepage's tab bar, and in
-            what order. Changes apply live — no redeploy needed. At least
-            one tab always stays visible; hiding the last one is ignored
-            on the homepage rather than leaving it empty.
+            Controls which tabs appear in the homepage's tab bar, in what
+            order, and to whom. Changes apply live — no redeploy needed.
+            At least one tab always stays visible for every viewer;
+            hiding or over-restricting all of them falls back to showing
+            everything rather than leaving the homepage empty.
           </p>
 
           {hubTabsLoading ? (
@@ -1531,6 +1551,18 @@ const AdminPanel = () => {
                       <div className="admin_hub_label">{t.label}</div>
                       <div className="admin_admin_meta">key: {t.key}</div>
                     </div>
+
+                    <select
+                      className="admin_hub_audience_select"
+                      value={t.audience || "everyone"}
+                      onChange={(e) => setHubTabAudience(t, e.target.value)}
+                      disabled={busy}
+                      title="Who this tab is shown to"
+                    >
+                      <option value="everyone">Everyone</option>
+                      <option value="logged_in">Logged-in only</option>
+                      <option value="guests_only">Guests only</option>
+                    </select>
 
                     <label className={`admin_hub_toggle ${t.is_visible ? "on" : ""}`}>
                       <input

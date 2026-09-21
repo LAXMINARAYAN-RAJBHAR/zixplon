@@ -1098,6 +1098,29 @@
   color: var(--zx-text);
 }
 
+.admin_hub_audience_select {
+  padding: 7px 10px;
+  border: 2px solid var(--zx-border);
+  border-radius: 10px;
+  background: var(--zx-surface);
+  color: var(--zx-text2);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+  flex-shrink: 0;
+}
+.admin_hub_audience_select:hover,
+.admin_hub_audience_select:focus {
+  border-color: var(--zx-primary);
+}
+.admin_hub_audience_select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ── Toggle switch ──
    A native checkbox drives it (for accessibility/keyboard support) but
    is visually hidden; .admin_hub_toggle_track/.admin_hub_toggle_thumb
@@ -1163,6 +1186,10 @@
 @media (max-width: 600px) {
   .admin_hub_row {
     flex-wrap: wrap;
+  }
+  .admin_hub_audience_select {
+    width: 100%;
+    order: 3;
   }
   .admin_hub_toggle {
     margin-left: auto;

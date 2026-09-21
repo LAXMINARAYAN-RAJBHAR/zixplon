@@ -126,14 +126,25 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
     };
   }, []);
 
-  // Tabs that should actually appear in the bar, in order. Falls back
-  // to the full default set if an admin somehow hides all three.
+  // Tabs that should actually appear in the bar, in order. A tab must
+  // pass BOTH is_visible and its audience check against the current
+  // viewer (currentUser is null/"" for guests). Falls back to the full
+  // default set if that leaves zero tabs — e.g. an admin hides
+  // everything, or sets every remaining tab to 'logged_in' and a guest
+  // loads the page.
+  const matchesAudience = (audience) => {
+    if (audience === "logged_in") return !!currentUser;
+    if (audience === "guests_only") return !currentUser;
+    return true; // 'everyone' or unset
+  };
+
   const effectiveTabs = useMemo(() => {
     const visible = tabsConfig
-      .filter((t) => t.is_visible && TAB_DEFS[t.key])
+      .filter((t) => t.is_visible && TAB_DEFS[t.key] && matchesAudience(t.audience))
       .sort((a, b) => a.sort_order - b.sort_order);
     return visible.length > 0 ? visible : FALLBACK_TABS;
-  }, [tabsConfig]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabsConfig, currentUser]);
 
   const rawTab = searchParams.get("tab");
   const requestedTab = rawTab && TAB_DEFS[rawTab] ? rawTab : "home";

@@ -19,6 +19,7 @@
     "axios": "^1.16.0",
     "core-js": "^3.49.0",
     "docx": "^9.7.1",
+    "hls.js": "^1.7.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "livekit-client": "^2.20.0",

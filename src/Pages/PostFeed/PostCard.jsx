@@ -24,6 +24,14 @@ import { supabase } from "../../config/supabase";
 // ({ title, artist, cover, url }), same component used in Video.jsx /
 // Reels.jsx / PostComposer.jsx.
 import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
+// NEW: hls.js gives adaptive-bitrate HLS playback in every browser that
+// doesn't support it natively (i.e. everything except Safari/iOS).
+// Install with: npm install hls.js
+// If a post's video_url is still a plain .mp4 (no .m3u8 manifest), this
+// whole path is a no-op and playback falls back to plain <video src>
+// exactly as before — nothing breaks until posts start carrying HLS
+// manifests.
+import Hls from "hls.js";
 
 const REACTIONS = [
   { key: "like", emoji: "👍", label: "Like", color: "#1877f2" },
@@ -58,6 +66,10 @@ const formatViews = (n) => {
   return n + " views";
 };
 
+// NEW: HLS manifests are served as .m3u8. Everything else (mp4/webm/etc)
+// keeps using a plain <video src> exactly as before.
+const isHlsSource = (src) => !!src && /\.m3u8(\?.*)?$/i.test(src);
+
 // ── Comment translate stub — same as Reels.jsx / Video.jsx. NOT a real
 // translation service, just a small word-swap dictionary so "Translate
 // to Hindi" does something visible. Swap the body of this function for
@@ -79,7 +91,7 @@ const stubTranslateToHindi = (text) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// useIsMobile — same pattern used on HomePage's video/reel/trending cards,
+// useIsMobile — same pattern used on HomePage's video/reel cards,
 // duplicated here at module scope since PostCard lives in its own file.
 // Gates hover-preview to non-touch, wider viewports.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,6 +118,13 @@ const useIsMobile = () => {
        real player — sound on, native controls, playing from the start.
        Once activated it stays a normal player (hovering away no longer
        resets or mutes it — that would be a jarring surprise mid-watch).
+
+   NEW: HLS support — if `src` is an .m3u8 manifest, playback routes
+   through hls.js (or native HLS on Safari) instead of setting the
+   <video>'s src attribute directly. Plain mp4/webm sources are
+   completely unaffected. There's no cross-post preloading here (unlike
+   Video.jsx's next-video preload) since post videos aren't a
+   sequential queue — each one is independent.
 ───────────────────────────────────────── */
 const HOVER_PREVIEW_DELAY = 450; // ms
 
@@ -115,6 +134,10 @@ const PostVideo = ({ src }) => {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const videoRef = useRef(null);
   const timeoutRef = useRef(null);
+  // NEW: holds the active hls.js instance for this video, torn down on
+  // unmount or whenever `src` changes.
+  const hlsInstanceRef = useRef(null);
+  const usingHls = isHlsSource(src);
 
   const canPreview = !isMobile && !activated;
 
@@ -163,6 +186,47 @@ const PostVideo = ({ src }) => {
 
   useEffect(() => () => cancelTimer(), []);
 
+  // ── HLS playback (NEW) ──────────────────────────────────────────────
+  // For a plain mp4/webm `src`, this is a no-op — the <video src={src}>
+  // below handles it exactly as before. For an .m3u8 manifest, hands
+  // the element to hls.js (or lets Safari's native HLS take over)
+  // instead of setting `src` directly, since browsers other than
+  // Safari can't play a raw .m3u8 URL as a video source.
+  useEffect(() => {
+    const vid = videoRef.current;
+
+    if (hlsInstanceRef.current) {
+      hlsInstanceRef.current.destroy();
+      hlsInstanceRef.current = null;
+    }
+
+    if (!vid || !usingHls) return;
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        maxBufferLength: 30,
+        enableWorker: true,
+      });
+      hls.loadSource(src);
+      hls.attachMedia(vid);
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data?.fatal) {
+          console.error("hls.js fatal error (post video):", data);
+        }
+      });
+      hlsInstanceRef.current = hls;
+    } else if (vid.canPlayType("application/vnd.apple.mpegurl")) {
+      vid.src = src;
+    }
+
+    return () => {
+      if (hlsInstanceRef.current) {
+        hlsInstanceRef.current.destroy();
+        hlsInstanceRef.current = null;
+      }
+    };
+  }, [src, usingHls]);
+
   return (
     <div
       className="pf-card-video-wrap"
@@ -172,7 +236,11 @@ const PostVideo = ({ src }) => {
     >
       <video
         ref={videoRef}
-        src={src}
+        // CHANGED: for HLS sources the effect above sets the video's
+        // source via hls.js (or vid.src on Safari) directly, so the
+        // src attribute is left unset here to avoid the browser trying
+        // (and failing) to fetch the raw .m3u8 as a video file.
+        src={usingHls ? undefined : src}
         controls={activated}
         muted={!activated}
         loop={!activated}

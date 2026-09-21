@@ -20,6 +20,14 @@ import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
 // ({ title, artist, cover, url }), same component used in PostCard.jsx /
 // Reels.jsx / PostComposer.jsx / VideoUpload.jsx.
 import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
+// NEW: hls.js gives adaptive-bitrate HLS playback in every browser that
+// doesn't support it natively (i.e. everything except Safari/iOS).
+// Install with: npm install hls.js
+// If your video_url values are still plain .mp4 (no .m3u8 manifest),
+// this whole path is a no-op and playback falls back to the existing
+// <source> tag exactly as before — nothing breaks until you start
+// serving HLS manifests (e.g. via Cloudflare Stream).
+import Hls from "hls.js";
 // NOTE: notifyUser() is no longer imported/used anywhere in this file.
 // Like/comment notifications are owned by the notify_on_like /
 // notify_on_comment DB triggers (client-side calls were removed earlier
@@ -196,6 +204,10 @@ const isUnsupportedFormat = (src) => {
   const ext = src.split(".").pop().split("?")[0].toLowerCase();
   return ["avi", "wmv", "mkv", "flv"].includes(ext);
 };
+
+// NEW: HLS manifests are served as .m3u8. Everything else (mp4/webm/etc)
+// keeps using the existing native <source> path untouched.
+const isHlsSource = (src) => !!src && /\.m3u8(\?.*)?$/i.test(src);
 
 const QUALITY_LABELS = {
   low: "240p",
@@ -405,6 +417,13 @@ const Video = ({ sideNavbar }) => {
   // <video> is what keeps our custom controls visible once fullscreen —
   // fullscreening the <video> alone only shows the video and native chrome.
   const playerWrapperRef = useRef(null);
+  // NEW: holds the active hls.js instance so we can tear it down cleanly
+  // whenever the video changes or the component unmounts — hls.js runs
+  // its own internal buffering/worker threads that leak if left running.
+  const hlsInstanceRef = useRef(null);
+  // NEW: holds the off-DOM <video> element used to prefetch the next
+  // clip in the background (see the preloading effect below).
+  const preloadVideoElRef = useRef(null);
 
   // NEW: hidden <audio> element for an attached song, kept in lockstep
   // with the video's own play/pause/mute state so it "autoplays along
@@ -1201,9 +1220,109 @@ const Video = ({ sideNavbar }) => {
     };
   }, [video?.id, video?.song, video?.original_audio_volume]);
 
+  // ── HLS playback (NEW) ──────────────────────────────────────────────
+  // Sets up hls.js (or hands off to native HLS on Safari) whenever the
+  // current video's src is an .m3u8 source. For everything else (plain
+  // mp4/webm/etc) this effect is a no-op and the existing <source> tag
+  // below handles playback exactly as before — nothing changes for
+  // videos that aren't served as HLS yet.
   useEffect(() => {
     const vid = videoRef.current;
-    if (!vid || !video?.src?.includes("cloudinary.com")) return;
+
+    // Always tear down any previous hls.js instance first — leaving one
+    // running while a new source loads causes duplicate buffering and
+    // memory growth.
+    if (hlsInstanceRef.current) {
+      hlsInstanceRef.current.destroy();
+      hlsInstanceRef.current = null;
+    }
+
+    if (!vid || !video?.src || !isHlsSource(video.src)) return;
+
+    const hlsUrl = video.src;
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        // Keep a modest forward buffer — enough to absorb network
+        // hiccups without holding minutes of unwatched video in memory.
+        maxBufferLength: 30,
+        enableWorker: true,
+      });
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(vid);
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data?.fatal) {
+          console.error("hls.js fatal error:", data);
+          setVideoError(true);
+        }
+      });
+      hlsInstanceRef.current = hls;
+    } else if (vid.canPlayType("application/vnd.apple.mpegurl")) {
+      // Safari/iOS play HLS natively — no hls.js needed, just point the
+      // <video> element straight at the manifest.
+      vid.src = hlsUrl;
+    } else {
+      console.error("HLS is not supported in this browser and no fallback source was provided.");
+      setVideoError(true);
+    }
+
+    return () => {
+      if (hlsInstanceRef.current) {
+        hlsInstanceRef.current.destroy();
+        hlsInstanceRef.current = null;
+      }
+    };
+  }, [video?.id, video?.src]);
+
+  // ── Next-video preloading (NEW) ─────────────────────────────────────
+  // Warms the browser's cache for whatever comes next (respecting
+  // autoplay / prev-next navigation) so the transition feels instant
+  // instead of starting a cold fetch the moment the person clicks.
+  // - HLS sources: just prefetch the manifest itself (cheap — the actual
+  //   segments stream in once hls.js takes over on navigation).
+  // - Plain mp4/webm sources: spin up an off-DOM <video preload="auto">
+  //   so the browser buffers real bytes of the file ahead of time.
+  useEffect(() => {
+    if (!nextVideo?.src || nextVideo.id === video?.id) return;
+
+    const nextSrc = getAdaptiveVideoSrc(
+      nextVideo.src.includes("cloudinary.com")
+        ? nextVideo.src.replace(/\.(webm|mov|avi|mkv)(\?.*)?$/i, ".mp4")
+        : nextVideo.src,
+      quality,
+    );
+
+    let cancelled = false;
+
+    if (isHlsSource(nextSrc)) {
+      fetch(nextSrc, { mode: "cors" }).catch(() => {});
+    } else {
+      const preloadEl = document.createElement("video");
+      preloadEl.preload = "auto";
+      preloadEl.muted = true;
+      preloadEl.style.display = "none";
+      preloadEl.src = nextSrc;
+      preloadEl.load();
+      if (!cancelled) preloadVideoElRef.current = preloadEl;
+    }
+
+    return () => {
+      cancelled = true;
+      if (preloadVideoElRef.current) {
+        preloadVideoElRef.current.src = "";
+        preloadVideoElRef.current.removeAttribute("src");
+        preloadVideoElRef.current.load();
+        preloadVideoElRef.current = null;
+      }
+    };
+  }, [nextVideo?.id, nextVideo?.src, video?.id, quality]);
+
+  useEffect(() => {
+    const vid = videoRef.current;
+    // CHANGED: skip this reload-based quality switch for HLS sources —
+    // HLS handles adaptive bitrate internally via hls.js, so forcing a
+    // full vid.load() here would fight with it and cause visible stutter.
+    if (!vid || !video?.src?.includes("cloudinary.com") || isHlsSource(video.src)) return;
     const wasPlaying = !vid.paused;
     const resumeTime = vid.currentTime;
     vid.load();
@@ -1276,6 +1395,10 @@ const Video = ({ sideNavbar }) => {
   const channelUsername = video.username || video.channel?.toLowerCase();
 
   const overlayVisible = isMobile ? mobileOverlayVisible : showControls;
+  // NEW: drives whether the <source> child renders below — for HLS,
+  // the effect above sets .src (or hands the element to hls.js)
+  // directly, so no <source> child should be rendered at all.
+  const usingHls = isHlsSource(video.src);
 
   const connectLabel =
     connectionStatus === "accepted"
@@ -1430,15 +1553,21 @@ const Video = ({ sideNavbar }) => {
             preload="metadata"
             poster={video.thumbnail}
           >
-            <source
-              src={getAdaptiveVideoSrc(
-                video.src && video.src.includes("cloudinary.com")
-                  ? video.src.replace(/\.(webm|mov|avi|mkv)(\?.*)?$/i, ".mp4")
-                  : video.src,
-                quality,
-              )}
-              type="video/mp4"
-            />
+            {/* CHANGED: for HLS sources, the effect above sets .src (or
+                hands the element to hls.js) directly — no <source>
+                child is rendered so it can't conflict with that.
+                Non-HLS sources keep working exactly as before. */}
+            {!usingHls && (
+              <source
+                src={getAdaptiveVideoSrc(
+                  video.src && video.src.includes("cloudinary.com")
+                    ? video.src.replace(/\.(webm|mov|avi|mkv)(\?.*)?$/i, ".mp4")
+                    : video.src,
+                  quality,
+                )}
+                type="video/mp4"
+              />
+            )}
             Your browser does not support the video tag.
           </video>
 

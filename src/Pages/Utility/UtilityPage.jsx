@@ -14,7 +14,7 @@ const UtilityPage = () => {
 
   return (
     <div className="utility-page">
-      <h2>Utility Services</h2>
+      <h2>ZIXPLON Utility Services</h2>
       <div className="utility-grid">
         {utilityOptions.map((opt) => (
           <div

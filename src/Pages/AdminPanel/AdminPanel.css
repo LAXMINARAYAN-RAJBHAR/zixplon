@@ -756,12 +756,11 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   MOBILE / RESPONSIVE
-   Append this to the END of AdminPanel.css so it wins on order.
-   Breakpoints: 768px (tablet & down), 600px (phone), 380px (small phone)
+   MOBILE / RESPONSIVE  (v2)
+   Replaces the previous mobile block entirely — delete that one first.
+   Visitors & Logins stay as real tables; they scroll sideways instead.
    ══════════════════════════════════════════════════════════════════ */
 
-/* Nothing inside the panel may push the page wider than the screen. */
 .admin_panel,
 .admin_panel * {
   box-sizing: border-box;
@@ -769,38 +768,109 @@
 .admin_panel {
   max-width: 100%;
   width: 100%;
-  overflow-x: hidden;
+  /* `clip` instead of `hidden`: stops the page widening without turning
+     the panel into a scroll container (which broke sticky headers and
+     swallowed the table's own overflow). */
+  overflow-x: clip;
 }
 
-/* ── Header: stack on phones, buttons become a full-width row ────── */
+/* ══════════════════════════════════════════════════════════════════
+   HORIZONTAL SCROLL FOR THE TABLES
+   Three pieces have to agree or nothing scrolls:
+     1. the flex parent must be allowed to shrink   (min-width: 0)
+     2. the wrapper must be capped at the viewport  (max-width: 100%)
+     3. the table must be allowed to exceed it      (width: auto)
+   ══════════════════════════════════════════════════════════════════ */
+
+.admin_visitors_section,
+.admin_users_mgmt_section,
+.admin_admins_section {
+  min-width: 0;
+}
+
+.admin_visits_table_wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.admin_visits_table {
+  /* was width: 100% — that capped it at the wrapper and killed overflow */
+  width: auto;
+  min-width: 100%;
+}
+
+/* Sticky column headers only make sense while the wrapper scrolls
+   vertically, which it doesn't. Dropping it avoids a repaint bug in
+   iOS Safari where sticky cells detach during a sideways flick. */
+.admin_visits_table thead th {
+  position: static;
+}
+
+/* Make the scrollbar visible so it's obvious the table moves. */
+.admin_visits_table_wrap {
+  scrollbar-width: thin;
+  scrollbar-color: var(--zx-border) transparent;
+}
+.admin_visits_table_wrap::-webkit-scrollbar {
+  height: 8px;
+}
+.admin_visits_table_wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+.admin_visits_table_wrap::-webkit-scrollbar-thumb {
+  background: var(--zx-border);
+  border-radius: 999px;
+}
+.admin_visits_table_wrap::-webkit-scrollbar-thumb:hover {
+  background: var(--zx-text3);
+}
+
+/* On phones give the columns a little breathing room and keep the
+   device string from ballooning a single column. */
+@media (max-width: 768px) {
+  .admin_visits_table {
+    font-size: 12px;
+  }
+  .admin_visits_table thead th {
+    padding: 9px 12px;
+  }
+  .admin_visits_table tbody td {
+    padding: 8px 12px;
+  }
+  .admin_visits_path {
+    max-width: 180px;
+  }
+}
+
+/* ── Header: stack on phones ─────────────────────────────────────── */
 @media (max-width: 768px) {
   .admin_panel {
     padding: 64px 12px 40px;
   }
-
   .admin_header {
     flex-direction: column;
     align-items: stretch;
   }
-  /* the button cluster is an inline style in JSX; target it structurally */
   .admin_header > div:last-child {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
   }
-  .admin_header .admin_export_btn,
-  .admin_header .admin_back_btn {
-    flex: 1 1 auto;
+  .admin_header .admin_export_btn {
+    flex: 1 1 0;
     justify-content: center;
-    text-align: center;
-    min-width: 0;
   }
   .admin_header .admin_back_btn {
-    flex-basis: 100%;
+    flex: 1 1 100%;
+    justify-content: center;
   }
 }
 
-/* ── Stats: real grid instead of five squeezed flex children ─────── */
+/* ── Stats: grid instead of five squeezed flex children ──────────── */
 @media (max-width: 768px) {
   .admin_stats {
     display: grid;
@@ -825,7 +895,7 @@
   }
 }
 
-/* ── Tabs: single scrollable strip, no wrapping into ragged rows ─── */
+/* ── Tabs: one scrollable strip ──────────────────────────────────── */
 @media (max-width: 768px) {
   .admin_tabs {
     flex-wrap: nowrap;
@@ -834,8 +904,7 @@
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     gap: 2px;
-    margin-left: -12px;
-    margin-right: -12px;
+    margin: 0 -12px 20px;
     padding: 0 12px;
   }
   .admin_tabs::-webkit-scrollbar {
@@ -848,7 +917,7 @@
   }
 }
 
-/* ── Inputs: 16px stops iOS Safari auto-zooming on focus ─────────── */
+/* ── Inputs: 16px stops iOS auto-zoom on focus ───────────────────── */
 @media (max-width: 768px) {
   .admin_word_input {
     font-size: 16px;
@@ -864,7 +933,7 @@
   }
 }
 
-/* ── Report cards: label above value, full-width action buttons ──── */
+/* ── Report cards ────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .admin_report_field {
     flex-direction: column;
@@ -885,80 +954,7 @@
   }
 }
 
-/* ══════════════════════════════════════════════════════════════════
-   TABLES → STACKED CARDS
-   Below 600px each <tr> becomes a card and each <td> becomes a
-   "Label: value" line. The label text comes from a data-label
-   attribute you add to each <td> in the JSX — see the note below.
-   ══════════════════════════════════════════════════════════════════ */
-@media (max-width: 600px) {
-  .admin_visits_table_wrap {
-    border: none;
-    background: none;
-    overflow-x: visible;
-  }
-
-  .admin_visits_table,
-  .admin_visits_table tbody,
-  .admin_visits_table tr,
-  .admin_visits_table td {
-    display: block;
-    width: 100%;
-  }
-
-  .admin_visits_table thead {
-    position: absolute;
-    left: -9999px;
-  }
-
-  .admin_visits_table tr {
-    background: var(--zx-surface);
-    border: 2px solid var(--zx-border);
-    border-radius: 14px;
-    padding: 10px 14px;
-    margin-bottom: 10px;
-    box-shadow: 0 2px 10px rgba(220, 38, 38, 0.06);
-  }
-
-  .admin_visits_table tbody td {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 12px;
-    padding: 5px 0;
-    border-bottom: 1px solid #f7ecec;
-    white-space: normal;
-    word-break: break-word;
-    text-align: right;
-  }
-  .admin_visits_table tbody tr td:last-child {
-    border-bottom: none;
-  }
-
-  .admin_visits_table tbody td::before {
-    content: attr(data-label);
-    flex: 0 0 auto;
-    text-align: left;
-    font-family: 'Nunito', sans-serif;
-    font-size: 10px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--zx-text3);
-  }
-
-  .admin_visits_table tbody tr:hover td {
-    background: none;
-  }
-
-  .admin_visits_path {
-    max-width: none;
-    overflow: visible;
-    text-overflow: clip;
-  }
-}
-
-/* ── Logins tab toolbar: export buttons as an even grid ──────────── */
+/* ── Logins/Visitors toolbar above the table ─────────────────────── */
 @media (max-width: 600px) {
   .admin_visitors_section > div:first-child {
     flex-direction: column;
@@ -978,9 +974,10 @@
   }
 }
 
-/* ── Users tab: actions go full width under the user info ────────── */
+/* ── Users & Admins rows ─────────────────────────────────────────── */
 @media (max-width: 600px) {
-  .admin_user_mgmt_row {
+  .admin_user_mgmt_row,
+  .admin_admin_row {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
@@ -994,31 +991,20 @@
     grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
-  .admin_user_mgmt_actions .admin_action_btn {
+  .admin_user_mgmt_actions .admin_action_btn,
+  .admin_admin_row .admin_action_btn {
     width: 100%;
     padding: 10px 8px;
   }
   .admin_user_remove_content_label {
     white-space: normal;
   }
-}
-
-/* ── Admins tab rows ─────────────────────────────────────────────── */
-@media (max-width: 600px) {
-  .admin_admin_row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-  .admin_admin_row .admin_action_btn {
-    width: 100%;
-  }
   .admin_admin_email {
     word-break: break-all;
   }
 }
 
-/* ── Toast: never wider than the screen ──────────────────────────── */
+/* ── Toast ───────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .admin_toast {
     white-space: normal;
@@ -1028,7 +1014,7 @@
   }
 }
 
-/* ── Touch targets & motion preferences ──────────────────────────── */
+/* ── Touch targets ───────────────────────────────────────────────── */
 @media (hover: none) {
   .admin_action_btn,
   .admin_add_word_btn,
@@ -1040,13 +1026,5 @@
   .admin_report_card:hover,
   .admin_word_chip:hover {
     border-color: var(--zx-border);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .admin_toast,
-  .admin_spinner {
-    animation-duration: 0.01ms;
-    animation-iteration-count: 1;
   }
 }

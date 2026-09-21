@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
@@ -7,6 +7,7 @@ import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
 import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
 import BoltOutlinedIcon from "@mui/icons-material/BoltOutlined";
 import "./homeHub.css";
+import { supabase } from "../../config/supabase";
 
 // HomePageContent is the component App.js originally imported as `Home`
 // from "./Pages/Home/home" (the home feed / trending carousel / grid).
@@ -22,8 +23,45 @@ const UPLOAD_ROUTES = {
   video: "/videoUpload",
 };
 
+// ── Tab registry ─────────────────────────────────────────────────────────
+// The single source of truth for each tab's icon and the component it
+// renders. The `home_hub_tabs` Supabase table (managed from
+// AdminPanel.jsx's "Home Hub" tab) only ever controls label / visibility
+// / order for a key defined here — it never determines WHAT mounts for
+// a given key. Adding a genuinely new tab still requires a code change
+// here; the admin panel can only show/hide/reorder/relabel these three.
+const TAB_DEFS = {
+  home: {
+    icon: HomeOutlinedIcon,
+    render: ({ sideNavbar }) => <HomePageContent sideNavbar={sideNavbar} />,
+  },
+  posts: {
+    icon: NewspaperOutlinedIcon,
+    render: ({ sideNavbar, currentUser }) => (
+      <PostFeed sideNavbar={sideNavbar} currentUser={currentUser} />
+    ),
+  },
+  utility: {
+    icon: BoltOutlinedIcon,
+    render: ({ sideNavbar, currentUser }) => (
+      <UtilityPage sideNavbar={sideNavbar} currentUser={currentUser} />
+    ),
+  },
+};
+
+// Used until the DB config has loaded, and as a fallback if the fetch
+// fails or the table comes back empty — HomeHub must never end up with
+// zero visible tabs.
+const FALLBACK_TABS = [
+  { key: "home", label: "Home", is_visible: true, sort_order: 0 },
+  { key: "posts", label: "Posts", is_visible: true, sort_order: 1 },
+  { key: "utility", label: "Utility", is_visible: true, sort_order: 2 },
+];
+
 // ── HomeHub ──────────────────────────────────────────────────────────────
-// Merged tab bar: Home / Posts / Utility, plus an Upload button.
+// Merged tab bar: Home / Posts / Utility, plus an Upload button. Which
+// of the three tabs actually show — and in what order — is controlled
+// live from the Admin Panel via the `home_hub_tabs` table.
 //
 // Active sub-tab is stored in the URL as ?tab=posts|utility (default, no
 // param, is the Home feed) so back/forward and shared links still work.
@@ -49,9 +87,75 @@ const UPLOAD_ROUTES = {
 const HomeHub = ({ sideNavbar, currentUser }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── Admin-controlled tab visibility/order ───────────────────────────
+  const [tabsConfig, setTabsConfig] = useState(FALLBACK_TABS);
+  const [tabsLoaded, setTabsLoaded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const fetchTabs = async () => {
+      const { data, error } = await supabase
+        .from("home_hub_tabs")
+        .select("*")
+        .order("sort_order", { ascending: true });
+      if (!active) return;
+      if (!error && data && data.length > 0) {
+        setTabsConfig(data);
+      }
+      setTabsLoaded(true);
+    };
+
+    fetchTabs();
+
+    // Live updates: an admin toggling/reordering a tab in the Admin
+    // Panel takes effect here within a second, no refresh needed.
+    const channel = supabase
+      .channel("home-hub-tabs")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "home_hub_tabs" },
+        fetchTabs,
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Tabs that should actually appear in the bar, in order. Falls back
+  // to the full default set if an admin somehow hides all three.
+  const effectiveTabs = useMemo(() => {
+    const visible = tabsConfig
+      .filter((t) => t.is_visible && TAB_DEFS[t.key])
+      .sort((a, b) => a.sort_order - b.sort_order);
+    return visible.length > 0 ? visible : FALLBACK_TABS;
+  }, [tabsConfig]);
+
   const rawTab = searchParams.get("tab");
-  const activeTab =
-    rawTab === "posts" ? "posts" : rawTab === "utility" ? "utility" : "home";
+  const requestedTab = rawTab && TAB_DEFS[rawTab] ? rawTab : "home";
+  const isRequestedVisible = effectiveTabs.some((t) => t.key === requestedTab);
+  const activeTab = isRequestedVisible ? requestedTab : effectiveTabs[0].key;
+
+  const setTab = (tab) => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === "home") next.delete("tab");
+    else next.set("tab", tab);
+    setSearchParams(next, { replace: false });
+  };
+
+  // If the tab currently in the URL just got hidden by an admin (or was
+  // never a real tab), snap the URL over to whatever we fell back to —
+  // once config has actually loaded, so we don't flash-redirect before
+  // the real (possibly different) config arrives.
+  useEffect(() => {
+    if (!tabsLoaded) return;
+    if (activeTab !== requestedTab) setTab(activeTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabsLoaded, activeTab, requestedTab]);
 
   const [showUploadMenu, setShowUploadMenu] = useState(false);
   const uploadMenuRef = useRef(null);
@@ -73,13 +177,6 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showUploadMenu]);
 
-  const setTab = (tab) => {
-    const next = new URLSearchParams(searchParams);
-    if (tab === "home") next.delete("tab");
-    else next.set("tab", tab);
-    setSearchParams(next, { replace: false });
-  };
-
   const requireLogin = () => {
     if (!currentUser) {
       window.dispatchEvent(new CustomEvent("openLogin"));
@@ -98,9 +195,11 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
       // Already there — PostComposer is already mounted, focus it now.
       focusComposer();
     } else {
-      // Switching from Home/Utility unmounts the current tab and mounts
-      // PostFeed fresh — give it a tick to actually render before
-      // trying to focus something inside it.
+      // Switching tabs (or deep-linking into Posts even if an admin has
+      // hidden it from the tab bar — hidden just means "not advertised
+      // in the nav", the route/composer itself still works) unmounts
+      // the current tab and mounts PostFeed fresh — give it a tick to
+      // actually render before trying to focus something inside it.
       setTab("posts");
       requestAnimationFrame(() => setTimeout(focusComposer, 60));
     }
@@ -123,27 +222,19 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
           (activeTab === "home" ? " hh-tabbar-below-options" : "")
         }
       >
-        <button
-          className={"hh-tab-btn" + (activeTab === "home" ? " hh-tab-active" : "")}
-          onClick={() => setTab("home")}
-        >
-          <HomeOutlinedIcon sx={{ fontSize: 18 }} />
-          <span className="hh-tab-label">Home</span>
-        </button>
-        <button
-          className={"hh-tab-btn" + (activeTab === "posts" ? " hh-tab-active" : "")}
-          onClick={() => setTab("posts")}
-        >
-          <NewspaperOutlinedIcon sx={{ fontSize: 18 }} />
-          <span className="hh-tab-label">Posts</span>
-        </button>
-        <button
-          className={"hh-tab-btn" + (activeTab === "utility" ? " hh-tab-active" : "")}
-          onClick={() => setTab("utility")}
-        >
-          <BoltOutlinedIcon sx={{ fontSize: 18 }} />
-          <span className="hh-tab-label">Utility</span>
-        </button>
+        {effectiveTabs.map((t) => {
+          const Icon = TAB_DEFS[t.key].icon;
+          return (
+            <button
+              key={t.key}
+              className={"hh-tab-btn" + (activeTab === t.key ? " hh-tab-active" : "")}
+              onClick={() => setTab(t.key)}
+            >
+              <Icon sx={{ fontSize: 18 }} />
+              <span className="hh-tab-label">{t.label}</span>
+            </button>
+          );
+        })}
 
         <div className="hh-upload-wrap">
           <button
@@ -174,13 +265,7 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
       </div>
 
       <div className="hh-tab-content">
-        {activeTab === "home" ? (
-          <HomePageContent sideNavbar={sideNavbar} />
-        ) : activeTab === "posts" ? (
-          <PostFeed sideNavbar={sideNavbar} currentUser={currentUser} />
-        ) : (
-          <UtilityPage sideNavbar={sideNavbar} currentUser={currentUser} />
-        )}
+        {TAB_DEFS[activeTab].render({ sideNavbar, currentUser })}
       </div>
     </div>
   );

@@ -137,9 +137,10 @@ const AdminPanel = () => {
     return data;
   };
 
-  const callManageAdmin   = (body) => callApi("/api/manage-admin", body);
-  const callUserLoginInfo = () => callApi("/api/user-login-info", {});
-  const callModerateUser  = (body) => callApi("/api/moderate-user", body);
+  const callManageAdmin    = (body) => callApi("/api/manage-admin", body);
+  const callUserLoginInfo  = () => callApi("/api/user-login-info", {});
+  const callModerateUser   = (body) => callApi("/api/moderate-user", body);
+  const callManageHomeHub  = (body) => callApi("/api/manage-home-hub-tabs", body);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -203,6 +204,17 @@ const AdminPanel = () => {
   const [userSearch,      setUserSearch]      = useState("");
   const [moderatingId,    setModeratingId]    = useState(null); // userId currently being acted on
   const [removeContentMap, setRemoveContentMap] = useState({}); // userId -> bool, "also delete content" checkbox state
+
+  // ── "Home Hub" tab state ─────────────────────────────────────────────────
+  // Controls which tabs show in HomeHub.jsx's tab bar (Home/Posts/Utility)
+  // and in what order. Writes go through /api/manage-home-hub-tabs (same
+  // admin-token pattern as callManageAdmin) rather than direct client
+  // writes, since the home_hub_tabs table's RLS only grants SELECT to
+  // the anon/authenticated roles.
+  const [hubTabs,        setHubTabs]        = useState([]);
+  const [hubTabsLoading, setHubTabsLoading] = useState(false);
+  const [hubTabsLoaded,  setHubTabsLoaded]  = useState(false);
+  const [hubTabBusyKey,  setHubTabBusyKey]  = useState(null);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -680,6 +692,58 @@ const AdminPanel = () => {
       )
     : userRows;
 
+  // ── Home Hub tab: fetch / toggle / reorder ──────────────────────────────
+  const fetchHubTabs = async () => {
+    setHubTabsLoading(true);
+    try {
+      const { tabs } = await callManageHomeHub({ action: "list" });
+      setHubTabs((tabs || []).slice().sort((a, b) => a.sort_order - b.sort_order));
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setHubTabsLoading(false);
+    setHubTabsLoaded(true);
+  };
+
+  useEffect(() => {
+    if (activeTab === "hub" && !hubTabsLoaded && !hubTabsLoading) {
+      fetchHubTabs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const toggleHubTabVisibility = async (tab) => {
+    setHubTabBusyKey(tab.key);
+    const nextVisible = !tab.is_visible;
+    try {
+      await callManageHomeHub({ action: "toggle", key: tab.key, is_visible: nextVisible });
+      setHubTabs((prev) => prev.map((t) => (t.key === tab.key ? { ...t, is_visible: nextVisible } : t)));
+      showToast(`"${tab.label}" ${nextVisible ? "shown" : "hidden"} on the homepage`);
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setHubTabBusyKey(null);
+  };
+
+  const moveHubTab = async (tab, direction) => {
+    const idx = hubTabs.findIndex((t) => t.key === tab.key);
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= hubTabs.length) return;
+
+    const reordered = hubTabs.slice();
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+    const updates = reordered.map((t, i) => ({ key: t.key, sort_order: i }));
+
+    setHubTabBusyKey(tab.key);
+    try {
+      await callManageHomeHub({ action: "reorder", updates });
+      setHubTabs(reordered.map((t, i) => ({ ...t, sort_order: i })));
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setHubTabBusyKey(null);
+  };
+
   // ── Shared export data fetcher (existing header Excel/PDF export) ──────────
   const fetchExportData = async () => {
     const [
@@ -983,6 +1047,10 @@ const AdminPanel = () => {
         {/* NEW: ban/unban/delete any user account. See api/moderate-user.js. */}
         <button className={`admin_tab ${activeTab === "users" ? "active" : ""}`} onClick={() => setActiveTab("users")}>
           👥 Users
+        </button>
+        {/* NEW: show/hide/reorder HomeHub.jsx's Home/Posts/Utility tabs. */}
+        <button className={`admin_tab ${activeTab === "hub" ? "active" : ""}`} onClick={() => setActiveTab("hub")}>
+          🏠 Home Hub
         </button>
       </div>
 
@@ -1412,6 +1480,74 @@ const AdminPanel = () => {
                 </div>
               )}
             </>
+          )}
+        </div>
+      ) : activeTab === "hub" ? (
+        /* ── Home Hub Tab: show/hide/reorder HomeHub.jsx's tabs ── */
+        <div className="admin_hub_section">
+          <p className="admin_words_hint">
+            Controls which tabs appear in the homepage's tab bar, and in
+            what order. Changes apply live — no redeploy needed. At least
+            one tab always stays visible; hiding the last one is ignored
+            on the homepage rather than leaving it empty.
+          </p>
+
+          {hubTabsLoading ? (
+            <div className="admin_loading">
+              <div className="admin_spinner" />
+              <p>Loading tab config...</p>
+            </div>
+          ) : hubTabs.length === 0 ? (
+            <div className="admin_empty">
+              <div style={{ fontSize: "48px" }}>🏠</div>
+              <p>No tab config found — run the home_hub_tabs migration</p>
+            </div>
+          ) : (
+            <div className="admin_hub_list">
+              {hubTabs.map((t, i) => {
+                const busy = hubTabBusyKey === t.key;
+                return (
+                  <div key={t.key} className="admin_hub_row">
+                    <div className="admin_hub_reorder">
+                      <button
+                        className="admin_hub_reorder_btn"
+                        onClick={() => moveHubTab(t, -1)}
+                        disabled={busy || i === 0}
+                        title="Move up"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        className="admin_hub_reorder_btn"
+                        onClick={() => moveHubTab(t, 1)}
+                        disabled={busy || i === hubTabs.length - 1}
+                        title="Move down"
+                      >
+                        ↓
+                      </button>
+                    </div>
+
+                    <div className="admin_hub_info">
+                      <div className="admin_hub_label">{t.label}</div>
+                      <div className="admin_admin_meta">key: {t.key}</div>
+                    </div>
+
+                    <label className={`admin_hub_toggle ${t.is_visible ? "on" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={t.is_visible}
+                        onChange={() => toggleHubTabVisibility(t)}
+                        disabled={busy}
+                      />
+                      <span className="admin_hub_toggle_track">
+                        <span className="admin_hub_toggle_thumb" />
+                      </span>
+                      <span className="admin_hub_toggle_label">{t.is_visible ? "Visible" : "Hidden"}</span>
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       ) : (

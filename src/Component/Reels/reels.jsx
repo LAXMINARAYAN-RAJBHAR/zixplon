@@ -28,6 +28,16 @@ import CommentMediaPicker from "../Shared/CommentMediaPicker";
 // ({ title, artist, cover, url }), same component used in PostCard.jsx /
 // Video.jsx / the composers.
 import SongAttachmentCard from "../Shared/SongAttachmentCard";
+// NEW: hls.js gives adaptive-bitrate HLS playback in every browser that
+// doesn't support it natively (i.e. everything except Safari/iOS).
+// Install with: npm install hls.js
+// If a reel's video_url is still a plain .mp4 (no .m3u8 manifest), this
+// whole path is a no-op and playback falls back to the existing
+// <source> tag exactly as before — nothing breaks until reels start
+// carrying HLS manifests. Same setup already used in PostCard.jsx /
+// Video.jsx, ported here so reels get the same adaptive-bitrate
+// playback the other two surfaces already have.
+import Hls from "hls.js";
 // NOTE: notifyUser() is no longer imported/used anywhere in this file.
 // Like/comment notifications are owned by the notify_on_like /
 // notify_on_comment DB triggers, and Connect requests/accepts are owned
@@ -46,6 +56,11 @@ const getVideoType = (src) => {
   if (src.includes(".flv")) return "video/x-flv";
   return "video/mp4";
 };
+
+// NEW: HLS manifests are served as .m3u8. Everything else (mp4/webm/etc)
+// keeps using the existing native <source> path untouched. Same helper
+// as PostCard.jsx / Video.jsx.
+const isHlsSource = (src) => !!src && /\.m3u8(\?.*)?$/i.test(src);
 
 const fetchCount = async (contentId, contentType, reactionType) => {
   const { count } = await supabase
@@ -299,6 +314,10 @@ const ReelItem = ({ reel, allReels }) => {
   const tapTimeoutRef   = useRef(null);
   const muteBtnTimerRef = useRef(null);
   const progressBarRef  = useRef(null);
+  // NEW: holds the active hls.js instance for this reel, torn down on
+  // unmount or whenever reel.id/reel.src changes. Same pattern as
+  // PostCard.jsx's PostVideo / Video.jsx.
+  const hlsInstanceRef  = useRef(null);
 
   const loggedInUser = localStorage.getItem("username") || "Guest";
 
@@ -549,6 +568,60 @@ const ReelItem = ({ reel, allReels }) => {
     return () => video.removeEventListener("timeupdate", handleTimeUpdate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reel.src]);
+
+  // ── HLS playback (NEW) ──────────────────────────────────────────────
+  // Sets up hls.js (or hands off to native HLS on Safari) whenever this
+  // reel's src is an .m3u8 manifest. For everything else (plain
+  // mp4/webm/etc) this effect is a no-op and the existing <source> tag
+  // below handles playback exactly as before — nothing changes for
+  // reels that aren't served as HLS yet. Skipped entirely for YouTube
+  // embeds, which never touch the <video> element at all. Same setup as
+  // Video.jsx's HLS effect, ported here for the reel feed.
+  useEffect(() => {
+    if (isYouTube(reel.src)) return;
+    const vid = videoRef.current;
+
+    // Always tear down any previous hls.js instance first — leaving one
+    // running while a new source loads causes duplicate buffering and
+    // memory growth.
+    if (hlsInstanceRef.current) {
+      hlsInstanceRef.current.destroy();
+      hlsInstanceRef.current = null;
+    }
+
+    if (!vid || !isHlsSource(reel.src)) return;
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        // Keep a modest forward buffer — enough to absorb network
+        // hiccups without holding minutes of unwatched video in memory,
+        // which matters more here than on Video.jsx since several
+        // ReelItems can be mounted (and buffering) at once.
+        maxBufferLength: 30,
+        enableWorker: true,
+      });
+      hls.loadSource(reel.src);
+      hls.attachMedia(vid);
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data?.fatal) {
+          console.error("hls.js fatal error (reel):", data);
+        }
+      });
+      hlsInstanceRef.current = hls;
+    } else if (vid.canPlayType("application/vnd.apple.mpegurl")) {
+      // Safari/iOS play HLS natively — no hls.js needed, just point the
+      // <video> element straight at the manifest.
+      vid.src = reel.src;
+    }
+
+    return () => {
+      if (hlsInstanceRef.current) {
+        hlsInstanceRef.current.destroy();
+        hlsInstanceRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reel.id, reel.src]);
 
   // NEW: mirror the reel video's isPlaying state onto the attached
   // song's <audio> element, so background music autoplays with the
@@ -952,7 +1025,11 @@ const ReelItem = ({ reel, allReels }) => {
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !reel.src?.includes("cloudinary.com")) return;
+    // CHANGED: skip this reload-based quality switch for HLS sources —
+    // HLS handles adaptive bitrate internally via hls.js, so forcing a
+    // full video.load() here would fight with it and cause visible
+    // stutter. Same guard as Video.jsx.
+    if (!video || !reel.src?.includes("cloudinary.com") || isHlsSource(reel.src)) return;
     const wasPlaying = !video.paused;
     const resumeTime = video.currentTime;
     video.load();
@@ -1113,6 +1190,12 @@ const ReelItem = ({ reel, allReels }) => {
   const topLevelComments = [...comments].filter((c) => !c.parentId).reverse();
   const repliesFor = (parentId) => comments.filter((c) => c.parentId === parentId);
 
+  // NEW: drives whether the <source> child renders below — for HLS,
+  // the effect above sets .src (or hands the element to hls.js)
+  // directly, so no <source> child should be rendered at all. Same
+  // pattern as PostCard.jsx / Video.jsx.
+  const usingHls = isHlsSource(reel.src);
+
   return (
     <div
       className={`reel_item${showComments ? " reel_item--comments-open" : ""}`}
@@ -1129,7 +1212,15 @@ const ReelItem = ({ reel, allReels }) => {
           <iframe className="reel_video" src={getEmbedUrl(reel.src)} frameBorder="0" allow="autoplay; fullscreen" allowFullScreen title={reel.title} />
         ) : (
           <video ref={videoRef} className="reel_video" loop muted={muted} playsInline poster={reel.thumbnail} controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} onClick={handleVideoClick}>
-            <source src={getAdaptiveVideoSrc(reel.src, quality)} type={getVideoType(reel.src)} />
+            {/* CHANGED: for HLS sources the effect above sets the
+                video's source via hls.js (or vid.src on Safari)
+                directly, so the <source> child is skipped to avoid the
+                browser trying (and failing) to fetch the raw .m3u8 as a
+                plain video file. Non-HLS sources keep working exactly
+                as before. */}
+            {!usingHls && (
+              <source src={getAdaptiveVideoSrc(reel.src, quality)} type={getVideoType(reel.src)} />
+            )}
             Your browser does not support this video.
           </video>
         )}

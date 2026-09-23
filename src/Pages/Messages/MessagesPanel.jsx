@@ -511,7 +511,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     };
   }, []);
 
-  const historyDepthRef = useRef(0);
+    const historyDepthRef = useRef(0);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -521,19 +521,35 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     };
   }, []);
 
+  // Reset the depth tracker whenever this panel instance goes away, so a
+  // fresh mount always starts from a known state.
   useEffect(() => {
-    if (!isMobile()) return;
-
-    window.history.pushState({ mpDepth: 1 }, "");
-    historyDepthRef.current = 1;
-
     return () => {
       historyDepthRef.current = 0;
     };
   }, []);
 
+  // Pushes the "list" (layer 1) history entry, then the "detail" (layer 2)
+  // entry if a chat/group/broadcast is open — in that order, in the SAME
+  // effect. This is deliberately merged into one effect (rather than two
+  // separate ones) so layer 1 is always pushed before layer 2, no matter
+  // whether this runs on a fresh mount, on a mount that opens straight
+  // into a chat (e.g. via `initialUsername`), or on a later state change.
+  // Previously these were two separate effects, and if the "layer 1" push
+  // effect ever ran after (or without) the "layer 2" push, the list-layer
+  // history entry could end up missing. Then a single back press would
+  // pop straight past it to the underlying page's entry, and the popstate
+  // handler below — which had two independent `if` conditions — would
+  // fire BOTH the "close detail" and the "close panel" branches on that
+  // same event, closing the whole panel (and visually, the app) in one
+  // press instead of unwinding one layer at a time.
   useEffect(() => {
     if (!isMobile()) return;
+
+    if (historyDepthRef.current === 0) {
+      window.history.pushState({ mpDepth: 1 }, "");
+      historyDepthRef.current = 1;
+    }
 
     const anyDetailOpen = !!(activeUsername || activeGroup || activeBroadcast);
 
@@ -551,13 +567,23 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
       const depth = e.state?.mpDepth ?? 0;
 
-      if (depth < 2 && historyDepthRef.current >= 2) {
+      // Branch on the exact depth we landed on rather than combining
+      // independent conditions — this way a single popstate event closes
+      // at most one layer, matching what the browser's back stack
+      // actually did, instead of collapsing multiple layers together.
+      if (depth >= 2) {
+        // Still on a detail entry somehow — nothing to close.
+      } else if (depth === 1) {
+        // Popped from "detail" back to "list".
         setActiveUsername(null);
         setActiveGroup(null);
         setActiveBroadcast(null);
-      }
-
-      if (depth < 1) {
+      } else {
+        // Popped from "list" (or skipped straight past it) back to the
+        // underlying page — close the whole panel.
+        setActiveUsername(null);
+        setActiveGroup(null);
+        setActiveBroadcast(null);
         onClose();
       }
 

@@ -459,24 +459,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
   const isMobile = () => window.innerWidth <= 768;
 
-  // ── Minimize (mobile only) ──
-  // Collapses the panel down to a small floating bar instead of closing
-  // it outright, so the underlying page becomes interactive again while
-  // the conversation stays one tap away. Works the same whether the
-  // inbox list or an open chat/group/broadcast is currently showing —
-  // whichever was visible when minimized is what reappears when the bar
-  // is tapped again, since minimizing never touches activeUsername /
-  // activeGroup / activeBroadcast or the history stack, it's purely a
-  // visual collapse.
-  const [minimized, setMinimized] = useState(false);
-
-  const minimizePanel = (e) => {
-    e?.stopPropagation();
-    setMinimized(true);
-  };
-
-  const restorePanel = () => setMinimized(false);
-
   // ── Keyboard-aware viewport tracking ─────────────────────────────────
   // Three things have to track the real visible viewport, not just one:
   //   1. HEIGHT — visualViewport.height shrinks when the keyboard opens.
@@ -623,9 +605,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   };
 
   const closePanel = () => {
-    // A full close always drops the minimized state too, so the panel
-    // never comes back already collapsed next time it's opened.
-    setMinimized(false);
     if (isMobile() && historyDepthRef.current >= 1) {
       window.history.go(-historyDepthRef.current);
     } else {
@@ -2047,13 +2026,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
   const anyDetailOpen = !!(activeUsername || activeGroup || activeBroadcast);
 
-  // Label + avatar initials shown on the minimized bar — whichever view
-  // (a 1:1 chat, a group, a broadcast list, or the inbox itself) was
-  // visible when the user minimized is what's summarized here.
-  const minimizedLabel =
-    activeUsername || activeGroup?.name || activeBroadcast?.name || "Messages";
-  const minimizedAvatarText = minimizedLabel.slice(0, 2).toUpperCase();
-
   const isUploadingAny = pendingAttachments.some((a) => a.status === "uploading");
   const canSend = (text.trim() || pendingAttachments.length > 0) && !sending;
 
@@ -2132,42 +2104,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     );
   };
 
-  // ── Minimized state (mobile only): render just the small floating
-  // bar instead of the full-screen overlay/panel, so the page behind it
-  // is interactive again. Never render this on desktop — the minimize
-  // button itself is hidden there via CSS, but this guard covers the
-  // (unlikely) case of a viewport resize while minimized is still true.
-  if (currentUser && minimized && isMobile()) {
-    return (
-      <div
-        className="mp-minimized-bar"
-        onClick={restorePanel}
-        role="button"
-        tabIndex={0}
-        aria-label={`Reopen ${minimizedLabel}`}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") restorePanel();
-        }}
-      >
-        <div className="mp-convo-avatar mp-minimized-avatar">
-          {minimizedAvatarText}
-        </div>
-        <span className="mp-minimized-label">{minimizedLabel}</span>
-        <button
-          type="button"
-          className="mp-minimized-close"
-          onClick={(e) => {
-            e.stopPropagation();
-            closePanel();
-          }}
-          aria-label="Close"
-        >
-          ✕
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div
       className={`mp-overlay ${!currentUser ? "mp-overlay-center" : ""}`}
@@ -2233,15 +2169,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                       </div>
                     </div>
                   )}
-                  <button
-                    type="button"
-                    className="mp-minimize-btn"
-                    onClick={minimizePanel}
-                    aria-label="Minimize"
-                    title="Minimize"
-                  >
-                    −
-                  </button>
                   <button
                     className="mp-close-btn"
                     onClick={closePanel}
@@ -2422,7 +2349,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                   currentUser={currentUser}
                   onBack={closeDetail}
                   onClose={closePanel}
-                  onMinimize={minimizePanel}
                 />
               ) : activeBroadcast ? (
                 <BroadcastComposeWindow
@@ -2430,7 +2356,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                   currentUser={currentUser}
                   onBack={closeDetail}
                   onClose={closePanel}
-                  onMinimize={minimizePanel}
                 />
               ) : !activeUsername ? (
                 <div className="mp-placeholder">
@@ -2481,15 +2406,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               : "Offline"}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      className="mp-minimize-btn"
-                      onClick={minimizePanel}
-                      aria-label="Minimize"
-                      title="Minimize"
-                    >
-                      −
-                    </button>
                     <button
                       className="mp-close-btn"
                       onClick={closePanel}

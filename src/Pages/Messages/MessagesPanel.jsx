@@ -415,6 +415,27 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const newMenuRef = useRef();
   const newMenuBtnRef = useRef();
 
+  // ── Minimize / maximize (mobile) ──
+  // Minimizing does NOT unmount the panel — it just changes what's
+  // rendered (a small floating bar instead of the full inbox/chat
+  // tree). This is deliberate: all the realtime subscriptions, typing
+  // debounce timers, in-progress recordings/uploads etc. are wired to
+  // effects that run unconditionally above the render return, so they
+  // keep working while minimized (e.g. a message that arrives while
+  // minimized still updates unread counts and plays a notification).
+  const [minimized, setMinimized] = useState(false);
+  const minimizePanel = () => setMinimized(true);
+  const maximizePanel = () => setMinimized(false);
+  // Used by the mini-bar's own "✕" — closing from the mini-bar should
+  // behave exactly like closing the full panel (same history-depth
+  // unwind via closePanel), just also clearing minimized state so a
+  // future re-open starts maximized rather than minimized.
+  const closeFromMiniBar = (e) => {
+    e.stopPropagation();
+    setMinimized(false);
+    closePanel();
+  };
+
   // Same freshness pattern as activeUsernameRef above, used by the
   // group-message notification listener further down.
   const activeGroupRef = useRef(activeGroup);
@@ -2104,6 +2125,63 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     );
   };
 
+  // ── Minimized mini-bar (mobile only) ──
+  // Rendered instead of the full panel tree while `minimized` is true.
+  // Deliberately placed AFTER every hook/effect above so all realtime
+  // subscriptions (new messages, typing, notifications) keep running
+  // while this is showing — only the visible UI collapses. On desktop
+  // we never minimize (the floating window is small/movable already),
+  // so this branch only takes effect on mobile widths.
+  if (currentUser && minimized && isMobile()) {
+    const miniBarTitle =
+      activeGroup?.name || activeBroadcast?.name || activeUsername || "Messages";
+    const miniBarInitials = miniBarTitle.slice(0, 2).toUpperCase();
+    const miniBarUnreadCount =
+      conversations.filter(isConvoUnread).length + incomingRequests.length;
+
+    return (
+      <div
+        className="mp-mini-bar"
+        onClick={maximizePanel}
+        role="button"
+        tabIndex={0}
+        aria-label={`Restore ${miniBarTitle}`}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") maximizePanel();
+        }}
+      >
+        <div className="mp-mini-bar-avatar">
+          {activeBroadcast ? "📢" : miniBarInitials}
+        </div>
+        <span className="mp-mini-bar-title">{miniBarTitle}</span>
+        {miniBarUnreadCount > 0 && (
+          <span className="mp-mini-bar-badge">{miniBarUnreadCount}</span>
+        )}
+        <button
+          type="button"
+          className="mp-mini-bar-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            maximizePanel();
+          }}
+          aria-label="Maximize"
+          title="Maximize"
+        >
+          ⬆
+        </button>
+        <button
+          type="button"
+          className="mp-mini-bar-btn"
+          onClick={closeFromMiniBar}
+          aria-label="Close"
+          title="Close"
+        >
+          ✕
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`mp-overlay ${!currentUser ? "mp-overlay-center" : ""}`}
@@ -2169,6 +2247,15 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                       </div>
                     </div>
                   )}
+                  <button
+                    type="button"
+                    className="mp-minimize-btn"
+                    onClick={minimizePanel}
+                    aria-label="Minimize"
+                    title="Minimize"
+                  >
+                    ─
+                  </button>
                   <button
                     className="mp-close-btn"
                     onClick={closePanel}
@@ -2349,6 +2436,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                   currentUser={currentUser}
                   onBack={closeDetail}
                   onClose={closePanel}
+                  onMinimize={minimizePanel}
                 />
               ) : activeBroadcast ? (
                 <BroadcastComposeWindow
@@ -2356,6 +2444,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                   currentUser={currentUser}
                   onBack={closeDetail}
                   onClose={closePanel}
+                  onMinimize={minimizePanel}
                 />
               ) : !activeUsername ? (
                 <div className="mp-placeholder">
@@ -2406,6 +2495,15 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               : "Offline"}
                       </span>
                     </div>
+                    <button
+                      type="button"
+                      className="mp-minimize-btn"
+                      onClick={minimizePanel}
+                      aria-label="Minimize"
+                      title="Minimize"
+                    >
+                      ─
+                    </button>
                     <button
                       className="mp-close-btn"
                       onClick={closePanel}

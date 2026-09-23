@@ -1771,3 +1771,55 @@
   box-shadow: none !important;
   padding: 2px !important;
 }
+
+.mp-minimize-btn {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--zx-text3);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+.mp-minimize-btn:hover { background: var(--zx-bg); color: var(--zx-primary); }
+
+@media (max-width: 768px) {
+  .mp-minimize-btn { display: inline-flex; align-items: center; justify-content: center; }
+}
+
+.mp-mini-bar {
+  position: fixed;
+  left: 12px; right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  max-width: 340px;
+  margin-left: auto;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--zx-surface);
+  border: 2px solid var(--zx-border);
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  padding: 6px 8px 6px 6px;
+  cursor: pointer;
+  z-index: 99999;
+}
+.mp-mini-bar-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--zx-primary), var(--zx-primary2));
+  color: #fff; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.mp-mini-bar-title {
+  flex: 1; min-width: 0; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 13px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mp-mini-bar-badge {
+  background: var(--zx-primary); color: #fff; font-size: 10px; font-weight: 800;
+  border-radius: 10px; padding: 1px 6px; flex-shrink: 0;
+}
+.mp-mini-bar-btn {
+  background: transparent; border: none; color: var(--zx-text2); font-size: 14px;
+  cursor: pointer; padding: 4px 6px; border-radius: 50%; flex-shrink: 0;
+}
+.mp-mini-bar-btn:hover { background: var(--zx-bg); color: var(--zx-primary); }

@@ -11,6 +11,12 @@ import { uploadToR2, buildTransformUrl } from "../../utils/mediaUpload";
 // Reels.jsx already use for their Connect buttons. Profile.js previously
 // had no equivalent notification on a successful connect at all.
 import { notifyUser } from "../../utils/notifications";
+// NEW: lets a visitor start/open a DM with the profile owner directly
+// from the profile page, without navigating away. MessagesPanel is
+// self-contained (own overlay, own currentUser lookup via localStorage,
+// own conversation create-or-load logic) so mounting it here needs no
+// extra global state — see handleMessage / messageTarget below.
+import MessagesPanel from "../../Component/Messages/MessagesPanel";
 
 const allVideos = [
   { id: 7679, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTu-l3JR0guZspKsBZkVoakjkQ-qxUCCpkQnw&s", title: "Big Buck Bunny open-source film", duration: "09:56", channel: "Gangeshwary" },
@@ -531,6 +537,11 @@ const Profile = ({ sideNavbar }) => {
   const [connectLoading, setConnectLoading]         = useState(false);
   const [showConnectionsModal, setShowConnectionsModal] = useState(false);
 
+  // NEW: when set to a username, mounts <MessagesPanel initialUsername=...>
+  // focused straight on a DM with that person. Cleared (unmounts the
+  // panel) via MessagesPanel's own onClose.
+  const [messageTarget, setMessageTarget] = useState(null);
+
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName]   = useState("");
   const [editAbout, setEditAbout] = useState("");
@@ -829,6 +840,21 @@ const Profile = ({ sideNavbar }) => {
     }
   };
 
+  // NEW: opens a DM with this profile's owner. Same login/self-action
+  // guard shape as handleConnect above. MessagesPanel itself takes care
+  // of creating the conversation (as a pending "message request" if the
+  // two users have never messaged before) once it mounts with
+  // initialUsername set — no extra state needed here beyond the target.
+  const handleMessage = () => {
+    const currentUser = localStorage.getItem("username") || "";
+    if (!currentUser) {
+      window.dispatchEvent(new CustomEvent("openLogin"));
+      return;
+    }
+    if (currentUser.toLowerCase() === key) return; // can't message yourself
+    setMessageTarget(user.username);
+  };
+
   const handleSaveProfile = async () => {
     const newChannelName = editName.trim() || user.name;
     const newAbout       = editAbout.trim() || user.about;
@@ -1098,15 +1124,22 @@ const Profile = ({ sideNavbar }) => {
                   </button>
                 </>
               ) : (
-                <button onClick={handleConnect} disabled={connectLoading}
-                  style={{ background: connected ? "#f0f4ff" : "var(--zx-primary)", color: connected ? "#1e1b4b" : "white", border: connected ? "2px solid #e0d4ff" : "none", borderRadius:"20px", padding:"8px 24px", fontSize:"14px", fontWeight:"600", cursor: connectLoading ? "not-allowed" : "pointer", transition:"all 0.2s", opacity: connectLoading ? 0.7 : 1, display:"flex", alignItems:"center", gap:"6px" }}>
-                  {connectLoading ? (
-                    <span style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-                      <span style={{ width:"14px", height:"14px", border:"2px solid rgba(255,255,255,0.4)", borderTop:"2px solid white", borderRadius:"50%", animation:"spin 0.7s linear infinite", display:"inline-block" }} />
-                      {connected ? "Disconnecting..." : "Connecting..."}
-                    </span>
-                  ) : connected ? "✓ Connected" : "Connect"}
-                </button>
+                <>
+                  {/* NEW: Message button — opens a DM with this profile's owner via MessagesPanel */}
+                  <button onClick={handleMessage}
+                    style={{ background:"#f0f4ff", color:"#1e1b4b", border:"2px solid #e0d4ff", borderRadius:"20px", padding:"8px 24px", fontSize:"14px", fontWeight:"600", cursor:"pointer", display:"flex", alignItems:"center", gap:"6px" }}>
+                    💬 Message
+                  </button>
+                  <button onClick={handleConnect} disabled={connectLoading}
+                    style={{ background: connected ? "#f0f4ff" : "var(--zx-primary)", color: connected ? "#1e1b4b" : "white", border: connected ? "2px solid #e0d4ff" : "none", borderRadius:"20px", padding:"8px 24px", fontSize:"14px", fontWeight:"600", cursor: connectLoading ? "not-allowed" : "pointer", transition:"all 0.2s", opacity: connectLoading ? 0.7 : 1, display:"flex", alignItems:"center", gap:"6px" }}>
+                    {connectLoading ? (
+                      <span style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                        <span style={{ width:"14px", height:"14px", border:"2px solid rgba(255,255,255,0.4)", borderTop:"2px solid white", borderRadius:"50%", animation:"spin 0.7s linear infinite", display:"inline-block" }} />
+                        {connected ? "Disconnecting..." : "Connecting..."}
+                      </span>
+                    ) : connected ? "✓ Connected" : "Connect"}
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -1256,6 +1289,14 @@ const Profile = ({ sideNavbar }) => {
 
       {/* ── Connections Modal ── */}
       {showConnectionsModal && <ConnectionsModal channelUsername={key} onClose={() => setShowConnectionsModal(false)} />}
+
+      {/* ── Messages Panel — opened via the "💬 Message" button above ── */}
+      {messageTarget && (
+        <MessagesPanel
+          initialUsername={messageTarget}
+          onClose={() => setMessageTarget(null)}
+        />
+      )}
 
       {/* ── Edit Profile Modal ── */}
       {showEditProfile && (

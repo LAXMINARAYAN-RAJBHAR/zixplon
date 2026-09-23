@@ -61,7 +61,11 @@ const FALLBACK_TABS = [
 // ── HomeHub ──────────────────────────────────────────────────────────────
 // Merged tab bar: Home / Posts / Utility, plus an Upload button. Which
 // of the three tabs actually show — and in what order — is controlled
-// live from the Admin Panel via the `home_hub_tabs` table.
+// live from the Admin Panel: general rules (visible/hidden, audience,
+// rollout %) live in the `home_hub_tabs` table, and per-username forced
+// overrides (for a specific tester or account) live in
+// `home_hub_tab_overrides`. See passesForViewer() below for exactly how
+// those combine for a given viewer.
 //
 // Active sub-tab is stored in the URL as ?tab=posts|utility (default, no
 // param, is the Home feed) so back/forward and shared links still work.
@@ -84,6 +88,38 @@ const FALLBACK_TABS = [
 // is active — Posts and Utility have no equivalent bar. Home/Posts/
 // Utility/Upload should always render BELOW that chip row when it's
 // present, but flush under the Navbar when it's not.
+// Deterministic 0-99 bucket for a (tabKey, viewerId) pair — used only if
+// rollout_percent on a tab is below 100; drives a stable A/B slice
+// rather than a random one that would flicker across reloads. FNV-1a,
+// good enough for bucketing (not cryptographic).
+const hashToPercent = (str) => {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return Math.abs(hash) % 100;
+};
+
+// Stable per-browser id for guests, so a guest's rollout bucket doesn't
+// change on every reload. Not used for anything except that bucketing —
+// never sent anywhere, never tied to an account.
+const getAnonId = () => {
+  try {
+    let id = localStorage.getItem("zx_ab_id");
+    if (!id) {
+      id = (crypto.randomUUID && crypto.randomUUID()) || `anon_${Date.now()}_${Math.random()}`;
+      localStorage.setItem("zx_ab_id", id);
+    }
+    return id;
+  } catch {
+    // localStorage unavailable (private mode, etc.) — fall back to a
+    // per-load id; rollout bucketing just won't be sticky for this
+    // visitor, which is a minor cosmetic issue, not a functional one.
+    return `anon_session_${Math.random()}`;
+  }
+};
+
 const HomeHub = ({ sideNavbar, currentUser }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -91,6 +127,12 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
   // ── Admin-controlled tab visibility/order ───────────────────────────
   const [tabsConfig, setTabsConfig] = useState(FALLBACK_TABS);
   const [tabsLoaded, setTabsLoaded] = useState(false);
+
+  // Per-username forced overrides for the CURRENT viewer only (never the
+  // whole table) — set by an admin from the "Home Hub" tab to force one
+  // person in or out of a specific tab regardless of the general rules.
+  // Keyed by tab key: { [tabKey]: true | false }.
+  const [myOverrides, setMyOverrides] = useState({});
 
   useEffect(() => {
     let active = true;
@@ -107,10 +149,27 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
       setTabsLoaded(true);
     };
 
-    fetchTabs();
+    const fetchMyOverrides = async () => {
+      if (!currentUser) {
+        if (active) setMyOverrides({});
+        return;
+      }
+      const { data, error } = await supabase
+        .from("home_hub_tab_overrides")
+        .select("tab_key, show")
+        .eq("username", currentUser);
+      if (!active || error || !data) return;
+      const map = {};
+      data.forEach((row) => { map[row.tab_key] = row.show; });
+      setMyOverrides(map);
+    };
 
-    // Live updates: an admin toggling/reordering a tab in the Admin
-    // Panel takes effect here within a second, no refresh needed.
+    fetchTabs();
+    fetchMyOverrides();
+
+    // Live updates: an admin toggling/reordering/overriding a tab in
+    // the Admin Panel takes effect here within a second, no refresh
+    // needed.
     const channel = supabase
       .channel("home-hub-tabs")
       .on(
@@ -118,33 +177,56 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
         { event: "*", schema: "public", table: "home_hub_tabs" },
         fetchTabs,
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "home_hub_tab_overrides" },
+        fetchMyOverrides,
+      )
       .subscribe();
 
     return () => {
       active = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [currentUser]);
 
-  // Tabs that should actually appear in the bar, in order. A tab must
-  // pass BOTH is_visible and its audience check against the current
-  // viewer (currentUser is null/"" for guests). Falls back to the full
-  // default set if that leaves zero tabs — e.g. an admin hides
-  // everything, or sets every remaining tab to 'logged_in' and a guest
-  // loads the page.
+  // Tabs that should actually appear in the bar, in order. Resolution
+  // order per tab, highest priority first:
+  //   1. A per-username override for this viewer — forces show/hide
+  //      regardless of everything below.
+  //   2. is_visible — admin's general on/off switch.
+  //   3. audience — 'everyone' | 'logged_in' | 'guests_only'.
+  //   4. rollout_percent — a stable slice of the viewers who passed 1-3.
+  // Falls back to the full default set if that leaves zero tabs for
+  // this particular viewer — e.g. an admin hides everything, or sets
+  // rollouts low enough that a given guest lands outside every bucket.
+  const viewerId = useMemo(() => currentUser || getAnonId(), [currentUser]);
+
   const matchesAudience = (audience) => {
     if (audience === "logged_in") return !!currentUser;
     if (audience === "guests_only") return !currentUser;
     return true; // 'everyone' or unset
   };
 
+  const passesForViewer = (tab) => {
+    if (Object.prototype.hasOwnProperty.call(myOverrides, tab.key)) {
+      return myOverrides[tab.key];
+    }
+    if (!tab.is_visible) return false;
+    if (!matchesAudience(tab.audience)) return false;
+    const rollout = tab.rollout_percent ?? 100;
+    if (rollout >= 100) return true;
+    if (rollout <= 0) return false;
+    return hashToPercent(`${tab.key}:${viewerId}`) < rollout;
+  };
+
   const effectiveTabs = useMemo(() => {
     const visible = tabsConfig
-      .filter((t) => t.is_visible && TAB_DEFS[t.key] && matchesAudience(t.audience))
+      .filter((t) => TAB_DEFS[t.key] && passesForViewer(t))
       .sort((a, b) => a.sort_order - b.sort_order);
     return visible.length > 0 ? visible : FALLBACK_TABS;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabsConfig, currentUser]);
+  }, [tabsConfig, myOverrides, viewerId, currentUser]);
 
   const rawTab = searchParams.get("tab");
   const requestedTab = rawTab && TAB_DEFS[rawTab] ? rawTab : "home";

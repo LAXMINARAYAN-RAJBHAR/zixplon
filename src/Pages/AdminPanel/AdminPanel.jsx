@@ -215,6 +215,10 @@ const AdminPanel = () => {
   const [hubTabsLoading, setHubTabsLoading] = useState(false);
   const [hubTabsLoaded,  setHubTabsLoaded]  = useState(false);
   const [hubTabBusyKey,  setHubTabBusyKey]  = useState(null);
+  const [hubOverrides,   setHubOverrides]   = useState([]); // [{tab_key, username, show}]
+  const [expandedHubKey, setExpandedHubKey] = useState(null); // which tab's override panel is open
+  const [overrideDraft,  setOverrideDraft]  = useState({ username: "", show: true });
+  const [overrideSaving, setOverrideSaving] = useState(false);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -696,8 +700,9 @@ const AdminPanel = () => {
   const fetchHubTabs = async () => {
     setHubTabsLoading(true);
     try {
-      const { tabs } = await callManageHomeHub({ action: "list" });
+      const { tabs, overrides } = await callManageHomeHub({ action: "list" });
       setHubTabs((tabs || []).slice().sort((a, b) => a.sort_order - b.sort_order));
+      setHubOverrides(overrides || []);
     } catch (e) {
       showToast(`❌ ${e.message}`);
     }
@@ -742,6 +747,49 @@ const AdminPanel = () => {
       showToast(`❌ ${e.message}`);
     }
     setHubTabBusyKey(null);
+  };
+
+  const setHubTabRollout = async (tab, pct) => {
+    const clamped = Math.max(0, Math.min(100, Number.isFinite(pct) ? pct : 100));
+    if (clamped === (tab.rollout_percent ?? 100)) return;
+    setHubTabBusyKey(tab.key);
+    try {
+      await callManageHomeHub({ action: "set_rollout", key: tab.key, rollout_percent: clamped });
+      setHubTabs((prev) => prev.map((t) => (t.key === tab.key ? { ...t, rollout_percent: clamped } : t)));
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setHubTabBusyKey(null);
+  };
+
+  const addHubOverride = async (tabKey) => {
+    const username = overrideDraft.username.trim();
+    if (!username || overrideSaving) return;
+    setOverrideSaving(true);
+    try {
+      await callManageHomeHub({ action: "add_override", key: tabKey, username, show: overrideDraft.show });
+      setHubOverrides((prev) => [
+        { tab_key: tabKey, username, show: overrideDraft.show },
+        ...prev.filter((o) => !(o.tab_key === tabKey && o.username === username)),
+      ]);
+      setOverrideDraft({ username: "", show: true });
+      showToast(`@${username} ${overrideDraft.show ? "forced into" : "forced out of"} this tab`);
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setOverrideSaving(false);
+  };
+
+  const removeHubOverride = async (tabKey, username) => {
+    setOverrideSaving(true);
+    try {
+      await callManageHomeHub({ action: "remove_override", key: tabKey, username });
+      setHubOverrides((prev) => prev.filter((o) => !(o.tab_key === tabKey && o.username === username)));
+      showToast(`Override for @${username} removed`);
+    } catch (e) {
+      showToast(`❌ ${e.message}`);
+    }
+    setOverrideSaving(false);
   };
 
   const moveHubTab = async (tab, direction) => {
@@ -1506,10 +1554,12 @@ const AdminPanel = () => {
         <div className="admin_hub_section">
           <p className="admin_words_hint">
             Controls which tabs appear in the homepage's tab bar, in what
-            order, and to whom. Changes apply live — no redeploy needed.
-            At least one tab always stays visible for every viewer;
-            hiding or over-restricting all of them falls back to showing
-            everything rather than leaving the homepage empty.
+            order, and to whom — by audience, by a rollout percentage, or
+            by forcing specific usernames in/out with the 👤 button per
+            row. Changes apply live — no redeploy needed. At least one
+            tab always stays visible for every viewer; over-restricting
+            all of them falls back to showing everything rather than
+            leaving the homepage empty.
           </p>
 
           {hubTabsLoading ? (
@@ -1526,56 +1576,141 @@ const AdminPanel = () => {
             <div className="admin_hub_list">
               {hubTabs.map((t, i) => {
                 const busy = hubTabBusyKey === t.key;
+                const tabOverrides = hubOverrides.filter((o) => o.tab_key === t.key);
+                const isExpanded = expandedHubKey === t.key;
                 return (
-                  <div key={t.key} className="admin_hub_row">
-                    <div className="admin_hub_reorder">
-                      <button
-                        className="admin_hub_reorder_btn"
-                        onClick={() => moveHubTab(t, -1)}
-                        disabled={busy || i === 0}
-                        title="Move up"
-                      >
-                        ↑
-                      </button>
-                      <button
-                        className="admin_hub_reorder_btn"
-                        onClick={() => moveHubTab(t, 1)}
-                        disabled={busy || i === hubTabs.length - 1}
-                        title="Move down"
-                      >
-                        ↓
-                      </button>
-                    </div>
+                  <div key={t.key} className="admin_hub_group">
+                    <div className="admin_hub_row">
+                      <div className="admin_hub_reorder">
+                        <button
+                          className="admin_hub_reorder_btn"
+                          onClick={() => moveHubTab(t, -1)}
+                          disabled={busy || i === 0}
+                          title="Move up"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          className="admin_hub_reorder_btn"
+                          onClick={() => moveHubTab(t, 1)}
+                          disabled={busy || i === hubTabs.length - 1}
+                          title="Move down"
+                        >
+                          ↓
+                        </button>
+                      </div>
 
-                    <div className="admin_hub_info">
-                      <div className="admin_hub_label">{t.label}</div>
-                      <div className="admin_admin_meta">key: {t.key}</div>
-                    </div>
+                      <div className="admin_hub_info">
+                        <div className="admin_hub_label">{t.label}</div>
+                        <div className="admin_admin_meta">key: {t.key}</div>
+                      </div>
 
-                    <select
-                      className="admin_hub_audience_select"
-                      value={t.audience || "everyone"}
-                      onChange={(e) => setHubTabAudience(t, e.target.value)}
-                      disabled={busy}
-                      title="Who this tab is shown to"
-                    >
-                      <option value="everyone">Everyone</option>
-                      <option value="logged_in">Logged-in only</option>
-                      <option value="guests_only">Guests only</option>
-                    </select>
-
-                    <label className={`admin_hub_toggle ${t.is_visible ? "on" : ""}`}>
-                      <input
-                        type="checkbox"
-                        checked={t.is_visible}
-                        onChange={() => toggleHubTabVisibility(t)}
+                      <select
+                        className="admin_hub_audience_select"
+                        value={t.audience || "everyone"}
+                        onChange={(e) => setHubTabAudience(t, e.target.value)}
                         disabled={busy}
-                      />
-                      <span className="admin_hub_toggle_track">
-                        <span className="admin_hub_toggle_thumb" />
-                      </span>
-                      <span className="admin_hub_toggle_label">{t.is_visible ? "Visible" : "Hidden"}</span>
-                    </label>
+                        title="Who this tab is shown to"
+                      >
+                        <option value="everyone">Everyone</option>
+                        <option value="logged_in">Logged-in only</option>
+                        <option value="guests_only">Guests only</option>
+                      </select>
+
+                      <div className="admin_hub_rollout">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          className="admin_hub_rollout_input"
+                          value={t.rollout_percent ?? 100}
+                          disabled={busy}
+                          onChange={(e) => setHubTabRollout(t, parseInt(e.target.value, 10))}
+                          title="Percent of matching viewers who see this tab"
+                        />
+                        <span className="admin_hub_rollout_pct">%</span>
+                      </div>
+
+                      <label className={`admin_hub_toggle ${t.is_visible ? "on" : ""}`}>
+                        <input
+                          type="checkbox"
+                          checked={t.is_visible}
+                          onChange={() => toggleHubTabVisibility(t)}
+                          disabled={busy}
+                        />
+                        <span className="admin_hub_toggle_track">
+                          <span className="admin_hub_toggle_thumb" />
+                        </span>
+                        <span className="admin_hub_toggle_label">{t.is_visible ? "Visible" : "Hidden"}</span>
+                      </label>
+
+                      <button
+                        className="admin_hub_expand_btn"
+                        onClick={() => setExpandedHubKey(isExpanded ? null : t.key)}
+                        title="Per-user targeting"
+                      >
+                        👤 {tabOverrides.length > 0 ? tabOverrides.length : ""} {isExpanded ? "▲" : "▼"}
+                      </button>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="admin_hub_overrides_panel">
+                        <p className="admin_words_hint" style={{ margin: "0 0 10px" }}>
+                          Force specific usernames in or out of "{t.label}", regardless of the
+                          visibility/audience/rollout settings above.
+                        </p>
+
+                        <div className="admin_hub_override_add_row">
+                          <input
+                            type="text"
+                            className="admin_word_input"
+                            placeholder="username"
+                            value={overrideDraft.username}
+                            onChange={(e) => setOverrideDraft((d) => ({ ...d, username: e.target.value }))}
+                            onKeyDown={(e) => e.key === "Enter" && addHubOverride(t.key)}
+                            disabled={overrideSaving}
+                          />
+                          <select
+                            className="admin_hub_audience_select"
+                            value={overrideDraft.show ? "show" : "hide"}
+                            onChange={(e) => setOverrideDraft((d) => ({ ...d, show: e.target.value === "show" }))}
+                            disabled={overrideSaving}
+                          >
+                            <option value="show">Force show</option>
+                            <option value="hide">Force hide</option>
+                          </select>
+                          <button
+                            className="admin_add_word_btn"
+                            onClick={() => addHubOverride(t.key)}
+                            disabled={overrideSaving || !overrideDraft.username.trim()}
+                          >
+                            {overrideSaving ? "..." : "+ Add"}
+                          </button>
+                        </div>
+
+                        {tabOverrides.length === 0 ? (
+                          <p className="admin_words_hint" style={{ marginTop: "10px" }}>No per-user overrides for this tab.</p>
+                        ) : (
+                          <div className="admin_hub_override_list">
+                            {tabOverrides.map((o) => (
+                              <div key={o.username} className="admin_hub_override_chip">
+                                <span>
+                                  @{o.username} — <strong>{o.show ? "forced visible" : "forced hidden"}</strong>
+                                </span>
+                                <button
+                                  className="admin_word_remove"
+                                  onClick={() => removeHubOverride(t.key, o.username)}
+                                  disabled={overrideSaving}
+                                  title="Remove override"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

@@ -1121,6 +1121,102 @@
   cursor: not-allowed;
 }
 
+.admin_hub_rollout {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.admin_hub_rollout_input {
+  width: 52px;
+  padding: 7px 8px;
+  border: 2px solid var(--zx-border);
+  border-radius: 10px;
+  background: var(--zx-surface);
+  color: var(--zx-text2);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
+  text-align: right;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.admin_hub_rollout_input:focus { border-color: var(--zx-primary); }
+.admin_hub_rollout_input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.admin_hub_rollout_pct {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--zx-text3);
+}
+
+.admin_hub_expand_btn {
+  flex-shrink: 0;
+  padding: 7px 10px;
+  background: var(--zx-surface2);
+  border: 2px solid var(--zx-border);
+  border-radius: 10px;
+  color: var(--zx-text2);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.admin_hub_expand_btn:hover {
+  border-color: var(--zx-primary);
+  color: var(--zx-primary);
+}
+
+.admin_hub_group {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin_hub_overrides_panel {
+  margin-top: 8px;
+  padding: 14px 16px;
+  background: var(--zx-surface2);
+  border: 2px dashed var(--zx-border);
+  border-radius: 14px;
+}
+
+.admin_hub_override_add_row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin_hub_override_add_row .admin_word_input {
+  flex: 1;
+  min-width: 140px;
+}
+
+.admin_hub_override_list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.admin_hub_override_chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--zx-surface);
+  border: 2px solid var(--zx-border);
+  border-radius: 999px;
+  padding: 6px 8px 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--zx-text2);
+  font-family: 'Outfit', sans-serif;
+}
+.admin_hub_override_chip strong {
+  font-family: 'Nunito', sans-serif;
+}
+
 /* ── Toggle switch ──
    A native checkbox drives it (for accessibility/keyboard support) but
    is visually hidden; .admin_hub_toggle_track/.admin_hub_toggle_thumb
@@ -1191,7 +1287,20 @@
     width: 100%;
     order: 3;
   }
+  .admin_hub_rollout {
+    order: 4;
+  }
+  .admin_hub_expand_btn {
+    order: 5;
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
   .admin_hub_toggle {
     margin-left: auto;
+    order: 2;
+  }
+  .admin_hub_override_add_row {
+    flex-direction: column;
   }
 }

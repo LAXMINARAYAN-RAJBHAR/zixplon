@@ -415,27 +415,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const newMenuRef = useRef();
   const newMenuBtnRef = useRef();
 
-  // ── Minimize / maximize ──
-  // Minimizing does NOT unmount this component — it just hides the full
-  // panel UI in favor of a small floating pill (see mp-minimized-bar
-  // below). This is deliberate: all the realtime subscriptions above
-  // (new messages, typing, presence, conversation updates) stay alive
-  // while minimized, so unread counts / the pill's badge keep updating
-  // and re-opening drops you back exactly where you left off, instead
-  // of having to reload the whole inbox. Works identically on desktop
-  // and mobile — only the pill's CSS position differs (see the
-  // mp-minimized-bar rules in MessagesPanel.css).
-  const [minimized, setMinimized] = useState(false);
-  const minimize = () => {
-    setMinimized(true);
-    setShowEmojiPicker(false);
-    setOpenMenuFor(null);
-    setOpenReactionFor(null);
-    setOpenConvoMenuFor(null);
-    setShowNewMenu(false);
-  };
-  const maximize = () => setMinimized(false);
-
   // Same freshness pattern as activeUsernameRef above, used by the
   // group-message notification listener further down.
   const activeGroupRef = useRef(activeGroup);
@@ -566,10 +545,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   // press instead of unwinding one layer at a time.
   useEffect(() => {
     if (!isMobile()) return;
-    // While minimized there's no visible "list"/"detail" layer to track —
-    // skip pushing history entries until the panel is maximized again, so
-    // minimizing doesn't add a spurious back-stack entry.
-    if (minimized) return;
 
     if (historyDepthRef.current === 0) {
       window.history.pushState({ mpDepth: 1 }, "");
@@ -582,20 +557,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       window.history.pushState({ mpDepth: 2 }, "");
       historyDepthRef.current = 2;
     }
-  }, [activeUsername, activeGroup, activeBroadcast, minimized]);
+  }, [activeUsername, activeGroup, activeBroadcast]);
 
   useEffect(() => {
     if (!isMobile()) return;
 
     const handlePopState = (e) => {
       if (!isMountedRef.current) return;
-
-      // If minimized, treat back the same as tapping the pill: restore
-      // the panel instead of closing it or touching the detail layers.
-      if (minimized) {
-        setMinimized(false);
-        return;
-      }
 
       const depth = e.state?.mpDepth ?? 0;
 
@@ -624,7 +592,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [onClose, minimized]);
+  }, [onClose]);
 
   const closeDetail = () => {
     if (isMobile() && historyDepthRef.current >= 2) {
@@ -2061,29 +2029,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const isUploadingAny = pendingAttachments.some((a) => a.status === "uploading");
   const canSend = (text.trim() || pendingAttachments.length > 0) && !sending;
 
-  // ── Minimized pill: total unread badge across DMs + incoming requests
-  // (groups/broadcasts don't currently track a per-user "last read"
-  // column, so they're left out of this count rather than guessed at).
-  const minimizedUnreadCount =
-    conversations.filter(isConvoUnread).length + incomingRequests.length;
-
-  // Label + avatar-initials shown on the minimized pill: whichever
-  // thread was open when minimizing, else a generic "Messages" state.
-  const minimizedLabel = activeUsername
-    ? activeUsername
-    : activeGroup
-      ? activeGroup.name
-      : activeBroadcast
-        ? activeBroadcast.name
-        : "Messages";
-  const minimizedInitials = activeUsername
-    ? activeUsername.slice(0, 2).toUpperCase()
-    : activeGroup
-      ? activeGroup.name.slice(0, 2).toUpperCase()
-      : activeBroadcast
-        ? "📢"
-        : "💬";
-
   // Shared render for a single conversation row in the inbox list —
   // used for both the "Message Requests" section and the regular list,
   // so the two stay visually consistent apart from the request badge.
@@ -2159,61 +2104,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     );
   };
 
-  // ── Minimized state: render only the small floating pill. Everything
-  // above (subscriptions, message state, etc.) keeps running normally —
-  // we're just swapping out what's rendered, not tearing the panel down.
-  // Works the same on desktop and mobile; only the pill's position is
-  // adjusted per-breakpoint in CSS.
-  if (currentUser && minimized) {
-    return (
-      <div
-        className="mp-minimized-bar"
-        onClick={maximize}
-        role="button"
-        tabIndex={0}
-        aria-label={`Open Messages${minimizedUnreadCount > 0 ? ` (${minimizedUnreadCount} unread)` : ""}`}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") maximize();
-        }}
-      >
-        <div className="mp-minimized-avatar">
-          {minimizedInitials}
-          {minimizedUnreadCount > 0 && (
-            <span className="mp-minimized-badge">
-              {minimizedUnreadCount > 9 ? "9+" : minimizedUnreadCount}
-            </span>
-          )}
-        </div>
-        <span className="mp-minimized-label">{minimizedLabel}</span>
-        <button
-          type="button"
-          className="mp-minimized-expand"
-          onClick={(e) => {
-            e.stopPropagation();
-            maximize();
-          }}
-          aria-label="Maximize"
-          title="Maximize"
-        >
-          ⤢
-        </button>
-        <button
-          type="button"
-          className="mp-minimized-close"
-          onClick={(e) => {
-            e.stopPropagation();
-            setMinimized(false);
-            closePanel();
-          }}
-          aria-label="Close Messages"
-          title="Close"
-        >
-          ✕
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div
       className={`mp-overlay ${!currentUser ? "mp-overlay-center" : ""}`}
@@ -2279,14 +2169,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                       </div>
                     </div>
                   )}
-                  <button
-                    className="mp-close-btn"
-                    onClick={minimize}
-                    aria-label="Minimize"
-                    title="Minimize"
-                  >
-                    ─
-                  </button>
                   <button
                     className="mp-close-btn"
                     onClick={closePanel}
@@ -2467,7 +2349,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                   currentUser={currentUser}
                   onBack={closeDetail}
                   onClose={closePanel}
-                  onMinimize={minimize}
                 />
               ) : activeBroadcast ? (
                 <BroadcastComposeWindow
@@ -2475,28 +2356,17 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                   currentUser={currentUser}
                   onBack={closeDetail}
                   onClose={closePanel}
-                  onMinimize={minimize}
                 />
               ) : !activeUsername ? (
                 <div className="mp-placeholder">
                   <span>Select a conversation to start chatting</span>
-                  <div className="mp-placeholder-actions">
-                    <button
-                      className="mp-close-btn-desktop"
-                      onClick={minimize}
-                      aria-label="Minimize"
-                      title="Minimize"
-                    >
-                      ─
-                    </button>
-                    <button
-                      className="mp-close-btn-desktop"
-                      onClick={closePanel}
-                      aria-label="Close"
-                    >
-                      ✕
-                    </button>
-                  </div>
+                  <button
+                    className="mp-close-btn-desktop"
+                    onClick={closePanel}
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
                 </div>
               ) : (
                 <>
@@ -2536,14 +2406,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               : "Offline"}
                       </span>
                     </div>
-                    <button
-                      className="mp-close-btn"
-                      onClick={minimize}
-                      aria-label="Minimize"
-                      title="Minimize"
-                    >
-                      ─
-                    </button>
                     <button
                       className="mp-close-btn"
                       onClick={closePanel}

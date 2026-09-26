@@ -1,4 +1,3 @@
-
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Outfit:wght@400;500;600;700;800&display=swap');
 
 :root {
@@ -1420,7 +1419,7 @@
   text-decoration: underline;
 }
 
-/* ── Post video preview (hover-to-preview, click-to-activate) ── */
+/* ── Post video preview (feed-style scroll autoplay) ── */
 .pf-card-video-wrap {
   position: relative;
   border-radius: 10px;
@@ -1431,33 +1430,37 @@
   cursor: pointer;
 }
 
-.pf-card-video-overlay {
+/* NEW: mute/unmute toggle for feed-autoplay video — replaces the old
+   hover-only play-button overlay now that playback is driven by scroll
+   visibility instead of hover/click-to-activate. */
+.pf-card-video-mute-btn {
   position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0);
-  transition: background 0.2s;
-  pointer-events: none;
-}
-
-.pf-card-video-wrap:hover .pf-card-video-overlay {
-  background: rgba(0,0,0,0.12);
-}
-
-.pf-card-video-playbtn {
-  width: 56px;
-  height: 56px;
+  bottom: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.92);
-  color: var(--zx-primary);
-  font-size: 20px;
+  border: none;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-left: 4px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  transition: transform 0.15s, background 0.15s;
+}
+.pf-card-video-mute-btn:hover {
+  background: rgba(0,0,0,0.75);
+}
+.pf-card-video-mute-btn--flash {
+  animation: pf-mute-btn-flash 0.35s ease;
+}
+@keyframes pf-mute-btn-flash {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
 }
 
 .pf-card-video-previewtag {

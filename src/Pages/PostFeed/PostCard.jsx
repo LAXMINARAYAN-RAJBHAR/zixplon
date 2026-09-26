@@ -90,103 +90,103 @@ const stubTranslateToHindi = (text) => {
   return translated === text ? `${text} (डेमो अनुवाद उपलब्ध नहीं)` : translated;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// useIsMobile — same pattern used on HomePage's video/reel cards,
-// duplicated here at module scope since PostCard lives in its own file.
-// Gates hover-preview to non-touch, wider viewports.
-// ─────────────────────────────────────────────────────────────────────────────
-const useIsMobile = () => {
-  const [mobile, setMobile] = useState(() => window.innerWidth <= 768);
-  useEffect(() => {
-    const fn = () => setMobile(window.innerWidth <= 768);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
-  return mobile;
-};
-
 /* ─────────────────────────────────────────
-   POST VIDEO — hover-to-preview for uploaded post videos.
+   POST VIDEO — feed-style scroll autoplay for uploaded post videos.
    Unlike Video/Reel/Trending cards, a post video has no separate
    thumbnail image — only `video_url` — so the video's own first frame
-   IS the thumbnail. Behavior:
-     • Paused on frame 0 by default, with a play button overlay.
-     • Desktop hover (after a short delay, same feel as the other
-       preview hooks): plays a MUTED, looping preview right there —
-       nothing to click, just like hovering a video/reel/trending card.
-     • Click ("activate"): stops the muted preview and switches to the
-       real player — sound on, native controls, playing from the start.
-       Once activated it stays a normal player (hovering away no longer
-       resets or mutes it — that would be a jarring surprise mid-watch).
+   IS the thumbnail. Behavior (Instagram/TikTok-feed pattern):
+     • Paused until the post is meaningfully on-screen (`inView`, driven
+       by PostCard's IntersectionObserver below).
+     • The moment it first enters view, it tries to autoplay WITH
+       sound — some browsers allow this once the page has enough
+       "media engagement", and this is the one moment that's worth
+       trying. If the browser blocks it (the common case), it falls
+       back to a muted, looping autoplay instead.
+     • Leaving the viewport pauses it; scrolling back in resumes
+       playback (muted state carries over — no re-prompt).
+     • Tapping the video, or the speaker icon, toggles sound on/off at
+       any time.
 
-   NEW: HLS support — if `src` is an .m3u8 manifest, playback routes
-   through hls.js (or native HLS on Safari) instead of setting the
-   <video>'s src attribute directly. Plain mp4/webm sources are
-   completely unaffected. There's no cross-post preloading here (unlike
-   Video.jsx's next-video preload) since post videos aren't a
-   sequential queue — each one is independent.
+   HLS support — if `src` is an .m3u8 manifest, playback routes through
+   hls.js (or native HLS on Safari) instead of setting the <video>'s
+   src attribute directly. Plain mp4/webm sources are unaffected.
 ───────────────────────────────────────── */
-const HOVER_PREVIEW_DELAY = 450; // ms
-
-const PostVideo = ({ src }) => {
-  const isMobile = useIsMobile();
-  const [activated, setActivated] = useState(false);
-  const [isPreviewing, setIsPreviewing] = useState(false);
+const PostVideo = ({ src, inView }) => {
   const videoRef = useRef(null);
-  const timeoutRef = useRef(null);
-  // NEW: holds the active hls.js instance for this video, torn down on
+  // Holds the active hls.js instance for this video, torn down on
   // unmount or whenever `src` changes.
   const hlsInstanceRef = useRef(null);
   const usingHls = isHlsSource(src);
 
-  const canPreview = !isMobile && !activated;
+  // Muted by default; flips to false the moment an autoplay-with-sound
+  // attempt succeeds, or the user taps to unmute.
+  const [muted, setMuted] = useState(true);
+  const [showMuteHint, setShowMuteHint] = useState(false);
+  const muteHintTimeoutRef = useRef(null);
+  // Only worth trying "autoplay with sound" the FIRST time this video
+  // enters view — afterwards we just respect whatever mute state is
+  // already in effect (the user's own choice, or the earlier fallback).
+  const attemptedUnmutedRef = useRef(false);
 
-  const cancelTimer = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
+  // ── Scroll-driven autoplay/pause ──
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+
+    if (!inView) {
+      vid.pause();
+      return;
     }
-  };
 
-  const onMouseEnter = () => {
-    if (!canPreview) return;
-    cancelTimer();
-    timeoutRef.current = setTimeout(() => {
-      setIsPreviewing(true);
-      if (videoRef.current) {
-        videoRef.current.muted = true;
+    if (!attemptedUnmutedRef.current) {
+      attemptedUnmutedRef.current = true;
+      vid.muted = false;
+      vid
+        .play()
+        .then(() => setMuted(false))
+        .catch(() => {
+          // Autoplay-with-sound was blocked — fall back to a muted
+          // loop; the speaker icon lets the user turn sound on.
+          vid.muted = true;
+          setMuted(true);
+          vid.play().catch(() => {});
+        });
+    } else {
+      vid.muted = muted;
+      vid.play().catch(() => {});
+    }
+    // Only `inView` should retrigger this — `muted` changes are handled
+    // by the effect below so toggling sound doesn't re-run autoplay logic.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inView]);
+
+  // Keeps the element's actual `muted` property in sync whenever the
+  // user (or the fallback above) changes the `muted` state.
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted]);
+
+  useEffect(() => {
+    return () => clearTimeout(muteHintTimeoutRef.current);
+  }, []);
+
+  const toggleMute = (e) => {
+    e.stopPropagation();
+    setMuted((m) => {
+      const next = !m;
+      if (!next && videoRef.current) {
+        // Unmuting is itself a user gesture, so re-issue play() in
+        // case the element had stalled while muted-and-paused.
         videoRef.current.play().catch(() => {});
       }
-    }, HOVER_PREVIEW_DELAY);
+      return next;
+    });
+    setShowMuteHint(true);
+    clearTimeout(muteHintTimeoutRef.current);
+    muteHintTimeoutRef.current = setTimeout(() => setShowMuteHint(false), 1200);
   };
 
-  const onMouseLeave = () => {
-    cancelTimer();
-    if (activated) return; // never interrupt real, sound-on playback
-    setIsPreviewing(false);
-    if (videoRef.current) {
-      try {
-        videoRef.current.pause();
-        videoRef.current.currentTime = 0;
-      } catch (_) {}
-    }
-  };
-
-  const handleActivate = () => {
-    if (activated) return;
-    cancelTimer();
-    setActivated(true);
-    setIsPreviewing(false);
-    if (videoRef.current) {
-      videoRef.current.muted = false;
-      videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(() => {});
-    }
-  };
-
-  useEffect(() => () => cancelTimer(), []);
-
-  // ── HLS playback (NEW) ──────────────────────────────────────────────
+  // ── HLS playback ──────────────────────────────────────────────────
   // For a plain mp4/webm `src`, this is a no-op — the <video src={src}>
   // below handles it exactly as before. For an .m3u8 manifest, hands
   // the element to hls.js (or lets Safari's native HLS take over)
@@ -228,22 +228,16 @@ const PostVideo = ({ src }) => {
   }, [src, usingHls]);
 
   return (
-    <div
-      className="pf-card-video-wrap"
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      onClick={!activated ? handleActivate : undefined}
-    >
+    <div className="pf-card-video-wrap" onClick={toggleMute}>
       <video
         ref={videoRef}
-        // CHANGED: for HLS sources the effect above sets the video's
-        // source via hls.js (or vid.src on Safari) directly, so the
-        // src attribute is left unset here to avoid the browser trying
-        // (and failing) to fetch the raw .m3u8 as a video file.
+        // For HLS sources the effect above sets the video's source via
+        // hls.js (or vid.src on Safari) directly, so the src attribute
+        // is left unset here to avoid the browser trying (and failing)
+        // to fetch the raw .m3u8 as a video file.
         src={usingHls ? undefined : src}
-        controls={activated}
-        muted={!activated}
-        loop={!activated}
+        muted={muted}
+        loop
         playsInline
         preload="metadata"
         className="pf-card-video"
@@ -251,14 +245,15 @@ const PostVideo = ({ src }) => {
         disablePictureInPicture
         onContextMenu={(e) => e.preventDefault()}
       />
-      {!activated && (
-        <div className="pf-card-video-overlay">
-          <div className="pf-card-video-playbtn">▶</div>
-          {isPreviewing && (
-            <span className="pf-card-video-previewtag">Preview</span>
-          )}
-        </div>
-      )}
+      <button
+        type="button"
+        className={`pf-card-video-mute-btn ${showMuteHint ? "pf-card-video-mute-btn--flash" : ""}`}
+        onClick={toggleMute}
+        aria-label={muted ? "Unmute video" : "Mute video"}
+        title={muted ? "Unmute" : "Mute"}
+      >
+        {muted ? "🔇" : "🔊"}
+      </button>
     </div>
   );
 };
@@ -531,12 +526,34 @@ const PostCard = ({
   // channel even when several reference the same (viewer, author) pair.
   const channelInstanceIdRef = useRef(Math.random().toString(36).slice(2));
 
-  // NEW: root card ref + one-shot guard for the view-count
+  // Root card ref + one-shot guard for the view-count
   // IntersectionObserver below. Mirrors ShortCard's viewFiredRef pattern
   // on the homepage — fires at most once per mount, once the card is
   // at least 60% visible.
   const cardRef = useRef(null);
   const viewFiredRef = useRef(false);
+
+  // NEW: feed-style autoplay visibility. Separate from the view-count
+  // observer above (that one fires once, ever, at 60% visible, purely
+  // for analytics); this one toggles continuously at a slightly lower
+  // threshold and drives actual playback — the post's video (via
+  // PostVideo's `inView` prop) and its attached song (via
+  // SongAttachmentCard's `active` prop) both play once the post is
+  // meaningfully on-screen and pause the instant it isn't, the same
+  // "only what's on screen makes noise" pattern used by Instagram/
+  // TikTok feeds.
+  const [mediaInView, setMediaInView] = useState(false);
+
+  useEffect(() => {
+    if (!cardRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) =>
+        setMediaInView(entry.isIntersecting && entry.intersectionRatio >= 0.5),
+      { threshold: [0, 0.5, 1] },
+    );
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const navigate = useNavigate();
 
@@ -1115,7 +1132,7 @@ const PostCard = ({
             {/* NEW: attached song shown read-only while editing — song
                 itself isn't re-pickable here, only removable via the
                 original post's own attachment card if you want that
-                supported later. */}
+                supported later. Playback stays off while editing. */}
             {post.song && (
               <SongAttachmentCard song={post.song} />
             )}
@@ -1175,9 +1192,17 @@ const PostCard = ({
           </div>
         ) : (
           <div className="pf-card-body">
-            {/* NEW: attached song — shown above the post text, same as
-                Facebook's "🎵 Song — Artist" attachment card. */}
-            {post.song && <SongAttachmentCard song={post.song} />}
+            {/* Attached song — shown above the post text, same as
+                Facebook's "🎵 Song — Artist" attachment card. `active`
+                ties its playback to the same scroll-visibility signal
+                driving the post video below, so a post's audio starts
+                automatically once it's on-screen and stops the moment
+                it isn't. (SongAttachmentCard needs to actually read
+                this prop and play/pause its underlying <audio> — see
+                the note in the chat reply.) */}
+            {post.song && (
+              <SongAttachmentCard song={post.song} active={mediaInView} />
+            )}
 
             {post.text && (
               <p className="pf-card-text">
@@ -1209,7 +1234,13 @@ const PostCard = ({
                 style={{ cursor: "zoom-in" }}
               />
             ) : (
-              post.video_url && <PostVideo src={post.video_url} />
+              // CHANGED: PostVideo now receives `inView` (mediaInView)
+              // so it autoplays the moment the post is on-screen and
+              // pauses the moment it isn't, instead of only playing on
+              // desktop hover / after an explicit click.
+              post.video_url && (
+                <PostVideo src={post.video_url} inView={mediaInView} />
+              )
             )}
 
             {post.link && (

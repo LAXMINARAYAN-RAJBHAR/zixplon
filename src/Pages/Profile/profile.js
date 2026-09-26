@@ -16,7 +16,7 @@ import { notifyUser } from "../../utils/notifications";
 // self-contained (own overlay, own currentUser lookup via localStorage,
 // own conversation create-or-load logic) so mounting it here needs no
 // extra global state — see handleMessage / messageTarget below.
-import MessagesPanel from "../../Component/Messages/MessagesPanel";
+import MessagesPanel from "../Messages/MessagesPanel";
 
 const allVideos = [
   { id: 7679, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTu-l3JR0guZspKsBZkVoakjkQ-qxUCCpkQnw&s", title: "Big Buck Bunny open-source film", duration: "09:56", channel: "Gangeshwary" },

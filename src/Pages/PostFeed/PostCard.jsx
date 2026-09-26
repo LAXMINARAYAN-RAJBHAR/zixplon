@@ -32,6 +32,11 @@ import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
 // exactly as before — nothing breaks until posts start carrying HLS
 // manifests.
 import Hls from "hls.js";
+// NEW: tracks whether the visitor has interacted with the page yet —
+// browsers only allow unmuted audio/video autoplay after a user
+// gesture, so this lets PostVideo (and SongAttachmentCard) retry
+// sound the instant that happens, rather than only on their own click.
+import { onUserInteract } from "../../utils/audioUnlock";
 
 const REACTIONS = [
   { key: "like", emoji: "👍", label: "Like", color: "#1877f2" },
@@ -146,10 +151,23 @@ const PostVideo = ({ src, inView }) => {
         .then(() => setMuted(false))
         .catch(() => {
           // Autoplay-with-sound was blocked — fall back to a muted
-          // loop; the speaker icon lets the user turn sound on.
+          // loop; the speaker icon lets the user turn sound on. Also
+          // register a one-time retry: the moment the visitor
+          // interacts with the page ANYWHERE (not necessarily this
+          // video), browsers lift the restriction, so try again then.
           vid.muted = true;
           setMuted(true);
           vid.play().catch(() => {});
+          onUserInteract(() => {
+            const el = videoRef.current;
+            if (!el) return;
+            el.muted = false;
+            el.play()
+              .then(() => setMuted(false))
+              .catch(() => {
+                el.muted = true;
+              });
+          });
         });
     } else {
       vid.muted = muted;

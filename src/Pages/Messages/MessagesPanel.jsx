@@ -615,21 +615,35 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [onClose]);
 
+  // ── FIX: "✕" (close) and "←" (back) now update React state /
+  // call onClose() IMMEDIATELY, instead of relying entirely on
+  // window.history.go()/back() to eventually trigger a popstate event
+  // that then does the actual closing. On a real mobile device (and
+  // especially through remote-debugging/screencast tunnels, or when the
+  // app's router intercepts navigation), that popstate can be delayed,
+  // coalesced, or swallowed outright — which made the "✕" button appear
+  // to do nothing at all, even though the tap registered. Closing the
+  // UI is now synchronous and doesn't depend on the browser round-trip;
+  // the history navigation below is kept only as a best-effort cleanup
+  // so a hardware back-button press afterward doesn't land on a stale
+  // "detail"/"list" history entry.
   const closeDetail = () => {
+    setActiveUsername(null);
+    setActiveGroup(null);
+    setActiveBroadcast(null);
+
     if (isMobile() && historyDepthRef.current >= 2) {
       window.history.back();
-    } else {
-      setActiveUsername(null);
-      setActiveGroup(null);
-      setActiveBroadcast(null);
+      historyDepthRef.current = 1;
     }
   };
 
   const closePanel = () => {
+    onClose();
+
     if (isMobile() && historyDepthRef.current >= 1) {
       window.history.go(-historyDepthRef.current);
-    } else {
-      onClose();
+      historyDepthRef.current = 0;
     }
   };
 

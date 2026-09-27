@@ -22,7 +22,18 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const [postNotFound, setPostNotFound] = useState(false);
   const [viewCounts, setViewCounts] = useState({});
   const PAGE_SIZE = 10;
+  // NEW: how many of the most-recent posts we draw from — client-side
+  // shuffled — before going back to the database for the next older
+  // batch. This is what makes a refresh show a different mix/order of
+  // (still-recent) posts instead of the same chronological top-10
+  // every single time, without needing any backend changes.
+  const POOL_SIZE = 50;
   const offsetRef = useRef(0);
+  // NEW: posts already fetched from the DB and shuffled, but not yet
+  // handed out to the feed. fetchPosts() serves PAGE_SIZE at a time off
+  // the front of this array, topping it up from the DB (in POOL_SIZE
+  // chunks) whenever it runs low.
+  const shuffledPoolRef = useRef([]);
   const [videos, setVideos] = useState([]);
   const videosOffsetRef = useRef(0);
 
@@ -56,6 +67,18 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     }),
     [currentUser]
   );
+
+  // NEW: plain Fisher-Yates shuffle — gives a fresh random order every
+  // time it's called (each page load / refresh), rather than any fixed
+  // or seeded order.
+  const shuffleArray = (arr) => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
 
   const fetchViewCounts = async (ids) => {
     if (!ids || !ids.length) return;
@@ -161,45 +184,80 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     }
   }, []);
 
+  // CHANGED: instead of always querying the next PAGE_SIZE posts
+  // chronologically (which meant a fresh page load always showed the
+  // exact same latest-10 in the exact same order), this now serves
+  // PAGE_SIZE posts off the front of a client-shuffled "pool" of the
+  // most recent POOL_SIZE posts, topping the pool up from the database
+  // — in fresh POOL_SIZE chunks, each re-shuffled on arrival — whenever
+  // it runs low. The pool itself resets on `reset` (a real refresh /
+  // first mount), so every load reshuffles which of the recent posts
+  // you see first, instead of only reordering after they're already
+  // on-screen.
   const fetchPosts = useCallback(async (reset = false) => {
     try {
-      const offset = reset ? 0 : offsetRef.current;
-      const { data, error: fetchErr } = await supabase
-        .from("posts")
-        .select(`
-          *,
-          post_reactions ( type, username ),
-          post_comments ( ${POST_COMMENTS_SELECT} )
-        `)
-        .order("created_at", { ascending: false })
-        .range(offset, offset + PAGE_SIZE - 1);
-
-      if (fetchErr) throw fetchErr;
-
-      const enriched = (data || []).map(enrichPost);
-
       if (reset) {
-        setPosts(enriched);
-        offsetRef.current = enriched.length;
-        setVideos([]);
-        videosOffsetRef.current = 0;
-        fetchMoreVideos(enriched.length);
-      } else {
-        setPosts((prev) => [...prev, ...enriched]);
-        offsetRef.current += enriched.length;
-        fetchMoreVideos(enriched.length);
+        shuffledPoolRef.current = [];
+        offsetRef.current = 0;
+        setHasMore(true);
       }
 
-      fetchViewCounts(enriched.map((p) => p.id));
+      // Top the pool up from the DB, in POOL_SIZE-sized chunks, until
+      // it has at least one page's worth ready to serve (or the DB
+      // itself has run out of posts).
+      while (shuffledPoolRef.current.length < PAGE_SIZE) {
+        const offset = offsetRef.current;
+        const { data, error: fetchErr } = await supabase
+          .from("posts")
+          .select(`
+            *,
+            post_reactions ( type, username ),
+            post_comments ( ${POST_COMMENTS_SELECT} )
+          `)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + POOL_SIZE - 1);
 
-      setHasMore((data || []).length === PAGE_SIZE);
+        if (fetchErr) throw fetchErr;
+
+        offsetRef.current += (data || []).length;
+
+        if (!data || data.length === 0) {
+          setHasMore(false);
+          break; // nothing left in the DB at all
+        }
+
+        const enrichedBatch = data.map(enrichPost);
+        shuffledPoolRef.current = shuffledPoolRef.current.concat(
+          shuffleArray(enrichedBatch),
+        );
+
+        if (data.length < POOL_SIZE) {
+          setHasMore(false);
+          break; // that was the last page the DB had
+        }
+        setHasMore(true);
+      }
+
+      const page = shuffledPoolRef.current.splice(0, PAGE_SIZE);
+
+      if (reset) {
+        setPosts(page);
+        setVideos([]);
+        videosOffsetRef.current = 0;
+        fetchMoreVideos(page.length);
+      } else {
+        setPosts((prev) => [...prev, ...page]);
+        fetchMoreVideos(page.length);
+      }
+
+      fetchViewCounts(page.map((p) => p.id));
     } catch (err) {
       setError(err.message || "Failed to load posts.");
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [enrichPost]);
+  }, [enrichPost, fetchMoreVideos]);
 
   const loadMore = useCallback(() => {
     if (loadingMoreRef.current || !hasMoreRef.current) return;
@@ -254,7 +312,13 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           const deletedId = payload.old?.id;
           if (deletedId) {
             setPosts((prev) => prev.filter((p) => p.id !== deletedId));
-            offsetRef.current = Math.max(0, offsetRef.current - 1);
+            // NOTE: no longer rewinding offsetRef here — with the
+            // shuffled-pool approach above, offsetRef tracks how far
+            // we've read from the DB into the pool, which is decoupled
+            // from how many posts are currently on-screen (the pool
+            // usually holds a buffer beyond what's displayed). Rewinding
+            // it after a delete could cause the pool to later re-fetch
+            // and re-serve an already-seen post.
           }
         }
       )
@@ -674,7 +738,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
   const handleDeletePost = async (postId) => {
     setPosts((all) => all.filter((p) => p.id !== postId));
-    offsetRef.current = Math.max(0, offsetRef.current - 1);
 
     const { error: delErr } = await supabase
       .from("posts")

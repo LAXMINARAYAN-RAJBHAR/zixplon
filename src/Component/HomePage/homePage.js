@@ -17,6 +17,15 @@ import AdUnit from "../../Component/Ads/AdUnit";
 // NEW: shared notification helper — see src/utils/notifications.js
 import { notifyUser } from "../../utils/notifications";
 import { linkifyText } from "../../utils/linkify";
+// NEW: same "retry sound after the visitor's next interaction" gate
+// used by the Posts tab's PostVideo/SongAttachmentCard — every
+// previewable card here now shares it, so a click ANYWHERE on the
+// page (even on an unrelated card) can unlock sound for whichever
+// card the visitor happens to be looking at.
+import { onUserInteract } from "../../utils/audioUnlock";
+// NEW: keeps sound to one card at a time — whichever card most
+// recently claimed it mutes/pauses whoever had it before.
+import { claimSound, releaseSound } from "../../utils/soundArbiter";
 
 const API_KEYS = [
   process.env.REACT_APP_YOUTUBE_KEY_1,
@@ -135,6 +144,21 @@ const isWatched = (contentType, contentId, watchedContentIds) => {
   return watchedContentIds.has(`${contentType}_${String(contentId)}`);
 };
 
+// NEW: plain Fisher-Yates shuffle — used only to build the order of the
+// interleaved "All" feed rows (see the feedPosts/feedReels/feedVideos
+// state and contentRows memo further down). Gives a fresh random order
+// every time the page loads/refreshes, without touching the
+// chronological dbPosts/dbReels/dbVideos arrays that the Trending
+// carousel and category browsing rely on staying newest-first.
+const shuffleArray = (arr) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // makePlaceholderThumb — FIX: self-hosted (data: URI) fallback thumbnail,
 // used whenever a video/reel row has no thumbnail_url/thumbnail yet (e.g.
@@ -232,14 +256,25 @@ const HOVER_PREVIEW_DELAY = 450; // ms — avoids firing on quick mouse passes
 
 const useHoverPreview = (canPreview) => {
   const [isPreviewing, setIsPreviewing] = useState(false);
+  // NEW: mirrors PostVideo's approach — starts muted, flips to false
+  // the moment an autoplay-with-sound attempt succeeds.
+  const [muted, setMuted] = useState(true);
   const timeoutRef = useRef(null);
   const videoRef = useRef(null);
+  const unsubscribeRef = useRef(null);
+  // NEW: stable per-instance identity for the sound arbiter.
+  const [soundId] = useState(() => Symbol("hover-preview"));
 
   const cancelTimer = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+  };
+
+  const muteForArbiter = () => {
+    setMuted(true);
+    if (videoRef.current) videoRef.current.muted = true;
   };
 
   const onMouseEnter = () => {
@@ -251,6 +286,9 @@ const useHoverPreview = (canPreview) => {
   const onMouseLeave = () => {
     cancelTimer();
     setIsPreviewing(false);
+    unsubscribeRef.current?.();
+    unsubscribeRef.current = null;
+    releaseSound(soundId);
     if (videoRef.current) {
       try {
         videoRef.current.pause();
@@ -259,9 +297,69 @@ const useHoverPreview = (canPreview) => {
     }
   };
 
-  useEffect(() => () => cancelTimer(), []);
+  // NEW: the moment a hover preview starts, try playing WITH sound —
+  // falls back to a muted loop if the browser blocks it, and retries
+  // the instant the visitor next interacts with the page anywhere
+  // (see audioUnlock.js), same pattern as the Posts tab's PostVideo.
+  // A successful (or later, manually toggled) unmute claims the shared
+  // sound arbiter, so at most one card is ever audible at once.
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid || !isPreviewing) return;
+    unsubscribeRef.current?.();
+    unsubscribeRef.current = null;
+    vid.muted = false;
+    vid
+      .play()
+      .then(() => {
+        setMuted(false);
+        claimSound(soundId, muteForArbiter);
+      })
+      .catch(() => {
+        vid.muted = true;
+        setMuted(true);
+        vid.play().catch(() => {});
+        unsubscribeRef.current = onUserInteract(() => {
+          const el = videoRef.current;
+          if (!el) return;
+          el.muted = false;
+          el.play()
+            .then(() => {
+              setMuted(false);
+              claimSound(soundId, muteForArbiter);
+            })
+            .catch(() => {
+              el.muted = true;
+            });
+        });
+      });
+  }, [isPreviewing]);
 
-  return { isPreviewing, videoRef, onMouseEnter, onMouseLeave };
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted]);
+
+  const toggleMute = (e) => {
+    e?.stopPropagation();
+    setMuted((m) => {
+      const next = !m;
+      if (!next && videoRef.current) {
+        videoRef.current.play().catch(() => {});
+        claimSound(soundId, muteForArbiter);
+      } else {
+        releaseSound(soundId);
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => () => {
+    cancelTimer();
+    unsubscribeRef.current?.();
+    releaseSound(soundId);
+  }, []);
+
+  return { isPreviewing, videoRef, muted, toggleMute, onMouseEnter, onMouseLeave };
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -274,15 +372,26 @@ const useHoverPreview = (canPreview) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const usePostPreview = (isMobile, canPreview) => {
   const [isPreviewing, setIsPreviewing] = useState(false);
+  // NEW: mirrors PostVideo's approach — starts muted, flips to false
+  // the moment an autoplay-with-sound attempt succeeds.
+  const [muted, setMuted] = useState(true);
   const wrapRef = useRef(null);
   const timeoutRef = useRef(null);
   const videoRef = useRef(null);
+  const unsubscribeRef = useRef(null);
+  // NEW: stable per-instance identity for the sound arbiter.
+  const [soundId] = useState(() => Symbol("post-preview"));
 
   const cancelTimer = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+  };
+
+  const muteForArbiter = () => {
+    setMuted(true);
+    if (videoRef.current) videoRef.current.muted = true;
   };
 
   const onMouseEnter = () => {
@@ -313,27 +422,85 @@ const usePostPreview = (isMobile, canPreview) => {
   // Keep the underlying <video> element in sync with isPreviewing on both
   // platforms — desktop's hover handlers only toggle state, this effect is
   // what actually starts/stops playback and resets position on exit.
+  // CHANGED: also attempts sound the moment a preview starts, falling
+  // back to a muted loop if the browser blocks it, and retrying the
+  // instant the visitor next interacts with the page anywhere (see
+  // audioUnlock.js) — same pattern as the Posts tab's PostVideo. A
+  // successful (or later, manually toggled) unmute claims the shared
+  // sound arbiter, so at most one card is ever audible at once.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
+
+    unsubscribeRef.current?.();
+    unsubscribeRef.current = null;
+
     if (isPreviewing) {
       try { v.currentTime = 0; } catch (_) {}
-      const p = v.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
+      v.muted = false;
+      v
+        .play()
+        .then(() => {
+          setMuted(false);
+          claimSound(soundId, muteForArbiter);
+        })
+        .catch(() => {
+          v.muted = true;
+          setMuted(true);
+          v.play().catch(() => {});
+          unsubscribeRef.current = onUserInteract(() => {
+            const el = videoRef.current;
+            if (!el) return;
+            el.muted = false;
+            el.play()
+              .then(() => {
+                setMuted(false);
+                claimSound(soundId, muteForArbiter);
+              })
+              .catch(() => {
+                el.muted = true;
+              });
+          });
+        });
     } else {
       try {
         v.pause();
         v.currentTime = 0;
       } catch (_) {}
+      releaseSound(soundId);
     }
   }, [isPreviewing]);
 
-  useEffect(() => () => cancelTimer(), []);
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted]);
+
+  const toggleMute = (e) => {
+    e?.stopPropagation();
+    setMuted((m) => {
+      const next = !m;
+      if (!next && videoRef.current) {
+        videoRef.current.play().catch(() => {});
+        claimSound(soundId, muteForArbiter);
+      } else {
+        releaseSound(soundId);
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => () => {
+    cancelTimer();
+    unsubscribeRef.current?.();
+    releaseSound(soundId);
+  }, []);
 
   return {
     isPreviewing: canPreview ? isPreviewing : false,
     wrapRef,
     videoRef,
+    muted,
+    toggleMute,
     hoverHandlers: isMobile ? {} : { onMouseEnter, onMouseLeave },
   };
 };
@@ -357,7 +524,7 @@ const ShortCard = ({
   // ── Preview setup: hover on desktop, scroll-into-view on mobile ──
   const isMobile = useIsMobile();
   const canPreview = !!short.src;
-  const { isPreviewing, wrapRef, videoRef, hoverHandlers } = usePostPreview(
+  const { isPreviewing, wrapRef, videoRef, muted, toggleMute, hoverHandlers } = usePostPreview(
     isMobile,
     canPreview,
   );
@@ -462,7 +629,7 @@ const ShortCard = ({
                 ref={videoRef}
                 src={short.src}
                 className="homePage_shortImg"
-                muted
+                muted={muted}
                 autoPlay
                 loop
                 playsInline
@@ -484,7 +651,7 @@ const ShortCard = ({
             ref={videoRef}
             src={short.src}
             className="homePage_shortImg"
-            muted
+            muted={muted}
             loop
             playsInline
             preload="metadata"
@@ -496,6 +663,35 @@ const ShortCard = ({
             alt={short.title || short.user}
             className="homePage_shortImg"
           />
+        )}
+        {/* NEW: mute/unmute toggle, shown only while actually previewing
+            — scroll/hover autoplay attempts sound first (see
+            usePostPreview), this lets the visitor turn it on/off. */}
+        {canPreview && isPreviewing && (
+          <button
+            type="button"
+            onClick={toggleMute}
+            aria-label={muted ? "Unmute" : "Mute"}
+            style={{
+              position: "absolute",
+              top: "6px",
+              right: "38px",
+              zIndex: 4,
+              width: "22px",
+              height: "22px",
+              borderRadius: "50%",
+              border: "none",
+              background: "rgba(0,0,0,0.55)",
+              color: "#fff",
+              fontSize: "10px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
         )}
         <div className="homePage_shortPlay">▶</div>
         <div className="homePage_shortDuration">{short.duration}</div>
@@ -687,11 +883,26 @@ const PostCard = ({
         : [];
   const hasImages = images.length > 0;
   const previewSrc = hasImages ? null : post.video_url || null;
-  const { isPreviewing, wrapRef, videoRef, hoverHandlers } = usePostPreview(
+  const { isPreviewing, wrapRef, videoRef, muted, toggleMute, hoverHandlers } = usePostPreview(
     isMobile,
     !!previewSrc,
   );
   const showPreview = isPreviewing && !!previewSrc;
+
+  // NEW: real playback for an attached song, instead of just the text
+  // chip this used to be. Uses the post card's own scroll visibility
+  // (≥50%, tracked continuously — separate from the one-shot view-count
+  // observer below) and the same autoplay-with-sound-then-fallback
+  // pattern as PostVideo/SongAttachmentCard in the Posts tab: try with
+  // sound, fall back to nothing playing (there's no useful "muted"
+  // state for audio) and retry on the visitor's next interaction
+  // anywhere on the page.
+  const songAudioRef = useRef(null);
+  const songUnsubscribeRef = useRef(null);
+  const [songInView, setSongInView] = useState(false);
+  const [songBlocked, setSongBlocked] = useState(false);
+  // NEW: stable per-instance identity for the shared sound arbiter.
+  const [songSoundId] = useState(() => Symbol("post-song"));
 
   // NEW: link-preview object saved by PostComposer.jsx's link attach
   // flow. Only relevant as a thumbnail source when there's no image and
@@ -735,6 +946,73 @@ const PostCard = ({
     return () => observer.disconnect();
   }, [post.id, incrementView]);
 
+  // NEW: continuous (not one-shot) visibility tracking for the attached
+  // song — separate from the view-count observer above, which only
+  // ever fires once. Threshold matches the Posts tab's mediaInView.
+  useEffect(() => {
+    if (!post.song) return;
+    const el = cardRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) =>
+        setSongInView(entry.isIntersecting && entry.intersectionRatio >= 0.5),
+      { threshold: [0, 0.5, 1] },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [post.song]);
+
+  useEffect(() => {
+    if (!post.song) return;
+    const el = songAudioRef.current;
+    if (!el) return;
+
+    songUnsubscribeRef.current?.();
+    songUnsubscribeRef.current = null;
+
+    if (!songInView) {
+      el.pause();
+      setSongBlocked(false);
+      releaseSound(songSoundId);
+      return;
+    }
+
+    // NEW: losing the shared sound arbiter (another card claimed it)
+    // pauses this song outright — there's no useful "muted but still
+    // playing" state for audio-only content, unlike a video preview.
+    const pauseForArbiter = () => {
+      const cur = songAudioRef.current;
+      if (cur) cur.pause();
+      setSongBlocked(true);
+    };
+
+    el
+      .play()
+      .then(() => {
+        setSongBlocked(false);
+        claimSound(songSoundId, pauseForArbiter);
+      })
+      .catch(() => {
+        setSongBlocked(true);
+        songUnsubscribeRef.current = onUserInteract(() => {
+          const cur = songAudioRef.current;
+          if (!cur) return;
+          cur
+            .play()
+            .then(() => {
+              setSongBlocked(false);
+              claimSound(songSoundId, pauseForArbiter);
+            })
+            .catch(() => {});
+        });
+      });
+  }, [songInView, post.song]);
+
+  useEffect(() => () => {
+    songUnsubscribeRef.current?.();
+    releaseSound(songSoundId);
+  }, []);
+
   // NEW: whether any of feeling/song/location/link exist, so the extras
   // row only renders (and only takes up card space) when there's
   // something to show — mirrors the same fields PostComposer.jsx writes
@@ -761,7 +1039,7 @@ const PostCard = ({
             ref={videoRef}
             src={previewSrc}
             className="homePage_postThumbImg homePage_postPreviewVideo"
-            muted
+            muted={muted}
             loop
             playsInline
             preload="none"
@@ -810,6 +1088,38 @@ const PostCard = ({
         <span className="homePage_postBadge">
           {hasLink ? "🔗 Link" : "📝 Post"}
         </span>
+        {/* NEW: mute/unmute toggle, shown only while actually
+            previewing — scroll/hover autoplay attempts sound first
+            (see usePostPreview), this lets the visitor turn it off/on. */}
+        {showPreview && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              toggleMute(e);
+            }}
+            aria-label={muted ? "Unmute" : "Mute"}
+            style={{
+              position: "absolute",
+              bottom: "8px",
+              right: "8px",
+              zIndex: 3,
+              width: "28px",
+              height: "28px",
+              borderRadius: "50%",
+              border: "none",
+              background: "rgba(0,0,0,0.6)",
+              color: "#fff",
+              fontSize: "12px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
+        )}
       </div>
       <div className="homePage_postMeta">
         <p className="homePage_postCaption">
@@ -827,10 +1137,20 @@ const PostCard = ({
               </span>
             )}
             {post.song && (
-              <span className="homePage_postExtraChip">
-                🎵 {post.song.title}
-                {post.song.artist ? ` · ${post.song.artist}` : ""}
-              </span>
+              <>
+                {/* NEW: real playback — was purely a text chip before.
+                    Attempts sound as soon as songInView is true (set by
+                    the observer above); loops for as long as the card
+                    stays on-screen. */}
+                <audio ref={songAudioRef} src={post.song.url} loop preload="none" />
+                <span
+                  className="homePage_postExtraChip"
+                  title={songBlocked ? "Tap anywhere to enable sound" : undefined}
+                >
+                  {songBlocked ? "🔇" : "🎵"} {post.song.title}
+                  {post.song.artist ? ` · ${post.song.artist}` : ""}
+                </span>
+              </>
             )}
             {post.location_name && (
               <span className="homePage_postExtraChip">
@@ -953,7 +1273,7 @@ const VideoCard = ({
   // ── Preview setup: hover on desktop, scroll-into-view on mobile ──
   const isMobile = useIsMobile();
   const canPreview = isUploaded && !!video.src;
-  const { isPreviewing, wrapRef, videoRef, hoverHandlers } = usePostPreview(
+  const { isPreviewing, wrapRef, videoRef, muted, toggleMute, hoverHandlers } = usePostPreview(
     isMobile,
     canPreview,
   );
@@ -998,7 +1318,7 @@ const VideoCard = ({
                 ref={videoRef}
                 src={video.src}
                 className="youtube_thumbnailPic"
-                muted
+                muted={muted}
                 autoPlay
                 loop
                 playsInline
@@ -1018,7 +1338,7 @@ const VideoCard = ({
             ref={videoRef}
             src={video.src}
             className="youtube_thumbnailPic"
-            muted
+            muted={muted}
             loop
             playsInline
             preload="metadata"
@@ -1030,6 +1350,38 @@ const VideoCard = ({
             alt={video.title}
             className="youtube_thumbnailPic"
           />
+        )}
+        {/* NEW: mute/unmute toggle, shown only while actually
+            previewing — scroll/hover autoplay attempts sound first
+            (see usePostPreview), this lets the visitor turn it off/on. */}
+        {canPreview && isPreviewing && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              toggleMute(e);
+            }}
+            aria-label={muted ? "Unmute" : "Mute"}
+            style={{
+              position: "absolute",
+              bottom: "8px",
+              left: "8px",
+              zIndex: 3,
+              width: "28px",
+              height: "28px",
+              borderRadius: "50%",
+              border: "none",
+              background: "rgba(0,0,0,0.6)",
+              color: "#fff",
+              fontSize: "12px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
         )}
         <div className="youtube_timingThumbnail">{video.duration}</div>
         {showNew && (
@@ -1932,6 +2284,22 @@ const TrendingCard = ({
     : desktopHover.isPreviewing;
   const { videoRef, onMouseEnter, onMouseLeave } = desktopHover;
 
+  // NEW: local mute state + sound-attempt logic for THIS card. Kept
+  // separate from useHoverPreview's own version, since that only ever
+  // fires along the desktop-hover path — the mobile path drives
+  // `isPreviewing` independently (via `isActive`), and both paths are
+  // already unified in the effect below, so the sound attempt lives
+  // here where it can cover both.
+  const [muted, setMuted] = useState(true);
+  const unsubscribeRef = useRef(null);
+  // NEW: stable per-instance identity for the shared sound arbiter.
+  const [soundId] = useState(() => Symbol("trending-card"));
+
+  const muteForArbiter = () => {
+    setMuted(true);
+    if (videoRef.current) videoRef.current.muted = true;
+  };
+
   // NEW: needed for the "no stored thumbnail" fallback below, which
   // keeps a single <video> element persistently mounted (instead of
   // mounting/unmounting an overlay <video autoPlay> on hover, like the
@@ -1941,20 +2309,78 @@ const TrendingCard = ({
   // needs an explicit effect to start/stop playback as isPreviewing
   // changes. No-ops harmlessly for the thumbnail branch too, since
   // videoRef.current is null there whenever this fires.
+  //
+  // CHANGED: also attempts sound the moment a preview starts, falling
+  // back to muted with a retry on the visitor's next interaction
+  // anywhere on the page — see audioUnlock.js, same pattern used
+  // throughout the Posts tab. A successful (or manually toggled)
+  // unmute claims the shared sound arbiter, so at most one card across
+  // the whole page is ever audible at once.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
+
+    unsubscribeRef.current?.();
+    unsubscribeRef.current = null;
+
     if (isPreviewing) {
       try { v.currentTime = 0; } catch (_) {}
-      const p = v.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
+      v.muted = false;
+      v
+        .play()
+        .then(() => {
+          setMuted(false);
+          claimSound(soundId, muteForArbiter);
+        })
+        .catch(() => {
+          v.muted = true;
+          setMuted(true);
+          v.play().catch(() => {});
+          unsubscribeRef.current = onUserInteract(() => {
+            const el = videoRef.current;
+            if (!el) return;
+            el.muted = false;
+            el.play()
+              .then(() => {
+                setMuted(false);
+                claimSound(soundId, muteForArbiter);
+              })
+              .catch(() => {
+                el.muted = true;
+              });
+          });
+        });
     } else {
       try {
         v.pause();
         v.currentTime = 0;
       } catch (_) {}
+      releaseSound(soundId);
     }
   }, [isPreviewing, videoRef]);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted]);
+
+  const toggleMute = (e) => {
+    e?.stopPropagation();
+    setMuted((m) => {
+      const next = !m;
+      if (!next && videoRef.current) {
+        videoRef.current.play().catch(() => {});
+        claimSound(soundId, muteForArbiter);
+      } else {
+        releaseSound(soundId);
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => () => {
+    unsubscribeRef.current?.();
+    releaseSound(soundId);
+  }, []);
 
   const abs = Math.abs(offset);
   // dragDeltaX moves every visible card together in real time while the
@@ -2015,7 +2441,7 @@ const TrendingCard = ({
                 ref={videoRef}
                 src={item.src}
                 className="zx-dramatic-card-img"
-                muted
+                muted={muted}
                 autoPlay
                 loop
                 playsInline
@@ -2035,7 +2461,7 @@ const TrendingCard = ({
             ref={videoRef}
             src={item.src}
             className="zx-dramatic-card-img"
-            muted
+            muted={muted}
             loop
             playsInline
             preload="metadata"
@@ -2050,6 +2476,35 @@ const TrendingCard = ({
           />
         )}
         <div className="zx-dramatic-card-gradient" />
+        {/* NEW: mute/unmute toggle, shown only while actually
+            previewing — scroll/hover autoplay attempts sound first
+            (see the effect above), this lets the visitor turn it off/on. */}
+        {canPreview && isPreviewing && (
+          <button
+            type="button"
+            onClick={toggleMute}
+            aria-label={muted ? "Unmute" : "Mute"}
+            style={{
+              position: "absolute",
+              bottom: "10px",
+              right: "10px",
+              zIndex: 4,
+              width: "30px",
+              height: "30px",
+              borderRadius: "50%",
+              border: "none",
+              background: "rgba(0,0,0,0.55)",
+              color: "#fff",
+              fontSize: "13px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
+        )}
       </div>
       {isActive && (
         <div className="zx-dramatic-card-info" key={`info-${cycleKey}`}>
@@ -3509,6 +3964,18 @@ const HomePage = ({ sideNavbar }) => {
   const [dbLoading, setDbLoading] = useState(true);
   const [dbReels, setDbReels] = useState([]);
   const [dbPosts, setDbPosts] = useState([]);
+  // NEW: parallel "feed order" copies of posts/reels/videos, used ONLY
+  // by the interleaved "All" rows (contentRows below). Seeded with a
+  // fresh client-side shuffle whenever the underlying data is first
+  // fetched (so a refresh shows a different mix), then kept in sync by
+  // prepending/removing exactly like dbPosts/dbReels/dbVideos — but
+  // never re-shuffled on those incremental updates, so an in-progress
+  // scroll never gets reordered out from under the viewer. dbPosts/
+  // dbReels/dbVideos themselves stay strictly newest-first, since the
+  // Trending carousel and category browsing both depend on that.
+  const [feedPosts, setFeedPosts] = useState([]);
+  const [feedReels, setFeedReels] = useState([]);
+  const [feedVideos, setFeedVideos] = useState([]);
   const [viewCounts, setViewCounts] = useState({});
   const [watchedContentIds, setWatchedContentIds] = useState(new Set());
   const [watchLaterIds, setWatchLaterIds] = useState(new Set());
@@ -3681,20 +4148,21 @@ const HomePage = ({ sideNavbar }) => {
           .select("content_id")
           .eq("content_type", "video")
           .in("content_id", videoIds);
+        let withLikes = formatted;
         if (likesData) {
           const likesMap = {};
           likesData.forEach((row) => {
             likesMap[row.content_id] = (likesMap[row.content_id] || 0) + 1;
           });
-          setDbVideos(
-            formatted.map((v) => ({
-              ...v,
-              likes: likesMap[String(v.id)] ?? v.likes ?? 0,
-            })),
-          );
-        } else {
-          setDbVideos(formatted);
+          withLikes = formatted.map((v) => ({
+            ...v,
+            likes: likesMap[String(v.id)] ?? v.likes ?? 0,
+          }));
         }
+        setDbVideos(withLikes);
+        // NEW: seed the feed-only shuffled copy from this same initial
+        // fetch — a fresh Math.random() order every page load/refresh.
+        setFeedVideos(shuffleArray(withLikes));
         fetchViewCounts(
           formatted.map((v) => v.id),
           "video",
@@ -3726,6 +4194,10 @@ const HomePage = ({ sideNavbar }) => {
             created_at: v.created_at || null,
           };
           setDbVideos((prev) => [newVideo, ...prev]);
+          // NEW: a brand-new video always lands at the very top of the
+          // feed order too, unshuffled — same "new content jumps to the
+          // top immediately" behavior the Posts tab already has.
+          setFeedVideos((prev) => [newVideo, ...prev]);
           fetchViewCounts([v.id], "video");
           loadWatchedIds();
         },
@@ -3735,6 +4207,7 @@ const HomePage = ({ sideNavbar }) => {
         { event: "DELETE", schema: "public", table: "videos" },
         (payload) => {
           setDbVideos((prev) => prev.filter((v) => v.id !== payload.old.id));
+          setFeedVideos((prev) => prev.filter((v) => v.id !== payload.old.id));
         },
       )
       .subscribe();
@@ -3772,6 +4245,8 @@ const HomePage = ({ sideNavbar }) => {
           created_at: r.created_at || null,
         }));
         setDbReels(formatted);
+        // NEW: seed the feed-only shuffled copy — see fetchDbVideos above.
+        setFeedReels(shuffleArray(formatted));
         fetchViewCounts(
           formatted.map((r) => r.id),
           "reel",
@@ -3806,6 +4281,8 @@ const HomePage = ({ sideNavbar }) => {
             created_at: r.created_at || null,
           };
           setDbReels((prev) => [newReel, ...prev]);
+          // NEW: new reel jumps to the top of the feed order too, unshuffled.
+          setFeedReels((prev) => [newReel, ...prev]);
           fetchViewCounts([r.id], "reel");
           loadWatchedIds();
         },
@@ -3815,6 +4292,7 @@ const HomePage = ({ sideNavbar }) => {
         { event: "DELETE", schema: "public", table: "reels" },
         (payload) => {
           setDbReels((prev) => prev.filter((r) => r.dbId !== payload.old.id));
+          setFeedReels((prev) => prev.filter((r) => r.dbId !== payload.old.id));
         },
       )
       .subscribe();
@@ -3839,6 +4317,8 @@ const HomePage = ({ sideNavbar }) => {
         .limit(30);
       if (!error && data) {
         setDbPosts(data);
+        // NEW: seed the feed-only shuffled copy — see fetchDbVideos above.
+        setFeedPosts(shuffleArray(data));
         fetchViewCounts(
           data.map((p) => p.id),
           "post",
@@ -3857,10 +4337,10 @@ const HomePage = ({ sideNavbar }) => {
           // (those only come back from a select() with joins) — default
           // them so PostCard's likesCount/commentsCount don't blow up on
           // a freshly-created post before anyone's reacted/commented.
-          setDbPosts((prev) => [
-            { ...payload.new, post_reactions: [], post_comments: [] },
-            ...prev,
-          ]);
+          const withDefaults = { ...payload.new, post_reactions: [], post_comments: [] };
+          setDbPosts((prev) => [withDefaults, ...prev]);
+          // NEW: new post jumps to the top of the feed order too, unshuffled.
+          setFeedPosts((prev) => [withDefaults, ...prev]);
           fetchViewCounts([payload.new.id], "post");
         },
       )
@@ -3869,6 +4349,7 @@ const HomePage = ({ sideNavbar }) => {
         { event: "DELETE", schema: "public", table: "posts" },
         (payload) => {
           setDbPosts((prev) => prev.filter((p) => p.id !== payload.old.id));
+          setFeedPosts((prev) => prev.filter((p) => p.id !== payload.old.id));
         },
       )
       .subscribe();
@@ -4070,16 +4551,20 @@ const HomePage = ({ sideNavbar }) => {
     e.stopPropagation();
     if (!window.confirm("Delete this video? This cannot be undone.")) return;
     const { error } = await supabase.from("videos").delete().eq("id", videoId);
-    if (!error) setDbVideos((prev) => prev.filter((v) => v.id !== videoId));
-    else alert("Failed to delete video.");
+    if (!error) {
+      setDbVideos((prev) => prev.filter((v) => v.id !== videoId));
+      setFeedVideos((prev) => prev.filter((v) => v.id !== videoId));
+    } else alert("Failed to delete video.");
   };
 
   const handleDeleteReel = async (e, dbId) => {
     e.stopPropagation();
     if (!window.confirm("Delete this reel? This cannot be undone.")) return;
     const { error } = await supabase.from("reels").delete().eq("id", dbId);
-    if (!error) setDbReels((prev) => prev.filter((r) => r.dbId !== dbId));
-    else alert("Failed to delete reel.");
+    if (!error) {
+      setDbReels((prev) => prev.filter((r) => r.dbId !== dbId));
+      setFeedReels((prev) => prev.filter((r) => r.dbId !== dbId));
+    } else alert("Failed to delete reel.");
   };
 
   const handleDeletePost = async (e, postId) => {
@@ -4088,8 +4573,10 @@ const HomePage = ({ sideNavbar }) => {
     if (!postId) return;
     if (!window.confirm("Delete this post? This cannot be undone.")) return;
     const { error } = await supabase.from("posts").delete().eq("id", postId);
-    if (!error) setDbPosts((prev) => prev.filter((p) => p.id !== postId));
-    else alert("Failed to delete post.");
+    if (!error) {
+      setDbPosts((prev) => prev.filter((p) => p.id !== postId));
+      setFeedPosts((prev) => prev.filter((p) => p.id !== postId));
+    } else alert("Failed to delete post.");
   };
 
   // ── Report modal — opened from any card's three-dots menu ──
@@ -4176,15 +4663,19 @@ const HomePage = ({ sideNavbar }) => {
   // Order is always Post row -> Reel row -> Video row -> repeat, same on
   // both breakpoints; only how many cards land in each row differs
   // (ROW_SIZES_DESKTOP vs ROW_SIZES_MOBILE, see buildContentRows above).
+  // CHANGED: builds from feedPosts/feedReels/feedVideos (the shuffled,
+  // refresh-varying copies) instead of dbPosts/allReels/dbVideos
+  // directly — those stay newest-first for the Trending carousel and
+  // category browsing elsewhere on this page.
   const contentRows = React.useMemo(() => {
     const sizes = isMobile ? ROW_SIZES_MOBILE : ROW_SIZES_DESKTOP;
     const buckets = {
-      post: dbPosts,
-      reel: allReels,
-      video: dbVideos.map((v) => ({ ...v, isUploaded: true })),
+      post: feedPosts,
+      reel: feedReels,
+      video: feedVideos.map((v) => ({ ...v, isUploaded: true })),
     };
     return buildContentRows(buckets, sizes);
-  }, [dbPosts, allReels, dbVideos, isMobile]);
+  }, [feedPosts, feedReels, feedVideos, isMobile]);
 
   return (
     <div className="homePage">

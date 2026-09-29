@@ -1,17 +1,8 @@
 /* eslint-disable no-restricted-globals */
 
-// ── Zixplon service worker ──
-// Merged from the original sw.js (cache lifecycle + fetch passthrough)
-// and sw-push.js (push notifications). Two separate service worker
-// scripts were both registering at the same root scope ("/") — only
-// one script can actually control a given scope at a time, so the
-// second register() call was silently replacing the first as the
-// active worker. Keeping everything in one file avoids that collision
-// entirely. Delete sw-push.js once this is deployed, and update
-// usePushNotifications.js to register this file instead (see the note
-// at the bottom of this file).
+// ── Zixplon service worker (cache lifecycle + push notifications) ──
 
-const CACHE_NAME = "zixplon-v4";
+const CACHE_NAME = "zixplon-v5"; // bumped so the activate step clears v4
 const APP_SHELL = ["/", "/index.html"];
 
 self.addEventListener("install", (event) => {
@@ -32,8 +23,8 @@ self.addEventListener("activate", (event) => {
             .map((key) => caches.delete(key))
         )
       )
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
@@ -41,36 +32,34 @@ self.addEventListener("fetch", (event) => {
   if (event.request.url.includes("supabase")) return;
 
   event.respondWith(
-    fetch(event.request).catch(() => {
-      // Network fetch failed — try cache, then fall back to the app
-      // shell for navigations so the user doesn't get a hard network
-      // error instead of the page.
-      return caches.match(event.request).then((cached) => {
+    fetch(event.request).catch(() =>
+      caches.match(event.request).then((cached) => {
         if (cached) return cached;
         if (event.request.mode === "navigate") {
           return caches.match("/index.html");
         }
         return Response.error();
-      });
-    })
+      })
+    )
   );
 });
 
 // ── Push notifications ──
-// Handles two events:
-//   1. 'push'            → server sent a notification, show it
-//   2. 'notificationclick' → user tapped it, focus/open the right page
 
 self.addEventListener("push", (event) => {
-  if (!event.data) return;
+  let payload = {};
 
-  let payload;
-  try {
-    payload = event.data.json();
-  } catch (e) {
-    payload = { title: "ZIXPLON", body: event.data.text() };
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch (e) {
+      payload = { body: event.data.text() };
+    }
   }
 
+  // With userVisibleOnly: true, every push MUST show a notification.
+  // Returning early on empty data makes the browser display its own
+  // generic "This site has been updated in the background" message.
   const {
     title = "ZIXPLON",
     body = "",
@@ -80,40 +69,41 @@ self.addEventListener("push", (event) => {
     tag,
   } = payload;
 
-  const options = {
-    body,
-    icon,
-    badge,
-    // 'tag' groups notifications — e.g. multiple messages from the same
-    // person collapse into one instead of stacking up
-    tag: tag || "zixplon-notification",
-    renotify: true,
-    vibrate: [100, 50, 100],
-    data: { url },
-  };
-
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon,
+      badge,
+      tag: tag || "zixplon-notification", // renotify requires a tag
+      renotify: true,
+      vibrate: [100, 50, 100],
+      data: { url },
+    })
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || "/";
+  const targetUrl = new URL(
+    event.notification.data?.url || "/",
+    self.location.origin
+  ).href;
 
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clientList) => {
-        // If a Zixplon tab is already open, focus it and navigate there
+      .then(async (clientList) => {
         for (const client of clientList) {
-          if ("focus" in client) {
-            client.postMessage({ type: "PUSH_NAVIGATE", url: targetUrl });
-            return client.focus();
-          }
+          if (!("focus" in client)) continue;
+          await client.focus();
+          // Let the app route in-place (SPA), and fall back to a hard
+          // navigation if nothing in the page handles the message.
+          client.postMessage({ type: "PUSH_NAVIGATE", url: targetUrl });
+          return;
         }
-        // Otherwise open a new tab
         if (self.clients.openWindow) {
           return self.clients.openWindow(targetUrl);
         }
-      }),
+      })
   );
 });

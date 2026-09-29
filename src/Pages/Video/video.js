@@ -28,6 +28,11 @@ import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
 // <source> tag exactly as before — nothing breaks until you start
 // serving HLS manifests (e.g. via Cloudflare Stream).
 import Hls from "hls.js";
+// NEW: same "retry sound after the visitor's next interaction" gate used
+// by the Posts tab and the Home cards — see utils/audioUnlock.js.
+import { onUserInteract } from "../../utils/audioUnlock";
+// NEW: fresh random order for next/prev/suggestions on every load.
+import { shuffleArray } from "../../utils/shuffleArray";
 // NOTE: notifyUser() is no longer imported/used anywhere in this file.
 // Like/comment notifications are owned by the notify_on_like /
 // notify_on_comment DB triggers (client-side calls were removed earlier
@@ -361,6 +366,11 @@ const Video = ({ sideNavbar }) => {
   // whenever fullscreen is exited so it doesn't carry over.
   const [fullscreenActionsHidden, setFullscreenActionsHidden] = useState(false);
 
+  // NEW: true only while the video is muted because the browser BLOCKED
+  // unmuted autoplay (as opposed to the visitor muting it themselves).
+  // Drives the "Tap to unmute" pill over the player.
+  const [autoMuted, setAutoMuted] = useState(false);
+
   const quality = useNetworkQuality();
 
   const [isMobile, setIsMobile] = useState(false);
@@ -424,6 +434,18 @@ const Video = ({ sideNavbar }) => {
   // NEW: holds the off-DOM <video> element used to prefetch the next
   // clip in the background (see the preloading effect below).
   const preloadVideoElRef = useRef(null);
+
+  // NEW: sound-first autoplay bookkeeping.
+  //  - autoMutedRef mirrors the autoMuted state for use inside
+  //    callbacks/listeners that outlive a render.
+  //  - unsubscribeInteractRef cancels a pending "retry with sound after
+  //    the next interaction" registration (see utils/audioUnlock.js).
+  //  - autoPausedRef is true only while the video is paused because the
+  //    player scrolled out of view — so a pause the visitor chose
+  //    themselves is never undone when they scroll back.
+  const autoMutedRef = useRef(false);
+  const unsubscribeInteractRef = useRef(null);
+  const autoPausedRef = useRef(false);
 
   // NEW: hidden <audio> element for an attached song, kept in lockstep
   // with the video's own play/pause/mute state so it "autoplays along
@@ -530,8 +552,7 @@ const Video = ({ sideNavbar }) => {
         .select("*")
         .order("created_at", { ascending: false });
       if (!error && data) {
-        setDbVideos(
-          data.map((v) => ({
+        const mapped = data.map((v) => ({
             id: String(v.id),
             short_id: v.short_id, // alphanumeric alias used only for the share link
             src: v.video_url,
@@ -556,8 +577,13 @@ const Video = ({ sideNavbar }) => {
             feeling: v.feeling || null,
             original_audio_volume: v.original_audio_volume ?? 1,
             isDb: true,
-          })),
-        );
+          }));
+        // NEW: shuffled ONCE per mount, so every fresh visit gets a
+        // different Next/Prev order and suggestions list instead of the
+        // same newest-first sequence. Navigating between videos while
+        // this component stays mounted keeps the same shuffled order, so
+        // Prev/Next remain consistent within a session.
+        setDbVideos(shuffleArray(mapped));
       }
       setDbLoading(false);
     };
@@ -772,6 +798,21 @@ const Video = ({ sideNavbar }) => {
     if (autoPlay) navigate(`/video/${nextVideo.id}`, { state: navState });
   };
   const handleVideoError = () => setVideoError(true);
+
+  // NEW: "Tap to unmute" pill — lifts a browser-forced mute right away
+  // (this click IS the user gesture the browser was waiting for).
+  const handleUnmuteClick = (e) => {
+    e.stopPropagation();
+    unsubscribeInteractRef.current?.();
+    unsubscribeInteractRef.current = null;
+    autoMutedRef.current = false;
+    setAutoMuted(false);
+    const vid = videoRef.current;
+    if (vid) {
+      vid.muted = false;
+      vid.play().catch(() => {});
+    }
+  };
 
   const handleLike = async () => {
     const userId = localStorage.getItem("userId");
@@ -1138,6 +1179,7 @@ const Video = ({ sideNavbar }) => {
     setIsVideoPlaying(false);
     setHasPlayedSuccessfully(false);
     setShowMoreMenu(false);
+    autoPausedRef.current = false;
     scrollToTopDeferred();
   }, [id]);
 
@@ -1167,6 +1209,12 @@ const Video = ({ sideNavbar }) => {
   // song come through clearly instead of the two fighting for the same
   // headroom. Only mute state is still mirrored, since muting the
   // player should silence everything, mix setting notwithstanding.
+  //
+  // NOTE: during a blocked-autoplay fallback the video is muted, so the
+  // song starts muted too (muted audio is always allowed to autoplay) —
+  // and the volumechange listener below un-mutes it the instant the
+  // video is unmuted, whether via the pill, native controls, or the
+  // automatic retry.
   useEffect(() => {
     const vid = videoRef.current;
     const audio = songAudioRef.current;
@@ -1273,6 +1321,105 @@ const Video = ({ sideNavbar }) => {
       }
     };
   }, [video?.id, video?.src]);
+
+  // ── Sound-first autoplay with fallback (NEW) ─────────────────────────
+  // The <video> below carries the `autoPlay` attribute with sound, which
+  // browsers refuse on a fresh load / direct link / refresh (before any
+  // click) — leaving the player sitting paused on its poster with no
+  // error. This effect steps in whenever that happens: try with sound;
+  // if refused, fall back to a MUTED loop (always allowed) and retry
+  // with sound the instant the visitor next interacts anywhere on the
+  // page (see utils/audioUnlock.js). While muted this way, autoMuted
+  // drives a "Tap to unmute" pill over the player.
+  //
+  // A tap directly on the video element itself (i.e. its native control
+  // bar) is deliberately ignored by the retry — the visitor is using the
+  // native mute button and shouldn't have it fight an automatic unmute.
+  // Unmuting through any route clears the pill via the volumechange
+  // listener.
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid || !video?.id) return;
+
+    autoMutedRef.current = false;
+    setAutoMuted(false);
+    unsubscribeInteractRef.current?.();
+    unsubscribeInteractRef.current = null;
+
+    const handleVolumeChange = () => {
+      if (!vid.muted && autoMutedRef.current) {
+        autoMutedRef.current = false;
+        setAutoMuted(false);
+      }
+    };
+    vid.addEventListener("volumechange", handleVolumeChange);
+
+    const attempt = () => {
+      // The autoplay attribute already worked — nothing to do.
+      if (!vid.paused) return;
+
+      vid.muted = false;
+      vid.play().catch(() => {
+        vid.muted = true;
+        autoMutedRef.current = true;
+        setAutoMuted(true);
+        vid.play().catch(() => {});
+
+        unsubscribeInteractRef.current = onUserInteract((e) => {
+          if (!autoMutedRef.current) return;
+          if (e && e.target === vid) return;
+          autoMutedRef.current = false;
+          setAutoMuted(false);
+          vid.muted = false;
+        });
+      });
+    };
+
+    // Wait for metadata so an HLS source that hasn't attached yet
+    // doesn't reject the play() call for having no source.
+    if (vid.readyState >= 1) attempt();
+    else vid.addEventListener("loadedmetadata", attempt, { once: true });
+
+    return () => {
+      vid.removeEventListener("volumechange", handleVolumeChange);
+      vid.removeEventListener("loadedmetadata", attempt);
+      unsubscribeInteractRef.current?.();
+      unsubscribeInteractRef.current = null;
+    };
+  }, [video?.id]);
+
+  // ── Scroll pause/resume (NEW) ────────────────────────────────────────
+  // Pauses the video once the player has mostly scrolled out of view and
+  // resumes it when it's back — same "only what's on screen plays"
+  // behavior as the feed pages. Only playback that WE paused is resumed
+  // (autoPausedRef), so a pause the visitor chose is respected. Skipped
+  // in fullscreen. Delete this effect if you'd rather the video keep
+  // playing while people read comments.
+  useEffect(() => {
+    const wrapper = playerWrapperRef.current;
+    if (!wrapper || !video?.id) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const vid = videoRef.current;
+        if (!vid || getFullscreenElement()) return;
+
+        if (!entry.isIntersecting || entry.intersectionRatio < 0.25) {
+          if (!vid.paused) {
+            autoPausedRef.current = true;
+            vid.pause();
+          }
+        } else if (autoPausedRef.current && entry.intersectionRatio >= 0.5) {
+          autoPausedRef.current = false;
+          vid.play().catch(() => {});
+        }
+      },
+      { threshold: [0, 0.25, 0.5, 1] },
+    );
+
+    observer.observe(wrapper);
+    return () => observer.disconnect();
+  }, [video?.id]);
 
   // ── Next-video preloading (NEW) ─────────────────────────────────────
   // Warms the browser's cache for whatever comes next (respecting
@@ -1598,6 +1745,41 @@ const Video = ({ sideNavbar }) => {
             >
               ❤️
             </div>
+          )}
+
+          {/* NEW: shown only while the video is muted because the
+              browser blocked unmuted autoplay. Tapping it (a real user
+              gesture) turns sound on. Also lifted automatically by the
+              visitor's next tap/click elsewhere on the page. Styled
+              inline so no CSS file change is needed. */}
+          {autoMuted && (
+            <button
+              type="button"
+              aria-label="Unmute"
+              data-sound-toggle
+              onClick={handleUnmuteClick}
+              style={{
+                position: "absolute",
+                left: "12px",
+                bottom: isMobile ? "52px" : "56px",
+                zIndex: 31,
+                background: "rgba(12, 8, 35, 0.72)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                color: "#fff",
+                border: "1px solid rgba(255,255,255,0.25)",
+                borderRadius: "999px",
+                padding: "7px 14px",
+                fontSize: "12px",
+                fontWeight: 800,
+                fontFamily: "'Nunito', sans-serif",
+                letterSpacing: "0.2px",
+                cursor: "pointer",
+                boxShadow: "0 6px 20px rgba(0,0,0,0.4)",
+              }}
+            >
+              🔇 Tap to unmute
+            </button>
           )}
 
           <div

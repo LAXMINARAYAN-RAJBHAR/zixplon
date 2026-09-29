@@ -38,6 +38,11 @@ import SongAttachmentCard from "../Shared/SongAttachmentCard";
 // Video.jsx, ported here so reels get the same adaptive-bitrate
 // playback the other two surfaces already have.
 import Hls from "hls.js";
+// NEW: same "retry sound after the visitor's next interaction" gate used
+// by the Posts tab and the Home cards — see utils/audioUnlock.js.
+import { onUserInteract } from "../../utils/audioUnlock";
+// NEW: fresh random order for the reel feed on every load.
+import { shuffleArray } from "../../utils/shuffleArray";
 // NOTE: notifyUser() is no longer imported/used anywhere in this file.
 // Like/comment notifications are owned by the notify_on_like /
 // notify_on_comment DB triggers, and Connect requests/accepts are owned
@@ -318,6 +323,19 @@ const ReelItem = ({ reel, allReels }) => {
   // unmount or whenever reel.id/reel.src changes. Same pattern as
   // PostCard.jsx's PostVideo / Video.jsx.
   const hlsInstanceRef  = useRef(null);
+
+  // NEW: sound-first autoplay bookkeeping.
+  //  - isActiveRef: whether this reel is the one currently scrolled
+  //    into view (guards async play() results that land after the reel
+  //    has already scrolled away).
+  //  - autoMutedRef: true only while this reel is muted because the
+  //    browser BLOCKED unmuted autoplay — as opposed to the visitor
+  //    choosing to mute. Only an auto-mute gets lifted by the retry.
+  //  - unsubscribeInteractRef: cancels a pending "retry after the next
+  //    interaction" registration (see utils/audioUnlock.js).
+  const isActiveRef            = useRef(false);
+  const autoMutedRef           = useRef(false);
+  const unsubscribeInteractRef = useRef(null);
 
   const loggedInUser = localStorage.getItem("username") || "Guest";
 
@@ -631,6 +649,12 @@ const ReelItem = ({ reel, allReels }) => {
   // single effect enough to cover every play/pause path). The song
   // always plays at full strength (audio.volume = 1) — the reel's OWN
   // volume is instead pulled down separately by the mix effect below.
+  //
+  // NOTE: isPlaying now only flips true once play() has genuinely
+  // succeeded (see startPlayback below), and `muted` is true while a
+  // blocked-autoplay fallback is active — muted audio is always allowed
+  // to autoplay, so the song starts silently and becomes audible the
+  // instant the retry lifts the mute.
   useEffect(() => {
     const audio = songAudioRef.current;
     if (!audio || !reel.song) return;
@@ -988,15 +1012,78 @@ const ReelItem = ({ reel, allReels }) => {
     const video     = videoRef.current;
     const container = containerRef.current;
     if (!video || !container) return;
+
+    // NEW: drop any pending "retry with sound after the next
+    // interaction" registration.
+    const clearPendingUnmute = () => {
+      unsubscribeInteractRef.current?.();
+      unsubscribeInteractRef.current = null;
+    };
+
+    // NEW: sound-first autoplay. Previously this called
+    // video.play().catch(() => {}) and flipped isPlaying to true
+    // regardless — so when the browser blocked unmuted autoplay (the
+    // normal case on a fresh load / direct link, before any click), the
+    // reel just sat there paused while the UI claimed it was playing.
+    // Now: try with the visitor's own mute preference; if that's
+    // refused, fall back to a MUTED loop (always allowed) and retry
+    // with sound the instant the visitor next interacts anywhere on the
+    // page. isPlaying only flips true once playback has genuinely
+    // started.
+    const startPlayback = () => {
+      clearPendingUnmute();
+      autoMutedRef.current = false;
+      video.muted = globalMuted;
+      setMuted(globalMuted);
+
+      video
+        .play()
+        .then(() => {
+          if (!isMounted.current || !isActiveRef.current) {
+            video.pause();
+            return;
+          }
+          setIsPlaying(true);
+        })
+        .catch(() => {
+          // Ignore rejections from a play() that got interrupted
+          // because this reel already scrolled away.
+          if (!isMounted.current || !isActiveRef.current) return;
+
+          video.muted = true;
+          setMuted(true);
+          autoMutedRef.current = true;
+
+          video
+            .play()
+            .then(() => {
+              if (!isMounted.current || !isActiveRef.current) {
+                video.pause();
+                return;
+              }
+              setIsPlaying(true);
+            })
+            .catch(() => {});
+
+          unsubscribeInteractRef.current = onUserInteract(() => {
+            // Only lift a browser-forced mute — never override a mute
+            // the visitor chose themselves.
+            if (!autoMutedRef.current || !isActiveRef.current) return;
+            autoMutedRef.current = false;
+            video.muted = globalMuted;
+            setMuted(globalMuted);
+          });
+        });
+    };
+
     observerRef.current = new IntersectionObserver(
       ([entry]) => {
         if (!isMounted.current) return;
         if (entry.isIntersecting) {
+          isActiveRef.current = true;
           window.history.replaceState(null, "", `/reels/${reel.id}`);
           document.querySelectorAll("video").forEach((v) => { if (v !== video) v.pause(); });
-          video.muted = globalMuted;
-          video.play().catch(() => {});
-          setIsPlaying(true);
+          startPlayback();
           setShowMuteBtn(true);
           clearTimeout(muteBtnTimerRef.current);
           muteBtnTimerRef.current = setTimeout(() => setShowMuteBtn(false), 3000);
@@ -1005,6 +1092,9 @@ const ReelItem = ({ reel, allReels }) => {
             setShowNewBadge(false);
           }, 2000);
         } else {
+          isActiveRef.current = false;
+          clearPendingUnmute();
+          autoMutedRef.current = false;
           video.pause();
           setIsPlaying(false);
         }
@@ -1014,6 +1104,8 @@ const ReelItem = ({ reel, allReels }) => {
     observerRef.current.observe(container);
     return () => {
       isMounted.current = false;
+      isActiveRef.current = false;
+      clearPendingUnmute();
       observerRef.current?.disconnect();
       clearTimeout(iconTimeoutRef.current);
       clearTimeout(tapTimeoutRef.current);
@@ -1089,7 +1181,18 @@ const ReelItem = ({ reel, allReels }) => {
 
   const handleToggleMute = (e) => {
     e.stopPropagation();
-    const newMuted = !globalMuted;
+    // NEW: the visitor is now explicitly choosing — cancel any pending
+    // automatic unmute so it can't fight this click.
+    autoMutedRef.current = false;
+    unsubscribeInteractRef.current?.();
+    unsubscribeInteractRef.current = null;
+
+    // CHANGED: toggle from what the button is actually SHOWING (the
+    // local `muted` state) rather than the global flag — during a
+    // blocked-autoplay fallback the reel is muted locally while
+    // globalMuted is still false, and toggling off the global flag
+    // would leave the "Unmute" button unable to unmute anything.
+    const newMuted = !muted;
     setGlobalMuted(newMuted);
     if (videoRef.current) videoRef.current.muted = newMuted;
     if (songAudioRef.current) songAudioRef.current.muted = newMuted;
@@ -1284,6 +1387,7 @@ const ReelItem = ({ reel, allReels }) => {
             className="reel_mute_btn"
             onClick={handleToggleMute}
             aria-label={muted ? "Unmute" : "Mute"}
+            data-sound-toggle
           >
             {muted ? <VolumeOffIcon sx={{ fontSize: 20 }} /> : <VolumeUpIcon sx={{ fontSize: 20 }} />}
           </button>
@@ -1656,8 +1760,7 @@ const Reels = () => {
       setDbLoading(true);
       const { data, error } = await supabase.from("reels").select("*").order("created_at", { ascending: false });
       if (!error && data) {
-        setDbReels(
-          data.map((r) => ({
+        const mapped = data.map((r) => ({
             id:                    `db_${r.id}`,
             short_id:               r.short_id,
             src:                   r.video_url,
@@ -1684,8 +1787,13 @@ const Reels = () => {
             location_name: r.location_name || null,
             feeling:       r.feeling || null,
             original_audio_volume: r.original_audio_volume ?? 1,
-          }))
-        );
+          }));
+        // NEW: shuffled ONCE per load so every refresh opens onto a
+        // different mix of reels (the reel that was opened — via URL id
+        // or a clicked card — is still pulled to the front by the
+        // allReels memo below). New uploads arriving in realtime are
+        // still prepended unshuffled, so they show up at the top.
+        setDbReels(shuffleArray(mapped));
       }
       setDbLoading(false);
     };

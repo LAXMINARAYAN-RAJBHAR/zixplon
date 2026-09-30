@@ -41,6 +41,14 @@ import Hls from "hls.js";
 // NEW: same "retry sound after the visitor's next interaction" gate used
 // by the Posts tab and the Home cards — see utils/audioUnlock.js.
 import { onUserInteract } from "../../utils/audioUnlock";
+// NEW: shared sound arbiter — the same one the Home feed cards and the
+// hover-preview thumbnails use, so only one thing on the page has sound
+// at a time. A reel claims it while it is genuinely audible (playing and
+// unmuted), releases it the moment it is muted/paused/unmounted, and
+// goes quiet (mutes itself, keeps playing) if something else claims it.
+// `soundPrefs` is the shared mute preference, so a mute/unmute chosen
+// on a thumbnail preview carries into the Reels page and vice versa.
+import { claimSound, releaseSound, soundPrefs } from "../../utils/soundArbiter";
 // NEW: fresh random order for the reel feed on every load.
 import { shuffleArray } from "../../utils/shuffleArray";
 // NOTE: notifyUser() is no longer imported/used anywhere in this file.
@@ -75,10 +83,16 @@ const fetchCount = async (contentId, contentType, reactionType) => {
   return Math.max(0, count ?? 0);
 };
 
-let globalMuted = false;
+// CHANGED: the page-wide mute preference used to be a private module
+// variable (`globalMuted`). It now lives in the shared `soundPrefs`
+// (utils/soundArbiter.js) so it's the same preference the hover
+// previews use. Reading it through a function (instead of copying it
+// into a variable at import time) means a change made elsewhere is
+// always picked up.
 const muteListeners = new Set();
+const isGloballyMuted = () => soundPrefs.muted;
 const setGlobalMuted = (val) => {
-  globalMuted = val;
+  soundPrefs.muted = val;
   muteListeners.forEach((fn) => fn(val));
 };
 
@@ -337,6 +351,11 @@ const ReelItem = ({ reel, allReels }) => {
   const autoMutedRef           = useRef(false);
   const unsubscribeInteractRef = useRef(null);
 
+  // NEW: this reel's identity in the shared sound arbiter (a Symbol is
+  // unique per instance, so two reels can never be confused).
+  const arbiterIdRef = useRef(null);
+  if (arbiterIdRef.current === null) arbiterIdRef.current = Symbol("reel");
+
   const loggedInUser = localStorage.getItem("username") || "Guest";
 
   // NEW: unique per-mount suffix for this ReelItem's connection-status
@@ -368,7 +387,7 @@ const ReelItem = ({ reel, allReels }) => {
   const [dislikeCount, setDislikeCount]         = useState(0);
   const [likeCountLoading, setLikeCountLoading] = useState(true);
   const [isActing, setIsActing]                 = useState(false);
-  const [muted, setMuted]                       = useState(globalMuted);
+  const [muted, setMuted]                       = useState(() => isGloballyMuted());
   const [isPlaying, setIsPlaying]               = useState(false);
   const [showIcon, setShowIcon]                 = useState(false);
   const [showComments, setShowComments]         = useState(false);
@@ -691,6 +710,35 @@ const ReelItem = ({ reel, allReels }) => {
       songAudioRef.current.currentTime = 0;
     }
   }, [isPlaying]);
+
+  // NEW: shared sound arbiter (utils/soundArbiter.js). This reel claims
+  // the sound only while it is genuinely audible — playing AND unmuted —
+  // and releases the claim the moment it is paused, muted (by the
+  // visitor, or by the blocked-autoplay fallback) or unmounted. If
+  // something else claims the sound, this reel goes QUIET: it mutes its
+  // video and song but keeps playing, as the arbiter's contract
+  // describes. That silence is temporary — it does not touch the
+  // visitor's saved mute preference (soundPrefs), so the next reel
+  // still starts with sound.
+  useEffect(() => {
+    const id = arbiterIdRef.current;
+    if (isYouTube(reel.src)) return;
+
+    if (isPlaying && !muted) {
+      claimSound(id, () => {
+        if (videoRef.current) videoRef.current.muted = true;
+        if (songAudioRef.current) songAudioRef.current.muted = true;
+        setMuted(true);
+      });
+    } else {
+      releaseSound(id);
+    }
+  }, [isPlaying, muted, reel.src]);
+
+  useEffect(() => {
+    const id = arbiterIdRef.current;
+    return () => releaseSound(id);
+  }, []);
 
   // ── Connect / Withdraw-Disconnect — now wired identically to
   //    PostCard.jsx and Video.jsx: dispatch "openLogin" instead of
@@ -1033,8 +1081,8 @@ const ReelItem = ({ reel, allReels }) => {
     const startPlayback = () => {
       clearPendingUnmute();
       autoMutedRef.current = false;
-      video.muted = globalMuted;
-      setMuted(globalMuted);
+      video.muted = isGloballyMuted();
+      setMuted(isGloballyMuted());
 
       video
         .play()
@@ -1070,8 +1118,8 @@ const ReelItem = ({ reel, allReels }) => {
             // the visitor chose themselves.
             if (!autoMutedRef.current || !isActiveRef.current) return;
             autoMutedRef.current = false;
-            video.muted = globalMuted;
-            setMuted(globalMuted);
+            video.muted = isGloballyMuted();
+            setMuted(isGloballyMuted());
           });
         });
     };
@@ -1126,7 +1174,7 @@ const ReelItem = ({ reel, allReels }) => {
     const resumeTime = video.currentTime;
     video.load();
     video.currentTime = resumeTime;
-    video.muted = globalMuted;
+    video.muted = isGloballyMuted();
     if (wasPlaying) video.play().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quality]);
@@ -1189,9 +1237,10 @@ const ReelItem = ({ reel, allReels }) => {
 
     // CHANGED: toggle from what the button is actually SHOWING (the
     // local `muted` state) rather than the global flag — during a
-    // blocked-autoplay fallback the reel is muted locally while
-    // globalMuted is still false, and toggling off the global flag
-    // would leave the "Unmute" button unable to unmute anything.
+    // blocked-autoplay fallback (or after another card took over the
+    // sound) the reel is muted locally while the saved preference is
+    // still "unmuted", and toggling off the global flag would leave the
+    // "Unmute" button unable to unmute anything.
     const newMuted = !muted;
     setGlobalMuted(newMuted);
     if (videoRef.current) videoRef.current.muted = newMuted;

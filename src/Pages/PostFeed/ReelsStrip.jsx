@@ -2,20 +2,37 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import { ThreeDotMenu, ReportModal, shareContent } from "../../Component/Shared/ContentMenu";
+// NEW: shared hover-preview thumbnail — sound-first autoplay, attached
+// song synced to the clip, and a mute button that never triggers the
+// card's navigation. See Component/Shared/PreviewThumb.jsx.
+import PreviewThumb from "../../Component/Shared/PreviewThumb";
 
-const HOVER_PREVIEW_DELAY = 350; // ms
 const PAGE_SIZE = 10;
 const LOAD_MORE_THRESHOLD_PX = 300;
 
+// CHANGED: also carries song / location / feeling / audio mix / etc.
+// These ride along in the `clickedReel` handoff to /reels, so a reel
+// opened from the strip keeps its song, location and feeling instead of
+// losing them. (The rows come from `select("*")`, so no query change is
+// needed — the columns just have to exist on the reels table.)
 const mapReelRow = (r) => ({
   id: "db_" + r.id,
   dbId: r.id,
+  short_id: r.short_id,
   src: r.video_url,
   thumbnail: r.thumbnail || null,
   title: r.title || "Untitled",
   duration: r.duration || "00:00",
   user: r.user || r.username || "Unknown",
   username: r.username || "unknown",
+  description: r.description || "",
+  created_at: r.created_at || null,
+  remixed_from_id: r.remixed_from_id || null,
+  remixed_from_username: r.remixed_from_username || null,
+  song: r.song || null,
+  location_name: r.location_name || null,
+  feeling: r.feeling || null,
+  original_audio_volume: r.original_audio_volume ?? 1,
 });
 
 const formatViews = (n) => {
@@ -25,33 +42,19 @@ const formatViews = (n) => {
   return String(n);
 };
 
-// ── One reel card in the strip. Desktop hovers-to-preview (muted, looping
-// clip in place of the thumbnail); mobile just shows the static thumbnail
-// (or the video's own first frame if no thumbnail_url exists) and relies
-// on the tap to open the reel. Carries a three-dots menu (Share, Go to
+// ── One reel card in the strip. Desktop hovers-to-preview (the clip
+// plays over the thumbnail, sound-first, with the attached song in sync
+// and a mute button); touch screens just show the static thumbnail (or
+// the video's own first frame if no thumbnail exists) and rely on the
+// tap to open the reel. Carries a three-dots menu (Share, Go to
 // Profile, Report, and owner-only Delete) — matching the video/reel
-// cards on the Home feed. ──
-const ReelStripCard = ({ reel, viewCount, navigate, loggedInUsername, onReport, onDeleted }) => {
-  const [previewing, setPreviewing] = useState(false);
-  const videoRef = useRef(null);
-  const timeoutRef = useRef(null);
-
+// cards on the Home feed.
+//
+// CHANGED: the hover logic (timer, muted-only <video>, play/pause) that
+// used to live here is now handled by <PreviewThumb>. Hovering is
+// therefore tied to the thumbnail itself rather than the whole card. ──
+const ReelStripCard = ({ reel, previewId, viewCount, navigate, loggedInUsername, onReport, onDeleted }) => {
   const isOwner = loggedInUsername && reel.username && reel.username === loggedInUsername;
-
-  const onEnter = () => {
-    if (!reel.src) return;
-    timeoutRef.current = setTimeout(() => {
-      setPreviewing(true);
-      videoRef.current?.play().catch(() => {});
-    }, HOVER_PREVIEW_DELAY);
-  };
-  const onLeave = () => {
-    clearTimeout(timeoutRef.current);
-    setPreviewing(false);
-    if (videoRef.current) {
-      try { videoRef.current.pause(); videoRef.current.currentTime = 0; } catch (_) {}
-    }
-  };
 
   const goToReel = () => navigate(`/reels/${reel.id}`, { state: { clickedReel: reel } });
 
@@ -112,8 +115,6 @@ const ReelStripCard = ({ reel, viewCount, navigate, loggedInUsername, onReport, 
     <div
       className="pf-reel-card"
       style={{ position: "relative" }}
-      onMouseEnter={onEnter}
-      onMouseLeave={onLeave}
       onClick={goToReel}
       role="button"
       tabIndex={0}
@@ -121,31 +122,22 @@ const ReelStripCard = ({ reel, viewCount, navigate, loggedInUsername, onReport, 
     >
       <ThreeDotMenu items={menuItems} />
 
-      <div className="pf-reel-thumb-wrap">
+      <PreviewThumb
+        id={previewId}
+        src={reel.src}
+        song={reel.song}
+        originalVolume={reel.original_audio_volume}
+        className="pf-reel-thumb-wrap"
+      >
         {reel.thumbnail ? (
-          <>
-            <img
-              src={reel.thumbnail}
-              alt={reel.title}
-              className="pf-reel-thumb"
-              style={{ opacity: previewing ? 0 : 1 }}
-              loading="lazy"
-            />
-            {previewing && reel.src && (
-              <video
-                ref={videoRef}
-                src={reel.src}
-                muted
-                loop
-                playsInline
-                preload="metadata"
-                className="pf-reel-thumb pf-reel-thumb-video"
-              />
-            )}
-          </>
+          <img
+            src={reel.thumbnail}
+            alt={reel.title}
+            className="pf-reel-thumb"
+            loading="lazy"
+          />
         ) : reel.src ? (
           <video
-            ref={videoRef}
             src={reel.src}
             muted
             loop
@@ -161,7 +153,8 @@ const ReelStripCard = ({ reel, viewCount, navigate, loggedInUsername, onReport, 
           <span className="pf-reel-duration">{reel.duration}</span>
         )}
         <span className="pf-reel-viewcount">👁 {formatViews(viewCount)}</span>
-      </div>
+      </PreviewThumb>
+
       <div className="pf-reel-title">{reel.title}</div>
       <Link
         to={`/user/${reel.username}`}
@@ -190,6 +183,11 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
   const loadingRef = useRef(false);
   const trackRef = useRef(null);
   const loggedInUsername = localStorage.getItem("username") || "";
+
+  // NEW: unique per-strip id, so preview ids stay unique even when
+  // several strips (or a wrapped-around duplicate of the same reel) are
+  // on screen — the shared sound arbiter tells previews apart by id.
+  const stripIdRef = useRef(Math.random().toString(36).slice(2));
 
   const [reportTarget, setReportTarget] = useState(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
@@ -323,6 +321,7 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
           <ReelStripCard
             key={`${r.id}-${i}`}
             reel={r}
+            previewId={`${stripIdRef.current}-${r.id}-${i}`}
             // FIXED: read the count keyed by the prefixed `r.id`
             // (matches how fetchViewCountsFor now stores it), not by
             // the raw numeric `r.dbId`.

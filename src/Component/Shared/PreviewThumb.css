@@ -1,0 +1,88 @@
+/* Component/Shared/PreviewThumb.css */
+
+.preview_video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+  pointer-events: none; /* clicks fall through to the card / link */
+  transition: opacity 0.25s;
+}
+
+.preview_mute_btn {
+  position: absolute;
+  left: 6px;
+  bottom: 10px;
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+.preview_mute_btn:hover { background: rgba(124, 58, 237, 0.85); }
+
+.preview_song_badge {
+  position: absolute;
+  left: 40px;
+  bottom: 14px;
+  max-width: calc(100% - 110px);
+  z-index: 3;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.preview_progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  z-index: 3;
+  background: rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+}
+.preview_progress_fill {
+  height: 100%;
+  background: #a855f7;
+  transition: width 0.15s linear;
+}
+
+/* ── Reels strip cards ─────────────────────────────────────────────
+   The strip's own badges (play, duration, view count) must sit above
+   the preview video, and its view count lives bottom-left, so the mute
+   button and song badge move to the top-left there instead. */
+.pf-reel-thumb-wrap .pf-reel-play-badge,
+.pf-reel-thumb-wrap .pf-reel-duration,
+.pf-reel-thumb-wrap .pf-reel-viewcount {
+  z-index: 2;
+}
+.pf-reel-thumb-wrap .preview_mute_btn {
+  top: 6px;
+  bottom: auto;
+}
+.pf-reel-thumb-wrap .preview_song_badge {
+  top: 10px;
+  bottom: auto;
+}
+
+@media (max-width: 768px) {
+  .preview_mute_btn { width: 24px; height: 24px; }
+}

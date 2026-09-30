@@ -38,3 +38,11 @@ export const releaseSound = (id) => {
     currentRelease = null;
   }
 };
+
+// NEW: shared mute preference for hover-preview thumbnails
+// (Component/Shared/PreviewThumb.jsx). Sound-first: previews start
+// unmuted until the visitor mutes one, and that choice then carries
+// across every PreviewThumb on the page (Profile tabs, the reels
+// strip, ...). Existing cards that manage their own mute state are
+// unaffected — nothing else reads this.
+export const soundPrefs = { muted: false };

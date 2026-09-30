@@ -14,6 +14,18 @@ import { ensureNotificationPermission, showChatNotification } from "../../utils/
 import { extractFirstUrl } from "../../utils/linkPreview";
 import LinkPreviewCard from "../../Component/Messages/LinkPreviewCard";
 import { uploadAttachmentToR2 } from "../../utils/mediaUpload";
+// NEW: device-side cache (IndexedDB) so chats open instantly and only the
+// newest messages are fetched from Supabase. See utils/chatCache.js.
+import {
+  MESSAGE_PAGE_SIZE,
+  getCachedConversations,
+  setCachedConversations,
+  getCachedConvo,
+  getCachedMessages,
+  setCachedMessages,
+  removeCachedConversation,
+  mergeMessages,
+} from "../../utils/chatCache";
 
 const EMOJI_ONLY_REGEX = /^(\p{Extended_Pictographic}|\u200d|\ufe0f|\s)+$/u;
 
@@ -325,6 +337,22 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
+  // ── NEW: device cache + pagination bookkeeping ──
+  // hasMoreOlder / loadingOlder drive the "Load earlier messages" button.
+  // chatBodyRef lets us keep the reader's scroll position when older
+  // messages are prepended. skipAutoScrollRef suppresses the "scroll to
+  // bottom" effect for that one update. messagesConvoIdRef records which
+  // conversation the current `messages` array belongs to, so the cache
+  // writer never saves one chat's messages under another chat's key.
+  // freshConvosLoadedRef stops a slow cache read from overwriting an
+  // inbox the server has already answered.
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const chatBodyRef = useRef(null);
+  const skipAutoScrollRef = useRef(false);
+  const messagesConvoIdRef = useRef(null);
+  const freshConvosLoadedRef = useRef(false);
+
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef();
   const emojiBtnRef = useRef();
@@ -532,7 +560,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     };
   }, []);
 
-    const historyDepthRef = useRef(0);
+  const historyDepthRef = useRef(0);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -817,16 +845,45 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     return new Date(conv.last_message_at) > new Date(myLastRead);
   };
 
+  // CHANGED: marks that the server has answered (so a slow cache read
+  // can't overwrite it) and bails out on error instead of replacing the
+  // inbox with an empty list.
   const fetchConversations = useCallback(async () => {
     if (!currentUser) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("conversations")
       .select("*")
       .or(`user_a.eq.${currentUser},user_b.eq.${currentUser}`)
       .order("last_message_at", { ascending: false });
+    if (error) {
+      setLoadingConvos(false);
+      return;
+    }
+    freshConvosLoadedRef.current = true;
     setConversations(data || []);
     setLoadingConvos(false);
   }, [currentUser]);
+
+  // NEW: show the cached inbox instantly (unless the server already
+  // answered first).
+  useEffect(() => {
+    if (!currentUser) return;
+    let active = true;
+    getCachedConversations(currentUser).then((cached) => {
+      if (!active || !cached || freshConvosLoadedRef.current) return;
+      setConversations(cached);
+      setLoadingConvos(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentUser]);
+
+  // NEW: keep the cached inbox in sync with state.
+  useEffect(() => {
+    if (!currentUser || loadingConvos) return;
+    setCachedConversations(currentUser, conversations);
+  }, [conversations, loadingConvos, currentUser]);
 
   useEffect(() => {
     fetchConversations();
@@ -867,6 +924,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           // conversation row (our current schema deletes it for both
           // sides — see deleteConversation below).
           setConversations((prev) => prev.filter((c) => c.id !== payload.old.id));
+          // NEW: drop it from the device cache too.
+          removeCachedConversation(currentUser, payload.old.id);
           if (activeUsernameRef.current) {
             const other = activeUsernameRef.current;
             if (
@@ -960,22 +1019,66 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     return () => clearTimeout(timer);
   }, [inboxSearch, currentUser]);
 
+  // ── CHANGED: open a conversation ─────────────────────────────────────
+  // Previously: look up the conversation, then fetch the ENTIRE message
+  // history, and show "Loading messages…" until all of it arrived.
+  // Now:
+  //   1) paint instantly from the device cache (conversation + messages);
+  //   2) in the background, re-check the conversation row and fetch only
+  //      the latest MESSAGE_PAGE_SIZE messages (in parallel when the
+  //      conversation id is already known from the cache);
+  //   3) merge the fresh page into what's on screen, so edits, deletes,
+  //      reactions and seen-ticks on recent messages stay correct.
+  // Older history loads on demand via loadOlderMessages below.
   useEffect(() => {
     if (!activeUsername || !currentUser) {
       setActiveConvo(null);
       setMessages([]);
+      messagesConvoIdRef.current = null;
       return;
     }
 
     // Switching conversations invalidates any in-progress reply — the
     // quoted message belongs to the conversation we're leaving.
     setReplyTarget(null);
+    setMessages([]);
+    setHasMoreOlder(false);
+    messagesConvoIdRef.current = null;
 
     let active = true;
+    const [user_a, user_b] = [currentUser, activeUsername].sort();
+
+    const fetchLatestMessages = async (conversationId) => {
+      const { data } = await supabase
+        .from("direct_messages")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: false })
+        .limit(MESSAGE_PAGE_SIZE);
+      return (data || []).reverse();
+    };
 
     const loadOrCreate = async () => {
       setLoadingMessages(true);
-      const [user_a, user_b] = [currentUser, activeUsername].sort();
+
+      // 1) Instant paint from the device cache.
+      const cachedConvo = await getCachedConvo(currentUser, user_a, user_b);
+      if (!active) return;
+      if (cachedConvo) {
+        const cachedMsgs = await getCachedMessages(currentUser, cachedConvo.id);
+        if (!active) return;
+        messagesConvoIdRef.current = cachedConvo.id;
+        setActiveConvo(cachedConvo);
+        setMessages(cachedMsgs);
+        setLoadingMessages(false);
+      }
+
+      // 2) Sync with the server. If the conversation id is already known,
+      //    start fetching the latest messages right away, in parallel
+      //    with re-checking the conversation row.
+      const latestPromise = cachedConvo
+        ? fetchLatestMessages(cachedConvo.id)
+        : null;
 
       let { data: convo } = await supabase
         .from("conversations")
@@ -1024,16 +1127,18 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           );
         });
 
-      const { data: msgs } = await supabase
-        .from("direct_messages")
-        .select("*")
-        .eq("conversation_id", convo.id)
-        .order("created_at", { ascending: true });
+      const sameConvo = cachedConvo && cachedConvo.id === convo.id;
+      const fresh = sameConvo
+        ? await latestPromise
+        : await fetchLatestMessages(convo.id);
+      if (!active) return;
 
-      if (active) {
-        setMessages(msgs || []);
-        setLoadingMessages(false);
-      }
+      messagesConvoIdRef.current = convo.id;
+      setMessages((prev) =>
+        mergeMessages(cachedConvo && !sameConvo ? [] : prev, fresh),
+      );
+      setHasMoreOlder(fresh.length >= MESSAGE_PAGE_SIZE);
+      setLoadingMessages(false);
     };
 
     loadOrCreate();
@@ -1043,6 +1148,20 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     };
   }, [activeUsername, currentUser]);
 
+  // NEW: save the open chat's messages to the device as the conversation
+  // goes on. Every path (messages you send, messages you receive, edits,
+  // reactions, seen-ticks) flows through `messages` state, so this one
+  // effect covers them all. The ref guard stops one chat's messages
+  // from ever being written under another chat's key.
+  useEffect(() => {
+    if (!activeConvo || !currentUser || loadingMessages) return;
+    if (messagesConvoIdRef.current !== activeConvo.id) return;
+    setCachedMessages(currentUser, activeConvo.id, messages);
+  }, [messages, activeConvo?.id, loadingMessages, currentUser]);
+
+  // CHANGED: depends on activeConvo?.id (not the whole object) so that
+  // swapping the cached conversation object for the fresh one doesn't
+  // tear down and re-create this subscription.
   useEffect(() => {
     if (!activeConvo) return;
 
@@ -1091,7 +1210,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [activeConvo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConvo?.id]);
 
   // Keeps the open chat window's accept/decline gate in sync the instant
   // EITHER side accepts — without this, the sender's own open window
@@ -1213,9 +1333,46 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   // incoming messages from the other person, edits, reactions, etc) —
   // also fires when the typing bubble appears/disappears so it's never
   // scrolled out of view.
+  // CHANGED: skipped once when older messages were just prepended, so
+  // "Load earlier messages" doesn't yank the reader to the bottom.
   useEffect(() => {
+    if (skipAutoScrollRef.current) {
+      skipAutoScrollRef.current = false;
+      return;
+    }
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, otherTyping]);
+
+  // NEW: fetches the previous page of history (older than what's on
+  // screen) and prepends it, keeping the reader's scroll position.
+  const loadOlderMessages = async () => {
+    if (!activeConvo || loadingOlder || messages.length === 0) return;
+    setLoadingOlder(true);
+
+    const { data } = await supabase
+      .from("direct_messages")
+      .select("*")
+      .eq("conversation_id", activeConvo.id)
+      .lt("created_at", messages[0].created_at)
+      .order("created_at", { ascending: false })
+      .limit(MESSAGE_PAGE_SIZE);
+    const older = (data || []).reverse();
+
+    const body = chatBodyRef.current;
+    const prevHeight = body?.scrollHeight || 0;
+    const prevTop = body?.scrollTop || 0;
+    skipAutoScrollRef.current = true;
+
+    setMessages((prev) => mergeMessages(prev, older));
+    setHasMoreOlder(older.length >= MESSAGE_PAGE_SIZE);
+    setLoadingOlder(false);
+
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        if (body) body.scrollTop = body.scrollHeight - prevHeight + prevTop;
+      }),
+    );
+  };
 
   // ── Multi-file attachment picking ──
   // Accepts everything selected in one go (the <input> below has the
@@ -1433,6 +1590,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       .delete()
       .eq("conversation_id", activeConvo.id);
     await supabase.from("conversations").delete().eq("id", activeConvo.id);
+    // NEW: drop it from the device cache too.
+    removeCachedConversation(currentUser, activeConvo.id);
     setRequestActionBusy(false);
     setConversations((prev) => prev.filter((c) => c.id !== activeConvo.id));
     closeDetail();
@@ -1473,6 +1632,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       return;
     }
 
+    // NEW: drop it from the device cache too.
+    removeCachedConversation(currentUser, conv.id);
     setConversations((prev) => prev.filter((c) => c.id !== conv.id));
 
     if (other === activeUsername) {
@@ -2550,7 +2711,19 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     </div>
                   )}
 
-                  <div className="mp-chat-body">
+                  {/* CHANGED: chatBodyRef added, plus a "Load earlier
+                      messages" button shown while older history exists. */}
+                  <div className="mp-chat-body" ref={chatBodyRef}>
+                    {hasMoreOlder && !loadingMessages && (
+                      <button
+                        type="button"
+                        className="mp-load-older-btn"
+                        onClick={loadOlderMessages}
+                        disabled={loadingOlder}
+                      >
+                        {loadingOlder ? "Loading…" : "Load earlier messages"}
+                      </button>
+                    )}
                     {loadingMessages ? (
                       <p className="mp-empty">Loading messages…</p>
                     ) : messages.length === 0 && !otherTyping ? (

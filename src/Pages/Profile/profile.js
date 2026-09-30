@@ -4,9 +4,20 @@ import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+// NEW: mute toggle icons for the hover-preview thumbnails.
+import VolumeUpIcon from "@mui/icons-material/VolumeUp";
+import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import { uploadToR2, buildTransformUrl } from "../../utils/mediaUpload";
+// NEW: hls.js for adaptive-bitrate HLS previews (no-op for plain .mp4).
+import Hls from "hls.js";
+// NEW: attached-song mini player — same component used in PostCard.jsx /
+// Video.jsx / Reels.jsx.
+import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
+// NEW: "retry sound after the visitor's next interaction" gate — same one
+// used by Reels.jsx / Video.jsx. See utils/audioUnlock.js.
+import { onUserInteract } from "../../utils/audioUnlock";
 // NEW: shared notification helper — same one PostCard.jsx / Video.jsx /
 // Reels.jsx already use for their Connect buttons. Profile.js previously
 // had no equivalent notification on a successful connect at all.
@@ -77,6 +88,326 @@ const PROFILE_TABS = ["videos", "reels", "posts"];
 
 // How many characters of post text to show before offering "Show more"
 const POST_TEXT_LIMIT = 220;
+
+// ─── Sound arbiter (NEW) ──────────────────────────────────────────────────────
+// Only ONE thing on the profile may make sound at a time (a hover preview
+// or a post's song). Claiming sound tells the previous owner to stop.
+let activeSoundOwner = null;
+const claimSound = (id, release) => {
+  if (activeSoundOwner && activeSoundOwner.id !== id) activeSoundOwner.release();
+  activeSoundOwner = { id, release };
+};
+const releaseSound = (id) => {
+  if (activeSoundOwner?.id === id) activeSoundOwner = null;
+};
+
+// Shared mute preference — sound-first (unmuted) until the visitor mutes.
+const soundPrefs = { muted: false };
+
+// HLS manifests are served as .m3u8; everything else uses the native path.
+const isHlsSource = (src) => !!src && /\.m3u8(\?.*)?$/i.test(src);
+
+// Hover previews only make sense on devices with a real hover pointer.
+const canHover = () =>
+  typeof window !== "undefined" &&
+  !!window.matchMedia &&
+  window.matchMedia("(hover: hover)").matches;
+
+// ─── Hover-preview thumbnail (videos + reels) (NEW) ──────────────────────────
+// Wraps a thumbnail. After a short hover it plays the clip over the
+// thumbnail, sound-first: tries unmuted, falls back to a muted loop if the
+// browser blocks it, and retries with sound on the visitor's next
+// interaction. An attached song plays in sync with the clip; the clip's own
+// volume follows the creator's mix. The mute button never triggers the
+// surrounding <Link> / card click.
+const PreviewThumb = ({ id, src, song, originalVolume = 1, className, style, children }) => {
+  const videoRef = useRef(null);
+  const audioRef = useRef(null);
+  const hlsRef = useRef(null);
+  const hoverTimerRef = useRef(null);
+  const autoMutedRef = useRef(false);
+  const unsubRef = useRef(null);
+
+  const [active, setActive] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(soundPrefs.muted);
+  const [progress, setProgress] = useState(0);
+
+  const stopPreview = () => {
+    clearTimeout(hoverTimerRef.current);
+    setActive(false);
+    setPlaying(false);
+    setProgress(0);
+  };
+
+  const handleEnter = () => {
+    if (!src || !canHover()) return;
+    clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => setActive(true), 300);
+  };
+
+  useEffect(() => {
+    if (!active) return;
+    const vid = videoRef.current;
+    if (!vid) return;
+    const audio = audioRef.current;
+
+    claimSound(id, stopPreview);
+    autoMutedRef.current = false;
+    vid.volume = song ? originalVolume : 1;
+
+    if (isHlsSource(src)) {
+      if (Hls.isSupported()) {
+        const hls = new Hls({ maxBufferLength: 10, enableWorker: true });
+        hls.loadSource(src);
+        hls.attachMedia(vid);
+        hlsRef.current = hls;
+      } else if (vid.canPlayType("application/vnd.apple.mpegurl")) {
+        vid.src = src;
+      }
+    }
+
+    const syncPlay = () => {
+      if (!audio) return;
+      audio.currentTime = 0;
+      audio.muted = vid.muted;
+      audio.play().catch(() => {});
+    };
+    const syncPause = () => audio?.pause();
+    const syncMute = () => { if (audio) audio.muted = vid.muted; };
+    const onPlaying = () => setPlaying(true);
+    const onTime = () => {
+      if (vid.duration) setProgress((vid.currentTime / vid.duration) * 100);
+    };
+
+    vid.addEventListener("play", syncPlay);
+    vid.addEventListener("pause", syncPause);
+    vid.addEventListener("volumechange", syncMute);
+    vid.addEventListener("playing", onPlaying);
+    vid.addEventListener("timeupdate", onTime);
+
+    const start = () => {
+      vid.muted = soundPrefs.muted;
+      setMuted(soundPrefs.muted);
+      vid.play().catch(() => {
+        // Browser blocked unmuted autoplay → muted loop, then retry with
+        // sound after the visitor's next interaction.
+        vid.muted = true;
+        autoMutedRef.current = true;
+        setMuted(true);
+        vid.play().catch(() => {});
+        unsubRef.current = onUserInteract(() => {
+          if (!autoMutedRef.current) return;
+          autoMutedRef.current = false;
+          vid.muted = soundPrefs.muted;
+          setMuted(soundPrefs.muted);
+        });
+      });
+    };
+    if (vid.readyState >= 2) start();
+    else vid.addEventListener("loadeddata", start, { once: true });
+
+    return () => {
+      vid.removeEventListener("play", syncPlay);
+      vid.removeEventListener("pause", syncPause);
+      vid.removeEventListener("volumechange", syncMute);
+      vid.removeEventListener("playing", onPlaying);
+      vid.removeEventListener("timeupdate", onTime);
+      vid.removeEventListener("loadeddata", start);
+      unsubRef.current?.();
+      unsubRef.current = null;
+      autoMutedRef.current = false;
+      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+      vid.pause();
+      audio?.pause();
+      releaseSound(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, src, id]);
+
+  useEffect(() => () => clearTimeout(hoverTimerRef.current), []);
+
+  const toggleMute = (e) => {
+    e.preventDefault();   // don't follow the surrounding <Link>
+    e.stopPropagation();  // don't trigger the reel card's onClick
+    autoMutedRef.current = false;
+    unsubRef.current?.();
+    unsubRef.current = null;
+    const next = !muted;
+    soundPrefs.muted = next;
+    setMuted(next);
+    if (videoRef.current) videoRef.current.muted = next;
+    if (audioRef.current) audioRef.current.muted = next;
+  };
+
+  return (
+    <div
+      className={className}
+      style={{ position: "relative", ...style }}
+      onMouseEnter={handleEnter}
+      onMouseLeave={stopPreview}
+    >
+      {children}
+
+      {active && (
+        <video
+          ref={videoRef}
+          src={isHlsSource(src) ? undefined : src}
+          loop
+          playsInline
+          preload="auto"
+          style={{
+            position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
+            objectFit: "cover", zIndex: 1, pointerEvents: "none",
+            opacity: playing ? 1 : 0, transition: "opacity 0.25s",
+          }}
+        />
+      )}
+
+      {active && song?.url && (
+        <audio ref={audioRef} src={song.url} loop preload="auto" style={{ display: "none" }} />
+      )}
+
+      {active && (
+        <>
+          <button
+            type="button"
+            className="preview_mute_btn"
+            onClick={toggleMute}
+            onMouseDown={(e) => e.stopPropagation()}
+            aria-label={muted ? "Unmute preview" : "Mute preview"}
+          >
+            {muted ? <VolumeOffIcon sx={{ fontSize: 16 }} /> : <VolumeUpIcon sx={{ fontSize: 16 }} />}
+          </button>
+          {song && (
+            <div className="preview_song_badge">
+              🎵 {song.title}{song.artist ? ` · ${song.artist}` : ""}
+            </div>
+          )}
+          <div className="preview_progress">
+            <div className="preview_progress_fill" style={{ width: `${progress}%` }} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+// ─── Post song player (sound-first autoplay) (NEW) ───────────────────────────
+// Plays a post's attached song when the card is mostly in view; pauses when
+// it scrolls away or when something else claims the sound. Same fallback as
+// the previews: unmuted first → muted → unmute on next interaction. A manual
+// pause is respected until the visitor presses play again.
+const PostSongPlayer = ({ postId, song }) => {
+  const wrapRef = useRef(null);
+  const audioRef = useRef(null);
+  const playFnRef = useRef(() => {});
+  const pauseFnRef = useRef(() => {});
+  const autoMutedRef = useRef(false);
+  const unsubRef = useRef(null);
+  const userPausedRef = useRef(false);
+
+  const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(soundPrefs.muted);
+  const [autoMuted, setAutoMuted] = useState(false);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const audio = audioRef.current;
+    if (!wrap || !audio) return;
+    const id = `post-${postId}`;
+
+    const clearUnsub = () => { unsubRef.current?.(); unsubRef.current = null; };
+
+    const pause = () => {
+      audio.pause();
+      setPlaying(false);
+    };
+
+    const play = () => {
+      clearUnsub();
+      autoMutedRef.current = false;
+      setAutoMuted(false);
+      claimSound(id, pause);
+      audio.muted = soundPrefs.muted;
+      setMuted(soundPrefs.muted);
+      audio.play().then(() => setPlaying(true)).catch(() => {
+        audio.muted = true;
+        autoMutedRef.current = true;
+        setAutoMuted(true);
+        setMuted(true);
+        audio.play().then(() => setPlaying(true)).catch(() => {});
+        unsubRef.current = onUserInteract(() => {
+          if (!autoMutedRef.current) return;
+          autoMutedRef.current = false;
+          setAutoMuted(false);
+          audio.muted = soundPrefs.muted;
+          setMuted(soundPrefs.muted);
+        });
+      });
+    };
+
+    playFnRef.current = play;
+    pauseFnRef.current = pause;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+          if (!userPausedRef.current && audio.paused) play();
+        } else {
+          clearUnsub();
+          autoMutedRef.current = false;
+          setAutoMuted(false);
+          pause();
+          releaseSound(id);
+        }
+      },
+      { threshold: [0, 0.6, 1] },
+    );
+    observer.observe(wrap);
+
+    return () => {
+      observer.disconnect();
+      clearUnsub();
+      audio.pause();
+      releaseSound(id);
+    };
+  }, [postId]);
+
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) { userPausedRef.current = false; playFnRef.current(); }
+    else { userPausedRef.current = true; pauseFnRef.current(); }
+  };
+
+  const toggleMute = () => {
+    autoMutedRef.current = false;
+    setAutoMuted(false);
+    unsubRef.current?.();
+    unsubRef.current = null;
+    const next = !muted;
+    soundPrefs.muted = next;
+    setMuted(next);
+    if (audioRef.current) audioRef.current.muted = next;
+  };
+
+  return (
+    <div ref={wrapRef}>
+      <audio ref={audioRef} src={song.url} loop preload="auto" style={{ display: "none" }} />
+      <SongAttachmentCard song={song} synced isPlaying={playing} />
+      <div className="post_song_controls">
+        <button type="button" className="post_song_btn" onClick={togglePlay}>
+          {playing ? "⏸ Pause" : "▶ Play"}
+        </button>
+        <button type="button" className="post_song_btn" onClick={toggleMute}>
+          {muted ? "🔇 Unmute" : "🔊 Mute"}
+        </button>
+        {autoMuted && <span className="post_song_hint">Tap anywhere for sound</span>}
+      </div>
+    </div>
+  );
+};
 
 // ─── Action Menu (⋮) ────────────────────────────────────────────────────────
 const ActionMenu = ({ onEdit, onDelete, variant = "dark", extraActions = [] }) => {
@@ -355,6 +686,12 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, on
             <div style={{ color:"#888", fontSize:"11px", marginBottom:"4px" }}>{post.link.domain}</div>
             <div style={{ color:"#3ea6ff", fontSize:"14px", fontWeight:"600" }}>{post.link.title}</div>
           </a>
+        )}
+        {/* NEW: attached song — sound-first autoplay while the card is in view */}
+        {post.song?.url && (
+          <div style={{ marginBottom:"12px" }}>
+            <PostSongPlayer postId={post.id} song={post.song} />
+          </div>
         )}
         <div style={{ display:"flex", gap:"16px", alignItems:"center", paddingTop:"10px", borderTop:"1px solid #2a2a2a" }}>
           <button
@@ -695,7 +1032,22 @@ const Profile = ({ sideNavbar }) => {
       // ── Fetch videos ──
       const { data: vData } = await supabase.from("videos").select("*").order("created_at", { ascending: false });
       if (vData) {
-        setDbVideos(vData.filter((v) => matchesKey(v.username, key) || matchesKey(v.channel, key)).map((v) => ({ id: v.id, src: v.video_url, thumbnail: v.thumbnail_url, title: v.title, duration: v.duration || "00:00", channel: v.channel })));
+        setDbVideos(
+          vData
+            .filter((v) => matchesKey(v.username, key) || matchesKey(v.channel, key))
+            .map((v) => ({
+              id: v.id,
+              src: v.video_url,
+              thumbnail: v.thumbnail_url,
+              title: v.title,
+              duration: v.duration || "00:00",
+              channel: v.channel,
+              // NEW: attached song + creator's audio mix, used by the
+              // hover preview on the Videos tab.
+              song: v.song || null,
+              original_audio_volume: v.original_audio_volume ?? 1,
+            })),
+        );
         const ids = vData.map((v) => String(v.id));
         const [{ data: vLikes }, { data: vViews }] = await Promise.all([
           supabase.from("likes").select("content_id").eq("content_type", "video").in("content_id", ids),
@@ -713,6 +1065,7 @@ const Profile = ({ sideNavbar }) => {
           rData.filter((r) => matchesKey(r.username, key)).map((r) => ({
             id:          `db_${r.id}`,
             dbId:        r.id,
+            short_id:    r.short_id,
             src:         r.video_url,
             thumbnail:   r.thumbnail || `https://picsum.photos/seed/${r.id}/200/350`,
             title:       r.title       || "Untitled",
@@ -722,6 +1075,16 @@ const Profile = ({ sideNavbar }) => {
             user:        r.user || r.username,
             profilePic:  `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
             likes:       0,
+            // NEW: these ride along in the `clickedReel` handoff to
+            // /reels, so a reel opened from the profile keeps its song,
+            // location and feeling instead of losing them.
+            created_at:            r.created_at || null,
+            remixed_from_id:       r.remixed_from_id || null,
+            remixed_from_username: r.remixed_from_username || null,
+            song:                  r.song || null,
+            location_name:         r.location_name || null,
+            feeling:               r.feeling || null,
+            original_audio_volume: r.original_audio_volume ?? 1,
           }))
         );
 
@@ -741,6 +1104,7 @@ const Profile = ({ sideNavbar }) => {
       }
 
       // ── Fetch posts ──
+      // `select *` already returns posts.song (jsonb) once that column exists.
       const { data: postsData } = await supabase.from("posts").select(`*, post_reactions ( type, username ), post_comments ( id, text, username, created_at )`).eq("username", key).order("created_at", { ascending: false });
       if (postsData) {
         const currentUser = localStorage.getItem("username") || "";
@@ -778,6 +1142,16 @@ const Profile = ({ sideNavbar }) => {
 
     loadProfile();
   }, [key]);
+
+  // NEW: make sure nothing keeps making sound after leaving the profile.
+  useEffect(() => {
+    return () => {
+      if (activeSoundOwner) {
+        activeSoundOwner.release();
+        activeSoundOwner = null;
+      }
+    };
+  }, []);
 
   const hardcodedVideos = allVideos.filter((v) => v.channel?.toLowerCase() === key);
   const allUserVideos   = [...dbVideos, ...hardcodedVideos];
@@ -1165,10 +1539,18 @@ const Profile = ({ sideNavbar }) => {
                   return (
                     <div key={video.id} style={{ position:"relative", minWidth:0 }}>
                       <Link to={`/video/${video.id}`} className="profileVideo_block">
-                        <div className="profileVideo_block_thumbnail square-thumb" style={{ position:"relative" }}>
+                        {/* NEW: hover-preview thumbnail (hardcoded sample videos have no
+                            `src`, so they simply show the static thumbnail) */}
+                        <PreviewThumb
+                          id={`video-${video.id}`}
+                          src={video.src}
+                          song={video.song}
+                          originalVolume={video.original_audio_volume}
+                          className="profileVideo_block_thumbnail square-thumb"
+                        >
                           <img className="profileVideo_block_thumbnail_img" src={video.thumbnail} alt={video.title} />
-                          <span style={{ position:"absolute", bottom:"6px", right:"6px", background:"rgba(0,0,0,0.75)", color:"white", fontSize:"11px", padding:"2px 5px", borderRadius:"4px" }}>{video.duration}</span>
-                        </div>
+                          <span style={{ position:"absolute", bottom:"6px", right:"6px", background:"rgba(0,0,0,0.75)", color:"white", fontSize:"11px", padding:"2px 5px", borderRadius:"4px", zIndex:2 }}>{video.duration}</span>
+                        </PreviewThumb>
                         <div className="profileVideo_block_detail">
                           <div className="profileVideo_block_detai_name">{video.title}</div>
                           <div className="profileVideo_block_detai_about">{video.channel}</div>
@@ -1205,14 +1587,15 @@ const Profile = ({ sideNavbar }) => {
                       <div className="profileVideo_block" style={{ cursor:"pointer" }}
                         onClick={() => navigate("/reels", { state: { clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 } } })}>
 
-                        <div
+                        {/* NEW: hover-preview thumbnail. Its mute button stops
+                            propagation so it never triggers the card's navigate. */}
+                        <PreviewThumb
+                          id={`reel-${reel.id}`}
+                          src={reel.src}
+                          song={reel.song}
+                          originalVolume={reel.original_audio_volume}
                           className="profileVideo_block_thumbnail reel-thumb"
-                          style={{
-                            position:    "relative",
-                            width:       "100%",
-                            overflow:    "hidden",
-                            background:  "#1e1b4b",
-                          }}
+                          style={{ width:"100%", overflow:"hidden", background:"#1e1b4b" }}
                         >
                           <img
                             src={reel.thumbnail}
@@ -1231,9 +1614,9 @@ const Profile = ({ sideNavbar }) => {
                               e.target.src = `https://picsum.photos/seed/${reel.dbId || reel.id}/200/350`;
                             }}
                           />
-                          <span style={{ position:"absolute", top:"6px", left:"6px", background:"rgba(0,0,0,0.7)", color:"white", fontSize:"10px", padding:"2px 6px", borderRadius:"4px", fontWeight:"600", zIndex:1 }}>🎬 Reel</span>
-                          <span style={{ position:"absolute", bottom:"6px", right:"6px", background:"rgba(0,0,0,0.7)", color:"white", fontSize:"11px", padding:"2px 5px", borderRadius:"4px", zIndex:1 }}>{reel.duration}</span>
-                        </div>
+                          <span style={{ position:"absolute", top:"6px", left:"6px", background:"rgba(0,0,0,0.7)", color:"white", fontSize:"10px", padding:"2px 6px", borderRadius:"4px", fontWeight:"600", zIndex:2 }}>🎬 Reel</span>
+                          <span style={{ position:"absolute", bottom:"6px", right:"6px", background:"rgba(0,0,0,0.7)", color:"white", fontSize:"11px", padding:"2px 5px", borderRadius:"4px", zIndex:2 }}>{reel.duration}</span>
+                        </PreviewThumb>
 
                         <div className="profileVideo_block_detail">
                           <div className="profileVideo_block_detai_name">{reel.title}</div>

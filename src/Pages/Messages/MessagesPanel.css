@@ -1823,3 +1823,22 @@
   cursor: pointer; padding: 4px 6px; border-radius: 50%; flex-shrink: 0;
 }
 .mp-mini-bar-btn:hover { background: var(--zx-bg); color: var(--zx-primary); }
+
+/* Append this to the end of MessagesPanel.css */
+
+.mp-load-older-btn {
+  display: block;
+  margin: 6px auto 10px;
+  background: none;
+  border: 1px solid var(--zx-border);
+  color: var(--zx-primary);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mp-load-older-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

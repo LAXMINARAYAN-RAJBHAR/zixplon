@@ -1842,3 +1842,45 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   APPEND THIS TO THE END OF MessagesPanel.css
+   Block-user + inbox typing indicator
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* "typing…" shown in place of the last message in an inbox row */
+.mp-convo-last.typing {
+  color: var(--zx-primary);
+  font-style: italic;
+  font-weight: 700;
+}
+
+/* Small "Blocked" tag next to the name in the inbox row */
+.mp-blocked-tag {
+  color: var(--zx-primary);
+  border-color: var(--zx-primary);
+}
+
+/* Replaces the composer when the chat is blocked (either direction) */
+.mp-blocked-row {
+  justify-content: space-between;
+}
+
+.mp-blocked-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--zx-text2);
+}
+
+.mp-blocked-row .mp-request-accept-btn {
+  flex: 0 0 auto;
+  padding: 8px 18px;
+}
+
+/* The inbox "⋮" menu now has two items — give it a little more room */
+.mp-convo-menu {
+  min-width: 160px;
+  z-index: 20;
+}
+

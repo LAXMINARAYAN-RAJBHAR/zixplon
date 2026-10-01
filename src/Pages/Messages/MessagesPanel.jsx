@@ -337,6 +337,39 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
+  // ── NEW: typing state for ALL conversations ──
+  // Previously only the open chat had a typing channel. Now every
+  // conversation in the inbox gets one (named `typing:<convId>`, same as
+  // before), so the inbox list can show "typing…" on a row, and the open
+  // chat's header/bubble reads from the same set.
+  //   typingConvos        — Set of conversation ids (as strings) whose
+  //                         other person is typing right now.
+  //   typingChannelsRef   — convId -> Supabase broadcast channel.
+  //   typingClearTimersRef— convId -> safety auto-clear timer.
+  //   stopTypingTimeoutRef— debounce timer for OUR "stopped typing".
+  const [typingConvos, setTypingConvos] = useState(() => new Set());
+  const typingChannelsRef = useRef({});
+  const typingClearTimersRef = useRef({});
+  const stopTypingTimeoutRef = useRef(null);
+  const otherTyping = !!activeConvo && typingConvos.has(String(activeConvo.id));
+
+  // ── NEW: blocking ──
+  // blockedByMe — usernames I have blocked.
+  // blockedMe   — usernames who have blocked me.
+  // Refs mirror the state so long-lived realtime handlers always see
+  // fresh values.
+  const [blockedByMe, setBlockedByMe] = useState(() => new Set());
+  const [blockedMe, setBlockedMe] = useState(() => new Set());
+  const [blockBusy, setBlockBusy] = useState(false);
+  const blockedByMeRef = useRef(blockedByMe);
+  const blockedMeRef = useRef(blockedMe);
+  useEffect(() => {
+    blockedByMeRef.current = blockedByMe;
+  }, [blockedByMe]);
+  useEffect(() => {
+    blockedMeRef.current = blockedMe;
+  }, [blockedMe]);
+
   // ── NEW: device cache + pagination bookkeeping ──
   // hasMoreOlder / loadingOlder drive the "Load earlier messages" button.
   // chatBodyRef lets us keep the reader's scroll position when older
@@ -383,7 +416,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   // ── Per-message "⋮" action menu (Reply / Forward / Edit / Report / Delete) ──
   const [openMenuFor, setOpenMenuFor] = useState(null); // message id
 
-  // ── Per-conversation "⋮" menu in the inbox list (Delete chat) ──
+  // ── Per-conversation "⋮" menu in the inbox list (Block / Delete chat) ──
   const [openConvoMenuFor, setOpenConvoMenuFor] = useState(null); // conversation id
   const [deletingConvoId, setDeletingConvoId] = useState(null);
 
@@ -419,19 +452,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   // ── Presence / last-seen ──
   const { onlineUsers, getLastSeen } = usePresence();
   const [activeUserLastSeen, setActiveUserLastSeen] = useState(null);
-
-  // ── Typing indicator ──
-  // otherTyping: whether the person we're chatting with is currently typing.
-  // typingChannelRef: the Supabase broadcast channel scoped to this
-  // conversation — created fresh whenever activeConvo changes.
-  // stopTypingTimeoutRef: debounce timer that sends "stopped typing" a
-  // moment after the user stops pressing keys.
-  // autoClearTimeoutRef: safety timer on the RECEIVING side in case the
-  // other person's "stopped typing" broadcast never arrives.
-  const [otherTyping, setOtherTyping] = useState(false);
-  const typingChannelRef = useRef(null);
-  const stopTypingTimeoutRef = useRef(null);
-  const autoClearTimeoutRef = useRef(null);
 
   // ── Group chat + Broadcast lists ──
   const [groups, setGroups] = useState([]);
@@ -769,7 +789,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [openMenuFor]);
 
-  // Close the per-conversation "⋮" menu (Delete chat) when clicking outside it
+  // Close the per-conversation "⋮" menu (Block / Delete chat) when clicking outside it
   useEffect(() => {
     if (!openConvoMenuFor) return;
     const handleClickOutside = (e) => {
@@ -839,6 +859,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     if (!conv.last_message_at) return false;
     if (!conv.last_message_sender || conv.last_message_sender === currentUser)
       return false;
+    // NEW: messages from someone I've blocked never count as unread.
+    if (blockedByMe.has(getOtherUser(conv))) return false;
     const myLastRead =
       conv.user_a === currentUser ? conv.last_read_a : conv.last_read_b;
     if (!myLastRead) return true;
@@ -863,6 +885,81 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     setConversations(data || []);
     setLoadingConvos(false);
   }, [currentUser]);
+
+  // ── NEW: block list (both directions), kept live via realtime ──
+  const fetchBlocks = useCallback(async () => {
+    if (!currentUser) return;
+    const { data, error } = await supabase
+      .from("user_blocks")
+      .select("blocker,blocked")
+      .or(`blocker.eq.${currentUser},blocked.eq.${currentUser}`);
+    if (error) return;
+    const mine = new Set();
+    const them = new Set();
+    (data || []).forEach((r) => {
+      if (r.blocker === currentUser) mine.add(r.blocked);
+      else them.add(r.blocker);
+    });
+    setBlockedByMe(mine);
+    setBlockedMe(them);
+  }, [currentUser]);
+
+  useEffect(() => {
+    fetchBlocks();
+    const channel = supabase
+      .channel("user-blocks-panel")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "user_blocks" },
+        () => fetchBlocks(),
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [fetchBlocks]);
+
+  const blockUser = async (username) => {
+    if (blockBusy) return;
+    const confirmed = window.confirm(
+      `Block ${username}? They won't be able to message you and you won't receive their messages.`,
+    );
+    if (!confirmed) return;
+
+    setBlockBusy(true);
+    setOpenConvoMenuFor(null);
+    const { error } = await supabase
+      .from("user_blocks")
+      .insert({ blocker: currentUser, blocked: username });
+    setBlockBusy(false);
+
+    // 23505 = unique violation → already blocked, treat as success.
+    if (error && error.code !== "23505") {
+      alert(`Couldn't block this user: ${error.message || "please try again."}`);
+      return;
+    }
+    setBlockedByMe((prev) => new Set(prev).add(username));
+  };
+
+  const unblockUser = async (username) => {
+    if (blockBusy) return;
+    setBlockBusy(true);
+    setOpenConvoMenuFor(null);
+    const { error } = await supabase
+      .from("user_blocks")
+      .delete()
+      .eq("blocker", currentUser)
+      .eq("blocked", username);
+    setBlockBusy(false);
+
+    if (error) {
+      alert(`Couldn't unblock: ${error.message || "please try again."}`);
+      return;
+    }
+    setBlockedByMe((prev) => {
+      const n = new Set(prev);
+      n.delete(username);
+      return n;
+    });
+  };
 
   // NEW: show the cached inbox instantly (unless the server already
   // answered first).
@@ -899,6 +996,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       fetchConversations();
       if (!convRow.last_message_sender || convRow.last_message_sender === currentUser) return;
       const other = convRow.user_a === currentUser ? convRow.user_b : convRow.user_a;
+      // NEW: no chime / notification for anyone blocked in either direction.
+      if (blockedByMeRef.current.has(other) || blockedMeRef.current.has(other)) return;
       if (other === activeUsernameRef.current) return;
       playNotificationSound();
       showChatNotification(other, convRow.last_message || "New message");
@@ -1188,7 +1287,12 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           });
           // Only chime for messages that actually arrived from the other
           // person — our own optimistic echo shouldn't play "receive".
-          if (wasAppended && incoming.sender_username !== currentUser) {
+          // NEW: and never chime for someone I've blocked.
+          if (
+            wasAppended &&
+            incoming.sender_username !== currentUser &&
+            !blockedByMeRef.current.has(incoming.sender_username)
+          ) {
             playReceiveSound();
           }
         },
@@ -1236,67 +1340,109 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     return () => supabase.removeChannel(channel);
   }, [activeConvo?.id]);
 
-  // ── Typing indicator: broadcast channel scoped to this conversation ──
+  // ── CHANGED: typing indicator — one broadcast channel per conversation ──
+  // Instead of a single channel scoped to the open chat, we keep a
+  // channel for EVERY conversation in the inbox. Channel names are the
+  // same as before (`typing:<convId>`), so both people's clients agree
+  // regardless of which chat each has open. Receiving a "typing" event
+  // adds/removes the conversation id in `typingConvos`; both the inbox
+  // row ("typing…") and the open chat (header + bubble) read from it.
+  //
+  // The key string changes only when the SET of conversation ids
+  // changes (not on every last_message update), so channels aren't
+  // torn down and re-created on each new message.
+  const conversationIdsKey = conversations
+    .map((c) => String(c.id))
+    .sort()
+    .join(",");
+
   useEffect(() => {
-    // Reset whenever we leave/switch conversations.
-    setOtherTyping(false);
-    clearTimeout(autoClearTimeoutRef.current);
-    clearTimeout(stopTypingTimeoutRef.current);
+    if (!currentUser) return;
+    const ids = conversationIdsKey ? conversationIdsKey.split(",") : [];
+    const channels = typingChannelsRef.current;
 
-    if (!activeConvo || !currentUser) {
-      typingChannelRef.current = null;
-      return;
-    }
-
-    const channel = supabase.channel(`typing:${activeConvo.id}`, {
-      config: { broadcast: { self: false } },
+    // Drop channels for conversations that no longer exist.
+    Object.keys(channels).forEach((id) => {
+      if (!ids.includes(id)) {
+        supabase.removeChannel(channels[id]);
+        delete channels[id];
+        clearTimeout(typingClearTimersRef.current[id]);
+        delete typingClearTimersRef.current[id];
+      }
     });
 
-    channel
-      .on("broadcast", { event: "typing" }, ({ payload }) => {
+    // Open channels for any new conversations.
+    ids.forEach((id) => {
+      if (channels[id]) return;
+
+      const ch = supabase.channel(`typing:${id}`, {
+        config: { broadcast: { self: false } },
+      });
+
+      ch.on("broadcast", { event: "typing" }, ({ payload }) => {
         if (!payload || payload.username === currentUser) return;
-        setOtherTyping(!!payload.typing);
-        clearTimeout(autoClearTimeoutRef.current);
+        // Ignore typing from someone I've blocked.
+        if (blockedByMeRef.current.has(payload.username)) return;
+
+        setTypingConvos((prev) => {
+          const next = new Set(prev);
+          if (payload.typing) next.add(id);
+          else next.delete(id);
+          return next;
+        });
+
+        clearTimeout(typingClearTimersRef.current[id]);
         if (payload.typing) {
-          autoClearTimeoutRef.current = setTimeout(
-            () => setOtherTyping(false),
-            TYPING_AUTO_CLEAR_MS,
-          );
+          typingClearTimersRef.current[id] = setTimeout(() => {
+            setTypingConvos((prev) => {
+              const next = new Set(prev);
+              next.delete(id);
+              return next;
+            });
+          }, TYPING_AUTO_CLEAR_MS);
         }
-      })
-      .subscribe();
+      }).subscribe();
 
-    typingChannelRef.current = channel;
+      channels[id] = ch;
+    });
+  }, [conversationIdsKey, currentUser]);
 
+  // Tear everything down when the panel unmounts.
+  useEffect(() => {
     return () => {
-      supabase.removeChannel(channel);
-      typingChannelRef.current = null;
-      clearTimeout(autoClearTimeoutRef.current);
+      Object.values(typingChannelsRef.current).forEach((ch) =>
+        supabase.removeChannel(ch),
+      );
+      typingChannelsRef.current = {};
+      Object.values(typingClearTimersRef.current).forEach(clearTimeout);
+      typingClearTimersRef.current = {};
       clearTimeout(stopTypingTimeoutRef.current);
     };
-  }, [activeConvo?.id, currentUser]);
+  }, []);
+
+  // Broadcasts OUR typing state on the open conversation's channel.
+  const sendTyping = (typing) => {
+    const ch = typingChannelsRef.current[String(activeConvo?.id)];
+    ch?.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { username: currentUser, typing },
+    });
+  };
 
   // Called on every keystroke in the message input. Broadcasts "typing"
   // immediately, then debounces a "stopped typing" broadcast for
   // TYPING_STOP_DELAY_MS after the last keystroke.
   const handleTypingInput = () => {
-    const channel = typingChannelRef.current;
-    if (!channel) return;
+    if (!activeConvo || isChatBlocked) return;
 
-    channel.send({
-      type: "broadcast",
-      event: "typing",
-      payload: { username: currentUser, typing: true },
-    });
+    sendTyping(true);
 
     clearTimeout(stopTypingTimeoutRef.current);
-    stopTypingTimeoutRef.current = setTimeout(() => {
-      channel.send({
-        type: "broadcast",
-        event: "typing",
-        payload: { username: currentUser, typing: false },
-      });
-    }, TYPING_STOP_DELAY_MS);
+    stopTypingTimeoutRef.current = setTimeout(
+      () => sendTyping(false),
+      TYPING_STOP_DELAY_MS,
+    );
   };
 
   useEffect(() => {
@@ -1559,6 +1705,14 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const isIncomingRequest = isPendingRequest && !isRequestInitiator;
   const isOutgoingPendingRequest = isPendingRequest && isRequestInitiator;
 
+  // ── NEW: block gate for the open chat ──
+  // otherBlockedByMe — I blocked them (I can unblock from the composer).
+  // blockedByOther   — they blocked me (neutral "can't send" message,
+  //                    no unblock button, no hint about who blocked whom).
+  const otherBlockedByMe = !!activeUsername && blockedByMe.has(activeUsername);
+  const blockedByOther = !!activeUsername && blockedMe.has(activeUsername);
+  const isChatBlocked = otherBlockedByMe || blockedByOther;
+
   const acceptRequest = async () => {
     if (!activeConvo || requestActionBusy) return;
     setRequestActionBusy(true);
@@ -1692,7 +1846,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       // incoming, not-yet-accepted request (see the render below), but
       // guard the actual send path too in case this is ever reachable
       // some other way.
-      isIncomingRequest
+      isIncomingRequest ||
+      // NEW: same defense-in-depth for blocked chats.
+      isChatBlocked
     )
       return;
 
@@ -1703,11 +1859,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     // Sending counts as "done typing" — clear the debounce timer and
     // tell the other person right away instead of waiting out the delay.
     clearTimeout(stopTypingTimeoutRef.current);
-    typingChannelRef.current?.send({
-      type: "broadcast",
-      event: "typing",
-      payload: { username: currentUser, typing: false },
-    });
+    sendTyping(false);
 
     // If replying, snapshot a short preview of the quoted message now —
     // storing it directly on the new row means the quote still renders
@@ -1814,15 +1966,11 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   // pre-send preview stage (tapping a GIF/sticker sends it immediately,
   // same as WhatsApp/Messenger).
   const sendMediaMessage = async (url, type) => {
-    if (!url || !activeConvo || sending || isIncomingRequest) return;
+    if (!url || !activeConvo || sending || isIncomingRequest || isChatBlocked) return;
     setSending(true);
 
     clearTimeout(stopTypingTimeoutRef.current);
-    typingChannelRef.current?.send({
-      type: "broadcast",
-      event: "typing",
-      payload: { username: currentUser, typing: false },
-    });
+    sendTyping(false);
 
     const reply_to_id = replyTarget?.id || null;
     const reply_to_sender = replyTarget?.sender_username || null;
@@ -2010,6 +2158,16 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   // load-or-create pattern used when opening a chat).
   const forwardToConversation = async (targetUsername) => {
     if (!forwardTarget || forwarding) return;
+
+    // NEW: can't forward to someone you've blocked / who has blocked you.
+    if (
+      blockedByMeRef.current.has(targetUsername) ||
+      blockedMeRef.current.has(targetUsername)
+    ) {
+      alert(`You can't send messages to ${targetUsername}.`);
+      return;
+    }
+
     setForwarding(true);
 
     const [user_a, user_b] = [currentUser, targetUsername].sort();
@@ -2228,8 +2386,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   // Shared render for a single conversation row in the inbox list —
   // used for both the "Message Requests" section and the regular list,
   // so the two stay visually consistent apart from the request badge.
-  // Now also renders a "⋮" menu at the end of the row with a
-  // "Delete chat" action (see deleteConversation above).
+  // Renders a "⋮" menu at the end of the row with "Block / Unblock user"
+  // and "Delete chat" actions, and shows "typing…" in place of the last
+  // message while the other person is typing.
   const renderConvoItem = (conv, isRequestItem) => {
     const other = getOtherUser(conv);
     const isActive = other === activeUsername;
@@ -2237,6 +2396,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     const unread = isConvoUnread(conv);
     const isMyPending = conv.status === "pending" && conv.initiated_by === currentUser;
     const isDeleting = deletingConvoId === conv.id;
+    const isBlocked = blockedByMe.has(other);
+    const isTyping = typingConvos.has(String(conv.id)) && !isBlocked;
     return (
       <div
         key={conv.id}
@@ -2253,9 +2414,12 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           <div className="mp-convo-name">
             {other}
             {isMyPending && <span className="mp-pending-tag">Pending</span>}
+            {isBlocked && (
+              <span className="mp-pending-tag mp-blocked-tag">Blocked</span>
+            )}
           </div>
-          <div className="mp-convo-last">
-            {conv.last_message || "No messages yet"}
+          <div className={`mp-convo-last ${isTyping ? "typing" : ""}`}>
+            {isTyping ? "typing…" : conv.last_message || "No messages yet"}
           </div>
         </div>
         <div className="mp-convo-right">
@@ -2285,6 +2449,16 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           </button>
           {openConvoMenuFor === conv.id && (
             <div className="mp-convo-menu" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className="mp-convo-menu-item danger"
+                onClick={() =>
+                  isBlocked ? unblockUser(other) : blockUser(other)
+                }
+                disabled={blockBusy}
+              >
+                {isBlocked ? "✅ Unblock user" : "🚫 Block user"}
+              </button>
               <button
                 type="button"
                 className="mp-convo-menu-item danger"
@@ -3104,11 +3278,11 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     <div ref={bottomRef} />
                   </div>
 
-                  {/* NEW: while this is an incoming, unaccepted request,
-                      the entire compose area (reply preview, attachment
-                      preview, text input, mic, emoji, attach) is replaced
-                      with a simple Accept/Decline row — there's nothing
-                      to type into until the request is accepted. */}
+                  {/* The compose area has three states:
+                        1) incoming, unaccepted request → Accept/Decline row
+                        2) NEW: blocked (either direction) → blocked row
+                           (with an Unblock button if *I* blocked them)
+                        3) normal composer */}
                   {isIncomingRequest ? (
                     <div className="mp-request-actions-row">
                       <button
@@ -3127,6 +3301,24 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                       >
                         {requestActionBusy ? "…" : "Accept"}
                       </button>
+                    </div>
+                  ) : isChatBlocked ? (
+                    <div className="mp-request-actions-row mp-blocked-row">
+                      <span className="mp-blocked-text">
+                        {otherBlockedByMe
+                          ? `You blocked ${activeUsername}.`
+                          : "You can't send messages to this user."}
+                      </span>
+                      {otherBlockedByMe && (
+                        <button
+                          type="button"
+                          className="mp-request-accept-btn"
+                          onClick={() => unblockUser(activeUsername)}
+                          disabled={blockBusy}
+                        >
+                          {blockBusy ? "…" : "Unblock"}
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <>

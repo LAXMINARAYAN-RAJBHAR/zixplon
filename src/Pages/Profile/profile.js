@@ -4,20 +4,22 @@ import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-// NEW: mute toggle icons for the hover-preview thumbnails.
-import VolumeUpIcon from "@mui/icons-material/VolumeUp";
-import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import { uploadToR2, buildTransformUrl } from "../../utils/mediaUpload";
-// NEW: hls.js for adaptive-bitrate HLS previews (no-op for plain .mp4).
-import Hls from "hls.js";
 // NEW: attached-song mini player — same component used in PostCard.jsx /
 // Video.jsx / Reels.jsx.
 import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
 // NEW: "retry sound after the visitor's next interaction" gate — same one
 // used by Reels.jsx / Video.jsx. See utils/audioUnlock.js.
 import { onUserInteract } from "../../utils/audioUnlock";
+// CHANGED: the hover-preview thumbnail and the sound arbiter are now the
+// shared ones (the same used by the Home feed, the reels strip, Reels and
+// Video), instead of private copies inside this file. That is what makes
+// the profile obey the same "one thing with sound at a time" rule and the
+// same mute preference as the rest of the app.
+import PreviewThumb from "../../Component/Shared/PreviewThumb";
+import { claimSound, releaseSound, soundPrefs } from "../../utils/soundArbiter";
 // NEW: shared notification helper — same one PostCard.jsx / Video.jsx /
 // Reels.jsx already use for their Connect buttons. Profile.js previously
 // had no equivalent notification on a successful connect at all.
@@ -89,220 +91,21 @@ const PROFILE_TABS = ["videos", "reels", "posts"];
 // How many characters of post text to show before offering "Show more"
 const POST_TEXT_LIMIT = 220;
 
-// ─── Sound arbiter (NEW) ──────────────────────────────────────────────────────
-// Only ONE thing on the profile may make sound at a time (a hover preview
-// or a post's song). Claiming sound tells the previous owner to stop.
-let activeSoundOwner = null;
-const claimSound = (id, release) => {
-  if (activeSoundOwner && activeSoundOwner.id !== id) activeSoundOwner.release();
-  activeSoundOwner = { id, release };
-};
-const releaseSound = (id) => {
-  if (activeSoundOwner?.id === id) activeSoundOwner = null;
-};
-
-// Shared mute preference — sound-first (unmuted) until the visitor mutes.
-const soundPrefs = { muted: false };
-
-// HLS manifests are served as .m3u8; everything else uses the native path.
-const isHlsSource = (src) => !!src && /\.m3u8(\?.*)?$/i.test(src);
-
-// Hover previews only make sense on devices with a real hover pointer.
-const canHover = () =>
-  typeof window !== "undefined" &&
-  !!window.matchMedia &&
-  window.matchMedia("(hover: hover)").matches;
-
-// ─── Hover-preview thumbnail (videos + reels) (NEW) ──────────────────────────
-// Wraps a thumbnail. After a short hover it plays the clip over the
-// thumbnail, sound-first: tries unmuted, falls back to a muted loop if the
-// browser blocks it, and retries with sound on the visitor's next
-// interaction. An attached song plays in sync with the clip; the clip's own
-// volume follows the creator's mix. The mute button never triggers the
-// surrounding <Link> / card click.
-const PreviewThumb = ({ id, src, song, originalVolume = 1, className, style, children }) => {
-  const videoRef = useRef(null);
-  const audioRef = useRef(null);
-  const hlsRef = useRef(null);
-  const hoverTimerRef = useRef(null);
-  const autoMutedRef = useRef(false);
-  const unsubRef = useRef(null);
-
-  const [active, setActive] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(soundPrefs.muted);
-  const [progress, setProgress] = useState(0);
-
-  const stopPreview = () => {
-    clearTimeout(hoverTimerRef.current);
-    setActive(false);
-    setPlaying(false);
-    setProgress(0);
-  };
-
-  const handleEnter = () => {
-    if (!src || !canHover()) return;
-    clearTimeout(hoverTimerRef.current);
-    hoverTimerRef.current = setTimeout(() => setActive(true), 300);
-  };
-
-  useEffect(() => {
-    if (!active) return;
-    const vid = videoRef.current;
-    if (!vid) return;
-    const audio = audioRef.current;
-
-    claimSound(id, stopPreview);
-    autoMutedRef.current = false;
-    vid.volume = song ? originalVolume : 1;
-
-    if (isHlsSource(src)) {
-      if (Hls.isSupported()) {
-        const hls = new Hls({ maxBufferLength: 10, enableWorker: true });
-        hls.loadSource(src);
-        hls.attachMedia(vid);
-        hlsRef.current = hls;
-      } else if (vid.canPlayType("application/vnd.apple.mpegurl")) {
-        vid.src = src;
-      }
-    }
-
-    const syncPlay = () => {
-      if (!audio) return;
-      audio.currentTime = 0;
-      audio.muted = vid.muted;
-      audio.play().catch(() => {});
-    };
-    const syncPause = () => audio?.pause();
-    const syncMute = () => { if (audio) audio.muted = vid.muted; };
-    const onPlaying = () => setPlaying(true);
-    const onTime = () => {
-      if (vid.duration) setProgress((vid.currentTime / vid.duration) * 100);
-    };
-
-    vid.addEventListener("play", syncPlay);
-    vid.addEventListener("pause", syncPause);
-    vid.addEventListener("volumechange", syncMute);
-    vid.addEventListener("playing", onPlaying);
-    vid.addEventListener("timeupdate", onTime);
-
-    const start = () => {
-      vid.muted = soundPrefs.muted;
-      setMuted(soundPrefs.muted);
-      vid.play().catch(() => {
-        // Browser blocked unmuted autoplay → muted loop, then retry with
-        // sound after the visitor's next interaction.
-        vid.muted = true;
-        autoMutedRef.current = true;
-        setMuted(true);
-        vid.play().catch(() => {});
-        unsubRef.current = onUserInteract(() => {
-          if (!autoMutedRef.current) return;
-          autoMutedRef.current = false;
-          vid.muted = soundPrefs.muted;
-          setMuted(soundPrefs.muted);
-        });
-      });
-    };
-    if (vid.readyState >= 2) start();
-    else vid.addEventListener("loadeddata", start, { once: true });
-
-    return () => {
-      vid.removeEventListener("play", syncPlay);
-      vid.removeEventListener("pause", syncPause);
-      vid.removeEventListener("volumechange", syncMute);
-      vid.removeEventListener("playing", onPlaying);
-      vid.removeEventListener("timeupdate", onTime);
-      vid.removeEventListener("loadeddata", start);
-      unsubRef.current?.();
-      unsubRef.current = null;
-      autoMutedRef.current = false;
-      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
-      vid.pause();
-      audio?.pause();
-      releaseSound(id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, src, id]);
-
-  useEffect(() => () => clearTimeout(hoverTimerRef.current), []);
-
-  const toggleMute = (e) => {
-    e.preventDefault();   // don't follow the surrounding <Link>
-    e.stopPropagation();  // don't trigger the reel card's onClick
-    autoMutedRef.current = false;
-    unsubRef.current?.();
-    unsubRef.current = null;
-    const next = !muted;
-    soundPrefs.muted = next;
-    setMuted(next);
-    if (videoRef.current) videoRef.current.muted = next;
-    if (audioRef.current) audioRef.current.muted = next;
-  };
-
-  return (
-    <div
-      className={className}
-      style={{ position: "relative", ...style }}
-      onMouseEnter={handleEnter}
-      onMouseLeave={stopPreview}
-    >
-      {children}
-
-      {active && (
-        <video
-          ref={videoRef}
-          src={isHlsSource(src) ? undefined : src}
-          loop
-          playsInline
-          preload="auto"
-          style={{
-            position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
-            objectFit: "cover", zIndex: 1, pointerEvents: "none",
-            opacity: playing ? 1 : 0, transition: "opacity 0.25s",
-          }}
-        />
-      )}
-
-      {active && song?.url && (
-        <audio ref={audioRef} src={song.url} loop preload="auto" style={{ display: "none" }} />
-      )}
-
-      {active && (
-        <>
-          <button
-            type="button"
-            className="preview_mute_btn"
-            onClick={toggleMute}
-            onMouseDown={(e) => e.stopPropagation()}
-            aria-label={muted ? "Unmute preview" : "Mute preview"}
-          >
-            {muted ? <VolumeOffIcon sx={{ fontSize: 16 }} /> : <VolumeUpIcon sx={{ fontSize: 16 }} />}
-          </button>
-          {song && (
-            <div className="preview_song_badge">
-              🎵 {song.title}{song.artist ? ` · ${song.artist}` : ""}
-            </div>
-          )}
-          <div className="preview_progress">
-            <div className="preview_progress_fill" style={{ width: `${progress}%` }} />
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
-
 // ─── Post song player (sound-first autoplay) (NEW) ───────────────────────────
 // Plays a post's attached song when the card is mostly in view; pauses when
-// it scrolls away or when something else claims the sound. Same fallback as
-// the previews: unmuted first → muted → unmute on next interaction. A manual
-// pause is respected until the visitor presses play again.
+// it scrolls away. Sound-first: unmuted first → muted fallback if the browser
+// blocks it → unmute on the visitor's next interaction. A manual pause is
+// respected until the visitor presses play again.
+//
+// Sound coordination follows utils/soundArbiter.js: the song CLAIMS the sound
+// only while it is genuinely audible (playing and unmuted) and releases the
+// claim whenever it is paused, muted or unmounted. If something else claims
+// the sound, the song goes QUIET (mutes itself, keeps playing) — a temporary
+// silence that is NOT saved as the visitor's own mute preference.
 const PostSongPlayer = ({ postId, song }) => {
   const wrapRef = useRef(null);
   const audioRef = useRef(null);
   const playFnRef = useRef(() => {});
-  const pauseFnRef = useRef(() => {});
   const autoMutedRef = useRef(false);
   const unsubRef = useRef(null);
   const userPausedRef = useRef(false);
@@ -319,24 +122,39 @@ const PostSongPlayer = ({ postId, song }) => {
 
     const clearUnsub = () => { unsubRef.current?.(); unsubRef.current = null; };
 
-    const pause = () => {
-      audio.pause();
-      setPlaying(false);
+    // Another card took over the sound: go quiet, keep playing.
+    const goQuiet = () => {
+      audio.muted = true;
+      setMuted(true);
     };
+
+    const syncClaim = () => {
+      if (!audio.paused && !audio.muted) claimSound(id, goQuiet);
+      else releaseSound(id);
+    };
+
+    const onPlaying = () => { setPlaying(true); syncClaim(); };
+    const onPause = () => { setPlaying(false); syncClaim(); };
+    const onVolumeChange = () => syncClaim();
+
+    audio.addEventListener("playing", onPlaying);
+    audio.addEventListener("pause", onPause);
+    audio.addEventListener("volumechange", onVolumeChange);
 
     const play = () => {
       clearUnsub();
       autoMutedRef.current = false;
       setAutoMuted(false);
-      claimSound(id, pause);
       audio.muted = soundPrefs.muted;
       setMuted(soundPrefs.muted);
-      audio.play().then(() => setPlaying(true)).catch(() => {
+      audio.play().catch(() => {
+        // Browser blocked unmuted autoplay → muted, then unmute on the
+        // visitor's next interaction.
         audio.muted = true;
         autoMutedRef.current = true;
         setAutoMuted(true);
         setMuted(true);
-        audio.play().then(() => setPlaying(true)).catch(() => {});
+        audio.play().catch(() => {});
         unsubRef.current = onUserInteract(() => {
           if (!autoMutedRef.current) return;
           autoMutedRef.current = false;
@@ -348,7 +166,6 @@ const PostSongPlayer = ({ postId, song }) => {
     };
 
     playFnRef.current = play;
-    pauseFnRef.current = pause;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -358,8 +175,7 @@ const PostSongPlayer = ({ postId, song }) => {
           clearUnsub();
           autoMutedRef.current = false;
           setAutoMuted(false);
-          pause();
-          releaseSound(id);
+          audio.pause(); // the "pause" listener updates state + releases the claim
         }
       },
       { threshold: [0, 0.6, 1] },
@@ -369,6 +185,9 @@ const PostSongPlayer = ({ postId, song }) => {
     return () => {
       observer.disconnect();
       clearUnsub();
+      audio.removeEventListener("playing", onPlaying);
+      audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("volumechange", onVolumeChange);
       audio.pause();
       releaseSound(id);
     };
@@ -378,7 +197,7 @@ const PostSongPlayer = ({ postId, song }) => {
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) { userPausedRef.current = false; playFnRef.current(); }
-    else { userPausedRef.current = true; pauseFnRef.current(); }
+    else { userPausedRef.current = true; audio.pause(); }
   };
 
   const toggleMute = () => {
@@ -389,6 +208,8 @@ const PostSongPlayer = ({ postId, song }) => {
     const next = !muted;
     soundPrefs.muted = next;
     setMuted(next);
+    // Changing audio.muted fires "volumechange", which claims / releases
+    // the shared arbiter.
     if (audioRef.current) audioRef.current.muted = next;
   };
 
@@ -1142,16 +963,6 @@ const Profile = ({ sideNavbar }) => {
 
     loadProfile();
   }, [key]);
-
-  // NEW: make sure nothing keeps making sound after leaving the profile.
-  useEffect(() => {
-    return () => {
-      if (activeSoundOwner) {
-        activeSoundOwner.release();
-        activeSoundOwner = null;
-      }
-    };
-  }, []);
 
   const hardcodedVideos = allVideos.filter((v) => v.channel?.toLowerCase() === key);
   const allUserVideos   = [...dbVideos, ...hardcodedVideos];

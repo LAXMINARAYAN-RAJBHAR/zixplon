@@ -52,6 +52,12 @@ const matchesKey = (candidate = "", key = "") => {
   return c === key || c.replace(/\s+/g, "_") === key || c.replace(/\s+/g, ".") === key;
 };
 
+// NEW: escapes the LIKE wildcards (% and _) so a username such as
+// "john_doe" is matched literally by .ilike() instead of "_" acting as a
+// "any single character" wildcard. Used for every case-insensitive
+// username lookup below.
+const escapeLike = (str = "") => str.replace(/[\\%_]/g, "\\$&");
+
 const timeAgo = (dateStr) => {
   const diff = (Date.now() - new Date(dateStr)) / 1000;
   if (diff < 60) return "Just now";
@@ -673,6 +679,9 @@ const ConnectionsModal = ({ channelUsername, onClose }) => {
 // ─── Main Profile Component ───────────────────────────────────────────────────
 const Profile = ({ sideNavbar }) => {
   const { username } = useParams();
+  // The URL param may be percent-decoded already (React Router decodes it),
+  // e.g. "ashutosh pawar". Lowercased for matching; the DB lookups below
+  // use .ilike() so stored casing ("Ashutosh Pawar") doesn't matter.
   const key = username?.toLowerCase();
   const navigate = useNavigate();
 
@@ -722,6 +731,16 @@ const Profile = ({ sideNavbar }) => {
   const [editPostPrivacy, setEditPostPrivacy] = useState("public");
   const [editPostSaving, setEditPostSaving]   = useState(false);
   const [editPostError, setEditPostError]     = useState("");
+
+  // ── NEW: scroll to the top whenever the profile being viewed changes ──
+  // Navigating here from another page (e.g. "View profile" in Messages)
+  // keeps the previous page's scroll offset, which can leave the header
+  // and tabs above the visible area and only the footer showing.
+  // Also reset to the Videos tab so a previous profile's tab doesn't stick.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    setActiveTab("videos");
+  }, [key]);
 
   // ── Swipe-to-switch-tabs (mobile) ──
   const touchStartX = useRef(null);
@@ -811,10 +830,13 @@ const Profile = ({ sideNavbar }) => {
         } else {
           let foundUser = null;
 
+          // CHANGED: case-insensitive lookup (.ilike) instead of .eq(),
+          // so a profile stored as "Ashutosh Pawar" is found from the
+          // lowercased URL key "ashutosh pawar".
           const { data: profileRow } = await supabase
             .from("profiles")
             .select("id, username, channel_name, banner_pic, profile_pic, about")
-            .eq("username", key)
+            .ilike("username", escapeLike(key))
             .maybeSingle();
 
           if (profileRow) {
@@ -926,7 +948,13 @@ const Profile = ({ sideNavbar }) => {
 
       // ── Fetch posts ──
       // `select *` already returns posts.song (jsonb) once that column exists.
-      const { data: postsData } = await supabase.from("posts").select(`*, post_reactions ( type, username ), post_comments ( id, text, username, created_at )`).eq("username", key).order("created_at", { ascending: false });
+      // CHANGED: .ilike() instead of .eq() so posts are found regardless of
+      // the casing the username was stored with.
+      const { data: postsData } = await supabase
+        .from("posts")
+        .select(`*, post_reactions ( type, username ), post_comments ( id, text, username, created_at )`)
+        .ilike("username", escapeLike(key))
+        .order("created_at", { ascending: false });
       if (postsData) {
         const currentUser = localStorage.getItem("username") || "";
         setUserPosts(postsData.map((p) => ({
@@ -1070,8 +1098,10 @@ const Profile = ({ sideNavbar }) => {
     setDeleteTarget(null);
   };
 
+  // CHANGED: .ilike() so deleting works even if the username is stored
+  // with capital letters (the lowercased `key` would never match .eq()).
   const handleDeletePost = async (postId) => {
-    await supabase.from("posts").delete().eq("id", postId).eq("username", key);
+    await supabase.from("posts").delete().eq("id", postId).ilike("username", escapeLike(key));
     setUserPosts((prev) => prev.filter((p) => p.id !== postId));
   };
 
@@ -1118,6 +1148,7 @@ const Profile = ({ sideNavbar }) => {
     setEditPostSaving(true);
     setEditPostError("");
     try {
+      // CHANGED: .ilike() instead of .eq() (see handleDeletePost).
       const { error } = await supabase
         .from("posts")
         .update({
@@ -1126,7 +1157,7 @@ const Profile = ({ sideNavbar }) => {
           privacy: editPostPrivacy,
         })
         .eq("id", editPostTarget.id)
-        .eq("username", key);
+        .ilike("username", escapeLike(key));
 
       if (error) throw error;
 

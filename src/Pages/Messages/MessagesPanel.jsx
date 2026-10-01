@@ -139,6 +139,10 @@ const MAX_VOICE_SECONDS = 180;
 // endpoint or bloat the compose tray.
 const MAX_ATTACHMENTS = 10;
 
+// Route used by the "View profile" menu item. Change this if your
+// router mounts <Profile /> somewhere else (it reads `:username`).
+const PROFILE_PATH = (username) => `/profile/${encodeURIComponent(username)}`;
+
 // ── Typing indicator tuning ──
 // How long after the last keystroke we broadcast "stopped typing".
 const TYPING_STOP_DELAY_MS = 1500;
@@ -313,6 +317,7 @@ const VoiceMessagePlayer = ({ src, mine, initialDuration }) => {
 
 const MessagesPanel = ({ initialUsername, onClose }) => {
   const currentUser = localStorage.getItem("username") || "";
+  const navigate = useNavigate();
 
   const [activeUsername, setActiveUsername] = useState(initialUsername || null);
 
@@ -692,6 +697,37 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     if (isMobile() && historyDepthRef.current >= 1) {
       window.history.go(-historyDepthRef.current);
       historyDepthRef.current = 0;
+    }
+  };
+
+  // ── NEW: "View profile" (from the inbox ⋮ menu) ──
+  // Closes the panel and navigates to that user's profile. On mobile the
+  // panel pushed 1–2 history entries when it opened; we unwind them first
+  // (history.go) and navigate once that settles, so pressing Back on the
+  // profile doesn't land on stale "panel" entries. A short fallback timer
+  // covers browsers/tunnels that swallow the popstate event.
+  const goToProfile = (username) => {
+    setOpenConvoMenuFor(null);
+    const target = PROFILE_PATH(username);
+    const depth = historyDepthRef.current;
+
+    if (isMobile() && depth >= 1) {
+      let done = false;
+      const run = () => {
+        if (done) return;
+        done = true;
+        window.removeEventListener("popstate", run);
+        clearTimeout(fallback);
+        onClose();
+        navigate(target);
+      };
+      const fallback = setTimeout(run, 300);
+      window.addEventListener("popstate", run);
+      historyDepthRef.current = 0;
+      window.history.go(-depth);
+    } else {
+      onClose();
+      navigate(target);
     }
   };
 
@@ -2449,6 +2485,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           </button>
           {openConvoMenuFor === conv.id && (
             <div className="mp-convo-menu" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className="mp-convo-menu-item"
+                onClick={() => goToProfile(other)}
+              >
+                👤 View profile
+              </button>
               <button
                 type="button"
                 className="mp-convo-menu-item danger"

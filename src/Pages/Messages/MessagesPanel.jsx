@@ -141,7 +141,7 @@ const MAX_ATTACHMENTS = 10;
 
 // Route used by the "View profile" menu item. Change this if your
 // router mounts <Profile /> somewhere else (it reads `:username`).
-const PROFILE_PATH = (username) => `/profile/${encodeURIComponent(username)}`;
+const PROFILE_PATH = (username) => `/user/${encodeURIComponent(username)}`;
 
 // ── Typing indicator tuning ──
 // How long after the last keystroke we broadcast "stopped typing".

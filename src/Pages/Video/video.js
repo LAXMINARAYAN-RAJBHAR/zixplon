@@ -31,6 +31,15 @@ import Hls from "hls.js";
 // NEW: same "retry sound after the visitor's next interaction" gate used
 // by the Posts tab and the Home cards — see utils/audioUnlock.js.
 import { onUserInteract } from "../../utils/audioUnlock";
+// NEW: shared sound arbiter — the same one the Home feed cards, the
+// hover-preview thumbnails and the Reels page use, so only one thing on
+// the page has sound at a time. The player claims it while it is
+// genuinely audible (playing and unmuted), releases it the moment it is
+// muted/paused/unmounted, and goes quiet (mutes itself, keeps playing)
+// if something else claims it. `soundPrefs` is the shared mute
+// preference, so a mute/unmute chosen elsewhere carries into this page
+// and vice versa.
+import { claimSound, releaseSound, soundPrefs } from "../../utils/soundArbiter";
 // NEW: fresh random order for next/prev/suggestions on every load.
 import { shuffleArray } from "../../utils/shuffleArray";
 // NOTE: notifyUser() is no longer imported/used anywhere in this file.
@@ -367,8 +376,9 @@ const Video = ({ sideNavbar }) => {
   const [fullscreenActionsHidden, setFullscreenActionsHidden] = useState(false);
 
   // NEW: true only while the video is muted because the browser BLOCKED
-  // unmuted autoplay (as opposed to the visitor muting it themselves).
-  // Drives the "Tap to unmute" pill over the player.
+  // unmuted autoplay, or because another card took over the page's sound
+  // (as opposed to the visitor muting it themselves). Drives the "Tap to
+  // unmute" pill over the player.
   const [autoMuted, setAutoMuted] = useState(false);
 
   const quality = useNetworkQuality();
@@ -437,7 +447,11 @@ const Video = ({ sideNavbar }) => {
 
   // NEW: sound-first autoplay bookkeeping.
   //  - autoMutedRef mirrors the autoMuted state for use inside
-  //    callbacks/listeners that outlive a render.
+  //    callbacks/listeners that outlive a render. It is true whenever
+  //    the player is muted by US (blocked autoplay, or another card
+  //    taking the sound) rather than by the visitor, which is also how
+  //    the volumechange listener knows NOT to save such a mute as the
+  //    visitor's preference.
   //  - unsubscribeInteractRef cancels a pending "retry with sound after
   //    the next interaction" registration (see utils/audioUnlock.js).
   //  - autoPausedRef is true only while the video is paused because the
@@ -446,6 +460,11 @@ const Video = ({ sideNavbar }) => {
   const autoMutedRef = useRef(false);
   const unsubscribeInteractRef = useRef(null);
   const autoPausedRef = useRef(false);
+
+  // NEW: this player's identity in the shared sound arbiter (a Symbol is
+  // unique per instance).
+  const arbiterIdRef = useRef(null);
+  if (arbiterIdRef.current === null) arbiterIdRef.current = Symbol("video");
 
   // NEW: hidden <audio> element for an attached song, kept in lockstep
   // with the video's own play/pause/mute state so it "autoplays along
@@ -799,8 +818,9 @@ const Video = ({ sideNavbar }) => {
   };
   const handleVideoError = () => setVideoError(true);
 
-  // NEW: "Tap to unmute" pill — lifts a browser-forced mute right away
-  // (this click IS the user gesture the browser was waiting for).
+  // NEW: "Tap to unmute" pill — lifts a browser-forced (or
+  // other-card-forced) mute right away (this click IS the user gesture
+  // the browser was waiting for).
   const handleUnmuteClick = (e) => {
     e.stopPropagation();
     unsubscribeInteractRef.current?.();
@@ -1337,6 +1357,13 @@ const Video = ({ sideNavbar }) => {
   // native mute button and shouldn't have it fight an automatic unmute.
   // Unmuting through any route clears the pill via the volumechange
   // listener.
+  //
+  // CHANGED: the visitor's mute choice is now the shared
+  // `soundPrefs.muted` (utils/soundArbiter.js) instead of "always try
+  // unmuted". It is read when playback starts, and written whenever the
+  // visitor mutes/unmutes through the native controls — but never when
+  // WE mute (blocked autoplay, or another card taking the sound), which
+  // is what autoMutedRef tells the listener below.
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid || !video?.id) return;
@@ -1347,6 +1374,11 @@ const Video = ({ sideNavbar }) => {
     unsubscribeInteractRef.current = null;
 
     const handleVolumeChange = () => {
+      // Save the visitor's own mute/unmute as the shared preference —
+      // but skip a mute we applied ourselves.
+      if (!vid.muted) soundPrefs.muted = false;
+      else if (!autoMutedRef.current) soundPrefs.muted = true;
+
       if (!vid.muted && autoMutedRef.current) {
         autoMutedRef.current = false;
         setAutoMuted(false);
@@ -1355,10 +1387,14 @@ const Video = ({ sideNavbar }) => {
     vid.addEventListener("volumechange", handleVolumeChange);
 
     const attempt = () => {
-      // The autoplay attribute already worked — nothing to do.
-      if (!vid.paused) return;
+      // The autoplay attribute already worked — nothing to do, except
+      // honour a saved "muted" preference.
+      if (!vid.paused) {
+        if (soundPrefs.muted) vid.muted = true;
+        return;
+      }
 
-      vid.muted = false;
+      vid.muted = soundPrefs.muted;
       vid.play().catch(() => {
         vid.muted = true;
         autoMutedRef.current = true;
@@ -1370,7 +1406,7 @@ const Video = ({ sideNavbar }) => {
           if (e && e.target === vid) return;
           autoMutedRef.current = false;
           setAutoMuted(false);
-          vid.muted = false;
+          vid.muted = soundPrefs.muted;
         });
       });
     };
@@ -1385,6 +1421,49 @@ const Video = ({ sideNavbar }) => {
       vid.removeEventListener("loadedmetadata", attempt);
       unsubscribeInteractRef.current?.();
       unsubscribeInteractRef.current = null;
+    };
+  }, [video?.id]);
+
+  // NEW: shared sound arbiter (utils/soundArbiter.js). The player claims
+  // the sound only while it is genuinely audible — playing AND unmuted —
+  // and releases the claim the moment it is paused, muted (by the
+  // visitor, or by the blocked-autoplay fallback), ended, or unmounted.
+  // If something else claims the sound, the player goes QUIET: it mutes
+  // itself but keeps playing, as the arbiter's contract describes, and
+  // shows the "Tap to unmute" pill so the visitor can take the sound
+  // back (which, in turn, quiets whoever had it). Because this mute is
+  // flagged via autoMutedRef, it is NOT saved as the visitor's mute
+  // preference.
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid || !video?.id) return;
+    const arbiterId = arbiterIdRef.current;
+
+    const goQuiet = () => {
+      autoMutedRef.current = true;
+      setAutoMuted(true);
+      vid.muted = true; // fires "volumechange", which also quiets the song
+    };
+
+    const syncClaim = () => {
+      if (!vid.paused && !vid.muted) claimSound(arbiterId, goQuiet);
+      else releaseSound(arbiterId);
+    };
+
+    vid.addEventListener("play", syncClaim);
+    vid.addEventListener("playing", syncClaim);
+    vid.addEventListener("pause", syncClaim);
+    vid.addEventListener("ended", syncClaim);
+    vid.addEventListener("volumechange", syncClaim);
+    syncClaim();
+
+    return () => {
+      vid.removeEventListener("play", syncClaim);
+      vid.removeEventListener("playing", syncClaim);
+      vid.removeEventListener("pause", syncClaim);
+      vid.removeEventListener("ended", syncClaim);
+      vid.removeEventListener("volumechange", syncClaim);
+      releaseSound(arbiterId);
     };
   }, [video?.id]);
 
@@ -1748,10 +1827,12 @@ const Video = ({ sideNavbar }) => {
           )}
 
           {/* NEW: shown only while the video is muted because the
-              browser blocked unmuted autoplay. Tapping it (a real user
+              browser blocked unmuted autoplay, or because another card
+              took over the page's sound. Tapping it (a real user
               gesture) turns sound on. Also lifted automatically by the
-              visitor's next tap/click elsewhere on the page. Styled
-              inline so no CSS file change is needed. */}
+              visitor's next tap/click elsewhere on the page when the
+              cause was blocked autoplay. Styled inline so no CSS file
+              change is needed. */}
           {autoMuted && (
             <button
               type="button"

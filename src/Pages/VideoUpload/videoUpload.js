@@ -29,6 +29,19 @@ const FEELINGS = [
   "Motivated 💪", "Tired 😴", "Loved ❤️", "Proud 🎉",
 ];
 
+// NEW: resolves true only if the URL actually loads as an image. Used to
+// verify a transformed thumbnail URL before it is saved to the database,
+// so a dead transform URL never ends up as thumbnail_url.
+const imageLoads = (url, timeoutMs = 8000) =>
+  new Promise((resolve) => {
+    if (!url) { resolve(false); return; }
+    const img = new Image();
+    const t = setTimeout(() => resolve(false), timeoutMs);
+    img.onload = () => { clearTimeout(t); resolve(true); };
+    img.onerror = () => { clearTimeout(t); resolve(false); };
+    img.src = url;
+  });
+
 const resolveFeature = (state) => {
   if (!state) return { mode: null, data: null };
   if (state.remixData)       return { mode: "remix",       data: state.remixData };
@@ -430,6 +443,12 @@ const VideoUpload = () => {
   });
 
   // ── Thumbnail upload — goes through R2 (small file, fine for /api/upload) ──
+  //
+  // CHANGED: the transformed URL is now verified to actually load as an
+  // image before it is returned. If it doesn't (transform step failing,
+  // blocked, etc.), we fall back to the raw JPEG that was just uploaded —
+  // already a JPEG, so it still works as an og:image — instead of saving
+  // a dead URL as thumbnail_url.
   const uploadThumbnail = async (blob) => {
     const file = new File([blob], "thumbnail.jpg", { type: "image/jpeg" });
     const { url } = await uploadToR2(file);
@@ -437,7 +456,9 @@ const VideoUpload = () => {
     // thumbnail becomes the og:image for shared video/reel links, and
     // WhatsApp's link-preview crawler does not render webp images.
     const transformedUrl = buildTransformUrl(url, { width: 640, height: 360, fit: "cover", format: "jpeg" });
-    return transformedUrl;
+    if (await imageLoads(transformedUrl)) return transformedUrl;
+    console.warn("Transformed thumbnail didn't load; using the raw uploaded JPEG instead.");
+    return url;
   };
 
   const handleOnChangeInput = (event, name) => {
@@ -464,15 +485,21 @@ const VideoUpload = () => {
     setLocalPreviewUrl(localUrl);
 
     try {
-      const [, thumbnailBlob] = await Promise.all([
-        getVideoDuration(file),
-        captureThumbnail(file).catch((err) => { console.warn("Client-side thumbnail capture failed:", err.message); return null; }),
-      ]);
+      // CHANGED: duration + thumbnail capture now run IN PARALLEL WITH
+      // the upload instead of before it, so a slow or stalled capture
+      // (up to 10s) no longer delays the upload from starting.
+      const durationPromise = getVideoDuration(file);
+      const thumbPromise = captureThumbnail(file).catch((err) => {
+        console.warn("Client-side thumbnail capture failed:", err.message);
+        return null;
+      });
 
       const { url: videoUrl } = await uploadVideoToR2(file, (pct) => {
         setUploadProgress(pct);
         updateSpeedAndETA((pct / 100) * file.size, file.size);
       });
+
+      const [, thumbnailBlob] = await Promise.all([durationPromise, thumbPromise]);
 
       let thumbnailUrl = inputField.thumbnail;
       if (!imageUploaded) {
@@ -480,10 +507,10 @@ const VideoUpload = () => {
           thumbnailUrl = await uploadThumbnail(thumbnailBlob);
           setThumbSource("auto");
         } else {
-          // Server-side auto thumbnail capture failed (no Cloudinary
-          // fallback since the move to R2). We still have localPreviewUrl
-          // to show the user their video, so the confirmation preview
-          // isn't lost — it just won't be the DB thumbnail_url yet.
+          // Auto thumbnail capture failed (no Cloudinary fallback since
+          // the move to R2). We still have localPreviewUrl to show the
+          // user their video, so the confirmation preview isn't lost —
+          // it just won't be the DB thumbnail_url yet.
           console.warn("Auto thumbnail capture failed; showing local preview instead.");
         }
       }
@@ -507,7 +534,10 @@ const VideoUpload = () => {
       // format: "jpeg" — same reasoning as uploadThumbnail() above, this
       // also ends up as the shared-link og:image.
       const transformedUrl = buildTransformUrl(url, { width: 640, height: 360, fit: "cover", format: "jpeg" });
-      setInputField((prev) => ({ ...prev, thumbnail: transformedUrl }));
+      // CHANGED: only use the transformed URL if it actually loads;
+      // otherwise keep the raw uploaded image.
+      const finalUrl = (await imageLoads(transformedUrl)) ? transformedUrl : url;
+      setInputField((prev) => ({ ...prev, thumbnail: finalUrl }));
       setImageUploaded(true); setThumbSource("manual"); setThumbLoader(false);
     } catch (err) {
       setThumbLoader(false);
@@ -564,6 +594,11 @@ const VideoUpload = () => {
     if (!inputField.title)       return setError("Please enter a title.");
     if (!inputField.description) return setError("Please enter a description.");
     if (!inputField.videoLink)   return setError("Please upload a video first.");
+    // NEW: don't save a video/reel without a thumbnail — a missing
+    // thumbnail_url is what produces broken cards and empty shared-link
+    // previews. Auto capture can fail on some files, so ask for a manual one.
+    if (!inputField.thumbnail)
+      return setError("Auto thumbnail couldn't be captured. Please choose a thumbnail image.");
     if (uploadMode === "video" && !isFeatureMode && !inputField.videoType)
       return setError("Please enter a category.");
 

@@ -46,6 +46,11 @@ import AdminPanel       from "./Pages/AdminPanel/AdminPanel";
 import LiveBrowser      from "./Component/Live/LiveViewer";
 import MessagesPanel    from "./Pages/Messages/MessagesPanel";
 import { PresenceProvider } from "./context/PresenceContext";
+// NEW: voice calling. CallProvider owns the call state, the incoming-call
+// ringtone/notification and the full-screen call overlay, so calls ring on
+// any page even when the Messages panel is closed. MessagesPanel only
+// reads startCall from it via useCallContext(). See src/context/CallContext.jsx.
+import { CallProvider } from "./context/CallContext";
 import UtilityPage from "./Pages/Utility/UtilityPage";
 import RechargeForm from "./Pages/Utility/RechargeForm";
 import BillPaymentForm from "./Pages/Utility/BillPaymentForm";
@@ -720,6 +725,11 @@ const hideFooter =
 
   return (
     <PresenceProvider currentUser={currentUser}>
+      {/* NEW: CallProvider sits inside PresenceProvider and gets the same
+          currentUser the rest of the app uses, so it starts/stops listening
+          for calls automatically on login/logout. It renders the call
+          overlay itself, above everything else on the page. */}
+      <CallProvider currentUser={currentUser}>
       <div
         className="App"
         style={{
@@ -865,6 +875,7 @@ const hideFooter =
         <BottomNav currentUser={currentUser} />
         {!hideFooter && <Footer sideNavbar={sideNavbar} />}
       </div>
+      </CallProvider>
     </PresenceProvider>
   );
 }

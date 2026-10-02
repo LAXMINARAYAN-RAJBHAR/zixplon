@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import "./MessagesPanel.css";
 import { usePresence } from "../../context/PresenceContext";
+// NEW (voice calling): startCall + "already on a call" flag from CallProvider
+// (mounted once in App.js). See src/context/CallContext.jsx.
+import { useCallContext } from "../../context/CallContext";
 import { fetchUserGroups } from "../../utils/groupChat";
 import { fetchUserBroadcastLists } from "../../utils/broadcast";
 import NewGroupOrBroadcastModal from "../../Component/Messages/NewGroupOrBroadcastModal";
@@ -128,6 +131,23 @@ const formatDuration = (totalSeconds) => {
   const sec = s % 60;
   return `${m}:${sec.toString().padStart(2, "0")}`;
 };
+
+// ── NEW (voice calling): call history rows ──
+// Stored as direct_messages rows with attachment_type "call" (written by
+// CallProvider on the caller's side when a call ends):
+//   attachment_name = completed | missed | cancelled | declined | busy | ended
+//   attachment_size = call length in seconds (completed calls)
+const callLogLabel = (m, mine) => {
+  const outcome = m.attachment_name;
+  if (outcome === "completed") return `Voice call · ${formatDuration(m.attachment_size)}`;
+  if (outcome === "missed") return mine ? "No answer" : "Missed voice call";
+  if (outcome === "cancelled") return mine ? "Call cancelled" : "Missed voice call";
+  if (outcome === "declined") return mine ? "Call declined" : "You declined the call";
+  if (outcome === "busy") return mine ? "Line busy" : "Missed voice call";
+  return "Voice call ended";
+};
+const isMissedCallLog = (m, mine) =>
+  !mine && ["missed", "cancelled", "busy"].includes(m.attachment_name);
 
 // Hard cap on recording length so a stray open mic can't produce a
 // huge upload. Auto-stops and hands off to the preview stage.
@@ -318,6 +338,8 @@ const VoiceMessagePlayer = ({ src, mine, initialDuration }) => {
 const MessagesPanel = ({ initialUsername, onClose }) => {
   const currentUser = localStorage.getItem("username") || "";
   const navigate = useNavigate();
+  // NEW (voice calling)
+  const { startCall, callActive } = useCallContext();
 
   const [activeUsername, setActiveUsername] = useState(initialUsername || null);
 
@@ -1749,6 +1771,10 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const blockedByOther = !!activeUsername && blockedMe.has(activeUsername);
   const isChatBlocked = otherBlockedByMe || blockedByOther;
 
+  // NEW (voice calling): same rules as messaging — an accepted chat and
+  // nobody blocked. (useCall re-checks both on the caller's and callee's side.)
+  const canVoiceCall = !!activeConvo && !isPendingRequest && !isChatBlocked;
+
   const acceptRequest = async () => {
     if (!activeConvo || requestActionBusy) return;
     setRequestActionBusy(true);
@@ -2887,6 +2913,23 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               : "Offline"}
                       </span>
                     </div>
+
+                    {/* NEW (voice calling): 1:1 voice call button. Hidden for
+                        pending message requests and blocked chats; disabled while
+                        you're already on a call. */}
+                    {canVoiceCall && (
+                      <button
+                        type="button"
+                        className="mp-call-btn"
+                        onClick={() => startCall(activeUsername)}
+                        disabled={callActive}
+                        aria-label="Voice call"
+                        title={callActive ? "You're already on a call" : "Voice call"}
+                      >
+                        📞
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       className="mp-minimize-btn"
@@ -2948,6 +2991,22 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     ) : (
                       messages.map((m) => {
                         const mine = m.sender_username === currentUser;
+
+                        // NEW (voice calling): call history entries render as a
+                        // small centered line, without the react/reply/forward/
+                        // delete menu.
+                        if (m.attachment_type === "call") {
+                          return (
+                            <div key={m.id} className="mp-call-log-row">
+                              <span
+                                className={`mp-call-log ${isMissedCallLog(m, mine) ? "missed" : ""}`}
+                              >
+                                📞 {callLogLabel(m, mine)} · {timeShort(m.created_at)}
+                              </span>
+                            </div>
+                          );
+                        }
+
                         const fileInfo =
                           m.attachment_type === "file"
                             ? getFileTypeInfo(m.attachment_name)

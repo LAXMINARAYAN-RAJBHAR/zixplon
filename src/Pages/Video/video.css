@@ -1365,3 +1365,23 @@
 .yt_comment_emoji_btn:hover {
   background: var(--zx-surface2, #fef2f2);
 }
+
+/* Suggestion thumbnail fallbacks */
+.video_suggestion_thumbnail_frame {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+  pointer-events: none;
+}
+.video_suggestion_thumbnail_placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #1e1b4b, #7c3aed);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 20px;
+  box-sizing: border-box;
+}

@@ -308,6 +308,52 @@ const exitFullscreen = () => {
   else if (document.msExitFullscreen) document.msExitFullscreen();
 };
 
+// NEW: thumbnail for a suggestion card. Uses the stored thumbnail image
+// when it loads; if the URL is missing or the image fails (e.g. R2 videos
+// with no thumbnail_url), it falls back to showing the first frame of the
+// video itself (metadata-only preload + a #t=0.5 media fragment), and
+// finally to a plain placeholder for HLS manifests, which can't be
+// shown as a still frame this way.
+const SuggestionThumb = ({ thumbnail, src, title }) => {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [thumbnail]);
+
+  if (thumbnail && !imgFailed) {
+    return (
+      <img
+        src={thumbnail}
+        className="video_suggestion_thumbnail_img"
+        alt={title}
+        loading="lazy"
+        onError={() => setImgFailed(true)}
+      />
+    );
+  }
+
+  if (src && !isHlsSource(src)) {
+    return (
+      <video
+        className="video_suggestion_thumbnail_img video_suggestion_thumbnail_frame"
+        src={`${src}#t=0.5`}
+        muted
+        playsInline
+        preload="metadata"
+        tabIndex={-1}
+        aria-label={title}
+      />
+    );
+  }
+
+  return (
+    <div className="video_suggestion_thumbnail_img video_suggestion_thumbnail_placeholder">
+      ▶
+    </div>
+  );
+};
+
 const Video = ({ sideNavbar }) => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -2331,10 +2377,10 @@ const Video = ({ sideNavbar }) => {
               originalVolume={suggestion.original_audio_volume}
               className="video_suggestion_thumbnail"
             >
-              <img
-                src={suggestion.thumbnail}
-                className="video_suggestion_thumbnail_img"
-                alt={suggestion.title}
+              <SuggestionThumb
+                thumbnail={suggestion.thumbnail}
+                src={suggestion.src}
+                title={suggestion.title}
               />
             </PreviewThumb>
             <div className="video_suggestions_About">

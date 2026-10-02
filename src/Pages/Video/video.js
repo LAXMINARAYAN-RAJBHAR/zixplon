@@ -20,6 +20,9 @@ import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
 // ({ title, artist, cover, url }), same component used in PostCard.jsx /
 // Reels.jsx / PostComposer.jsx / VideoUpload.jsx.
 import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
+// NEW: hover-to-preview wrapper for thumbnails — used in the suggestions
+// sidebar below, same component the Home feed cards use.
+import PreviewThumb from "../../Component/Shared/PreviewThumb";
 // NEW: hls.js gives adaptive-bitrate HLS playback in every browser that
 // doesn't support it natively (i.e. everything except Safari/iOS).
 // Install with: npm install hls.js
@@ -2316,13 +2319,24 @@ const Video = ({ sideNavbar }) => {
             style={{ textDecoration: "none", color: "inherit" }}
             onClick={scrollToTopDeferred}
           >
-            <div className="video_suggestion_thumbnail">
+            {/* CHANGED: the thumbnail is now wrapped in PreviewThumb so
+                hovering it (after a short delay) plays the clip over the
+                thumbnail, same as the Home feed cards. PreviewThumb puts
+                `className` on its own wrapper div, so the existing
+                .video_suggestion_thumbnail sizing/rounding still applies. */}
+            <PreviewThumb
+              id={suggestion.id}
+              src={suggestion.src}
+              song={suggestion.song}
+              originalVolume={suggestion.original_audio_volume}
+              className="video_suggestion_thumbnail"
+            >
               <img
                 src={suggestion.thumbnail}
                 className="video_suggestion_thumbnail_img"
                 alt={suggestion.title}
               />
-            </div>
+            </PreviewThumb>
             <div className="video_suggestions_About">
               <div className="video_suggestions_About_title">
                 {suggestion.title}

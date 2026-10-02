@@ -9,6 +9,16 @@
 // (mute its video, or pause its song — whatever "quiet" means for that
 // card). This does NOT stop multiple cards from previewing at once —
 // it only ever silences all but the most recent one.
+//
+// Contract every consumer follows (Home feed cards, PreviewThumb,
+// ReelsStrip, Reels, Video, Profile post songs):
+//   1. CLAIM only while genuinely audible — playing AND unmuted. A
+//      muted autoplay fallback must not claim, or a silent card
+//      would needlessly quiet everyone else.
+//   2. RELEASE the moment you pause, mute, end or unmount.
+//   3. When your `onLose` callback fires, go QUIET (mute yourself,
+//      keep playing). That silence is temporary: do NOT write it to
+//      `soundPrefs`, so the visitor's own mute choice is untouched.
 
 let currentId = null;
 let currentRelease = null;
@@ -39,10 +49,16 @@ export const releaseSound = (id) => {
   }
 };
 
-// NEW: shared mute preference for hover-preview thumbnails
-// (Component/Shared/PreviewThumb.jsx). Sound-first: previews start
-// unmuted until the visitor mutes one, and that choice then carries
-// across every PreviewThumb on the page (Profile tabs, the reels
-// strip, ...). Existing cards that manage their own mute state are
-// unaffected — nothing else reads this.
+// Shared mute preference — the visitor's OWN choice, sound-first
+// (unmuted) until they mute something. It is read and written by
+// every sound-producing surface, so muting or unmuting in one place
+// carries to the rest of the app:
+//   - Component/Shared/PreviewThumb.jsx (Profile tabs, reels strip)
+//   - Reels.jsx (reel mute button)
+//   - Video.jsx (native mute control + "Tap to unmute")
+//   - Profile.js post-song player
+//
+// Only write it when the VISITOR mutes/unmutes — never for a mute the
+// app applied itself (blocked autoplay, or another card taking over
+// via claimSound).
 export const soundPrefs = { muted: false };

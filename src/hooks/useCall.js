@@ -118,7 +118,9 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
   try { detail = (await res.json()).error || ""; } catch (_) {}
   throw new Error(`Could not join the call (${res.status}${detail ? ": " + detail : ""})`);
 }
-      const { token } = await res.json();
+      const { token, url } = await res.json();
+const serverUrl = url || LIVEKIT_URL;
+if (!serverUrl) throw new Error("Call server URL is not configured.");
 
       const room = new Room({
         audioCaptureDefaults: {
@@ -142,7 +144,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           setAudioBlocked(!room.canPlaybackAudio),
         );
 
-      await room.connect(LIVEKIT_URL, token);
+      await room.connect(serverUrl, token);
       await room.localParticipant.setMicrophoneEnabled(true);
 
       if (!callRef.current || callRef.current.id !== c.id) {

@@ -75,7 +75,10 @@ export default async function handler(req, res) {
       canPublishData: false,
     });
 
-    return res.status(200).json({ token: await at.toJwt() });
+    return res.status(200).json({
+  token: await at.toJwt(),
+  url: process.env.LIVEKIT_URL,
+});
   } catch (err) {
     console.error('call-token error:', err);
     return res.status(500).json({ error: err.message || 'Server error' });

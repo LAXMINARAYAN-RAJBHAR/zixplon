@@ -1,0 +1,9 @@
+import { useRingtone } from "../../hooks/useRingtone";
+
+// inside the component that shows the incoming call screen:
+const isRinging =
+  incomingCall &&
+  incomingCall.status === "ringing" &&
+  incomingCall.callee_username?.toLowerCase() === currentUser?.toLowerCase();
+
+useRingtone(!!isRinging);

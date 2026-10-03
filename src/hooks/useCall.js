@@ -156,7 +156,9 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           console.log("LiveKit state:", s),
         );
 
-      await Promise.race([
+         console.log("LiveKit URL:", serverUrl);
+
+        await Promise.race([
         room.connect(serverUrl, token),
         timeoutAfter(15000, "Connecting to call server"),
       ]);

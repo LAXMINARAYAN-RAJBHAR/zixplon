@@ -157,7 +157,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     setErrorType("");
     try {
       const { error: err } = await supabase.auth.resetPasswordForEmail(currentEmail, {
-        redirectTo: "https://zixplon.in/#/reset-password",
+        redirectTo: window.location.origin + "/#/reset-password",
       });
       setLoading(false);
       if (err) return setError(err.message);
@@ -175,7 +175,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "https://zixplon.in/",
+        redirectTo: window.location.origin + "/",
         queryParams: { access_type: "offline", prompt: "consent" },
       },
     });

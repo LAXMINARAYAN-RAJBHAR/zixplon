@@ -1,3 +1,5 @@
+// api/call-token.js  (Vercel Node serverless function)
+// Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
 import { AccessToken } from 'livekit-server-sdk';
 import { createClient } from '@supabase/supabase-js';
 
@@ -9,7 +11,25 @@ const supabase = createClient(
 const same = (a, b) => (a || '').toLowerCase() === (b || '').toLowerCase();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// usernameFromJwt stays exactly as you have it
+// Works out which Zixplon username the signed-in Supabase user is.
+// ASSUMPTION: profiles.id equals the Supabase auth user id. If your link between
+// auth users and usernames is different, change only this function.
+async function usernameFromJwt(jwt) {
+  if (!jwt) return null;
+  const { data } = await supabase.auth.getUser(jwt);
+  const authUser = data && data.user;
+  if (!authUser) return null;
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('username')
+    .eq('id', authUser.id)
+    .maybeSingle();
+  return (
+    (prof && prof.username) ||
+    (authUser.user_metadata && authUser.user_metadata.username) ||
+    null
+  );
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -32,7 +52,7 @@ export default async function handler(req, res) {
         .maybeSingle();
       call = data;
       if (!call || call.status === 'accepted') break;
-      if (['ended', 'declined', 'missed', 'cancelled'].includes(call.status)) break;
+      if (['ended', 'declined', 'missed', 'cancelled', 'busy'].includes(call.status)) break;
       await sleep(400);
     }
 

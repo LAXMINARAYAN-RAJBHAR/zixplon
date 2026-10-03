@@ -1774,7 +1774,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   // NEW (voice calling): same rules as messaging — an accepted chat and
   // nobody blocked. (useCall re-checks both on the caller's and callee's side.)
   const canVoiceCall = !!activeConvo && !isPendingRequest && !isChatBlocked;
-  console.log("canVoiceCall", { canVoiceCall, status: activeConvo?.status, isChatBlocked, callActive });
 
   const acceptRequest = async () => {
     if (!activeConvo || requestActionBusy) return;

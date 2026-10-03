@@ -3,13 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { supabase } from "../config/supabase";
-import { useRingtone } from "./useRingtone"; // NEW: loud looping ringtone for the receiver
+import { useRingtone } from "./useRingtone"; // loud looping ringtone for the receiver
 
-// Reuse the LiveKit URL env var your live-streaming code already reads.
+// Fallback only. The server URL normally comes back from /api/call-token.
 const LIVEKIT_URL = process.env.REACT_APP_LIVEKIT_URL;
 const RING_TIMEOUT_MS = 40000; // caller gives up after this
 const STALE_RING_MS = 45000; // callee ignores rings older than this
 const FINAL = ["declined", "missed", "ended", "busy", "cancelled"];
+
+// Rejects after `ms` so a stuck step shows an error instead of "Connecting..." forever.
+const timeoutAfter = (ms, label) =>
+  new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(`${label} timed out`)), ms),
+  );
 
 // A call is only allowed between two people who have an accepted chat and
 // haven't blocked each other (same rules as sending a message).
@@ -47,9 +53,8 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
   const [error, setError] = useState(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
 
-  // NEW: ring loudly (and vibrate) on the RECEIVER's device while an incoming
-  // call is waiting to be answered. It stops automatically when the call is
-  // accepted, declined, missed or cancelled, because `call.status` changes.
+  // Ring loudly (and vibrate) on the RECEIVER's device while an incoming call
+  // is waiting to be answered. Stops automatically when call.status changes.
   useRingtone(!!call && call.role === "callee" && call.status === "incoming");
 
   const callRef = useRef(null);
@@ -114,13 +119,17 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         body: JSON.stringify({ callId: c.id }),
       });
       if (!res.ok) {
-  let detail = "";
-  try { detail = (await res.json()).error || ""; } catch (_) {}
-  throw new Error(`Could not join the call (${res.status}${detail ? ": " + detail : ""})`);
-}
+        let detail = "";
+        try {
+          detail = (await res.json()).error || "";
+        } catch (_) {}
+        throw new Error(
+          `Could not join the call (${res.status}${detail ? ": " + detail : ""})`,
+        );
+      }
       const { token, url } = await res.json();
-const serverUrl = url || LIVEKIT_URL;
-if (!serverUrl) throw new Error("Call server URL is not configured.");
+      const serverUrl = url || LIVEKIT_URL;
+      if (!serverUrl) throw new Error("Call server URL is not configured.");
 
       const room = new Room({
         audioCaptureDefaults: {
@@ -142,10 +151,19 @@ if (!serverUrl) throw new Error("Call server URL is not configured.");
         .on(RoomEvent.Disconnected, () => finish("ended"))
         .on(RoomEvent.AudioPlaybackStatusChanged, () =>
           setAudioBlocked(!room.canPlaybackAudio),
+        )
+        .on(RoomEvent.ConnectionStateChanged, (s) =>
+          console.log("LiveKit state:", s),
         );
 
-      await room.connect(serverUrl, token);
-      await room.localParticipant.setMicrophoneEnabled(true);
+      await Promise.race([
+        room.connect(serverUrl, token),
+        timeoutAfter(15000, "Connecting to call server"),
+      ]);
+      await Promise.race([
+        room.localParticipant.setMicrophoneEnabled(true),
+        timeoutAfter(10000, "Microphone"),
+      ]);
 
       if (!callRef.current || callRef.current.id !== c.id) {
         room.disconnect();
@@ -251,6 +269,18 @@ if (!serverUrl) throw new Error("Call server URL is not configured.");
     const c = callRef.current;
     if (!c || c.role !== "callee" || c.status !== "incoming") return;
     clearTimeout(ringTimer.current);
+
+    // Ask for the mic on the Accept tap, so the permission prompt appears
+    // right away instead of stalling the connection later.
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      s.getTracks().forEach((t) => t.stop());
+    } catch (e) {
+      setError("Microphone access is blocked. Allow it in your browser settings to answer calls.");
+      finish("declined");
+      return;
+    }
+
     setBoth({ ...c, status: "connecting" });
 
     const { data, error: err } = await supabase

@@ -113,7 +113,11 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         },
         body: JSON.stringify({ callId: c.id }),
       });
-      if (!res.ok) throw new Error("Could not join the call. Try again.");
+      if (!res.ok) {
+  let detail = "";
+  try { detail = (await res.json()).error || ""; } catch (_) {}
+  throw new Error(`Could not join the call (${res.status}${detail ? ": " + detail : ""})`);
+}
       const { token } = await res.json();
 
       const room = new Room({

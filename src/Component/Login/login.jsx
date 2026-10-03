@@ -175,7 +175,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "https://zixplon-tawny.vercel.app/",
+        redirectTo: window.location.origin,
         queryParams: { access_type: "offline", prompt: "consent" },
       },
     });

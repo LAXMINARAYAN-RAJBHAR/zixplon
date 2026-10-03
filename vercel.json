@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/call-token.js": {
+      "includeFiles": "node_modules/livekit-server-sdk/**"
+    }
+  },
   "rewrites": [
     { "source": "/api/manage-admin", "destination": "/api/admin?action=manage-admin" },
     { "source": "/api/moderate-user", "destination": "/api/admin?action=moderate-user" },

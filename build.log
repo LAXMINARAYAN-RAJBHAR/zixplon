@@ -1,0 +1,113 @@
+
+> zixplon@0.1.0 build
+> react-scripts build
+
+Creating an optimized production build...
+Browserslist: browsers data (caniuse-lite) is 7 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Browserslist: browsers data (caniuse-lite) is 7 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+Treating warnings as errors because process.env.CI = true.
+Most CI servers set it automatically.
+
+Failed to compile.
+
+[eslint] 
+src\App.js
+  Line 17:8:  'ComingSoon' is defined but never used  no-unused-vars
+  Line 28:8:  'PostFeed' is defined but never used    no-unused-vars
+
+src\Component\HomePage\homePage.js
+  Line 3:10:     'reelsData' is defined but never used                                                                                                                                                            no-unused-vars
+  Line 12:8:     'AddIcon' is defined but never used                                                                                                                                                              no-unused-vars
+  Line 336:6:    React Hook useEffect has a missing dependency: 'soundId'. Either include it or remove the dependency array                                                                                       react-hooks/exhaustive-deps
+  Line 360:6:    React Hook useEffect has a missing dependency: 'soundId'. Either include it or remove the dependency array                                                                                       react-hooks/exhaustive-deps
+  Line 472:6:    React Hook useEffect has a missing dependency: 'soundId'. Either include it or remove the dependency array                                                                                       react-hooks/exhaustive-deps
+  Line 496:6:    React Hook useEffect has a missing dependency: 'soundId'. Either include it or remove the dependency array                                                                                       react-hooks/exhaustive-deps
+  Line 588:6:    React Hook useEffect has a missing dependency: 'short.created_at'. Either include it or remove the dependency array                                                                              react-hooks/exhaustive-deps
+  Line 823:11:   Redundant alt attribute. Screen-readers already announce `img` tags as an image. You don’t need to use the words `image`, `photo,` or `picture` (or any specified custom words) in the alt prop  jsx-a11y/img-redundant-alt
+  Line 1009:6:   React Hook useEffect has a missing dependency: 'songSoundId'. Either include it or remove the dependency array                                                                                   react-hooks/exhaustive-deps
+  Line 1014:6:   React Hook useEffect has a missing dependency: 'songSoundId'. Either include it or remove the dependency array                                                                                   react-hooks/exhaustive-deps
+  Line 2360:6:   React Hook useEffect has missing dependencies: 'muteForArbiter' and 'soundId'. Either include them or remove the dependency array                                                                react-hooks/exhaustive-deps
+  Line 2364:6:   React Hook useEffect has a missing dependency: 'videoRef'. Either include it or remove the dependency array                                                                                      react-hooks/exhaustive-deps
+  Line 2383:6:   React Hook useEffect has a missing dependency: 'soundId'. Either include it or remove the dependency array                                                                                       react-hooks/exhaustive-deps
+  Line 3966:10:  'dbPosts' is assigned a value but never used                                                                                                                                                     no-unused-vars
+  Line 3982:10:  'playlistsCache' is assigned a value but never used                                                                                                                                              no-unused-vars
+  Line 3982:26:  'setPlaylistsCache' is assigned a value but never used                                                                                                                                           no-unused-vars
+
+src\Component\Messages\GroupChatWindow.jsx
+  Line 501:9:  'updateAttachmentProgress' is assigned a value but never used  no-unused-vars
+
+src\Component\Reels\reels.jsx
+  Line 387:10:   'dislikeCount' is assigned a value but never used                                                                                                                                                                                                                        no-unused-vars
+  Line 399:10:   'viewCount' is assigned a value but never used                                                                                                                                                                                                                           no-unused-vars
+  Line 430:6:    React Hook useEffect has a missing dependency: 'reel'. Either include it or remove the dependency array. If 'setShowNewBadge' needs the current value of 'reel', you can also switch to useReducer instead of useState and read 'reel' in the reducer                    react-hooks/exhaustive-deps
+  Line 1161:66:  The ref value 'videoRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'videoRef.current' to a variable inside the effect, and use that variable in the cleanup function          react-hooks/exhaustive-deps
+  Line 1162:48:  The ref value 'songAudioRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'songAudioRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+  Line 1164:6:   React Hook useEffect has missing dependencies: 'reel.id' and 'reel.src'. Either include them or remove the dependency array                                                                                                                                              react-hooks/exhaustive-deps
+
+src\Component\Shared\SongAttachmentCard.jsx
+  Line 59:16:  The ref value 'audioRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'audioRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+
+src\Pages\Explore\ExploreGrid.jsx
+  Line 6:7:  'formatCount' is assigned a value but never used  no-unused-vars
+
+src\Pages\History\History.jsx
+  Line 24:6:  React Hook useEffect has a missing dependency: 'loadHistory'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\Pages\LocalMediaPlayer\LocalMediaPlayer.jsx
+  Line 109:6:  React Hook useEffect has missing dependencies: 'currentMedia', 'currentObjectURL', and 'playing'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  Line 152:7:  Expected a default case                                                                                                                               default-case
+  Line 170:6:  React Hook useEffect has missing dependencies: 'seek' and 'togglePlay'. Either include them or remove the dependency array                            react-hooks/exhaustive-deps
+
+src\Pages\Messages\MessagesPanel.jsx
+  Line 1317:6:  React Hook useEffect has a missing dependency: 'activeConvo'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 1399:6:  React Hook useEffect has a missing dependency: 'activeConvo'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 1997:9:  'anyFailed' is assigned a value but never used                                                                  no-unused-vars
+
+src\Pages\Playlist\Playlist.jsx
+  Line 44:6:  React Hook useEffect has a missing dependency: 'loadPlaylists'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\Pages\PostFeed\PhotoViewer.jsx
+  Line 280:9:  Redundant alt attribute. Screen-readers already announce `img` tags as an image. You don’t need to use the words `image`, `photo,` or `picture` (or any specified custom words) in the alt prop  jsx-a11y/img-redundant-alt
+
+src\Pages\PostFeed\PostCard.jsx
+  Line 307:11:   Redundant alt attribute. Screen-readers already announce `img` tags as an image. You don’t need to use the words `image`, `photo,` or `picture` (or any specified custom words) in the alt prop  jsx-a11y/img-redundant-alt
+  Line 576:9:    'navigate' is assigned a value but never used                                                                                                                                                    no-unused-vars
+  Line 1137:21:  Redundant alt attribute. Screen-readers already announce `img` tags as an image. You don’t need to use the words `image`, `photo,` or `picture` (or any specified custom words) in the alt prop  jsx-a11y/img-redundant-alt
+
+src\Pages\PostFeed\PostFeed.jsx
+  Line 9:8:  'SideNavbar' is defined but never used  no-unused-vars
+
+src\Pages\Profile\profile.js
+  Line 361:7:   Redundant alt attribute. Screen-readers already announce `img` tags as an image. You don’t need to use the words `image`, `photo,` or `picture` (or any specified custom words) in the alt prop  jsx-a11y/img-redundant-alt
+  Line 493:17:  Redundant alt attribute. Screen-readers already announce `img` tags as an image. You don’t need to use the words `image`, `photo,` or `picture` (or any specified custom words) in the alt prop  jsx-a11y/img-redundant-alt
+
+src\Pages\VideoUpload\videoUpload.js
+  Line 90:6:   React Hook useEffect has a missing dependency: 'navigate'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 716:9:  'uploadLabel' is assigned a value but never used                                                             no-unused-vars
+
+src\Pages\Video\video.js
+  Line 201:7:  'getVideoType' is assigned a value but never used                                                         no-unused-vars
+  Line 769:6:  React Hook useEffect has a missing dependency: 'video'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  Line 795:6:  React Hook useEffect has a missing dependency: 'video'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\Pages\WatchLater\WatchLater.jsx
+  Line 17:6:  React Hook useEffect has a missing dependency: 'loadItems'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\Pages\YourClips\YourClips.jsx
+  Line 19:6:  React Hook useEffect has a missing dependency: 'loadClips'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+src\hooks\useRequireUsernameSetup.js
+  Line 2:10:  'supabase' is defined but never used  no-unused-vars
+
+src\utils\linkify.js
+  Line 13:7:  'BOLD_REGEX' is assigned a value but never used  no-unused-vars
+
+src\utils\videoQuality.js
+  Line 1:1:  Unexpected Unicode BOM (Byte Order Mark)  unicode-bom
+
+

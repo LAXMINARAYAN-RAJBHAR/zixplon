@@ -1,5 +1,12 @@
 {
   "rewrites": [
+    { "source": "/api/manage-admin", "destination": "/api/admin?action=manage-admin" },
+    { "source": "/api/moderate-user", "destination": "/api/admin?action=moderate-user" },
+    { "source": "/api/manage-home-hub-tabs", "destination": "/api/admin?action=manage-home-hub-tabs" },
+    { "source": "/api/upload", "destination": "/api/files?action=upload" },
+    { "source": "/api/upload-url", "destination": "/api/files?action=upload-url" },
+    { "source": "/api/process-bill-payment", "destination": "/api/payments?action=process-bill-payment" },
+    { "source": "/api/process-recharge", "destination": "/api/payments?action=process-recharge" },
     {
       "source": "/((?!api/).*)",
       "destination": "/index.html"

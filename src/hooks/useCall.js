@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { supabase } from "../config/supabase";
+import { useRingtone } from "./useRingtone"; // NEW: loud looping ringtone for the receiver
 
 // Reuse the LiveKit URL env var your live-streaming code already reads.
 const LIVEKIT_URL = process.env.REACT_APP_LIVEKIT_URL;
@@ -45,6 +46,11 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
+
+  // NEW: ring loudly (and vibrate) on the RECEIVER's device while an incoming
+  // call is waiting to be answered. It stops automatically when the call is
+  // accepted, declined, missed or cancelled, because `call.status` changes.
+  useRingtone(!!call && call.role === "callee" && call.status === "incoming");
 
   const callRef = useRef(null);
   const roomRef = useRef(null);

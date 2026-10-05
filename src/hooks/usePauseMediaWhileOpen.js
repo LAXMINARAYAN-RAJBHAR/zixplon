@@ -1,3 +1,4 @@
+/* global WeakRef */
 // src/hooks/usePauseMediaWhileOpen.js
 //
 // While `open` is true: pauses every playing <video>/<audio> (including audio
@@ -9,9 +10,14 @@ import { useEffect } from "react";
 
 const isExempt = (el) => !!(el.closest && el.closest("[data-keep-playing]"));
 
-const known = []; // WeakRef of every media element that has called play()
+// WeakRef lets finished audio objects be garbage-collected. Very old browsers
+// don't have it, so fall back to a plain reference there.
+const makeRef = (el) =>
+  typeof WeakRef !== "undefined" ? new WeakRef(el) : { deref: () => el };
+
+const known = []; // refs to every media element that has called play()
 const seen = new WeakSet();
-const toResume = []; // WeakRef of elements we paused or blocked
+const toResume = []; // refs to elements we paused or blocked
 const queued = new WeakSet();
 let blockers = 0; // number of open panels that want silence
 let patched = false;
@@ -19,14 +25,14 @@ let patched = false;
 const remember = (el) => {
   if (!seen.has(el)) {
     seen.add(el);
-    known.push(new WeakRef(el));
+    known.push(makeRef(el));
   }
 };
 
 const queueResume = (el) => {
   if (!queued.has(el)) {
     queued.add(el);
-    toResume.push(new WeakRef(el));
+    toResume.push(makeRef(el));
   }
 };
 

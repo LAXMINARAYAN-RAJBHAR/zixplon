@@ -1,9 +1,11 @@
 // src/hooks/useCall.js
 // npm i livekit-client
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Room, RoomEvent, Track } from "livekit-client";
 import { supabase } from "../config/supabase";
 import { useRingtone } from "./useRingtone"; // loud looping ringtone for the receiver
+import { Room, RoomEvent, Track, setLogLevel } from "livekit-client";
+
+setLogLevel("debug"); // temporary, remove after debugging
 
 // Fallback only. The server URL normally comes back from /api/call-token.
 const LIVEKIT_URL = process.env.REACT_APP_LIVEKIT_URL;
@@ -171,7 +173,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         );
 
       await Promise.race([
-        room.connect(serverUrl, token),
+        room.connect(serverUrl, token, { peerConnectionTimeout: 30000 }),
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error(`Call server timed out [${host}] [${stage}]`)),

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../config/supabase";
 import { useRingtone } from "./useRingtone"; // loud looping ringtone for the receiver
-import { Room, RoomEvent, Track, setLogLevel } from "livekit-client";
+import { Room, RoomEvent, Track } from "livekit-client";
 
 // Fallback only. The server URL normally comes back from /api/call-token.
 const LIVEKIT_URL = process.env.REACT_APP_LIVEKIT_URL;
@@ -108,21 +108,41 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
 
   const connect = useCallback(
     async (c) => {
+      const requestToken = (accessToken) =>
+        fetch("/api/call-token", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({ callId: c.id }),
+        });
+
+      // Use a fresh login token: refresh it first if it's missing or about to expire.
       const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData && sessionData.session && sessionData.session.access_token;
-      const res = await fetch("/api/call-token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        body: JSON.stringify({ callId: c.id }),
-      });
+      let session = sessionData && sessionData.session;
+      if (!session || (session.expires_at && session.expires_at * 1000 < Date.now() + 60000)) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        if (refreshed && refreshed.session) session = refreshed.session;
+      }
+      let res = await requestToken(session && session.access_token);
+
+      // Still rejected as signed out: force one refresh and retry once.
+      if (res.status === 401) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        if (refreshed && refreshed.session) {
+          res = await requestToken(refreshed.session.access_token);
+        }
+      }
+
       if (!res.ok) {
         let detail = "";
         try {
           detail = (await res.json()).error || "";
         } catch (_) {}
+        if (res.status === 401) {
+          throw new Error("Your login has expired. Please log out and log back in.");
+        }
         throw new Error(
           `Could not join the call (${res.status}${detail ? ": " + detail : ""})`,
         );
@@ -170,12 +190,14 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           console.log("LiveKit state:", s),
         );
 
+      // peerConnectionTimeout (30s) is the library's own limit; the outer
+      // timeout (35s) is slightly longer so the library's error wins.
       await Promise.race([
         room.connect(serverUrl, token, { peerConnectionTimeout: 30000 }),
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error(`Call server timed out [${host}] [${stage}]`)),
-            15000,
+            35000,
           ),
         ),
       ]);

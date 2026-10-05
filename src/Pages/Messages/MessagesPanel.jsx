@@ -16,6 +16,7 @@ import { playSendSound, playReceiveSound, playNotificationSound } from "../../ut
 import { ensureNotificationPermission, showChatNotification } from "../../utils/chatNotifications";
 import { extractFirstUrl } from "../../utils/linkPreview";
 import LinkPreviewCard from "../../Component/Messages/LinkPreviewCard";
+import { usePauseMediaWhileOpen } from "../../hooks/usePauseMediaWhileOpen";
 import { uploadAttachmentToR2 } from "../../utils/mediaUpload";
 // NEW: device-side cache (IndexedDB) so chats open instantly and only the
 // newest messages are fetched from Supabase. See utils/chatCache.js.
@@ -501,6 +502,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const [minimized, setMinimized] = useState(false);
   const minimizePanel = () => setMinimized(true);
   const maximizePanel = () => setMinimized(false);
+    // Pause background music/video while the chat is open (resumes on close or minimize).
+  usePauseMediaWhileOpen(!!currentUser && !minimized);
   // Used by the mini-bar's own "✕" — closing from the mini-bar should
   // behave exactly like closing the full panel (same history-depth
   // unwind via closePanel), just also clearing minimized state so a
@@ -2609,8 +2612,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
         if (!dragging) closePanel();
       }}
     >
-      <div
+        <div
         ref={panelRef}
+        data-keep-playing="true"
         className={`mp-panel ${dragging ? "mp-dragging" : ""} ${!currentUser ? "mp-panel-login" : ""}`}
         style={currentUser ? panelStyle : undefined}
         onClick={(e) => e.stopPropagation()}

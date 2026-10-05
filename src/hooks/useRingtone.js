@@ -1,3 +1,4 @@
+// src/hooks/useRingtone.js
 import { useEffect } from "react";
 
 const ring = typeof Audio !== "undefined" ? new Audio("/ringtone.mp3") : null;
@@ -5,6 +6,9 @@ if (ring) {
   ring.loop = true;
   ring.volume = 1; // maximum allowed by the browser
   ring.preload = "auto";
+  // Never paused by usePauseMediaWhileOpen, so an incoming call still rings
+  // while the chat panel is open.
+  ring.dataset.keepPlaying = "1";
 }
 
 // Browsers block audio until the user has tapped the page at least once.
@@ -13,7 +17,8 @@ let unlocked = false;
 const unlock = () => {
   if (unlocked || !ring) return;
   ring.muted = true;
-  ring.play()
+  ring
+    .play()
     .then(() => {
       ring.pause();
       ring.currentTime = 0;
@@ -24,13 +29,13 @@ const unlock = () => {
 };
 if (typeof window !== "undefined") {
   ["pointerdown", "touchstart", "keydown"].forEach((evt) =>
-    window.addEventListener(evt, unlock, { passive: true })
+    window.addEventListener(evt, unlock, { passive: true }),
   );
 }
 
 export function useRingtone(active) {
   useEffect(() => {
-    if (!ring) return;
+    if (!ring) return undefined;
     let vibTimer;
 
     if (active) {

@@ -144,6 +144,9 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           if (track.kind !== Track.Kind.Audio) return;
           const el = track.attach();
           el.style.display = "none";
+          // Never paused by usePauseMediaWhileOpen, so you can still hear the
+          // other person while the chat panel is open.
+          el.dataset.keepPlaying = "1";
           document.body.appendChild(el);
           audioEls.current.push(el);
         })
@@ -156,9 +159,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           console.log("LiveKit state:", s),
         );
 
-         console.log("LiveKit URL:", serverUrl);
-
-        await Promise.race([
+      await Promise.race([
         room.connect(serverUrl, token),
         timeoutAfter(15000, "Connecting to call server"),
       ]);

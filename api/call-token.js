@@ -1,5 +1,5 @@
 // api/call-token.js  (Vercel Node serverless function)
-// Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+// Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
 import { AccessToken } from 'livekit-server-sdk';
 import { createClient } from '@supabase/supabase-js';
 
@@ -8,27 +8,47 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const same = (a, b) => (a || '').toLowerCase() === (b || '').toLowerCase();
+// Compare usernames ignoring case and spaces (some places store them lowercased / space-stripped).
+const norm = (s) => (s || '').toString().toLowerCase().replace(/\s+/g, '');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Works out which Zixplon username the signed-in Supabase user is.
-// ASSUMPTION: profiles.id equals the Supabase auth user id. If your link between
-// auth users and usernames is different, change only this function.
-async function usernameFromJwt(jwt) {
-  if (!jwt) return null;
+// Verifies the Supabase login and returns every username this user could be known by.
+// Candidates come ONLY from server-verified data (never from the browser).
+async function candidatesFromJwt(jwt) {
+  if (!jwt) return { authUser: null, candidates: [] };
   const { data } = await supabase.auth.getUser(jwt);
   const authUser = data && data.user;
-  if (!authUser) return null;
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('username')
-    .eq('id', authUser.id)
-    .maybeSingle();
-  return (
-    (prof && prof.username) ||
-    (authUser.user_metadata && authUser.user_metadata.username) ||
-    null
-  );
+  if (!authUser) return { authUser: null, candidates: [] };
+
+  const list = [];
+  const add = (v) => {
+    if (v && typeof v === 'string' && v.trim()) list.push(v.trim());
+  };
+
+  // 1. profiles row keyed by the auth user id
+  try {
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', authUser.id)
+      .maybeSingle();
+    add(prof && prof.username);
+  } catch (e) {
+    console.warn('profiles lookup failed:', e.message);
+  }
+
+  // 2. metadata fallbacks (same ones the app uses when no profile row exists)
+  const m = authUser.user_metadata || {};
+  add(m.username);
+  add(m.user_name);
+  add(m.preferred_username);
+  add(m.full_name);
+  add(m.name);
+
+  // 3. email prefix
+  if (authUser.email) add(authUser.email.split('@')[0]);
+
+  return { authUser, candidates: list };
 }
 
 export default async function handler(req, res) {
@@ -37,8 +57,9 @@ export default async function handler(req, res) {
   try {
     const jwt = (req.headers.authorization || '').replace('Bearer ', '');
     if (!jwt) return res.status(401).json({ error: 'No session token sent' });
-    const username = await usernameFromJwt(jwt);
-    if (!username) return res.status(401).json({ error: 'No username found for this login' });
+
+    const { authUser, candidates } = await candidatesFromJwt(jwt);
+    if (!authUser) return res.status(401).json({ error: 'Not signed in' });
 
     const callId = req.body && req.body.callId;
     if (!callId) return res.status(400).json({ error: 'callId required' });
@@ -57,9 +78,23 @@ export default async function handler(req, res) {
       await sleep(400);
     }
 
-    if (!call || (!same(call.caller_username, username) && !same(call.callee_username, username))) {
+    if (!call) return res.status(403).json({ error: 'Not part of this call' });
+
+    // Which side of the call is this logged-in user?
+    const asCaller = candidates.some((c) => norm(c) === norm(call.caller_username));
+    const asCallee = candidates.some((c) => norm(c) === norm(call.callee_username));
+    if (!asCaller && !asCallee) {
+      // Logged server-side only, so you can see what didn't match in Vercel Logs.
+      console.error('call-token: no username match', {
+        callId,
+        candidates,
+        caller: call.caller_username,
+        callee: call.callee_username,
+      });
       return res.status(403).json({ error: 'Not part of this call' });
     }
+    const username = asCaller ? call.caller_username : call.callee_username;
+
     if (call.status !== 'accepted') {
       return res.status(409).json({ error: 'Call is not active', status: call.status });
     }
@@ -77,9 +112,9 @@ export default async function handler(req, res) {
     });
 
     return res.status(200).json({
-  token: await at.toJwt(),
-  url: process.env.LIVEKIT_URL,
-});
+      token: await at.toJwt(),
+      url: process.env.LIVEKIT_URL,
+    });
   } catch (err) {
     console.error('call-token error:', err);
     return res.status(500).json({ error: err.message || 'Server error' });

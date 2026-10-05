@@ -128,8 +128,16 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         );
       }
       const { token, url } = await res.json();
-      const serverUrl = url || LIVEKIT_URL;
+      // .trim() removes any stray space/newline pasted into the env var.
+      const serverUrl = (url || LIVEKIT_URL || "").trim();
       if (!serverUrl) throw new Error("Call server URL is not configured.");
+
+      // For the error message only: which server we tried, and how far we got.
+      let host = "bad-url";
+      try {
+        host = new URL(serverUrl.replace(/^ws/, "http")).host;
+      } catch (_) {}
+      let stage = "no signal";
 
       const room = new Room({
         audioCaptureDefaults: {
@@ -140,6 +148,9 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       });
       roomRef.current = room;
       room
+        .on(RoomEvent.SignalConnected, () => {
+          stage = "signal ok";
+        })
         .on(RoomEvent.TrackSubscribed, (track) => {
           if (track.kind !== Track.Kind.Audio) return;
           const el = track.attach();
@@ -161,7 +172,12 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
 
       await Promise.race([
         room.connect(serverUrl, token),
-        timeoutAfter(15000, "Connecting to call server"),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Call server timed out [${host}] [${stage}]`)),
+            15000,
+          ),
+        ),
       ]);
       await Promise.race([
         room.localParticipant.setMicrophoneEnabled(true),

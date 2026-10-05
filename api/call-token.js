@@ -36,8 +36,9 @@ export default async function handler(req, res) {
 
   try {
     const jwt = (req.headers.authorization || '').replace('Bearer ', '');
+    if (!jwt) return res.status(401).json({ error: 'No session token sent' });
     const username = await usernameFromJwt(jwt);
-    if (!username) return res.status(401).json({ error: 'Not signed in' });
+    if (!username) return res.status(401).json({ error: 'No username found for this login' });
 
     const callId = req.body && req.body.callId;
     if (!callId) return res.status(400).json({ error: 'callId required' });

@@ -5,8 +5,6 @@ import { supabase } from "../config/supabase";
 import { useRingtone } from "./useRingtone"; // loud looping ringtone for the receiver
 import { Room, RoomEvent, Track, setLogLevel } from "livekit-client";
 
-setLogLevel("debug"); // temporary, remove after debugging
-
 // Fallback only. The server URL normally comes back from /api/call-token.
 const LIVEKIT_URL = process.env.REACT_APP_LIVEKIT_URL;
 const RING_TIMEOUT_MS = 40000; // caller gives up after this

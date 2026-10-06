@@ -6,6 +6,8 @@ import { ThreeDotMenu, ReportModal, shareContent } from "../../Component/Shared/
 // song synced to the clip, and a mute button that never triggers the
 // card's navigation. See Component/Shared/PreviewThumb.jsx.
 import PreviewThumb from "../../Component/Shared/PreviewThumb";
+// NEW: shared always-mounted, preloading, buffer-hiding preview video.
+import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
 
 const PAGE_SIZE = 10;
 const LOAD_MORE_THRESHOLD_PX = 300;
@@ -210,42 +212,32 @@ const ReelStripCard = ({
         originalVolume={reel.original_audio_volume}
         className="pf-reel-thumb-wrap"
       >
-        {reel.thumbnail ? (
+        {reel.thumbnail && (
           <img
             src={reel.thumbnail}
             alt={reel.title}
             className="pf-reel-thumb"
             loading="lazy"
           />
-        ) : reel.src ? (
-          <video
+        )}
+
+        {/* CHANGED: one always-mounted video per card (no more mounting
+            a fresh <video> when autoplay starts). It preloads once the
+            card is within ~400px of the screen, plays muted while this
+            card is the strip's active one, and cross-fades in over the
+            thumbnail only when actually playing — so no buffering is
+            ever visible. With no thumbnail it shows its own first frame. */}
+        {reel.src ? (
+          <AutoPlayVideo
             src={reel.src}
-            muted
-            loop
-            playsInline
-            preload="metadata"
+            poster={reel.thumbnail}
+            active={showAutoplay}
             className="pf-reel-thumb"
           />
         ) : (
-          <div className="pf-reel-thumb pf-reel-thumb-placeholder">🎬</div>
-        )}
-
-        {/* NEW: muted looping autoplay clip, laid over the thumbnail
-            while this card is the strip's active (scrolled-into-view)
-            card. Unmounting it (scroll away / hover / another card
-            takes over) stops playback and releases the video. */}
-        {showAutoplay && (
-          <video
-            src={reel.src}
-            muted
-            autoPlay
-            loop
-            playsInline
-            preload="metadata"
-            className="pf-reel-thumb"
-            style={{ position: "absolute", inset: 0, objectFit: "cover" }}
-            onCanPlay={(e) => e.target.play().catch(() => {})}
-          />
+          !reel.thumbnail && (
+            <div className="pf-reel-thumb pf-reel-thumb-placeholder">🎬</div>
+          )
         )}
 
         <span className="pf-reel-play-badge">▶</span>

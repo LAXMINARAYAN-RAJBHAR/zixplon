@@ -8,6 +8,8 @@ import {
   formatViews,
   formatTimeAgo,
 } from "../../Component/Shared/ContentMenu";
+// NEW: shared always-mounted, preloading, buffer-hiding preview video.
+import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
 
 const HOVER_PREVIEW_DELAY = 400; // ms
 
@@ -31,7 +33,6 @@ const VideoFeedCard = ({ video }) => {
   const previewing = hovering || inView;
   const [deleted, setDeleted] = useState(false);
   const cardRef = useRef(null);
-  const videoRef = useRef(null);
   const timeoutRef = useRef(null);
 
   const loggedInUsername = localStorage.getItem("username") || "";
@@ -52,22 +53,10 @@ const VideoFeedCard = ({ video }) => {
     return () => observer.disconnect();
   }, [video?.src]);
 
-  // ── NEW: actually start/stop playback whenever `previewing` changes ──
-  // Always muted — browsers block unmuted autoplay, and a muted loop
-  // is the expected feed behavior.
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (previewing) {
-      v.muted = true;
-      v.play().catch(() => {});
-    } else {
-      try {
-        v.pause();
-        v.currentTime = 0;
-      } catch (_) {}
-    }
-  }, [previewing, video?.src]);
+  // Playback itself now lives in <AutoPlayVideo>, which keeps one video
+  // element mounted, preloads it before the card is on screen, and just
+  // plays/pauses it as `previewing` flips — no more mounting a fresh
+  // <video> (and waiting on it) at the moment of playback.
 
   // Clear any pending hover timer on unmount.
   useEffect(() => () => clearTimeout(timeoutRef.current), []);
@@ -281,17 +270,20 @@ const VideoFeedCard = ({ video }) => {
       <ThreeDotMenu items={menuItems} />
 
       <div className="pf-video-card-thumb-wrap">
-        {video.thumbnail ? (
-          <>
-            <img src={video.thumbnail} alt={video.title} className="pf-video-card-thumb" style={{ opacity: previewing && video.src ? 0 : 1 }} loading="lazy" />
-            {previewing && video.src && (
-              <video ref={videoRef} src={video.src} muted autoPlay loop playsInline preload="metadata" className="pf-video-card-thumb pf-video-card-thumb-video" />
-            )}
-          </>
-        ) : video.src ? (
-          <video ref={videoRef} src={video.src} muted loop playsInline preload="metadata" className="pf-video-card-thumb" />
+        {video.thumbnail && (
+          <img src={video.thumbnail} alt={video.title} className="pf-video-card-thumb" loading="lazy" />
+        )}
+        {video.src ? (
+          <AutoPlayVideo
+            src={video.src}
+            poster={video.thumbnail}
+            active={previewing}
+            className="pf-video-card-thumb"
+          />
         ) : (
-          <div className="pf-video-card-thumb pf-video-card-placeholder">🎬</div>
+          !video.thumbnail && (
+            <div className="pf-video-card-thumb pf-video-card-placeholder">🎬</div>
+          )
         )}
         {video.duration && video.duration !== "00:00" && (
           <span className="pf-video-card-duration">{video.duration}</span>

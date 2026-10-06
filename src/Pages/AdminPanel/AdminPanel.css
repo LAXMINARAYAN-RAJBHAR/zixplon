@@ -1307,6 +1307,7 @@
 
 /* ══════════════════════════════════════════════════════════════════
    USERS TAB — serial number + online/offline indicator
+   (also used by the Logins tab)
    ══════════════════════════════════════════════════════════════════ */
 
 .admin_user_mgmt_left {
@@ -1373,4 +1374,87 @@
 @keyframes adminOnlinePulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); }
   50%      { box-shadow: 0 0 0 4px rgba(22, 163, 74, 0); }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MERGED EXPORT MENU — header "Export Report" dropdown
+   (Full report / Logins only  ×  Excel / Word / PDF)
+   ══════════════════════════════════════════════════════════════════ */
+
+.admin_export_menu_wrap {
+  position: relative;
+}
+
+.admin_export_menu_backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 998;
+}
+
+.admin_export_menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 999;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  background: var(--zx-surface);
+  border: 2px solid var(--zx-border);
+  border-radius: 14px;
+  box-shadow: var(--zx-shadow);
+}
+
+.admin_export_scope {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 4px;
+  background: var(--zx-surface2);
+  border-radius: 10px;
+}
+.admin_export_scope button {
+  flex: 1;
+  padding: 7px 8px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--zx-text2);
+  cursor: pointer;
+}
+.admin_export_scope button.active {
+  background: var(--zx-primary);
+  color: #fff;
+}
+
+.admin_export_item {
+  text-align: left;
+  padding: 9px 12px;
+  border: none;
+  background: none;
+  border-radius: 10px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--zx-text);
+  cursor: pointer;
+}
+.admin_export_item:hover { background: var(--zx-surface2); }
+
+.admin_export_hint {
+  margin: 4px 4px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--zx-text3);
+}
+
+@media (max-width: 768px) {
+  .admin_header .admin_export_menu_wrap { flex: 1 1 100%; }
+  .admin_header .admin_export_menu_wrap .admin_export_btn { width: 100%; justify-content: center; }
+  .admin_export_menu { left: 0; right: 0; }
 }

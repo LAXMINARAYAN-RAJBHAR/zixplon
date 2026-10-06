@@ -15,7 +15,7 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 // docx — generates a .docx (Word) report entirely client-side, used by
-// the Logins tab's "Export to Word" button. Requires:
+// the merged "Export Report" menu. Requires:
 // `npm install docx`
 import {
   Document,
@@ -91,7 +91,7 @@ const formatDuration = (totalSeconds) => {
 // submissions before making a network call.
 const looksLikeEmail = (v) => /\S+@\S+\.\S+/.test(v);
 
-// Downloads an in-memory Blob as a file — shared by the Word export
+// Downloads an in-memory Blob as a file — shared by the Word exports
 // below (jsPDF and XLSX have their own built-in .save()/.writeFile()).
 const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob);
@@ -181,6 +181,10 @@ const AdminPanel = () => {
   const [previewReport, setPreviewReport] = useState(null);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  // NEW: merged export menu state (Full report / Logins only × Excel / Word / PDF)
+  const [exportingWord, setExportingWord] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportScope, setExportScope] = useState("all"); // "all" | "logins"
   const [visits, setVisits] = useState([]);
   const [visitsLoading, setVisitsLoading] = useState(false);
   const [visitsLoaded, setVisitsLoaded] = useState(false);
@@ -648,7 +652,7 @@ const AdminPanel = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // NEW: keep online status fresh (every 20s) while the Users tab is open.
+  // NEW: keep online status fresh (every 20s) while the Users or Logins tab is open.
   useEffect(() => {
     if (activeTab !== "users" && activeTab !== "logins") return;
     const id = setInterval(fetchOnlineUsers, 20000);
@@ -728,7 +732,7 @@ const AdminPanel = () => {
     )
     : userRows;
 
-  // NEW: online helpers for the Users tab.
+  // NEW: online helpers for the Users + Logins tabs.
   const isUserOnline = (u) =>
     !!u.username && onlineUsernames.has(u.username.toLowerCase());
   const onlineCount = userRows.filter(isUserOnline).length;
@@ -848,7 +852,7 @@ const AdminPanel = () => {
     setHubTabBusyKey(null);
   };
 
-  // ── Shared export data fetcher (existing header Excel/PDF export) ──────────
+  // ── Shared export data fetcher (full-report Excel/Word/PDF export) ─────────
   const fetchExportData = async () => {
     const [
       { data: profiles, error: profilesErr },
@@ -911,7 +915,7 @@ const AdminPanel = () => {
     return { profiles, videos, reels, posts, postComments, postReactions, likes, views, usersSheet };
   };
 
-  // ── Export to Excel (header button) ─────────────────────────────────────────
+  // ── Full report → Excel ─────────────────────────────────────────────────────
   const exportToExcel = async () => {
     if (exportingExcel) return;
     setExportingExcel(true);
@@ -945,7 +949,7 @@ const AdminPanel = () => {
     }
   };
 
-  // ── Export to PDF (header button) ───────────────────────────────────────────
+  // ── Full report → PDF ───────────────────────────────────────────────────────
   const exportToPDF = async () => {
     if (exportingPdf) return;
     setExportingPdf(true);
@@ -1075,6 +1079,95 @@ const AdminPanel = () => {
     }
   };
 
+  // ── Full report → Word ──────────────────────────────────────────────────────
+  const exportToWord = async () => {
+    if (exportingWord) return;
+    setExportingWord(true);
+    try {
+      const { videos, reels, posts, postComments, postReactions, likes, views, usersSheet } =
+        await fetchExportData();
+
+      const MAX_ROWS = 1000; // keeps the .docx a sane size
+      const day = (v) => (v ? new Date(v).toLocaleDateString("en-IN") : "");
+
+      const section = (title, head, body) => {
+        const headerRow = new TableRow({
+          tableHeader: true,
+          children: head.map((h) =>
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true })] })] }),
+          ),
+        });
+        const rows = body.slice(0, MAX_ROWS).map(
+          (cells) =>
+            new TableRow({
+              children: cells.map((c) => new TableCell({ children: [new Paragraph(String(c ?? ""))] })),
+            }),
+        );
+        const parts = [
+          new Paragraph({ text: title, heading: HeadingLevel.HEADING_2, spacing: { before: 300, after: 120 } }),
+          new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [headerRow, ...rows] }),
+        ];
+        if (body.length > MAX_ROWS) {
+          parts.push(new Paragraph({
+            text: `Showing the first ${MAX_ROWS} of ${body.length} rows. Use the Excel export for the complete data.`,
+          }));
+        }
+        return parts;
+      };
+
+      const doc = new Document({
+        sections: [{
+          children: [
+            new Paragraph({ text: "ZIXPLON — Full Report", heading: HeadingLevel.HEADING_1 }),
+            new Paragraph({ text: `Generated ${new Date().toLocaleString("en-IN")}`, spacing: { after: 200 } }),
+            ...section("Users Summary",
+              ["Username", "Videos", "Reels", "Posts", "Comments", "Login Method", "Last Login", "Status"],
+              usersSheet.map((u) => [u.Username, u["Videos Uploaded"], u["Reels Uploaded"], u["Posts Made"],
+                u["Post Comments Made"], u["Login Method"], u["Last Login"], u["Account Status"]])),
+            ...section("Videos", ["Title", "Username", "Category", "Duration", "Likes", "Uploaded"],
+              (videos || []).map((v) => [truncate(v.title, 50), v.username, v.category, v.duration, v.likes ?? 0, day(v.created_at)])),
+            ...section("Reels", ["Title", "Username", "Duration", "Likes", "Uploaded"],
+              (reels || []).map((r) => [truncate(r.title, 50), r.username, r.duration, r.likes ?? 0, day(r.created_at)])),
+            ...section("Posts", ["Username", "Text", "Posted"],
+              (posts || []).map((p) => [p.username, truncate(p.text, 90), day(p.created_at)])),
+            ...section("Post Comments", ["Username", "Comment", "Posted"],
+              (postComments || []).map((c) => [c.username, truncate(c.text, 90), day(c.created_at)])),
+            ...section("Post Reactions", ["Username", "Reaction Type", "Post ID"],
+              (postReactions || []).map((r) => [r.username, r.type, r.post_id])),
+            ...section("Likes (Videos / Reels)", ["User ID", "Content Type", "Content ID"],
+              (likes || []).map((l) => [l.user_id, l.content_type, l.content_id])),
+            ...section("Content Views", ["User ID", "Content Type", "Content ID", "Viewed At"],
+              (views || []).map((v) => [v.user_id, v.content_type, v.content_id,
+                v.viewed_at ? new Date(v.viewed_at).toLocaleString("en-IN") : ""])),
+          ],
+        }],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      downloadBlob(blob, `zixplon_export_${new Date().toISOString().slice(0, 10)}.docx`);
+      showToast("✅ Word export downloaded");
+    } catch (e) {
+      console.error("[admin] Word export failed:", e);
+      showToast(`❌ Word export failed: ${e.message || "unknown error"}`);
+    } finally {
+      setExportingWord(false);
+    }
+  };
+
+  // True while ANY of the six export jobs is running (disables the menu button).
+  const exportingAny =
+    exportingExcel || exportingPdf || exportingWord ||
+    exportingLoginsXlsx || exportingLoginsWord || exportingLoginsPdf;
+
+  // Single entry point for the merged "Export Report" menu in the header.
+  const runExport = (format) => {
+    setExportMenuOpen(false);
+    const full = exportScope === "all";
+    if (format === "xlsx") return full ? exportToExcel() : exportLoginsToExcel();
+    if (format === "docx") return full ? exportToWord() : exportLoginsToWord();
+    return full ? exportToPDF() : exportLoginsToPDF();
+  };
+
   if (!authChecked || !dbAdminChecked) {
     return (
       <div className="admin_blocked">
@@ -1123,12 +1216,40 @@ const AdminPanel = () => {
           <p className="admin_subtitle">ZIXPLON Content Moderation</p>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <button className="admin_export_btn" onClick={exportToExcel} disabled={exportingExcel}>
-            {exportingExcel ? "⏳ Exporting..." : "⬇ Export to Excel"}
-          </button>
-          <button className="admin_export_btn admin_export_btn--pdf" onClick={exportToPDF} disabled={exportingPdf}>
-            {exportingPdf ? "⏳ Exporting..." : "⬇ Export to PDF"}
-          </button>
+          {/* Merged export: pick scope (Full report / Logins only), then format. */}
+          <div className="admin_export_menu_wrap">
+            <button
+              className="admin_export_btn"
+              onClick={() => setExportMenuOpen((o) => !o)}
+              disabled={exportingAny}
+            >
+              {exportingAny ? "⏳ Exporting..." : "⬇ Export Report ▾"}
+            </button>
+
+            {exportMenuOpen && (
+              <>
+                <div className="admin_export_menu_backdrop" onClick={() => setExportMenuOpen(false)} />
+                <div className="admin_export_menu">
+                  <div className="admin_export_scope">
+                    <button className={exportScope === "all" ? "active" : ""} onClick={() => setExportScope("all")}>
+                      Full report
+                    </button>
+                    <button className={exportScope === "logins" ? "active" : ""} onClick={() => setExportScope("logins")}>
+                      Logins only
+                    </button>
+                  </div>
+                  <button className="admin_export_item" onClick={() => runExport("xlsx")}>📗 Excel (.xlsx)</button>
+                  <button className="admin_export_item" onClick={() => runExport("docx")}>📘 Word (.docx)</button>
+                  <button className="admin_export_item" onClick={() => runExport("pdf")}>📕 PDF (.pdf)</button>
+                  <p className="admin_export_hint">
+                    {exportScope === "all"
+                      ? "Users, videos, reels, posts, comments, reactions, likes and views."
+                      : "Username, email, login method, last login, IP and device."}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
           <Link to="/" className="admin_back_btn">← Back to ZIXPLON</Link>
         </div>
       </div>
@@ -1457,20 +1578,12 @@ const AdminPanel = () => {
                 <p className="admin_words_hint" style={{ margin: 0 }}>
                   Login method comes from each account's sign-in provider. Passwords
                   are never retrievable — Supabase stores only irreversible hashes.
-                  IP/device reflect the user's most recent site visit.
+                  IP/device reflect the user's most recent site visit. Use
+                  "Export Report" at the top to download this list.
                 </p>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   <button className="admin_add_word_btn" onClick={fetchLogins} disabled={loginsLoading}>
                     ↻ Refresh
-                  </button>
-                  <button className="admin_export_btn" onClick={exportLoginsToExcel} disabled={exportingLoginsXlsx}>
-                    {exportingLoginsXlsx ? "⏳..." : "⬇ Excel"}
-                  </button>
-                  <button className="admin_export_btn" style={{ background: "#2563eb", borderColor: "#2563eb" }} onClick={exportLoginsToWord} disabled={exportingLoginsWord}>
-                    {exportingLoginsWord ? "⏳..." : "⬇ Word"}
-                  </button>
-                  <button className="admin_export_btn admin_export_btn--pdf" onClick={exportLoginsToPDF} disabled={exportingLoginsPdf}>
-                    {exportingLoginsPdf ? "⏳..." : "⬇ PDF"}
                   </button>
                 </div>
               </div>

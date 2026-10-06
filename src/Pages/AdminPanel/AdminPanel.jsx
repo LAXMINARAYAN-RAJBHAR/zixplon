@@ -42,6 +42,27 @@ const ADMIN_EMAILS = ["laxminarayan.rajbhar@gmail.com"];
 // 60s = three missed heartbeats before someone flips to Offline.
 const ONLINE_WINDOW_MS = 60 * 1000;
 
+// NEW: Visitors tab paging + date filter. Supabase caps a single request at
+// 1,000 rows, so we load in pages and use exact COUNT queries for the totals.
+const VISITS_PAGE = 300;
+const VISIT_RANGES = [
+  { key: "today", label: "Today" },
+  { key: "7d", label: "Last 7 days" },
+  { key: "30d", label: "Last 30 days" },
+  { key: "all", label: "All time" },
+];
+// Returns an ISO timestamp for the start of the range, or null for "all".
+const visitRangeStart = (key) => {
+  const now = new Date();
+  if (key === "today") {
+    now.setHours(0, 0, 0, 0);
+    return now.toISOString();
+  }
+  if (key === "7d") return new Date(Date.now() - 7 * 86400000).toISOString();
+  if (key === "30d") return new Date(Date.now() - 30 * 86400000).toISOString();
+  return null;
+};
+
 const STATUS_COLORS = {
   pending: { bg: "#fff7ed", color: "#f97316", border: "#fed7aa" },
   reviewed: { bg: "#eff6ff", color: "#3b82f6", border: "#bfdbfe" },
@@ -188,6 +209,11 @@ const AdminPanel = () => {
   const [visits, setVisits] = useState([]);
   const [visitsLoading, setVisitsLoading] = useState(false);
   const [visitsLoaded, setVisitsLoaded] = useState(false);
+  // NEW: date filter, exact counts (null until loaded) and "load more" state
+  const [visitRange, setVisitRange] = useState("all");
+  const [visitsTotal, setVisitsTotal] = useState(null);
+  const [visitsLoggedIn, setVisitsLoggedIn] = useState(null);
+  const [visitsLoadingMore, setVisitsLoadingMore] = useState(false);
 
   // ── "Admins" tab state ──────────────────────────────────────────────────
   const [admins, setAdmins] = useState([]);
@@ -377,16 +403,57 @@ const AdminPanel = () => {
   };
 
   // ── Visitors tab ─────────────────────────────────────────────────────────────
-  const fetchVisits = async () => {
+  // Loads the first page + exact counts for the chosen date range.
+  // NOTE: always call as fetchVisits() or fetchVisits("7d") — never pass it
+  // straight to onClick, or the click event would be used as the range.
+  const fetchVisits = async (range = visitRange) => {
     setVisitsLoading(true);
-    const { data, error } = await supabase
-      .from("site_visits")
-      .select("*")
-      .order("started_at", { ascending: false })
-      .limit(2000);
-    if (!error && data) setVisits(data);
+    const since = visitRangeStart(range);
+    const inRange = (q) => (since ? q.gte("started_at", since) : q);
+
+    const [pageRes, totalRes, loggedInRes] = await Promise.all([
+      inRange(supabase.from("site_visits").select("*"))
+        .order("started_at", { ascending: false })
+        .range(0, VISITS_PAGE - 1),
+      inRange(supabase.from("site_visits").select("id", { count: "exact", head: true })),
+      inRange(
+        supabase.from("site_visits").select("id", { count: "exact", head: true }).not("username", "is", null),
+      ),
+    ]);
+
+    if (!pageRes.error && pageRes.data) setVisits(pageRes.data);
+    setVisitsTotal(totalRes.error ? null : totalRes.count);
+    setVisitsLoggedIn(loggedInRes.error ? null : loggedInRes.count);
     setVisitsLoading(false);
     setVisitsLoaded(true);
+  };
+
+  const changeVisitRange = (range) => {
+    if (range === visitRange) return;
+    setVisitRange(range);
+    fetchVisits(range);
+  };
+
+  // Appends the next page. New visits arriving mid-session can shift the
+  // offsets, so rows are de-duplicated by id.
+  const loadMoreVisits = async () => {
+    if (visitsLoadingMore) return;
+    setVisitsLoadingMore(true);
+    const since = visitRangeStart(visitRange);
+    let q = supabase.from("site_visits").select("*");
+    if (since) q = q.gte("started_at", since);
+    const { data, error } = await q
+      .order("started_at", { ascending: false })
+      .range(visits.length, visits.length + VISITS_PAGE - 1);
+    if (!error && data) {
+      setVisits((prev) => {
+        const seen = new Set(prev.map((v) => v.id));
+        return [...prev, ...data.filter((v) => !seen.has(v.id))];
+      });
+    } else if (error) {
+      showToast(`❌ ${error.message}`);
+    }
+    setVisitsLoadingMore(false);
   };
 
   useEffect(() => {
@@ -396,11 +463,13 @@ const AdminPanel = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
+  // Total / logged-in / guests come from exact COUNT queries (whole date range).
+  // Unique sessions and avg. duration can only be computed from loaded rows.
   const visitStats = React.useMemo(() => {
-    const totalVisits = visits.length;
+    const totalVisits = visitsTotal ?? visits.length;
     const uniqueSessions = new Set(visits.map((v) => v.session_id)).size;
-    const loggedIn = visits.filter((v) => !!v.username).length;
-    const guests = totalVisits - loggedIn;
+    const loggedIn = visitsLoggedIn ?? visits.filter((v) => !!v.username).length;
+    const guests = Math.max(0, totalVisits - loggedIn);
     const durationsSec = visits.map((v) => {
       const start = new Date(v.started_at).getTime();
       const last = new Date(v.last_active_at).getTime();
@@ -410,7 +479,7 @@ const AdminPanel = () => {
       ? durationsSec.reduce((a, b) => a + b, 0) / durationsSec.length
       : 0;
     return { totalVisits, uniqueSessions, loggedIn, guests, avgDurationSec };
-  }, [visits]);
+  }, [visits, visitsTotal, visitsLoggedIn]);
 
   // ── Admins tab: list / grant / revoke ───────────────────────────────────────
   const fetchAdmins = async () => {
@@ -1422,6 +1491,18 @@ const AdminPanel = () => {
             </div>
           ) : (
             <>
+              <div className="admin_filter_row">
+                {VISIT_RANGES.map((r) => (
+                  <button
+                    key={r.key}
+                    className={`admin_filter_btn ${visitRange === r.key ? "active" : ""}`}
+                    onClick={() => changeVisitRange(r.key)}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+
               <div className="admin_stats" style={{ marginBottom: "20px" }}>
                 {[
                   { label: "Total Visits", value: visitStats.totalVisits, color: "#7c3aed" },
@@ -1441,9 +1522,13 @@ const AdminPanel = () => {
 
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
                 <p className="admin_words_hint" style={{ margin: 0 }}>
-                  Showing the {visits.length} most recent visits. Duration is accurate to within ~20s (heartbeat interval).
+                  Showing {visits.length} of {visitStats.totalVisits} visits
+                  ({VISIT_RANGES.find((r) => r.key === visitRange)?.label.toLowerCase()}).
+                  Duration is accurate to within ~20s (heartbeat interval).
+                  {visits.length < visitStats.totalVisits &&
+                    ` Unique sessions and avg. duration are based on the ${visits.length} loaded visits; the other three cards cover all ${visitStats.totalVisits}.`}
                 </p>
-                <button className="admin_add_word_btn" onClick={fetchVisits} disabled={visitsLoading}>
+                <button className="admin_add_word_btn" onClick={() => fetchVisits()} disabled={visitsLoading}>
                   ↻ Refresh
                 </button>
               </div>
@@ -1465,7 +1550,7 @@ const AdminPanel = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {visits.slice(0, 300).map((v) => {
+                      {visits.map((v) => {
                         const durationSec = Math.max(
                           0,
                           (new Date(v.last_active_at).getTime() - new Date(v.started_at).getTime()) / 1000,
@@ -1485,6 +1570,16 @@ const AdminPanel = () => {
                       })}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {visitsTotal != null && visits.length < visitsTotal && (
+                <div className="admin_visits_more_row">
+                  <button className="admin_add_word_btn" onClick={loadMoreVisits} disabled={visitsLoadingMore}>
+                    {visitsLoadingMore
+                      ? "Loading..."
+                      : `Load ${Math.min(VISITS_PAGE, visitsTotal - visits.length)} more (${visitsTotal - visits.length} remaining)`}
+                  </button>
                 </div>
               )}
             </>

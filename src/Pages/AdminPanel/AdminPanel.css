@@ -1458,3 +1458,22 @@
   .admin_header .admin_export_menu_wrap .admin_export_btn { width: 100%; justify-content: center; }
   .admin_export_menu { left: 0; right: 0; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   VISITORS TAB — date filter row + "Load more" button
+   ══════════════════════════════════════════════════════════════════ */
+
+.admin_visits_more_row {
+  display: flex;
+  justify-content: center;
+  padding: 14px 0 4px;
+}
+
+/* The mobile rule for ".admin_visitors_section > div:first-child" stacks
+   its children; keep the date-filter pills in a normal wrapping row. */
+@media (max-width: 600px) {
+  .admin_visitors_section > .admin_filter_row:first-child {
+    flex-direction: row !important;
+    align-items: center !important;
+  }
+}

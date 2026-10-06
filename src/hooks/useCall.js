@@ -366,6 +366,97 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
     }
   }, []);
 
+  // ---- Keep the screen awake while a call is being set up / in progress ----
+  // Uses the Screen Wake Lock API (modern Chrome, Edge, Safari 16.4+).
+  // The browser drops the lock whenever the tab is hidden, so it is
+  // re-acquired when the tab becomes visible again.
+  const callLive = !!call && (call.status === "connecting" || call.status === "connected");
+  useEffect(() => {
+    if (!callLive || !("wakeLock" in navigator)) return undefined;
+    let lock = null;
+    let cancelled = false;
+
+    const acquire = async () => {
+      try {
+        const next = await navigator.wakeLock.request("screen");
+        if (cancelled) {
+          next.release().catch(() => {});
+          return;
+        }
+        lock = next;
+      } catch (_) {
+        /* not allowed (battery saver, background tab) - calls still work */
+      }
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && (!lock || lock.released)) acquire();
+    };
+
+    acquire();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      if (lock) lock.release().catch(() => {});
+      lock = null;
+    };
+  }, [callLive]);
+
+  // ---- Call controls on the lock screen / notification shade ----
+  // Uses the Media Session API. Supported actions differ per browser, so
+  // every call is wrapped in try/catch and simply skipped if unsupported.
+  const callConnected = !!call && call.status === "connected";
+  const peerName = call ? call.peer : "";
+  useEffect(() => {
+    if (!callConnected || !("mediaSession" in navigator)) return undefined;
+    const ms = navigator.mediaSession;
+
+    try {
+      if (typeof window.MediaMetadata !== "undefined") {
+        ms.metadata = new window.MediaMetadata({
+          title: "Voice call",
+          artist: peerName,
+          album: "Zixplon",
+          artwork: [
+            { src: "/logo192.png", sizes: "192x192", type: "image/png" },
+            { src: "/logo512.png", sizes: "512x512", type: "image/png" },
+          ],
+        });
+      }
+      ms.playbackState = "playing";
+    } catch (_) {}
+
+    const setHandler = (action, fn) => {
+      try {
+        ms.setActionHandler(action, fn);
+      } catch (_) {
+        /* this browser doesn't support that action */
+      }
+    };
+    setHandler("hangup", () => hangUp());
+    setHandler("togglemicrophone", () => toggleMute());
+
+    return () => {
+      setHandler("hangup", null);
+      setHandler("togglemicrophone", null);
+      try {
+        ms.metadata = null;
+        ms.playbackState = "none";
+      } catch (_) {}
+    };
+  }, [callConnected, peerName, hangUp, toggleMute]);
+
+  // Keep the lock-screen microphone indicator in sync with mute (Chrome 93+).
+  useEffect(() => {
+    if (!callConnected || !("mediaSession" in navigator)) return;
+    try {
+      if (typeof navigator.mediaSession.setMicrophoneActive === "function") {
+        navigator.mediaSession.setMicrophoneActive(!muted);
+      }
+    } catch (_) {}
+  }, [callConnected, muted]);
+
   // ---- Realtime signaling ----
   useEffect(() => {
     if (!currentUser) return undefined;

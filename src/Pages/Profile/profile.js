@@ -4,6 +4,8 @@ import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+// NEW: share icon for the Share buttons on videos / reels / posts.
+import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import { uploadToR2, buildTransformUrl } from "../../utils/mediaUpload";
@@ -64,6 +66,30 @@ const timeAgo = (dateStr) => {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
+};
+
+// NEW: link to the profile page currently open (works for any route pattern).
+const profileBaseUrl = () => `${window.location.origin}${window.location.pathname}`;
+
+// NEW: native share sheet when available (phones), otherwise copy the link.
+// Returns "shared" | "cancelled" | "copied" | "prompt".
+const shareLink = async ({ url, title }) => {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text: title, url });
+      return "shared";
+    } catch (e) {
+      if (e?.name === "AbortError") return "cancelled";
+      // any other error → fall through to copy
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    return "copied";
+  } catch {
+    window.prompt("Copy this link:", url);
+    return "prompt";
+  }
 };
 
 const getUserGradient = (name = "") => {
@@ -370,7 +396,7 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
 };
 
 // ─── Profile Post Card ────────────────────────────────────────────────────────
-const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, onAddComment }) => {
+const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, onAddComment, onShare }) => {
   const [lightboxData, setLightboxData] = useState(null);
   const [showComments, setShowComments] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -446,7 +472,8 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, on
   return (
     <>
       {lightboxData && <Lightbox images={lightboxData.images} startIndex={lightboxData.startIndex} onClose={() => setLightboxData(null)} />}
-      <div style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:"12px", padding:"16px", marginBottom:"14px", position:"relative" }}>
+      {/* NEW: id lets a shared link (?tab=posts&post=<id>) scroll straight to this card */}
+      <div id={`post-card-${post.id}`} style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:"12px", padding:"16px", marginBottom:"14px", position:"relative" }}>
         <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"12px" }}>
           <div style={{ width:"38px", height:"38px", borderRadius:"50%", background:"linear-gradient(135deg,#7c3aed,#a855f7)", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontWeight:"700", fontSize:"14px", flexShrink:0 }}>
             {(post.username || "?").slice(0, 2).toUpperCase()}
@@ -546,6 +573,16 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, on
             <ChatBubbleOutlineIcon style={{ fontSize:"16px" }} />
             {post.comments?.length || 0} comment{post.comments?.length !== 1 ? "s" : ""}
           </button>
+          {/* NEW: Share — hidden for "Only me" posts, since nobody else could open the link */}
+          {post.privacy !== "only_me" && (
+            <button
+              onClick={() => onShare({ url: `${profileBaseUrl()}?tab=posts&post=${post.id}`, title: `${post.username}'s post on ZIXPLON` })}
+              aria-label="Share post"
+              style={{ background:"none", border:"none", color:"#aaa", fontSize:"13px", cursor:"pointer", display:"flex", alignItems:"center", gap:"4px", padding:0, marginLeft:"auto" }}
+            >
+              <ShareOutlinedIcon style={{ fontSize:"16px" }} /> Share
+            </button>
+          )}
         </div>
         {showComments && (
           <div style={{ marginTop:"12px", display:"flex", flexDirection:"column", gap:"8px" }}>
@@ -741,6 +778,42 @@ const Profile = ({ sideNavbar }) => {
     window.scrollTo(0, 0);
     setActiveTab("videos");
   }, [key]);
+
+  // ── NEW: Share ──────────────────────────────────────────────────────────
+  // Shows a small "Link copied" toast on desktop (phones open the native
+  // share sheet instead, so they need no toast).
+  const [shareNotice, setShareNotice] = useState("");
+  const handleShare = async (item) => {
+    const result = await shareLink(item);
+    if (result === "copied") {
+      setShareNotice("🔗 Link copied");
+      setTimeout(() => setShareNotice(""), 2200);
+    }
+  };
+
+  // ── NEW: open the right tab + scroll to the item for shared links ──────
+  // Handles ?tab=reels&reel=<id> and ?tab=posts&post=<id>. Waits until THIS
+  // profile has finished loading (sawLoading guards against firing before
+  // the load for a newly-opened profile has even started).
+  const deepLinkDone = useRef(false);
+  const sawLoading = useRef(false);
+  useEffect(() => { deepLinkDone.current = false; sawLoading.current = false; }, [key]);
+  useEffect(() => { if (loading) sawLoading.current = true; }, [loading]);
+  useEffect(() => {
+    if (loading || !user || !sawLoading.current || deepLinkDone.current) return;
+    deepLinkDone.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (!PROFILE_TABS.includes(tab)) return;
+    setActiveTab(tab);
+    const itemId = tab === "posts" ? params.get("post") : tab === "reels" ? params.get("reel") : null;
+    if (itemId) {
+      const prefix = tab === "posts" ? "post" : "reel";
+      setTimeout(() => {
+        document.getElementById(`${prefix}-card-${itemId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 200);
+    }
+  }, [loading, user, key]);
 
   // ── Swipe-to-switch-tabs (mobile) ──
   const touchStartX = useRef(null);
@@ -1269,6 +1342,12 @@ const Profile = ({ sideNavbar }) => {
     fontFamily:"Nunito, sans-serif",
   });
 
+  // NEW: style for the Share buttons on video / reel cards.
+  const shareBtnStyle = {
+    background:"none", border:"none", color:"var(--zx-text3)", fontSize:"12px",
+    cursor:"pointer", display:"flex", alignItems:"center", gap:"3px", padding:0, marginLeft:"auto",
+  };
+
   return (
     <div className="profile">
       <SideNavbar sideNavbar={sideNavbar} />
@@ -1396,9 +1475,22 @@ const Profile = ({ sideNavbar }) => {
                         <div className="profileVideo_block_detail">
                           <div className="profileVideo_block_detai_name">{video.title}</div>
                           <div className="profileVideo_block_detai_about">{video.channel}</div>
-                          <div style={{ color:"var(--zx-text3)", fontSize:"12px", marginTop:"4px", display:"flex", gap:"10px" }}>
+                          <div style={{ color:"var(--zx-text3)", fontSize:"12px", marginTop:"4px", display:"flex", gap:"10px", alignItems:"center" }}>
                             <span>👁 {videoCounts[String(video.id)]?.views ?? 0}</span>
                             <span>👍 {videoCounts[String(video.id)]?.likes ?? 0}</span>
+                            {/* NEW: Share video — preventDefault/stopPropagation so the
+                                click doesn't also open the video page */}
+                            <button
+                              style={shareBtnStyle}
+                              aria-label="Share video"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleShare({ url: `${window.location.origin}/video/${video.id}`, title: video.title });
+                              }}
+                            >
+                              <ShareOutlinedIcon style={{ fontSize:"14px" }} /> Share
+                            </button>
                           </div>
                         </div>
                       </Link>
@@ -1425,7 +1517,8 @@ const Profile = ({ sideNavbar }) => {
                 {allUserReels.map((reel) => {
                   const isEditableReel = user.isOwner && reel.id.startsWith("db_");
                   return (
-                    <div key={reel.id} style={{ position:"relative", minWidth:0 }}>
+                    // NEW: id lets a shared link (?tab=reels&reel=<id>) scroll straight to this card
+                    <div key={reel.id} id={`reel-card-${reel.dbId}`} style={{ position:"relative", minWidth:0 }}>
                       <div className="profileVideo_block" style={{ cursor:"pointer" }}
                         onClick={() => navigate("/reels", { state: { clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 } } })}>
 
@@ -1463,9 +1556,21 @@ const Profile = ({ sideNavbar }) => {
                         <div className="profileVideo_block_detail">
                           <div className="profileVideo_block_detai_name">{reel.title}</div>
                           <div className="profileVideo_block_detai_about">{reel.description}</div>
-                          <div style={{ color:"var(--zx-text3)", fontSize:"12px", marginTop:"4px", display:"flex", gap:"10px" }}>
+                          <div style={{ color:"var(--zx-text3)", fontSize:"12px", marginTop:"4px", display:"flex", gap:"10px", alignItems:"center" }}>
                             <span>👁 {reelCounts[`db_${reel.dbId}`]?.views ?? 0}</span>
                             <span>👍 {reelCounts[`db_${reel.dbId}`]?.likes ?? 0}</span>
+                            {/* NEW: Share reel — stopPropagation so the click doesn't
+                                also open the reel viewer */}
+                            <button
+                              style={shareBtnStyle}
+                              aria-label="Share reel"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShare({ url: `${profileBaseUrl()}?tab=reels&reel=${reel.dbId}`, title: reel.title });
+                              }}
+                            >
+                              <ShareOutlinedIcon style={{ fontSize:"14px" }} /> Share
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1502,6 +1607,7 @@ const Profile = ({ sideNavbar }) => {
                   onEdit={openEditPost}
                   onReactionChange={handleReactionChange}
                   onAddComment={handleAddComment}
+                  onShare={handleShare}
                 />
               ))
             )}
@@ -1750,6 +1856,13 @@ const Profile = ({ sideNavbar }) => {
               <button onClick={() => setDeleteTarget(null)} style={{ flex:1, background:"none", border:"1px solid #555", color:"#aaa", borderRadius:"8px", padding:"12px", fontSize:"14px", cursor:"pointer" }}>Cancel</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── NEW: "Link copied" toast for Share (desktop) ── */}
+      {shareNotice && (
+        <div style={{ position:"fixed", bottom:"24px", left:"50%", transform:"translateX(-50%)", background:"#1e1b4b", color:"#fff", padding:"10px 20px", borderRadius:"999px", fontSize:"13px", fontWeight:700, zIndex:999999, boxShadow:"0 4px 20px rgba(0,0,0,0.25)" }}>
+          {shareNotice}
         </div>
       )}
 

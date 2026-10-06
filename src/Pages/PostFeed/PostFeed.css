@@ -1922,7 +1922,7 @@
 
 .pf-reel-card {
   flex: 0 0 auto;
-  width: 110px;
+  width: 170px;
   cursor: pointer;
   scroll-snap-align: start;
   user-select: none;
@@ -2023,7 +2023,7 @@
 }
 
 .pf-reel-title {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--zx-text);
   margin-top: 5px;

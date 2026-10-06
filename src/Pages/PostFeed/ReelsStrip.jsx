@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import { ThreeDotMenu, ReportModal, shareContent } from "../../Component/Shared/ContentMenu";
-// NEW: shared hover-preview thumbnail — sound-first autoplay, attached
+// Shared hover-preview thumbnail — sound-first autoplay, attached
 // song synced to the clip, and a mute button that never triggers the
 // card's navigation. See Component/Shared/PreviewThumb.jsx.
 import PreviewThumb from "../../Component/Shared/PreviewThumb";
@@ -10,7 +10,28 @@ import PreviewThumb from "../../Component/Shared/PreviewThumb";
 const PAGE_SIZE = 10;
 const LOAD_MORE_THRESHOLD_PX = 300;
 
-// CHANGED: also carries song / location / feeling / audio mix / etc.
+// NEW: card width in px. Change this one number to resize the cards.
+// (Previously ~140px in the stylesheet; now 170px.)
+const CARD_WIDTH = 170;
+
+// NEW: size overrides, injected with the strip. Higher specificity
+// (.pf-reels-strip ...) means they win over the existing stylesheet
+// without editing it. Once you're happy, you can move these into your
+// CSS file and delete this block.
+const CARD_SIZE_CSS = `
+.pf-reels-strip .pf-reel-card {
+  width: ${CARD_WIDTH}px;
+  flex: 0 0 ${CARD_WIDTH}px;
+}
+.pf-reels-strip .pf-reel-thumb-wrap {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 9 / 16;
+}
+.pf-reels-strip .pf-reel-title { font-size: 14px; }
+`;
+
+// Also carries song / location / feeling / audio mix / etc.
 // These ride along in the `clickedReel` handoff to /reels, so a reel
 // opened from the strip keeps its song, location and feeling instead of
 // losing them. (The rows come from `select("*")`, so no query change is
@@ -42,17 +63,27 @@ const formatViews = (n) => {
   return String(n);
 };
 
+// NEW: Fisher–Yates shuffle (returns a new array).
+const shuffle = (arr) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+// NEW: one random base per page load, shared by every strip, so strips
+// with different `startOffset`s stay on different slices of the feed.
+const SESSION_RANDOM_BASE = Math.random();
+
 // ── One reel card in the strip. Desktop hovers-to-preview (the clip
 // plays over the thumbnail, sound-first, with the attached song in sync
 // and a mute button); touch screens just show the static thumbnail (or
 // the video's own first frame if no thumbnail exists) and rely on the
 // tap to open the reel. Carries a three-dots menu (Share, Go to
 // Profile, Report, and owner-only Delete) — matching the video/reel
-// cards on the Home feed.
-//
-// CHANGED: the hover logic (timer, muted-only <video>, play/pause) that
-// used to live here is now handled by <PreviewThumb>. Hovering is
-// therefore tied to the thumbnail itself rather than the whole card. ──
+// cards on the Home feed. The hover logic lives in <PreviewThumb>. ──
 const ReelStripCard = ({ reel, previewId, viewCount, navigate, loggedInUsername, onReport, onDeleted }) => {
   const isOwner = loggedInUsername && reel.username && reel.username === loggedInUsername;
 
@@ -167,12 +198,12 @@ const ReelStripCard = ({ reel, previewId, viewCount, navigate, loggedInUsername,
   );
 };
 
-// ── The strip. Fully self-contained: fetches its own first page starting
-// at `startOffset` (so multiple strips interleaved down the feed each
-// show a different slice of reels instead of repeating the same ones),
-// then keeps loading further pages as the user scrolls it horizontally.
-// Owns its own report modal so a report from any card in this strip has
-// somewhere to render. ──
+// ── The strip. Fully self-contained: fetches its own first page (from a
+// random starting point, shifted by `startOffset` so multiple strips
+// interleaved down the feed each show a different slice), shuffles each
+// page, then keeps loading further pages as the user scrolls it
+// horizontally. Owns its own report modal so a report from any card in
+// this strip has somewhere to render. ──
 const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
   const navigate = useNavigate();
   const [reels, setReels] = useState([]);
@@ -182,11 +213,13 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
   const offsetRef = useRef(startOffset);
   const loadingRef = useRef(false);
   const trackRef = useRef(null);
+  // NEW: total reel count, fetched once so we can pick a random offset.
+  const totalRef = useRef(null);
   const loggedInUsername = localStorage.getItem("username") || "";
 
-  // NEW: unique per-strip id, so preview ids stay unique even when
-  // several strips (or a wrapped-around duplicate of the same reel) are
-  // on screen — the shared sound arbiter tells previews apart by id.
+  // Unique per-strip id, so preview ids stay unique even when several
+  // strips (or a wrapped-around duplicate of the same reel) are on
+  // screen — the shared sound arbiter tells previews apart by id.
   const stripIdRef = useRef(Math.random().toString(36).slice(2));
 
   const [reportTarget, setReportTarget] = useState(null);
@@ -214,17 +247,9 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
     }
   };
 
-  // FIXED: this used to receive raw numeric `dbId`s and query the
-  // `views` table with them directly. But views are written with the
-  // *prefixed* content_id (e.g. "db_123" — same convention ReelItem in
-  // Reels.jsx uses via `reel.id`), so `.in("content_id", ["123", ...])`
-  // never matched any row and every count silently fell back to 0.
-  // Also fixed a related bug where `Number(row.content_id)` on a
-  // prefixed id like "db_123" produced NaN, which would have broken
-  // the counts map even if the query above had matched.
-  // Now takes the full prefixed ids (e.g. "db_123") end-to-end, matching
+  // Takes the full prefixed ids (e.g. "db_123") end-to-end, matching
   // how Reels.jsx / ReelItem identify content everywhere else (likes,
-  // views, comments).
+  // views, comments). Views are written with the prefixed content_id.
   const fetchViewCountsFor = useCallback(async (fullIds) => {
     if (!fullIds || fullIds.length === 0) return;
     try {
@@ -255,6 +280,24 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
     loadingRef.current = true;
     setLoading(true);
 
+    // NEW: first load only — find how many reels exist, then jump to a
+    // random spot so the strip looks different on every refresh.
+    if (totalRef.current === null) {
+      try {
+        const { count } = await supabase
+          .from("reels")
+          .select("id", { count: "exact", head: true });
+        totalRef.current = count || 0;
+      } catch (_) {
+        totalRef.current = 0;
+      }
+      if (totalRef.current > 0) {
+        offsetRef.current =
+          (Math.floor(SESSION_RANDOM_BASE * totalRef.current) + startOffset) %
+          totalRef.current;
+      }
+    }
+
     const { data, error } = await supabase
       .from("reels")
       .select("*")
@@ -262,10 +305,9 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
       .range(offsetRef.current, offsetRef.current + PAGE_SIZE - 1);
 
     if (!error && data && data.length > 0) {
-      const mapped = data.map(mapReelRow);
+      // NEW: shuffle each page before appending.
+      const mapped = shuffle(data.map(mapReelRow));
       setReels((prev) => [...prev, ...mapped]);
-      // FIXED: pass the prefixed `id` (e.g. "db_123"), not the raw
-      // numeric `dbId` — see fetchViewCountsFor above for why.
       fetchViewCountsFor(mapped.map((r) => r.id));
       offsetRef.current += data.length;
       if (data.length < PAGE_SIZE) {
@@ -275,13 +317,17 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
           setHasMore(false);
         }
       }
+    } else if (wrapAround && offsetRef.current > 0) {
+      // NEW: a random offset can land past the end — wrap to the start
+      // instead of showing an empty strip.
+      offsetRef.current = 0;
     } else {
       setHasMore(false);
     }
 
     loadingRef.current = false;
     setLoading(false);
-  }, [hasMore, wrapAround, fetchViewCountsFor]);
+  }, [hasMore, wrapAround, fetchViewCountsFor, startOffset]);
 
   useEffect(() => {
     loadPage();
@@ -305,6 +351,7 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
 
   return (
     <div className="pf-reels-strip">
+      <style>{CARD_SIZE_CSS}</style>
       <div className="pf-reels-strip-header">
         <span className="pf-reels-strip-zbadge">Z</span>
         <span className="pf-reels-strip-title">Reels</span>
@@ -322,9 +369,6 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
             key={`${r.id}-${i}`}
             reel={r}
             previewId={`${stripIdRef.current}-${r.id}-${i}`}
-            // FIXED: read the count keyed by the prefixed `r.id`
-            // (matches how fetchViewCountsFor now stores it), not by
-            // the raw numeric `r.dbId`.
             viewCount={viewCounts[r.id] ?? 0}
             navigate={navigate}
             loggedInUsername={loggedInUsername}

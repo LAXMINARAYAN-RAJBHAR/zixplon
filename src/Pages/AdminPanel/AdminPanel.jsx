@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
 import "./AdminPanel.css";
+// NEW: styles for the Users tab serial number + online/offline indicator.
+// Kept in its own file so the existing AdminPanel.css doesn't need editing.
+import "./AdminPanelUsersStatus.css";
 import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
 // SheetJS — generates the .xlsx workbook entirely client-side and
@@ -32,6 +35,11 @@ import {
 // the API route below. Anyone in this list is ALWAYS an admin, and can
 // never be removed via the Admins tab or deleted via the Users tab.
 const ADMIN_EMAILS = ["laxminarayan.rajbhar@gmail.com"];
+
+// NEW: a user counts as "online" if their site_visits row heartbeat
+// (sent every ~20s by useVisitTracking.js) was updated within this window.
+// 60s = three missed heartbeats before someone flips to Offline.
+const ONLINE_WINDOW_MS = 60 * 1000;
 
 const STATUS_COLORS = {
   pending:   { bg: "#fff7ed", color: "#f97316", border: "#fed7aa" },
@@ -204,6 +212,8 @@ const AdminPanel = () => {
   const [userSearch,      setUserSearch]      = useState("");
   const [moderatingId,    setModeratingId]    = useState(null); // userId currently being acted on
   const [removeContentMap, setRemoveContentMap] = useState({}); // userId -> bool, "also delete content" checkbox state
+  // NEW: lowercase usernames that currently have a fresh site_visits heartbeat.
+  const [onlineUsernames, setOnlineUsernames] = useState(new Set());
 
   // ── "Home Hub" tab state ─────────────────────────────────────────────────
   // Controls which tabs show in HomeHub.jsx's tab bar (Home/Posts/Utility)
@@ -602,11 +612,25 @@ const AdminPanel = () => {
     setExportingLoginsPdf(false);
   };
 
-  // ── Users tab: search + ban/unban/delete ────────────────────────────────────
+  // ── Users tab: search + ban/unban/delete + online status ───────────────────
+  // NEW: reads which usernames have a site_visits heartbeat within the last
+  // ONLINE_WINDOW_MS. Same direct-client read the Visitors tab already uses.
+  const fetchOnlineUsers = async () => {
+    const since = new Date(Date.now() - ONLINE_WINDOW_MS).toISOString();
+    const { data, error } = await supabase
+      .from("site_visits")
+      .select("username")
+      .not("username", "is", null)
+      .gte("last_active_at", since);
+    if (!error && data) {
+      setOnlineUsernames(new Set(data.map((v) => v.username.toLowerCase())));
+    }
+  };
+
   const fetchUsers = async () => {
     setUsersLoading(true);
     try {
-      const { users } = await callUserLoginInfo();
+      const [{ users }] = await Promise.all([callUserLoginInfo(), fetchOnlineUsers()]);
       setUserRows(users || []);
     } catch (e) {
       showToast(`❌ ${e.message}`);
@@ -619,6 +643,14 @@ const AdminPanel = () => {
     if (activeTab === "users" && !usersLoaded && !usersLoading) {
       fetchUsers();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // NEW: keep online status fresh (every 20s) while the Users tab is open.
+  useEffect(() => {
+    if (activeTab !== "users") return;
+    const id = setInterval(fetchOnlineUsers, 20000);
+    return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -695,6 +727,11 @@ const AdminPanel = () => {
           (u.email || "").toLowerCase().includes(normalizedUserSearch),
       )
     : userRows;
+
+  // NEW: online helpers for the Users tab.
+  const isUserOnline = (u) =>
+    !!u.username && onlineUsernames.has(u.username.toLowerCase());
+  const onlineCount = userRows.filter(isUserOnline).length;
 
   // ── Home Hub tab: fetch / toggle / reorder ──────────────────────────────
   const fetchHubTabs = async () => {
@@ -1453,7 +1490,7 @@ const AdminPanel = () => {
           )}
         </div>
       ) : activeTab === "users" ? (
-        /* ── Users Tab: ban / unban / delete any account ── */
+        /* ── Users Tab: ban / unban / delete any account + online status ── */
         <div className="admin_users_mgmt_section">
           {usersLoading ? (
             <div className="admin_loading">
@@ -1471,6 +1508,10 @@ const AdminPanel = () => {
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
                 />
+                {/* NEW: live online count */}
+                <span className="admin_words_hint admin_users_online_summary" style={{ margin: 0 }}>
+                  🟢 {onlineCount} online · {userRows.length} total
+                </span>
                 <button className="admin_add_word_btn" onClick={fetchUsers} disabled={usersLoading}>
                   ↻ Refresh
                 </button>
@@ -1483,22 +1524,33 @@ const AdminPanel = () => {
                 </div>
               ) : (
                 <div className="admin_users_mgmt_list">
-                  {filteredUserRows.map((u) => {
+                  {filteredUserRows.map((u, index) => {
                     const isRoot = ADMIN_EMAILS.includes((u.email || "").toLowerCase());
                     const busy = moderatingId === u.id;
+                    const isOnline = isUserOnline(u);
                     return (
                       <div key={u.id} className="admin_user_mgmt_row">
-                        <div className="admin_user_mgmt_info">
-                          <div className="admin_user_mgmt_name">
-                            {u.username ? `@${u.username}` : u.email}
-                            {isRoot && <span className="admin_admin_root_badge">ROOT</span>}
-                            {u.is_banned && <span className="admin_user_banned_badge">BANNED</span>}
-                          </div>
-                          <div className="admin_admin_meta">
-                            {u.email} · {(u.providers || []).join(", ")}
-                            {u.last_sign_in_at
-                              ? ` · last login ${new Date(u.last_sign_in_at).toLocaleDateString("en-IN")}`
-                              : " · never logged in"}
+                        <div className="admin_user_mgmt_left">
+                          {/* NEW: serial number */}
+                          <div className="admin_user_serial">{index + 1}</div>
+
+                          <div className="admin_user_mgmt_info">
+                            <div className="admin_user_mgmt_name">
+                              {u.username ? `@${u.username}` : u.email}
+                              {isRoot && <span className="admin_admin_root_badge">ROOT</span>}
+                              {u.is_banned && <span className="admin_user_banned_badge">BANNED</span>}
+                              {/* NEW: online / offline indicator */}
+                              <span className={`admin_user_status ${isOnline ? "online" : "offline"}`}>
+                                <span className="admin_user_status_dot" />
+                                {isOnline ? "Online" : "Offline"}
+                              </span>
+                            </div>
+                            <div className="admin_admin_meta">
+                              {u.email} · {(u.providers || []).join(", ")}
+                              {u.last_sign_in_at
+                                ? ` · last login ${new Date(u.last_sign_in_at).toLocaleDateString("en-IN")}`
+                                : " · never logged in"}
+                            </div>
                           </div>
                         </div>
 

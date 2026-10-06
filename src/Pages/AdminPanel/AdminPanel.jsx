@@ -477,7 +477,7 @@ const AdminPanel = () => {
   const fetchLogins = async () => {
     setLoginsLoading(true);
     try {
-      const { users } = await callUserLoginInfo();
+      const [{ users }] = await Promise.all([callUserLoginInfo(), fetchOnlineUsers()]);
       setLoginRows(users || []);
     } catch (e) {
       showToast(`❌ ${e.message}`);
@@ -650,7 +650,7 @@ const AdminPanel = () => {
 
   // NEW: keep online status fresh (every 20s) while the Users tab is open.
   useEffect(() => {
-    if (activeTab !== "users") return;
+    if (activeTab !== "users" && activeTab !== "logins") return;
     const id = setInterval(fetchOnlineUsers, 20000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1485,7 +1485,9 @@ const AdminPanel = () => {
                   <table className="admin_visits_table">
                     <thead>
                       <tr>
+                        <th>#</th>
                         <th>User</th>
+                        <th>Status</th>
                         <th>Login Method</th>
                         <th>Last Login</th>
                         <th>Last IP</th>
@@ -1493,17 +1495,30 @@ const AdminPanel = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {loginRows.map((r) => (
-                        <tr key={r.id}>
-                          <td>{r.username ? `@${r.username}` : r.email}</td>
-                          <td>{(r.providers || []).join(", ")}</td>
-                          <td>{r.last_sign_in_at ? new Date(r.last_sign_in_at).toLocaleString("en-IN") : "Never"}</td>
-                          <td>{r.last_ip || "—"}</td>
-                          <td className="admin_visits_path" title={r.last_device || ""}>
-                            {truncate(r.last_device, 40) || "—"}
-                          </td>
-                        </tr>
-                      ))}
+                      {loginRows.map((r, index) => {
+                        const isOnline = isUserOnline(r);
+                        return (
+                          <tr key={r.id}>
+                            <td>
+                              {/* descending serial: newest/top row gets the highest number */}
+                              <span className="admin_user_serial">{loginRows.length - index}</span>
+                            </td>
+                            <td>{r.username ? `@${r.username}` : r.email}</td>
+                            <td>
+                              <span className={`admin_user_status ${isOnline ? "online" : "offline"}`}>
+                                <span className="admin_user_status_dot" />
+                                {isOnline ? "Online" : "Offline"}
+                              </span>
+                            </td>
+                            <td>{(r.providers || []).join(", ")}</td>
+                            <td>{r.last_sign_in_at ? new Date(r.last_sign_in_at).toLocaleString("en-IN") : "Never"}</td>
+                            <td>{r.last_ip || "—"}</td>
+                            <td className="admin_visits_path" title={r.last_device || ""}>
+                              {truncate(r.last_device, 40) || "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

@@ -1,0 +1,145 @@
+/* ReportPreviewModal.css - uses the --zx-* variables from AdminPanel.css */
+
+.admin_preview_backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 20, 20, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 99999;
+}
+
+.admin_preview_modal {
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--zx-surface);
+  border: 2px solid var(--zx-border);
+  border-radius: var(--zx-radius);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  font-family: 'Outfit', sans-serif;
+}
+
+.admin_preview_header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--zx-border);
+}
+
+.admin_preview_kicker {
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--zx-text);
+}
+
+.admin_preview_body {
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin_preview_title {
+  margin: 0;
+  font-family: 'Nunito', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--zx-text);
+}
+
+.admin_preview_video,
+.admin_preview_img {
+  width: 100%;
+  max-height: 62vh;
+  object-fit: contain;
+  background: #000;
+  border-radius: var(--zx-radius-sm);
+}
+
+.admin_preview_img { background: var(--zx-surface2); }
+
+.admin_preview_text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--zx-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.admin_preview_note {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--zx-surface2);
+  border: 2px dashed var(--zx-border);
+  border-radius: var(--zx-radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--zx-text2);
+}
+
+.admin_preview_reporter_note {
+  padding: 10px 12px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: var(--zx-radius-sm);
+  font-size: 13px;
+  color: var(--zx-text2);
+}
+
+.admin_preview_link {
+  color: var(--zx-primary);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.admin_preview_raw summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--zx-text3);
+}
+.admin_preview_raw pre {
+  margin: 8px 0 0;
+  padding: 10px;
+  max-height: 180px;
+  overflow: auto;
+  background: var(--zx-surface2);
+  border-radius: var(--zx-radius-sm);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.admin_preview_footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--zx-border);
+}
+
+@media (max-width: 600px) {
+  .admin_preview_footer .admin_action_btn { flex: 1 1 100%; padding: 10px; }
+}
+
+/* "View Content" button on the report card */
+.admin_action_btn--view {
+  background: #f5f3ff;
+  color: #7c3aed;
+  border: 2px solid #ddd6fe;
+}
+.admin_action_btn--view:hover:not(:disabled) {
+  background: #7c3aed;
+  color: white;
+  border-color: #7c3aed;
+}

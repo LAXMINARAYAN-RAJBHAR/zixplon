@@ -28,6 +28,7 @@ import {
   HeadingLevel,
   WidthType,
 } from "docx";
+import ReportPreviewModal from "./ReportPreviewModal";
 
 // ── Root admin(s) ────────────────────────────────────────────────────────────
 // Hardcoded fallback so the app can never be locked out even if the
@@ -42,22 +43,22 @@ const ADMIN_EMAILS = ["laxminarayan.rajbhar@gmail.com"];
 const ONLINE_WINDOW_MS = 60 * 1000;
 
 const STATUS_COLORS = {
-  pending:   { bg: "#fff7ed", color: "#f97316", border: "#fed7aa" },
-  reviewed:  { bg: "#eff6ff", color: "#3b82f6", border: "#bfdbfe" },
-  removed:   { bg: "#fef2f2", color: "#ef4444", border: "#fecaca" },
+  pending: { bg: "#fff7ed", color: "#f97316", border: "#fed7aa" },
+  reviewed: { bg: "#eff6ff", color: "#3b82f6", border: "#bfdbfe" },
+  removed: { bg: "#fef2f2", color: "#ef4444", border: "#fecaca" },
   dismissed: { bg: "#f0fdf4", color: "#22c55e", border: "#bbf7d0" },
 };
 
 const REASON_LABELS = {
-  inappropriate:  "🔞 Inappropriate",
-  spam:           "📢 Spam",
-  hate_speech:    "🚫 Hate Speech",
-  violence:       "⚠️ Violence",
+  inappropriate: "🔞 Inappropriate",
+  spam: "📢 Spam",
+  hate_speech: "🚫 Hate Speech",
+  violence: "⚠️ Violence",
   misinformation: "❌ Misinformation",
-  copyright:      "©️ Copyright",
-  harassment:     "😡 Harassment",
-  child_safety:   "🛡️ Child Safety",
-  other:          "📝 Other",
+  copyright: "©️ Copyright",
+  harassment: "😡 Harassment",
+  child_safety: "🛡️ Child Safety",
+  other: "📝 Other",
 };
 
 // Truncates long free-text fields (post text, comment text, user-agent
@@ -108,7 +109,7 @@ const AdminPanel = () => {
 
   // ── Auth check, step 1: Supabase auth-session email ──
   const [authChecked, setAuthChecked] = useState(false);
-  const [authEmail,   setAuthEmail]   = useState("");
+  const [authEmail, setAuthEmail] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -126,7 +127,7 @@ const AdminPanel = () => {
 
   // ── Auth check, step 2: DB-backed admin_users table ──
   const [dbAdminChecked, setDbAdminChecked] = useState(false);
-  const [isDbAdmin,      setIsDbAdmin]      = useState(false);
+  const [isDbAdmin, setIsDbAdmin] = useState(false);
 
   const getAccessToken = async () => {
     const { data } = await supabase.auth.getSession();
@@ -145,10 +146,10 @@ const AdminPanel = () => {
     return data;
   };
 
-  const callManageAdmin    = (body) => callApi("/api/manage-admin", body);
-  const callUserLoginInfo  = () => callApi("/api/user-login-info", {});
-  const callModerateUser   = (body) => callApi("/api/moderate-user", body);
-  const callManageHomeHub  = (body) => callApi("/api/manage-home-hub-tabs", body);
+  const callManageAdmin = (body) => callApi("/api/manage-admin", body);
+  const callUserLoginInfo = () => callApi("/api/user-login-info", {});
+  const callModerateUser = (body) => callApi("/api/moderate-user", body);
+  const callManageHomeHub = (body) => callApi("/api/manage-home-hub-tabs", body);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -168,37 +169,38 @@ const AdminPanel = () => {
 
   const isAdmin = isHardcodedAdmin || isDbAdmin;
 
-  const [reports,       setReports]       = useState([]);
-  const [bannedWords,   setBannedWords]   = useState([]);
-  const [loading,       setLoading]       = useState(true);
-  const [activeTab,     setActiveTab]     = useState("reports");
-  const [filterStatus,  setFilterStatus]  = useState("pending");
-  const [newWord,       setNewWord]       = useState("");
-  const [wordSaving,    setWordSaving]    = useState(false);
+  const [reports, setReports] = useState([]);
+  const [bannedWords, setBannedWords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("reports");
+  const [filterStatus, setFilterStatus] = useState("pending");
+  const [newWord, setNewWord] = useState("");
+  const [wordSaving, setWordSaving] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
-  const [toast,         setToast]         = useState("");
+  const [toast, setToast] = useState("");
+  const [previewReport, setPreviewReport] = useState(null);
   const [exportingExcel, setExportingExcel] = useState(false);
-  const [exportingPdf,   setExportingPdf]   = useState(false);
-  const [visits,        setVisits]        = useState([]);
-  const [visitsLoading, setVisitsLoading]  = useState(false);
-  const [visitsLoaded,  setVisitsLoaded]   = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [visits, setVisits] = useState([]);
+  const [visitsLoading, setVisitsLoading] = useState(false);
+  const [visitsLoaded, setVisitsLoaded] = useState(false);
 
   // ── "Admins" tab state ──────────────────────────────────────────────────
-  const [admins,           setAdmins]           = useState([]);
-  const [adminsLoading,    setAdminsLoading]    = useState(false);
-  const [adminsLoaded,     setAdminsLoaded]     = useState(false);
-  const [newAdminEmail,    setNewAdminEmail]    = useState("");
+  const [admins, setAdmins] = useState([]);
+  const [adminsLoading, setAdminsLoading] = useState(false);
+  const [adminsLoaded, setAdminsLoaded] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState("");
   const [newAdminPassword, setNewAdminPassword] = useState("");
-  const [grantLoading,     setGrantLoading]     = useState(false);
-  const [revokingEmail,    setRevokingEmail]    = useState(null);
+  const [grantLoading, setGrantLoading] = useState(false);
+  const [revokingEmail, setRevokingEmail] = useState(null);
 
   // ── "Logins" tab state ───────────────────────────────────────────────────
-  const [loginRows,          setLoginRows]          = useState([]);
-  const [loginsLoading,      setLoginsLoading]      = useState(false);
-  const [loginsLoaded,       setLoginsLoaded]       = useState(false);
+  const [loginRows, setLoginRows] = useState([]);
+  const [loginsLoading, setLoginsLoading] = useState(false);
+  const [loginsLoaded, setLoginsLoaded] = useState(false);
   const [exportingLoginsXlsx, setExportingLoginsXlsx] = useState(false);
   const [exportingLoginsWord, setExportingLoginsWord] = useState(false);
-  const [exportingLoginsPdf,  setExportingLoginsPdf]  = useState(false);
+  const [exportingLoginsPdf, setExportingLoginsPdf] = useState(false);
 
   // ── "Users" tab state ────────────────────────────────────────────────────
   // Reuses the same data source as the Logins tab (api/user-login-info.js
@@ -206,11 +208,11 @@ const AdminPanel = () => {
   // SEPARATE fetch/loaded flag from the Logins tab so opening one doesn't
   // silently also mark the other as "loaded" with stale data — each tab
   // refreshes independently.
-  const [userRows,        setUserRows]        = useState([]);
-  const [usersLoading,    setUsersLoading]    = useState(false);
-  const [usersLoaded,     setUsersLoaded]     = useState(false);
-  const [userSearch,      setUserSearch]      = useState("");
-  const [moderatingId,    setModeratingId]    = useState(null); // userId currently being acted on
+  const [userRows, setUserRows] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [moderatingId, setModeratingId] = useState(null); // userId currently being acted on
   const [removeContentMap, setRemoveContentMap] = useState({}); // userId -> bool, "also delete content" checkbox state
   // NEW: lowercase usernames that currently have a fresh site_visits heartbeat.
   const [onlineUsernames, setOnlineUsernames] = useState(new Set());
@@ -221,13 +223,13 @@ const AdminPanel = () => {
   // admin-token pattern as callManageAdmin) rather than direct client
   // writes, since the home_hub_tabs table's RLS only grants SELECT to
   // the anon/authenticated roles.
-  const [hubTabs,        setHubTabs]        = useState([]);
+  const [hubTabs, setHubTabs] = useState([]);
   const [hubTabsLoading, setHubTabsLoading] = useState(false);
-  const [hubTabsLoaded,  setHubTabsLoaded]  = useState(false);
-  const [hubTabBusyKey,  setHubTabBusyKey]  = useState(null);
-  const [hubOverrides,   setHubOverrides]   = useState([]); // [{tab_key, username, show}]
+  const [hubTabsLoaded, setHubTabsLoaded] = useState(false);
+  const [hubTabBusyKey, setHubTabBusyKey] = useState(null);
+  const [hubOverrides, setHubOverrides] = useState([]); // [{tab_key, username, show}]
   const [expandedHubKey, setExpandedHubKey] = useState(null); // which tab's override panel is open
-  const [overrideDraft,  setOverrideDraft]  = useState({ username: "", show: true });
+  const [overrideDraft, setOverrideDraft] = useState({ username: "", show: true });
   const [overrideSaving, setOverrideSaving] = useState(false);
 
   const showToast = (msg) => {
@@ -304,7 +306,7 @@ const AdminPanel = () => {
 
       const table = report.content_type === "reel" ? "reels"
         : report.content_type === "video" ? "videos"
-        : "posts";
+          : "posts";
 
       const rawId = String(report.content_id).replace("db_", "");
       await supabase.from(table).delete().eq("id", rawId);
@@ -660,8 +662,7 @@ const AdminPanel = () => {
 
   const banUser = async (user) => {
     const confirmed = window.confirm(
-      `Ban ${user.username ? `@${user.username}` : user.email}? They will no longer be able to log in.${
-        removeContentMap[user.id] ? " Their videos, reels, and posts will ALSO be permanently deleted." : ""
+      `Ban ${user.username ? `@${user.username}` : user.email}? They will no longer be able to log in.${removeContentMap[user.id] ? " Their videos, reels, and posts will ALSO be permanently deleted." : ""
       }`,
     );
     if (!confirmed) return;
@@ -697,8 +698,7 @@ const AdminPanel = () => {
   const deleteUserAccount = async (user) => {
     const wipeContent = !!removeContentMap[user.id];
     const confirmed = window.confirm(
-      `Permanently delete the account for ${user.username ? `@${user.username}` : user.email}? This cannot be undone.${
-        wipeContent ? " Their videos, reels, and posts will ALSO be permanently deleted." : " Their existing content will be kept but no longer tied to a valid login."
+      `Permanently delete the account for ${user.username ? `@${user.username}` : user.email}? This cannot be undone.${wipeContent ? " Their videos, reels, and posts will ALSO be permanently deleted." : " Their existing content will be kept but no longer tied to a valid login."
       }`,
     );
     if (!confirmed) return;
@@ -722,10 +722,10 @@ const AdminPanel = () => {
   const normalizedUserSearch = userSearch.trim().toLowerCase();
   const filteredUserRows = normalizedUserSearch
     ? userRows.filter(
-        (u) =>
-          (u.username || "").toLowerCase().includes(normalizedUserSearch) ||
-          (u.email || "").toLowerCase().includes(normalizedUserSearch),
-      )
+      (u) =>
+        (u.username || "").toLowerCase().includes(normalizedUserSearch) ||
+        (u.email || "").toLowerCase().includes(normalizedUserSearch),
+    )
     : userRows;
 
   // NEW: online helpers for the Users tab.
@@ -851,14 +851,14 @@ const AdminPanel = () => {
   // ── Shared export data fetcher (existing header Excel/PDF export) ──────────
   const fetchExportData = async () => {
     const [
-      { data: profiles,      error: profilesErr },
-      { data: videos,        error: videosErr },
-      { data: reels,         error: reelsErr },
-      { data: posts,         error: postsErr },
-      { data: postComments,  error: postCommentsErr },
+      { data: profiles, error: profilesErr },
+      { data: videos, error: videosErr },
+      { data: reels, error: reelsErr },
+      { data: posts, error: postsErr },
+      { data: postComments, error: postCommentsErr },
       { data: postReactions, error: postReactionsErr },
-      { data: likes,         error: likesErr },
-      { data: views,         error: viewsErr },
+      { data: likes, error: likesErr },
+      { data: views, error: viewsErr },
     ] = await Promise.all([
       supabase.from("profiles").select("*"),
       supabase.from("videos").select("*"),
@@ -925,14 +925,14 @@ const AdminPanel = () => {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(safeRows), name);
       };
 
-      addSheet(usersSheet,     "Users");
-      addSheet(videos,         "Videos");
-      addSheet(reels,          "Reels");
-      addSheet(posts,          "Posts");
-      addSheet(postComments,   "Post Comments");
-      addSheet(postReactions,  "Post Reactions");
-      addSheet(likes,          "Likes");
-      addSheet(views,          "Views");
+      addSheet(usersSheet, "Users");
+      addSheet(videos, "Videos");
+      addSheet(reels, "Reels");
+      addSheet(posts, "Posts");
+      addSheet(postComments, "Post Comments");
+      addSheet(postReactions, "Post Reactions");
+      addSheet(likes, "Likes");
+      addSheet(views, "Views");
 
       const filename = `zixplon_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
       XLSX.writeFile(wb, filename);
@@ -1095,11 +1095,27 @@ const AdminPanel = () => {
   }
 
   const filteredReports = reports.filter((r) => filterStatus === "all" ? true : r.status === filterStatus);
-  const pendingCount    = reports.filter((r) => r.status === "pending").length;
+  const pendingCount = reports.filter((r) => r.status === "pending").length;
 
   return (
     <div className="admin_panel">
       {toast && <div className="admin_toast">{toast}</div>}
+
+      {previewReport && (
+        <ReportPreviewModal
+          report={previewReport}
+          busy={!!actionLoading}
+          onClose={() => setPreviewReport(null)}
+          onDelete={async () => {
+            await deleteContent(previewReport);
+            setPreviewReport(null);
+          }}
+          onDismiss={async () => {
+            await updateReportStatus(previewReport.id, "dismissed");
+            setPreviewReport(null);
+          }}
+        />
+      )}
 
       <div className="admin_header">
         <div>
@@ -1119,11 +1135,11 @@ const AdminPanel = () => {
 
       <div className="admin_stats">
         {[
-          { label: "Pending",   value: reports.filter((r) => r.status === "pending").length,   color: "#f97316" },
-          { label: "Reviewed",  value: reports.filter((r) => r.status === "reviewed").length,  color: "#3b82f6" },
-          { label: "Removed",   value: reports.filter((r) => r.status === "removed").length,   color: "#ef4444" },
+          { label: "Pending", value: reports.filter((r) => r.status === "pending").length, color: "#f97316" },
+          { label: "Reviewed", value: reports.filter((r) => r.status === "reviewed").length, color: "#3b82f6" },
+          { label: "Removed", value: reports.filter((r) => r.status === "removed").length, color: "#ef4444" },
           { label: "Dismissed", value: reports.filter((r) => r.status === "dismissed").length, color: "#22c55e" },
-          { label: "Total",     value: reports.length,                                          color: "#7c3aed" },
+          { label: "Total", value: reports.length, color: "#7c3aed" },
         ].map((s) => (
           <div key={s.label} className="admin_stat_card">
             <div className="admin_stat_value" style={{ color: s.color }}>{s.value}</div>
@@ -1198,7 +1214,7 @@ const AdminPanel = () => {
                         </span>
                       </div>
                       <span className="admin_report_time">
-                        {new Date(report.created_at).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" })}
+                        {new Date(report.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </span>
                     </div>
 
@@ -1231,6 +1247,12 @@ const AdminPanel = () => {
 
                     {(report.status === "pending" || report.status === "reviewed") && (
                       <div className="admin_report_actions">
+                        <button
+                          className="admin_action_btn admin_action_btn--view"
+                          onClick={() => setPreviewReport(report)}
+                        >
+                          ▶ View Content
+                        </button>
                         <button
                           className="admin_action_btn admin_action_btn--delete"
                           onClick={() => deleteContent(report)}
@@ -1281,11 +1303,11 @@ const AdminPanel = () => {
             <>
               <div className="admin_stats" style={{ marginBottom: "20px" }}>
                 {[
-                  { label: "Total Visits",   value: visitStats.totalVisits,   color: "#7c3aed" },
+                  { label: "Total Visits", value: visitStats.totalVisits, color: "#7c3aed" },
                   { label: "Unique Sessions", value: visitStats.uniqueSessions, color: "#3b82f6" },
-                  { label: "Logged-in",      value: visitStats.loggedIn,      color: "#22c55e" },
-                  { label: "Guests",         value: visitStats.guests,        color: "#f97316" },
-                  { label: "Avg. Duration",  value: formatDuration(visitStats.avgDurationSec), color: "#ef4444" },
+                  { label: "Logged-in", value: visitStats.loggedIn, color: "#22c55e" },
+                  { label: "Guests", value: visitStats.guests, color: "#f97316" },
+                  { label: "Avg. Duration", value: formatDuration(visitStats.avgDurationSec), color: "#ef4444" },
                 ].map((s) => (
                   <div key={s.label} className="admin_stat_card">
                     <div className="admin_stat_value" style={{ color: s.color, fontSize: typeof s.value === "string" ? "20px" : "28px" }}>

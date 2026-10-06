@@ -3,9 +3,10 @@
 // Configured as the target of Supabase Database Webhooks:
 //   1. INSERT on direct_messages
 //   2. INSERT on notifications   (likes, comments, follows, etc.)
-//   3. INSERT on calls           (NEW: incoming voice call)
-//   4. UPDATE on calls           (NEW: replaces the "incoming call" notification
-//                                 with "Missed voice call" if nobody answered)
+//   3. INSERT on calls           (incoming voice call)
+//   4. UPDATE on calls           (replaces the "incoming call" notification with
+//                                 "Missed voice call" if nobody answered, and
+//                                 removes it once the call is answered/declined)
 //
 // Supabase sends a payload shaped like:
 //   { type: "INSERT" | "UPDATE", table: "calls", record: {...}, schema: "public" }
@@ -31,6 +32,9 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY,
 );
 
+// Call statuses that mean "the ringing is over, remove the notification".
+const CALL_RESOLVED = ["accepted", "declined", "busy"];
+
 // Maps a notifications.content_type value to a route in your app.
 // Adjust these paths if your routes differ.
 function urlForContent(contentType, contentId) {
@@ -46,7 +50,7 @@ function urlForContent(contentType, contentId) {
   }
 }
 
-// NEW: same rules the app enforces for calls — an accepted chat, and nobody
+// Same rules the app enforces for calls — an accepted chat, and nobody
 // has blocked the other. If this fails we send no push at all.
 async function callAllowed(caller, callee) {
   const [user_a, user_b] = [caller, callee].sort();
@@ -98,8 +102,8 @@ function buildNotificationPayload(table, record, eventType) {
     };
   }
 
-  // NEW: voice calls. Both notifications share the tag `call-<id>`, so the
-  // "Missed voice call" one replaces the ringing one in the tray.
+  // Voice calls. Every call notification shares the tag `call-<id>`, so each
+  // newer one replaces the ringing one in the tray.
   if (table === "calls") {
     if (eventType === "INSERT") {
       return {
@@ -109,6 +113,17 @@ function buildNotificationPayload(table, record, eventType) {
         tag: `call-${record.id}`,
         requireInteraction: true,
         isCall: true,
+      };
+    }
+    // Answered / declined / busy: tell the service worker to remove the ring.
+    if (CALL_RESOLVED.includes(record.status)) {
+      return {
+        title: "Call ended",
+        body: "",
+        url: "/",
+        tag: `call-${record.id}`,
+        isCall: true,
+        close: true,
       };
     }
     return {
@@ -130,7 +145,7 @@ export default async function handler(req, res) {
   try {
     const { table, record, type: eventType } = req.body;
 
-    // NEW: the call-history rows the app writes into chat (attachment_type "call")
+    // The call-history rows the app writes into chat (attachment_type "call")
     // must not trigger a "New message / Sent an attachment" push.
     if (table === "direct_messages" && record.attachment_type === "call") {
       return res.status(200).json({ skipped: "call history row" });
@@ -154,15 +169,23 @@ export default async function handler(req, res) {
     } else if (table === "notifications") {
       recipientUsername = record.recipient_username;
     } else if (table === "calls") {
-      // NEW: ring on INSERT; on UPDATE only react to unanswered calls.
+      // Ring on INSERT; on UPDATE react to unanswered calls (missed/cancelled)
+      // and to resolved ones (accepted/declined/busy) so the ring is removed.
       const ringing = eventType === "INSERT" && record.status === "ringing";
       const unanswered =
         eventType === "UPDATE" &&
         (record.status === "missed" || record.status === "cancelled");
-      if (!ringing && !unanswered) {
+      const resolved =
+        eventType === "UPDATE" && CALL_RESOLVED.includes(record.status);
+      if (!ringing && !unanswered && !resolved) {
         return res.status(200).json({ skipped: "call event not pushed" });
       }
-      if (!(await callAllowed(record.caller_username, record.callee_username))) {
+      // Removing a ring is always safe, so only ringing / missed pushes
+      // need the "blocked or not accepted" check.
+      if (
+        !resolved &&
+        !(await callAllowed(record.caller_username, record.callee_username))
+      ) {
         return res.status(200).json({ skipped: "call not allowed (blocked or not accepted)" });
       }
       recipientUsername = record.callee_username;
@@ -196,7 +219,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ skipped: "no subscriptions for user" });
     }
 
-    // NEW: a ringing call is worthless after ~30s, so let the push service drop it
+    // A ringing call is worthless after ~30s, so let the push service drop it
     // instead of delivering it late, and mark it high priority so phones wake up.
     const sendOptions = payload.isCall ? { TTL: 30, urgency: "high" } : undefined;
 
@@ -213,6 +236,8 @@ export default async function handler(req, res) {
             url: payload.url,
             tag: payload.tag,
             requireInteraction: !!payload.requireInteraction,
+            isCall: !!payload.isCall,
+            close: !!payload.close,
           }),
           sendOptions,
         ),

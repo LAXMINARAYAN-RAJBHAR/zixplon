@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import "./PostFeed.css";
 import PostComposer from "./PostComposer";
@@ -13,6 +13,12 @@ import { extractMentions } from "../../utils/linkify";
 
 const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const location = useLocation();
+
+  // NEW: the search term from the URL (?q=...). When present, the feed
+  // switches from the shuffled "latest posts" mode to a filtered search.
+  const searchQuery =
+    new URLSearchParams(location.search).get("q")?.trim() || "";
+
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -22,20 +28,16 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const [postNotFound, setPostNotFound] = useState(false);
   const [viewCounts, setViewCounts] = useState({});
   const PAGE_SIZE = 10;
-  // NEW: how many of the most-recent posts we draw from — client-side
-  // shuffled — before going back to the database for the next older
-  // batch. This is what makes a refresh show a different mix/order of
-  // (still-recent) posts instead of the same chronological top-10
-  // every single time, without needing any backend changes.
   const POOL_SIZE = 50;
   const offsetRef = useRef(0);
-  // NEW: posts already fetched from the DB and shuffled, but not yet
-  // handed out to the feed. fetchPosts() serves PAGE_SIZE at a time off
-  // the front of this array, topping it up from the DB (in POOL_SIZE
-  // chunks) whenever it runs low.
   const shuffledPoolRef = useRef([]);
   const [videos, setVideos] = useState([]);
   const videosOffsetRef = useRef(0);
+
+  // Search-mode extras: reels + uploaded videos matching the query.
+  const [searchReels, setSearchReels] = useState([]);
+  const [searchVideos, setSearchVideos] = useState([]);
+  const [searchExtrasLoading, setSearchExtrasLoading] = useState(false);
 
   const currentUser = currentUserProp || "anonymous";
 
@@ -68,9 +70,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     [currentUser]
   );
 
-  // NEW: plain Fisher-Yates shuffle — gives a fresh random order every
-  // time it's called (each page load / refresh), rather than any fixed
-  // or seeded order.
   const shuffleArray = (arr) => {
     const a = [...arr];
     for (let i = a.length - 1; i > 0; i--) {
@@ -128,11 +127,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     } catch (_) {}
   }, []);
 
-  // Fetches the next `count` videos into the pool, and, once the batch
-  // is in, does one follow-up query against `likes` to seed each
-  // video's real like count (mirrors homePage.js's fetchDbVideos exactly).
-  // Also selects created_at, so VideoFeedCard's "posted X ago" label has
-  // something to render.
   const fetchMoreVideos = useCallback(async (count) => {
     if (!count) return;
     const { data, error: fetchErr } = await supabase
@@ -152,7 +146,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         channel: v.channel,
         username: v.username || v.channel?.toLowerCase() || "unknown",
         created_at: v.created_at || null,
-        likes: 0, // filled in below once likesData resolves
+        likes: 0,
       }));
 
       const videoIds = mapped.map((v) => String(v.id));
@@ -177,34 +171,59 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       setVideos((prev) => [...prev, ...withLikes]);
       videosOffsetRef.current += data.length;
       if (data.length < count) {
-        videosOffsetRef.current = 0; // hit the end — loop back next time
+        videosOffsetRef.current = 0;
       }
     } else {
-      videosOffsetRef.current = 0; // empty page — reset and try again next call
+      videosOffsetRef.current = 0;
     }
   }, []);
 
-  // CHANGED: instead of always querying the next PAGE_SIZE posts
-  // chronologically (which meant a fresh page load always showed the
-  // exact same latest-10 in the exact same order), this now serves
-  // PAGE_SIZE posts off the front of a client-shuffled "pool" of the
-  // most recent POOL_SIZE posts, topping the pool up from the database
-  // — in fresh POOL_SIZE chunks, each re-shuffled on arrival — whenever
-  // it runs low. The pool itself resets on `reset` (a real refresh /
-  // first mount), so every load reshuffles which of the recent posts
-  // you see first, instead of only reordering after they're already
-  // on-screen.
   const fetchPosts = useCallback(async (reset = false) => {
     try {
+      // ────────────── NEW: SEARCH MODE ──────────────
+      // When a search query is present, skip the shuffled pool entirely
+      // and fetch matching posts straight from the DB, newest first,
+      // paginated by PAGE_SIZE.
+      if (searchQuery) {
+        if (reset) {
+          offsetRef.current = 0;
+          shuffledPoolRef.current = [];
+          setHasMore(true);
+        }
+
+        // Strip characters that would break PostgREST's .or() syntax.
+        const safe = searchQuery.replace(/[%,()*]/g, " ").trim();
+        const offset = offsetRef.current;
+
+        const { data, error: fetchErr } = await supabase
+          .from("posts")
+          .select(`
+            *,
+            post_reactions ( type, username ),
+            post_comments ( ${POST_COMMENTS_SELECT} )
+          `)
+          .or(`text.ilike.%${safe}%,username.ilike.%${safe}%`)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+
+        if (fetchErr) throw fetchErr;
+
+        const page = (data || []).map(enrichPost);
+        offsetRef.current += page.length;
+        setHasMore(page.length === PAGE_SIZE);
+        setPosts((prev) => (reset ? page : [...prev, ...page]));
+        setVideos([]);
+        fetchViewCounts(page.map((p) => p.id));
+        return; // `finally` below still clears loading flags
+      }
+
+      // ────────────── NORMAL (SHUFFLED) FEED ──────────────
       if (reset) {
         shuffledPoolRef.current = [];
         offsetRef.current = 0;
         setHasMore(true);
       }
 
-      // Top the pool up from the DB, in POOL_SIZE-sized chunks, until
-      // it has at least one page's worth ready to serve (or the DB
-      // itself has run out of posts).
       while (shuffledPoolRef.current.length < PAGE_SIZE) {
         const offset = offsetRef.current;
         const { data, error: fetchErr } = await supabase
@@ -223,7 +242,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
         if (!data || data.length === 0) {
           setHasMore(false);
-          break; // nothing left in the DB at all
+          break;
         }
 
         const enrichedBatch = data.map(enrichPost);
@@ -233,7 +252,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
         if (data.length < POOL_SIZE) {
           setHasMore(false);
-          break; // that was the last page the DB had
+          break;
         }
         setHasMore(true);
       }
@@ -257,7 +276,123 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [enrichPost, fetchMoreVideos]);
+  }, [enrichPost, fetchMoreVideos, searchQuery]);
+
+  // Search mode: also look up reels and uploaded videos (YouTube is
+  // intentionally NOT searched here). Posts are handled by fetchPosts.
+  useEffect(() => {
+    if (!searchQuery) {
+      setSearchReels([]);
+      setSearchVideos([]);
+      setSearchExtrasLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const safe = searchQuery.replace(/[%,()*]/g, " ").trim();
+    const lowerQ = searchQuery.toLowerCase();
+
+    const run = async () => {
+      setSearchExtrasLoading(true);
+      try {
+        const [reelsRes, videosRes] = await Promise.all([
+          supabase
+            .from("reels")
+            .select("*")
+            .or(
+              `title.ilike.%${safe}%,description.ilike.%${safe}%,username.ilike.%${safe}%,song.ilike.%${safe}%`
+            )
+            .order("created_at", { ascending: false })
+            .limit(40),
+          supabase
+            .from("videos")
+            .select(
+              "id, short_id, video_url, thumbnail_url, title, channel, username, duration, created_at"
+            )
+            .or(
+              `title.ilike.%${safe}%,channel.ilike.%${safe}%,username.ilike.%${safe}%`
+            )
+            .order("created_at", { ascending: false })
+            .limit(30),
+        ]);
+
+        if (cancelled) return;
+
+        // Reels: DB rows matched on text columns; also catch tag matches
+        // (tags is an array, so it's filtered client-side from recent reels).
+        let reels = reelsRes.data || [];
+        if (!reelsRes.error) {
+          const { data: recent } = await supabase
+            .from("reels")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(300);
+          const tagMatches = (recent || []).filter((r) =>
+            (r.tags || []).some((t) => String(t).toLowerCase().includes(lowerQ))
+          );
+          const seen = new Set(reels.map((r) => r.id));
+          tagMatches.forEach((r) => {
+            if (!seen.has(r.id)) reels.push(r);
+          });
+        }
+
+        setSearchReels(
+          reels.map((r) => ({
+            id: r.id,
+            video: r.video_url,
+            thumbnail: r.thumbnail || null,
+            caption: r.title || r.description || "Untitled",
+            username: r.username || "unknown",
+          }))
+        );
+
+        const vids = (videosRes.data || []).map((v) => ({
+          id: v.id,
+          short_id: v.short_id,
+          src: v.video_url,
+          thumbnail: v.thumbnail_url || null,
+          title: v.title,
+          duration: v.duration || "00:00",
+          channel: v.channel,
+          username: v.username || v.channel?.toLowerCase() || "unknown",
+          created_at: v.created_at || null,
+          likes: 0,
+        }));
+
+        if (vids.length > 0) {
+          const { data: likesData } = await supabase
+            .from("likes")
+            .select("content_id")
+            .eq("content_type", "video")
+            .in("content_id", vids.map((v) => String(v.id)));
+          if (likesData) {
+            const likesMap = {};
+            likesData.forEach((row) => {
+              likesMap[row.content_id] = (likesMap[row.content_id] || 0) + 1;
+            });
+            vids.forEach((v) => {
+              v.likes = likesMap[String(v.id)] ?? 0;
+            });
+          }
+        }
+
+        if (!cancelled) setSearchVideos(vids);
+      } catch (err) {
+        console.error("Search extras error:", err.message || err);
+        if (!cancelled) {
+          setSearchReels([]);
+          setSearchVideos([]);
+        }
+      } finally {
+        if (!cancelled) setSearchExtrasLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchQuery]);
 
   const loadMore = useCallback(() => {
     if (loadingMoreRef.current || !hasMoreRef.current) return;
@@ -267,6 +402,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
   const handleRealtimeInsert = useCallback(
     async (payload) => {
+      // NEW: while searching, don't inject unrelated new posts into
+      // the filtered results.
+      if (searchQuery) return;
+
       const newId = payload.new?.id;
       if (!newId) return;
 
@@ -292,10 +431,14 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       fetchViewCounts([newId]);
     },
-    [enrichPost, fetchMoreVideos]
+    [enrichPost, fetchMoreVideos, searchQuery]
   );
 
   useEffect(() => {
+    // NEW: show the skeleton again whenever the query changes
+    // (fetchPosts changes identity when searchQuery changes).
+    setLoading(true);
+    setError("");
     fetchPosts(true);
 
     const channel = supabase
@@ -312,13 +455,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           const deletedId = payload.old?.id;
           if (deletedId) {
             setPosts((prev) => prev.filter((p) => p.id !== deletedId));
-            // NOTE: no longer rewinding offsetRef here — with the
-            // shuffled-pool approach above, offsetRef tracks how far
-            // we've read from the DB into the pool, which is decoupled
-            // from how many posts are currently on-screen (the pool
-            // usually holds a buffer beyond what's displayed). Rewinding
-            // it after a delete could cause the pool to later re-fetch
-            // and re-serve an already-seen post.
           }
         }
       )
@@ -769,6 +905,32 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     );
   };
 
+  // Profiles = distinct usernames matching the query across posts, reels
+  // and videos (only computed in search mode).
+  const searchProfiles = searchQuery
+    ? [
+        ...new Set(
+          [
+            ...posts.map((p) => p.username),
+            ...searchReels.map((r) => r.username),
+            ...searchVideos.map((v) => v.username),
+          ].filter(
+            (u) =>
+              u &&
+              u !== "unknown" &&
+              u.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+        ),
+      ]
+    : [];
+
+  const noSearchResults =
+    searchQuery &&
+    !searchExtrasLoading &&
+    posts.length === 0 &&
+    searchReels.length === 0 &&
+    searchVideos.length === 0;
+
   if (loading) {
     return (
       <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
@@ -789,39 +951,62 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   return (
     <>
       <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
-        {currentUser && currentUser !== "anonymous" ? (
-          <PostComposer currentUser={currentUser} onPost={handleNewPost} />
-        ) : (
+        {/* Search banner shown only while a query is active */}
+        {searchQuery && (
           <div
+            className="pf-search-banner"
             style={{
-              background: "#1a1a1a",
-              border: "1px solid #333",
-              borderRadius: "12px",
-              padding: "20px",
-              textAlign: "center",
-              marginBottom: "16px",
+              padding: "10px 4px 14px",
+              fontSize: "15px",
+              fontWeight: 600,
             }}
           >
-            <p style={{ color: "#aaa", fontSize: "14px", margin: "0 0 12px" }}>
-              🔒 Please log in to post
-            </p>
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent("openLogin"))}
-              style={{
-                background: "#ff0000",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                padding: "8px 24px",
-                fontSize: "14px",
-                fontWeight: "600",
-                cursor: "pointer",
-              }}
-            >
-              Login
-            </button>
+            🔍 Results for "{searchQuery}"
+            <span style={{ marginLeft: 8, fontSize: 13, opacity: 0.6 }}>
+              {searchProfiles.length} profiles · {searchReels.length} reels ·{" "}
+              {searchVideos.length} videos · {posts.length}
+              {hasMore ? "+" : ""} posts
+            </span>
           </div>
         )}
+
+        {/* Composer is hidden while searching */}
+        {!searchQuery &&
+          (currentUser && currentUser !== "anonymous" ? (
+            <PostComposer currentUser={currentUser} onPost={handleNewPost} />
+          ) : (
+            <div
+              style={{
+                background: "#1a1a1a",
+                border: "1px solid #333",
+                borderRadius: "12px",
+                padding: "20px",
+                textAlign: "center",
+                marginBottom: "16px",
+              }}
+            >
+              <p style={{ color: "#aaa", fontSize: "14px", margin: "0 0 12px" }}>
+                🔒 Please log in to post
+              </p>
+              <button
+                onClick={() =>
+                  window.dispatchEvent(new CustomEvent("openLogin"))
+                }
+                style={{
+                  background: "#ff0000",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "8px",
+                  padding: "8px 24px",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                }}
+              >
+                Login
+              </button>
+            </div>
+          ))}
 
         {error && <p className="pf-error">{error}</p>}
         {postNotFound && (
@@ -830,7 +1015,134 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           </p>
         )}
 
-        {posts.length === 0 && !loading && (
+        {/* ── SEARCH: PROFILES ── */}
+        {searchQuery && searchProfiles.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <h3 style={{ fontSize: 15, margin: "0 0 10px", opacity: 0.7 }}>
+              👤 Profiles
+            </h3>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {searchProfiles.map((u) => (
+                <Link
+                  key={u}
+                  to={`/user/${u}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 14px",
+                    borderRadius: 20,
+                    background: "#fff",
+                    border: "1px solid #f3c6c6",
+                    textDecoration: "none",
+                    color: "inherit",
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  <img
+                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(u)}`}
+                    alt={u}
+                    style={{ width: 28, height: 28, borderRadius: "50%" }}
+                  />
+                  @{u}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── SEARCH: REELS ── */}
+        {searchQuery && searchReels.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <h3 style={{ fontSize: 15, margin: "0 0 10px", opacity: 0.7 }}>
+              🎞️ Reels
+            </h3>
+            <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
+              {searchReels.map((reel) => (
+                <Link
+                  key={reel.id}
+                  to={`/reels/db_${reel.id}`}
+                  style={{ textDecoration: "none", color: "inherit", flexShrink: 0 }}
+                >
+                  <div
+                    style={{
+                      width: 150,
+                      borderRadius: 12,
+                      overflow: "hidden",
+                      background: "#fff",
+                      border: "1px solid #f3c6c6",
+                    }}
+                  >
+                    <video
+                      src={reel.video}
+                      poster={reel.thumbnail || undefined}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      style={{
+                        width: "100%",
+                        height: 260,
+                        objectFit: "cover",
+                        display: "block",
+                        background: "#222",
+                      }}
+                    />
+                    <div style={{ padding: 8 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {reel.caption}
+                      </div>
+                      <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>
+                        @{reel.username}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── SEARCH: VIDEOS ── */}
+        {searchQuery && searchVideos.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <h3 style={{ fontSize: 15, margin: "0 0 10px", opacity: 0.7 }}>
+              🎬 Videos
+            </h3>
+            {searchVideos.map((v) => (
+              <VideoFeedCard key={v.id} video={v} />
+            ))}
+          </div>
+        )}
+
+        {searchQuery && searchExtrasLoading && (
+          <p style={{ fontSize: 13, opacity: 0.6 }}>Searching reels and videos…</p>
+        )}
+
+        {searchQuery && posts.length > 0 && (
+          <h3 style={{ fontSize: 15, margin: "0 0 10px", opacity: 0.7 }}>
+            📱 Posts
+          </h3>
+        )}
+
+        {/* ── EMPTY STATES ── */}
+        {noSearchResults && (
+          <div className="pf-empty">
+            <span className="pf-empty-icon">🔍</span>
+            <p>No results found for "{searchQuery}"</p>
+          </div>
+        )}
+
+        {!searchQuery && posts.length === 0 && !loading && (
           <div className="pf-empty">
             <span className="pf-empty-icon">📭</span>
             <p>No posts yet. Be the first to share something!</p>
@@ -862,9 +1174,14 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               />
             </div>
 
-            {videos[index] && <VideoFeedCard video={videos[index]} />}
+            {/* CHANGED: no interleaved videos/reels while searching */}
+            {!searchQuery && videos[index] && (
+              <VideoFeedCard video={videos[index]} />
+            )}
 
-            <ReelsStrip key={`reels-${index}`} startOffset={index * 10} />
+            {!searchQuery && (
+              <ReelsStrip key={`reels-${index}`} startOffset={index * 10} />
+            )}
 
             {(index + 1) % 5 === 0 && (
               <AdUnit slot="7412839650" format="fluid" layout="in-feed" />
@@ -879,7 +1196,9 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         )}
 
         {!hasMore && posts.length > 0 && (
-          <p className="pf-scroll-end">You're all caught up 🎉</p>
+          <p className="pf-scroll-end">
+            {searchQuery ? "End of results 🎉" : "You're all caught up 🎉"}
+          </p>
         )}
       </div>
     </>

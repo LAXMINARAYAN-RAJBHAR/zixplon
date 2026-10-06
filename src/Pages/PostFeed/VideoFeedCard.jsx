@@ -12,22 +12,65 @@ import {
 const HOVER_PREVIEW_DELAY = 400; // ms
 
 // ── A single video card, interleaved into the Posts feed (one per Post,
-// per the Post -> Video -> ReelsStrip sequence in PostFeed.jsx). Desktop
-// hovers-to-preview (muted, looping clip in place of the thumbnail);
-// mobile just shows the static thumbnail (or the video's own first
-// frame if there's no thumbnail_url) and relies on the tap to open it.
-// Shows views/likes/posted-time and a three-dots menu (Save to Watch
-// Later, Add to Playlist, Go to Channel, Share, Report, and owner-only
-// Delete) — matching VideoCard on the Home feed. ──
+// per the Post -> Video -> ReelsStrip sequence in PostFeed.jsx).
+//
+// NEW: the clip now autoplays (muted, looping) as soon as the card is
+// scrolled meaningfully into view, on desktop AND mobile, and pauses +
+// resets the moment it scrolls back out. Desktop hover-to-preview still
+// works on top of that (hovering a card that's off-center previews it
+// too). Shows views/likes/posted-time and a three-dots menu (Save to
+// Watch Later, Add to Playlist, Go to Channel, Share, Report, and
+// owner-only Delete) — matching VideoCard on the Home feed. ──
 const VideoFeedCard = ({ video }) => {
   const navigate = useNavigate();
-  const [previewing, setPreviewing] = useState(false);
+  // NEW: two independent reasons to play the clip — the pointer is
+  // hovering it (desktop), or it's scrolled into view (all devices).
+  // The preview plays whenever either is true.
+  const [hovering, setHovering] = useState(false);
+  const [inView, setInView] = useState(false);
+  const previewing = hovering || inView;
   const [deleted, setDeleted] = useState(false);
+  const cardRef = useRef(null);
   const videoRef = useRef(null);
   const timeoutRef = useRef(null);
 
   const loggedInUsername = localStorage.getItem("username") || "";
   const isOwner = loggedInUsername && video?.username && video.username === loggedInUsername;
+
+  // ── NEW: scroll-into-view detection ──
+  // Fires once ≥60% of the card is on screen (same threshold the rest of
+  // the app uses for "viewed"), and flips back off when it leaves.
+  useEffect(() => {
+    const node = cardRef.current;
+    if (!node || !video?.src) return;
+    const observer = new IntersectionObserver(
+      ([entry]) =>
+        setInView(entry.isIntersecting && entry.intersectionRatio >= 0.6),
+      { threshold: [0, 0.6, 1] },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [video?.src]);
+
+  // ── NEW: actually start/stop playback whenever `previewing` changes ──
+  // Always muted — browsers block unmuted autoplay, and a muted loop
+  // is the expected feed behavior.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (previewing) {
+      v.muted = true;
+      v.play().catch(() => {});
+    } else {
+      try {
+        v.pause();
+        v.currentTime = 0;
+      } catch (_) {}
+    }
+  }, [previewing, video?.src]);
+
+  // Clear any pending hover timer on unmount.
+  useEffect(() => () => clearTimeout(timeoutRef.current), []);
 
   // ── Views ──
   const [viewCount, setViewCount] = useState(0);
@@ -162,19 +205,18 @@ const VideoFeedCard = ({ video }) => {
     }
   };
 
+  // CHANGED: hover now only toggles `hovering` — the effect above is
+  // what actually plays/pauses the <video>, so hover and scroll-into-view
+  // can't fight each other (e.g. moving the mouse off a card that is
+  // still scrolled into view no longer stops it).
   const onEnter = () => {
     if (!video.src) return;
-    timeoutRef.current = setTimeout(() => {
-      setPreviewing(true);
-      videoRef.current?.play().catch(() => {});
-    }, HOVER_PREVIEW_DELAY);
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setHovering(true), HOVER_PREVIEW_DELAY);
   };
   const onLeave = () => {
     clearTimeout(timeoutRef.current);
-    setPreviewing(false);
-    if (videoRef.current) {
-      try { videoRef.current.pause(); videoRef.current.currentTime = 0; } catch (_) {}
-    }
+    setHovering(false);
   };
 
   const goToVideo = () => { incrementView(); navigate(`/video/${video.id}`); };
@@ -226,6 +268,7 @@ const VideoFeedCard = ({ video }) => {
 
   return (
     <div
+      ref={cardRef}
       className="pf-video-card"
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
@@ -240,9 +283,9 @@ const VideoFeedCard = ({ video }) => {
       <div className="pf-video-card-thumb-wrap">
         {video.thumbnail ? (
           <>
-            <img src={video.thumbnail} alt={video.title} className="pf-video-card-thumb" style={{ opacity: previewing ? 0 : 1 }} loading="lazy" />
+            <img src={video.thumbnail} alt={video.title} className="pf-video-card-thumb" style={{ opacity: previewing && video.src ? 0 : 1 }} loading="lazy" />
             {previewing && video.src && (
-              <video ref={videoRef} src={video.src} muted loop playsInline preload="metadata" className="pf-video-card-thumb pf-video-card-thumb-video" />
+              <video ref={videoRef} src={video.src} muted autoPlay loop playsInline preload="metadata" className="pf-video-card-thumb pf-video-card-thumb-video" />
             )}
           </>
         ) : video.src ? (

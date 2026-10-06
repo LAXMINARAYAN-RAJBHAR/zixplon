@@ -83,9 +83,52 @@ const SESSION_RANDOM_BASE = Math.random();
 // the video's own first frame if no thumbnail exists) and rely on the
 // tap to open the reel. Carries a three-dots menu (Share, Go to
 // Profile, Report, and owner-only Delete) — matching the video/reel
-// cards on the Home feed. The hover logic lives in <PreviewThumb>. ──
-const ReelStripCard = ({ reel, previewId, viewCount, navigate, loggedInUsername, onReport, onDeleted }) => {
+// cards on the Home feed. The hover logic lives in <PreviewThumb>.
+//
+// NEW: scroll-into-view autoplay. Each card reports to the strip
+// whether it's ≥60% on screen; the strip picks ONE card (the leftmost
+// visible one) as `autoplay`, and only that card plays a muted looping
+// clip over its thumbnail — so a row of several visible reels never
+// decodes several videos at once. Hovering a card (desktop) hands
+// control to PreviewThumb's own sound-first preview instead. ──
+const ReelStripCard = ({
+  reel,
+  previewId,
+  index,
+  autoplay,
+  onVisibilityChange,
+  viewCount,
+  navigate,
+  loggedInUsername,
+  onReport,
+  onDeleted,
+}) => {
   const isOwner = loggedInUsername && reel.username && reel.username === loggedInUsername;
+  const cardRef = useRef(null);
+  const [hovered, setHovered] = useState(false);
+
+  // NEW: report this card's visibility up to the strip. IntersectionObserver
+  // with the default (viewport) root already accounts for the strip's own
+  // horizontal overflow clipping, so a card half scrolled out of the
+  // track reports a low ratio and isn't treated as visible.
+  useEffect(() => {
+    const node = cardRef.current;
+    if (!node || !reel.src) return;
+    const observer = new IntersectionObserver(
+      ([entry]) =>
+        onVisibilityChange(
+          previewId,
+          index,
+          entry.isIntersecting && entry.intersectionRatio >= 0.6,
+        ),
+      { threshold: [0, 0.6, 1] },
+    );
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      onVisibilityChange(previewId, index, false);
+    };
+  }, [previewId, index, reel.src, onVisibilityChange]);
 
   const goToReel = () => navigate(`/reels/${reel.id}`, { state: { clickedReel: reel } });
 
@@ -142,11 +185,18 @@ const ReelStripCard = ({ reel, previewId, viewCount, navigate, loggedInUsername,
       : []),
   ];
 
+  // Scroll autoplay only runs while this card is the strip's chosen
+  // one AND the pointer isn't on it (hover has its own preview).
+  const showAutoplay = autoplay && !hovered && !!reel.src;
+
   return (
     <div
+      ref={cardRef}
       className="pf-reel-card"
       style={{ position: "relative" }}
       onClick={goToReel}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToReel(); } }}
@@ -179,6 +229,25 @@ const ReelStripCard = ({ reel, previewId, viewCount, navigate, loggedInUsername,
         ) : (
           <div className="pf-reel-thumb pf-reel-thumb-placeholder">🎬</div>
         )}
+
+        {/* NEW: muted looping autoplay clip, laid over the thumbnail
+            while this card is the strip's active (scrolled-into-view)
+            card. Unmounting it (scroll away / hover / another card
+            takes over) stops playback and releases the video. */}
+        {showAutoplay && (
+          <video
+            src={reel.src}
+            muted
+            autoPlay
+            loop
+            playsInline
+            preload="metadata"
+            className="pf-reel-thumb"
+            style={{ position: "absolute", inset: 0, objectFit: "cover" }}
+            onCanPlay={(e) => e.target.play().catch(() => {})}
+          />
+        )}
+
         <span className="pf-reel-play-badge">▶</span>
         {reel.duration && reel.duration !== "00:00" && (
           <span className="pf-reel-duration">{reel.duration}</span>
@@ -221,6 +290,27 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
   // strips (or a wrapped-around duplicate of the same reel) are on
   // screen — the shared sound arbiter tells previews apart by id.
   const stripIdRef = useRef(Math.random().toString(36).slice(2));
+
+  // NEW: scroll-autoplay bookkeeping. visibleRef maps previewId -> card
+  // index for every card currently ≥60% on screen; activeKey is the
+  // leftmost of those, i.e. the one card allowed to autoplay.
+  const visibleRef = useRef(new Map());
+  const [activeKey, setActiveKey] = useState(null);
+
+  const handleVisibilityChange = useCallback((key, idx, visible) => {
+    if (visible) visibleRef.current.set(key, idx);
+    else visibleRef.current.delete(key);
+
+    let bestKey = null;
+    let bestIdx = Infinity;
+    visibleRef.current.forEach((i, k) => {
+      if (i < bestIdx) {
+        bestIdx = i;
+        bestKey = k;
+      }
+    });
+    setActiveKey(bestKey);
+  }, []);
 
   const [reportTarget, setReportTarget] = useState(null);
   const [reportSubmitting, setReportSubmitting] = useState(false);
@@ -364,18 +454,24 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
         ref={trackRef}
         onScroll={handleScroll}
       >
-        {reels.map((r, i) => (
-          <ReelStripCard
-            key={`${r.id}-${i}`}
-            reel={r}
-            previewId={`${stripIdRef.current}-${r.id}-${i}`}
-            viewCount={viewCounts[r.id] ?? 0}
-            navigate={navigate}
-            loggedInUsername={loggedInUsername}
-            onReport={setReportTarget}
-            onDeleted={handleDeleted}
-          />
-        ))}
+        {reels.map((r, i) => {
+          const previewId = `${stripIdRef.current}-${r.id}-${i}`;
+          return (
+            <ReelStripCard
+              key={`${r.id}-${i}`}
+              reel={r}
+              previewId={previewId}
+              index={i}
+              autoplay={activeKey === previewId}
+              onVisibilityChange={handleVisibilityChange}
+              viewCount={viewCounts[r.id] ?? 0}
+              navigate={navigate}
+              loggedInUsername={loggedInUsername}
+              onReport={setReportTarget}
+              onDeleted={handleDeleted}
+            />
+          );
+        })}
         {loading && (
           <div className="pf-reel-card pf-reel-card-loading">
             <div className="pf-reel-thumb-wrap pf-reel-thumb-placeholder">

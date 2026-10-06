@@ -658,6 +658,11 @@ const Navbar = ({
     }
   };
 
+  // ── FIXED: searches now always go to the dedicated /search results
+  // page, from ANY page or Home/Posts/Utility tab. Previously this
+  // navigated to "/?q=…", which only the Home tab understood — on the
+  // Posts tab (or any other tab) nothing read the query, so no results
+  // were shown. SearchResults.jsx reads ?q= itself. ──
   const doSearch = (q) => {
     if (!q.trim()) return;
     addToHistory(q);
@@ -665,7 +670,7 @@ const Navbar = ({
     setSearchBarActive(false);
     setSearchQuery(q);
     setIsSearchFocused(true);
-    navigate({ pathname: "/", search: `?q=${encodeURIComponent(q)}` });
+    navigate({ pathname: "/search", search: `?q=${encodeURIComponent(q)}` });
     setTimeout(() => setIsSearchFocused(false), 1500);
   };
 
@@ -1217,10 +1222,10 @@ const Navbar = ({
           title="Messages"
         >
           {unreadMessages > 0 ? (
-  <ForumIcon sx={{ fontSize: "26px", color: "white" }} />
-) : (
-  <ForumOutlinedIcon sx={{ fontSize: "26px", color: "white" }} />
-)}
+            <ForumIcon sx={{ fontSize: "26px", color: "white" }} />
+          ) : (
+            <ForumOutlinedIcon sx={{ fontSize: "26px", color: "white" }} />
+          )}
           {unreadMessages > 0 && (
             <span style={{
               position: "absolute",

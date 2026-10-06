@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useLocation } from "react-router-dom";
+// CHANGED: added useNavigate (used to open a post from the Posts section)
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
@@ -534,6 +535,8 @@ const ytCache = {};
 
 const SearchResults = () => {
   const location = useLocation();
+  // NEW: used to open a post when its card is clicked in the Posts section
+  const navigate = useNavigate();
 
   const [query, setQuery] = useState("");
   const [youtubeResults, setYoutubeResults] = useState([]);
@@ -867,11 +870,48 @@ const SearchResults = () => {
     }
   };
 
+  // ── FIXED: posts are now searched in Supabase (same source as the
+  // Posts tab) instead of calling a non-existent /api/posts endpoint,
+  // which always failed silently and left the Posts section empty.
+  // Assumes a `posts` table; column names are read tolerantly (title /
+  // caption / content / text, image / image_url / media_url, etc.) so a
+  // slightly different schema still works. If your table has another
+  // name, change "posts" below. ──
   const fetchPosts = async (q) => {
     try {
-      const res = await axios.get(`/api/posts?search=${encodeURIComponent(q)}`);
-      setPostResults(Array.isArray(res.data) ? res.data : []);
-    } catch {
+      const lowerQ = q.toLowerCase();
+
+      // Same approach as reels: fetch recent rows, filter client-side
+      // (avoids query errors if a column name differs).
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(300);
+
+      if (error) throw error;
+
+      const matched = (data || [])
+        .map((p) => ({
+          id: p.id,
+          title: p.title || p.caption || p.content || p.text || "",
+          description: p.description || p.content || p.caption || "",
+          image: p.image || p.image_url || p.media_url || p.thumbnail || null,
+          username: p.username || p.user || "",
+          tags: p.tags || [],
+        }))
+        .filter(
+          (p) =>
+            String(p.title).toLowerCase().includes(lowerQ) ||
+            String(p.description).toLowerCase().includes(lowerQ) ||
+            String(p.username).toLowerCase().includes(lowerQ) ||
+            (Array.isArray(p.tags) &&
+              p.tags.some((t) => String(t).toLowerCase().includes(lowerQ))),
+        );
+
+      setPostResults(matched);
+    } catch (err) {
+      console.error("Post search error:", err);
       setPostResults([]);
     }
   };
@@ -2146,9 +2186,17 @@ const SearchResults = () => {
                       gap: "16px",
                     }}
                   >
+                    {/* CHANGED: key is the post id (was the array index), and
+                        clicking a card opens that post in the Posts tab —
+                        same /?tab=posts&post=<id> link the rest of the app
+                        uses (see FeedRedirect in App.jsx). */}
                     {postResults.map((post, i) => (
                       <div
-                        key={i}
+                        key={post.id ?? i}
+                        onClick={() =>
+                          post.id != null &&
+                          navigate(`/?tab=posts&post=${post.id}`)
+                        }
                         style={{
                           background: "#272727",
                           borderRadius: "12px",

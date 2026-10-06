@@ -5,6 +5,9 @@
 const CACHE_NAME = "zixplon-v5"; // bumped so the activate step clears v4
 const APP_SHELL = ["/", "/index.html"];
 
+// Vibration pattern used for an incoming call (long buzzes, like a ring).
+const CALL_VIBRATE = [800, 400, 800, 400, 800, 400, 800];
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
@@ -46,6 +49,21 @@ self.addEventListener("fetch", (event) => {
 
 // ── Push notifications ──
 
+// Removes the notification(s) with this tag. Browsers require every push to
+// show *something*, so we first replace the ringing notification with a
+// silent one and then close it - which makes it disappear from the tray.
+async function clearNotificationByTag(tag, icon, badge) {
+  await self.registration.showNotification("Call ended", {
+    tag,
+    icon,
+    badge,
+    silent: true,
+    renotify: false,
+  });
+  const open = await self.registration.getNotifications({ tag });
+  open.forEach((n) => n.close());
+}
+
 self.addEventListener("push", (event) => {
   let payload = {};
 
@@ -67,18 +85,42 @@ self.addEventListener("push", (event) => {
     badge = "/logo192.png",
     url = "/",
     tag,
+    requireInteraction = false,
+    isCall = false, // this push is about a voice call
+    close = false, // ...and the call is over (answered/declined): remove the ring
   } = payload;
 
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon,
-      badge,
-      tag: tag || "zixplon-notification", // renotify requires a tag
-      renotify: true,
-      vibrate: [100, 50, 100],
-      data: { url },
-    })
+    (async () => {
+      // The call finished or was answered elsewhere: take the ring away.
+      if (isCall && close) {
+        await clearNotificationByTag(tag || "zixplon-call", icon, badge);
+        return;
+      }
+
+      // The app is open and visible: it already rings in-app, so don't also
+      // show a notification on top of it. (Browsers allow skipping the
+      // notification when a page of this site is visible.)
+      if (isCall) {
+        const wins = await self.clients.matchAll({
+          type: "window",
+          includeUncontrolled: true,
+        });
+        if (wins.some((w) => w.visibilityState === "visible")) return;
+      }
+
+      await self.registration.showNotification(title, {
+        body,
+        icon,
+        badge,
+        tag: tag || "zixplon-notification", // renotify requires a tag
+        renotify: true,
+        // Calls stay on screen (desktop browsers) and buzz like a ring.
+        requireInteraction: !!requireInteraction,
+        vibrate: isCall ? CALL_VIBRATE : [100, 50, 100],
+        data: { url },
+      });
+    })()
   );
 });
 

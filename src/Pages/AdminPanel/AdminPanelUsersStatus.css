@@ -1,0 +1,109 @@
+/* AdminPanelUsersStatus.css
+   Place this file in: src/Pages/AdminPanel/ */
+
+.users-status-container {
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.users-status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.users-status-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #222;
+  margin: 0;
+}
+
+/* Table */
+.users-status-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-status-table th,
+.users-status-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+
+.users-status-table th {
+  background: #f7f7f9;
+  color: #555;
+  font-weight: 600;
+}
+
+.users-status-table tr:hover td {
+  background: #fafafa;
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-active {
+  background: #e6f6ec;
+  color: #1a7f3c;
+}
+
+.status-inactive {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.status-pending {
+  background: #fff4e0;
+  color: #b26a00;
+}
+
+.status-blocked {
+  background: #fde8e8;
+  color: #c62828;
+}
+
+/* Action buttons */
+.status-action-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: #4f46e5;
+  color: #fff;
+  transition: background 0.2s ease;
+}
+
+.status-action-btn:hover {
+  background: #4338ca;
+}
+
+.status-action-btn.danger {
+  background: #dc2626;
+}
+
+.status-action-btn.danger:hover {
+  background: #b91c1c;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .users-status-table {
+    display: block;
+    overflow-x: auto;
+  }
+}

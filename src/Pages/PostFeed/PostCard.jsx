@@ -111,6 +111,10 @@ const stubTranslateToHindi = (text) => {
        playback (muted state carries over — no re-prompt).
      • Tapping the video, or the speaker icon, toggles sound on/off at
        any time.
+     • NEW: a full screen button sits next to the speaker icon. It
+       fullscreens the wrapper (so the mute button keeps working), and
+       falls back to the video element's native fullscreen on iOS
+       Safari, which can't fullscreen a <div>.
 
    HLS support — if `src` is an .m3u8 manifest, playback routes through
    hls.js (or native HLS on Safari) instead of setting the <video>'s
@@ -118,6 +122,8 @@ const stubTranslateToHindi = (text) => {
 ───────────────────────────────────────── */
 const PostVideo = ({ src, inView }) => {
   const videoRef = useRef(null);
+  // NEW: wrapper ref — this is the element that actually goes fullscreen.
+  const wrapRef = useRef(null);
   // Holds the active hls.js instance for this video, torn down on
   // unmount or whenever `src` changes.
   const hlsInstanceRef = useRef(null);
@@ -127,6 +133,8 @@ const PostVideo = ({ src, inView }) => {
   // attempt succeeds, or the user taps to unmute.
   const [muted, setMuted] = useState(true);
   const [showMuteHint, setShowMuteHint] = useState(false);
+  // NEW: whether THIS video's wrapper is currently fullscreen.
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const muteHintTimeoutRef = useRef(null);
   // Only worth trying "autoplay with sound" the FIRST time this video
   // enters view — afterwards we just respect whatever mute state is
@@ -139,6 +147,10 @@ const PostVideo = ({ src, inView }) => {
     if (!vid) return;
 
     if (!inView) {
+      // NEW: don't pause while the person is watching it fullscreen.
+      const fsEl =
+        document.fullscreenElement || document.webkitFullscreenElement;
+      if (fsEl && fsEl === wrapRef.current) return;
       vid.pause();
       return;
     }
@@ -188,6 +200,22 @@ const PostVideo = ({ src, inView }) => {
     return () => clearTimeout(muteHintTimeoutRef.current);
   }, []);
 
+  // NEW: keep isFullscreen in sync, including when the person exits with
+  // Esc / the browser's own controls rather than our button.
+  useEffect(() => {
+    const onChange = () => {
+      const fsEl =
+        document.fullscreenElement || document.webkitFullscreenElement;
+      setIsFullscreen(!!fsEl && fsEl === wrapRef.current);
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("webkitfullscreenchange", onChange);
+    };
+  }, []);
+
   const toggleMute = (e) => {
     e.stopPropagation();
     setMuted((m) => {
@@ -202,6 +230,34 @@ const PostVideo = ({ src, inView }) => {
     setShowMuteHint(true);
     clearTimeout(muteHintTimeoutRef.current);
     muteHintTimeoutRef.current = setTimeout(() => setShowMuteHint(false), 1200);
+  };
+
+  // NEW: enter/exit fullscreen. Fullscreens the wrapper so the mute
+  // button stays available; falls back to the <video>'s own native
+  // fullscreen on iPhone Safari.
+  const toggleFullscreen = (e) => {
+    e.stopPropagation();
+    const wrap = wrapRef.current;
+    const vid = videoRef.current;
+    if (!wrap || !vid) return;
+
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+
+    if (fsEl) {
+      (document.exitFullscreen || document.webkitExitFullscreen)?.call(
+        document,
+      );
+      return;
+    }
+
+    const request = wrap.requestFullscreen || wrap.webkitRequestFullscreen;
+    if (request) {
+      Promise.resolve(request.call(wrap)).catch(() => {
+        vid.webkitEnterFullscreen?.();
+      });
+    } else if (vid.webkitEnterFullscreen) {
+      vid.webkitEnterFullscreen();
+    }
   };
 
   // ── HLS playback ──────────────────────────────────────────────────
@@ -246,7 +302,7 @@ const PostVideo = ({ src, inView }) => {
   }, [src, usingHls]);
 
   return (
-    <div className="pf-card-video-wrap" onClick={toggleMute}>
+    <div className="pf-card-video-wrap" ref={wrapRef} onClick={toggleMute}>
       <video
         ref={videoRef}
         // For HLS sources the effect above sets the video's source via
@@ -263,6 +319,44 @@ const PostVideo = ({ src, inView }) => {
         disablePictureInPicture
         onContextMenu={(e) => e.preventDefault()}
       />
+      {/* NEW: full screen button — sits just left of the mute button. */}
+      <button
+        type="button"
+        className="pf-card-video-fs-btn"
+        onClick={toggleFullscreen}
+        aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
+        title={isFullscreen ? "Exit full screen" : "Full screen"}
+      >
+        {isFullscreen ? (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+          </svg>
+        ) : (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+          </svg>
+        )}
+      </button>
       <button
         type="button"
         className={`pf-card-video-mute-btn ${showMuteHint ? "pf-card-video-mute-btn--flash" : ""}`}

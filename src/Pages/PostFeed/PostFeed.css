@@ -2385,3 +2385,66 @@
   padding: 0;
 }
 .pf-video-card-like.liked { color: var(--zx-primary); }
+
+/* ── Post video: full screen button ──
+   APPEND this block to the very bottom of PostFeed.css.
+   Sits just left of the mute button (.pf-card-video-mute-btn). */
+.pf-card-video-fs-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 52px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, background 0.15s;
+}
+.pf-card-video-fs-btn:hover {
+  background: rgba(0,0,0,0.75);
+  transform: scale(1.08);
+}
+
+/* While the wrapper is fullscreen: fill the screen, letterbox the video */
+.pf-card-video-wrap:fullscreen,
+.pf-card-video-wrap:-webkit-full-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: #000;
+}
+.pf-card-video-wrap:fullscreen .pf-card-video,
+.pf-card-video-wrap:-webkit-full-screen .pf-card-video {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  object-fit: contain;
+}
+.pf-card-video-wrap:fullscreen .pf-card-video-fs-btn,
+.pf-card-video-wrap:-webkit-full-screen .pf-card-video-fs-btn,
+.pf-card-video-wrap:fullscreen .pf-card-video-mute-btn,
+.pf-card-video-wrap:-webkit-full-screen .pf-card-video-mute-btn {
+  bottom: 24px;
+}
+.pf-card-video-wrap:fullscreen .pf-card-video-fs-btn,
+.pf-card-video-wrap:-webkit-full-screen .pf-card-video-fs-btn {
+  right: 70px;
+}
+.pf-card-video-wrap:fullscreen .pf-card-video-mute-btn,
+.pf-card-video-wrap:-webkit-full-screen .pf-card-video-mute-btn {
+  right: 24px;
+}

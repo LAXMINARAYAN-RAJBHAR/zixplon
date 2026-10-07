@@ -402,6 +402,9 @@ const ReelItem = ({ reel, allReels }) => {
   const [showNewBadge, setShowNewBadge]         = useState(false);
   const [showReportModal, setShowReportModal]   = useState(false);
   const [progress, setProgress]                 = useState(0);
+    // NEW: true while this reel is within one screen of the viewport.
+  const [near, setNear]                         = useState(false);
+  const hlsLoadStartedRef                       = useRef(false);
 
   // NEW: per-comment feature state — kebab menu, one-level replies,
   // and the translate-to-Hindi toggle (per comment id).
@@ -428,6 +431,20 @@ const ReelItem = ({ reel, allReels }) => {
   useEffect(() => {
     setShowNewBadge(isNewReel(reel));
   }, [reel.id]);
+
+    // NEW: preload window — only reels within ~1 screen above/below the
+  // viewport buffer; everything else stays idle (preload="none").
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node || isYouTube(reel.src)) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setNear(entry.isIntersecting),
+      { rootMargin: "100% 0px 100% 0px", threshold: 0 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reel.src]);
 
   const showToast = (msg, type = "") => {
     setActionToast({ show: true, msg, type });
@@ -614,28 +631,24 @@ const ReelItem = ({ reel, allReels }) => {
   // reels that aren't served as HLS yet. Skipped entirely for YouTube
   // embeds, which never touch the <video> element at all. Same setup as
   // Video.jsx's HLS effect, ported here for the reel feed.
-  useEffect(() => {
+      useEffect(() => {
     if (isYouTube(reel.src)) return;
     const vid = videoRef.current;
 
-    // Always tear down any previous hls.js instance first — leaving one
-    // running while a new source loads causes duplicate buffering and
-    // memory growth.
+    // Always tear down any previous hls.js instance first.
     if (hlsInstanceRef.current) {
       hlsInstanceRef.current.destroy();
       hlsInstanceRef.current = null;
     }
+    hlsLoadStartedRef.current = false;
 
     if (!vid || !isHlsSource(reel.src)) return;
 
     if (Hls.isSupported()) {
       const hls = new Hls({
-        // Keep a modest forward buffer — enough to absorb network
-        // hiccups without holding minutes of unwatched video in memory,
-        // which matters more here than on Video.jsx since several
-        // ReelItems can be mounted (and buffering) at once.
         maxBufferLength: 30,
         enableWorker: true,
+        autoStartLoad: false, // started by the `near` effect below
       });
       hls.loadSource(reel.src);
       hls.attachMedia(vid);
@@ -646,12 +659,11 @@ const ReelItem = ({ reel, allReels }) => {
       });
       hlsInstanceRef.current = hls;
     } else if (vid.canPlayType("application/vnd.apple.mpegurl")) {
-      // Safari/iOS play HLS natively — no hls.js needed, just point the
-      // <video> element straight at the manifest.
       vid.src = reel.src;
     }
 
     return () => {
+      hlsLoadStartedRef.current = false;
       if (hlsInstanceRef.current) {
         hlsInstanceRef.current.destroy();
         hlsInstanceRef.current = null;
@@ -659,6 +671,15 @@ const ReelItem = ({ reel, allReels }) => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reel.id, reel.src]);
+
+  // NEW: begin HLS segment loading only once the reel is near the viewport.
+  // (A separate, top-level effect — NOT inside the one above.)
+  useEffect(() => {
+    if (near && hlsInstanceRef.current && !hlsLoadStartedRef.current) {
+      hlsLoadStartedRef.current = true;
+      hlsInstanceRef.current.startLoad();
+    }
+  }, [near, reel.id, reel.src]);
 
   // NEW: mirror the reel video's isPlaying state onto the attached
   // song's <audio> element, so background music autoplays with the
@@ -1080,6 +1101,10 @@ const ReelItem = ({ reel, allReels }) => {
     // started.
     const startPlayback = () => {
       clearPendingUnmute();
+            if (hlsInstanceRef.current && !hlsLoadStartedRef.current) {
+        hlsLoadStartedRef.current = true;
+        hlsInstanceRef.current.startLoad();
+      }
       autoMutedRef.current = false;
       video.muted = isGloballyMuted();
       setMuted(isGloballyMuted());
@@ -1347,6 +1372,9 @@ const ReelItem = ({ reel, allReels }) => {
   // directly, so no <source> child should be rendered at all. Same
   // pattern as PostCard.jsx / Video.jsx.
   const usingHls = isHlsSource(reel.src);
+    const videoPreload = near
+    ? (typeof navigator !== "undefined" && navigator.connection?.saveData ? "metadata" : "auto")
+    : "none";
 
   return (
     <div
@@ -1363,7 +1391,7 @@ const ReelItem = ({ reel, allReels }) => {
         {isYouTube(reel.src) ? (
           <iframe className="reel_video" src={getEmbedUrl(reel.src)} frameBorder="0" allow="autoplay; fullscreen" allowFullScreen title={reel.title} />
         ) : (
-          <video ref={videoRef} className="reel_video" loop muted={muted} playsInline poster={reel.thumbnail} controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} onClick={handleVideoClick}>
+          <video ref={videoRef} className="reel_video" loop muted={muted} playsInline poster={reel.thumbnail} preload={videoPreload} controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} onClick={handleVideoClick}>
             {/* CHANGED: for HLS sources the effect above sets the
                 video's source via hls.js (or vid.src on Safari)
                 directly, so the <source> child is skipped to avoid the

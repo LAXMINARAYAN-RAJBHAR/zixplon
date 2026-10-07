@@ -33,7 +33,18 @@ import React, { useRef, useState, useEffect } from "react";
 
 const NEAR_MARGIN = "400px";
 
-const AutoPlayVideo = ({ src, poster, active, className = "", style }) => {
+const AutoPlayVideo = ({
+  src,
+  poster,
+  active,
+  // NEW: what to fetch once the card is near the screen. "auto" (default)
+  // buffers ahead for cards that are about to play; use "metadata" for
+  // pure still-frame thumbnails (e.g. the Video page suggestions) so a
+  // long list of them doesn't download real video data.
+  preloadMode = "auto",
+  className = "",
+  style,
+}) => {
   const videoRef = useRef(null);
   const [near, setNear] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -56,26 +67,33 @@ const AutoPlayVideo = ({ src, poster, active, className = "", style }) => {
     return () => observer.disconnect();
   }, [near]);
 
-  // Play / pause the SAME element as `active` changes.
+  // Play / pause the SAME element as `active` changes. Only rewinds if
+  // it was actually playing — an idle still-frame thumbnail (src with a
+  // #t=0.5 fragment) must keep its chosen frame instead of being reset.
+  const wasActiveRef = useRef(false);
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !near) return;
     if (active) {
+      wasActiveRef.current = true;
       v.muted = true;
       const p = v.play();
       if (p && p.catch) p.catch(() => {});
     } else {
-      try {
-        v.pause();
-        v.currentTime = 0;
-      } catch (_) {}
+      if (wasActiveRef.current) {
+        wasActiveRef.current = false;
+        try {
+          v.pause();
+          v.currentTime = 0;
+        } catch (_) {}
+      }
       setPlaying(false);
     }
   }, [active, near]);
 
   const saveData =
     typeof navigator !== "undefined" && navigator.connection?.saveData;
-  const preload = near ? (saveData ? "metadata" : "auto") : "none";
+  const preload = near ? (saveData ? "metadata" : preloadMode) : "none";
 
   const visible = !poster || (active && playing);
 

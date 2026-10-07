@@ -15,6 +15,7 @@ import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
 import ReportModal from "../../Component/Moderation/ReportModal";
 import ExpandableText from "../../Component/ExpandableText/ExpandableText";
 import AdSlot from "../../Component/Ads/AdSlot";
+import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
 import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
 // NEW: attached-song mini player — shown when a video carries `song`
 // ({ title, artist, cover, url }), same component used in PostCard.jsx /
@@ -333,16 +334,13 @@ const SuggestionThumb = ({ thumbnail, src, title }) => {
     );
   }
 
-  if (src && !isHlsSource(src)) {
+    if (src && !isHlsSource(src)) {
     return (
-      <video
-        className="video_suggestion_thumbnail_img video_suggestion_thumbnail_frame"
+      <AutoPlayVideo
         src={`${src}#t=0.5`}
-        muted
-        playsInline
-        preload="metadata"
-        tabIndex={-1}
-        aria-label={title}
+        active={false}
+        preloadMode="metadata"
+        className="video_suggestion_thumbnail_img video_suggestion_thumbnail_frame"
       />
     );
   }
@@ -1824,8 +1822,12 @@ const Video = ({ sideNavbar }) => {
             // extension-based format warning below.
             onPlaying={() => setHasPlayedSuccessfully(true)}
             onEnded={handleVideoEnd}
-            onError={handleVideoError}
-            preload="metadata"
+                        onError={handleVideoError}
+            preload={
+              typeof navigator !== "undefined" && navigator.connection?.saveData
+                ? "metadata"
+                : "auto"
+            }
             poster={video.thumbnail}
           >
             {/* CHANGED: for HLS sources, the effect above sets .src (or

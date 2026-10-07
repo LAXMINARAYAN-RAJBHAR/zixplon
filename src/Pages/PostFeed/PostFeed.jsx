@@ -8,6 +8,9 @@ import ReelsStrip from "./ReelsStrip";
 import VideoFeedCard from "./VideoFeedCard";
 import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 import AdUnit from "../../Component/Ads/AdUnit";
+// NEW: shared preloading, buffer-hiding video — used for search-result
+// reels that have no thumbnail, so they only load once near the screen.
+import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
 import { notifyConnections, notifyUser } from "../../utils/notifications";
 import { extractMentions } from "../../utils/linkify";
 
@@ -33,6 +36,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const shuffledPoolRef = useRef([]);
   const [videos, setVideos] = useState([]);
   const videosOffsetRef = useRef(0);
+
+  // NEW: request counter — lets fetchPosts ignore a slow, outdated
+  // response (e.g. results for "hulk" arriving after a newer search for
+  // "thor") instead of letting it overwrite the newer results.
+  const fetchSeqRef = useRef(0);
 
   // Search-mode extras: reels + uploaded videos matching the query.
   const [searchReels, setSearchReels] = useState([]);
@@ -179,6 +187,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   }, []);
 
   const fetchPosts = useCallback(async (reset = false) => {
+    // NEW: each call gets a ticket; only the newest ticket may update state.
+    const seq = ++fetchSeqRef.current;
     try {
       // ────────────── NEW: SEARCH MODE ──────────────
       // When a search query is present, skip the shuffled pool entirely
@@ -207,6 +217,9 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           .range(offset, offset + PAGE_SIZE - 1);
 
         if (fetchErr) throw fetchErr;
+
+        // NEW: a newer search/fetch started while this one was in flight.
+        if (seq !== fetchSeqRef.current) return;
 
         const page = (data || []).map(enrichPost);
         offsetRef.current += page.length;
@@ -257,6 +270,9 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         setHasMore(true);
       }
 
+      // NEW: a newer fetch started while we were loading the pool.
+      if (seq !== fetchSeqRef.current) return;
+
       const page = shuffledPoolRef.current.splice(0, PAGE_SIZE);
 
       if (reset) {
@@ -273,8 +289,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     } catch (err) {
       setError(err.message || "Failed to load posts.");
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      // CHANGED: only the newest request clears the loading flags, so an
+      // outdated response can't hide the skeleton of a newer one.
+      if (seq === fetchSeqRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, [enrichPost, fetchMoreVideos, searchQuery]);
 
@@ -489,6 +509,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
     setHighlightedPostId(sharedPostId);
 
+    // NEW: while searching, don't add the shared post into the filtered
+    // results (it may not match the query).
+    if (searchQuery) return;
+
     const ensurePostLoaded = async () => {
       const { data, error: fetchErr } = await supabase
         .from("posts")
@@ -517,7 +541,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     };
 
     ensurePostLoaded();
-  }, [location.search, currentUser, enrichPost]);
+  }, [location.search, currentUser, enrichPost, searchQuery]);
 
   const scrolledForIdRef = useRef(null);
   useEffect(() => {
@@ -1074,20 +1098,39 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
                       border: "1px solid #f3c6c6",
                     }}
                   >
-                    <video
-                      src={reel.video}
-                      poster={reel.thumbnail || undefined}
-                      muted
-                      playsInline
-                      preload="metadata"
+                    {/* CHANGED: was a <video preload="metadata"> per result
+                        (up to 40 at once). Now a plain thumbnail when there
+                        is one, otherwise AutoPlayVideo, which only loads
+                        once the card is near the screen and only fetches
+                        metadata. */}
+                    <div
                       style={{
+                        position: "relative",
                         width: "100%",
                         height: 260,
-                        objectFit: "cover",
-                        display: "block",
                         background: "#222",
                       }}
-                    />
+                    >
+                      {reel.thumbnail ? (
+                        <img
+                          src={reel.thumbnail}
+                          alt=""
+                          loading="lazy"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            display: "block",
+                          }}
+                        />
+                      ) : (
+                        <AutoPlayVideo
+                          src={reel.video}
+                          active={false}
+                          preloadMode="metadata"
+                        />
+                      )}
+                    </div>
                     <div style={{ padding: 8 }}>
                       <div
                         style={{

@@ -2557,3 +2557,123 @@
   .pf-action-label { display: none; }
   .pf-action-btn   { padding: 8px 6px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   FACEBOOK-STYLE POST CARD
+   APPEND this whole block to the very bottom of PostFeed.css.
+
+   Desktop: white card, soft shadow instead of the pink border, and
+   photos / video / link previews run edge to edge INSIDE the card.
+   Phones (≤768px): the whole card also goes edge to edge, with a thin
+   gap (the page background) between posts, counts live inside grey
+   pill buttons, and the header collapses to one compact row.
+
+   --pf-card-pad is the card's horizontal padding; the media's negative
+   margins use the same variable so they always line up.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-card {
+  --pf-card-pad: 16px;
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(26, 20, 20, 0.12);
+}
+.pf-card:hover {
+  border: none;
+  box-shadow: 0 2px 8px rgba(26, 20, 20, 0.16);
+}
+
+.pf-card-header { padding: 12px var(--pf-card-pad) 8px; }
+.pf-card-body   { padding: 0 var(--pf-card-pad) 10px; }
+
+/* ── Media: edge to edge inside the card ── */
+.pf-card-body .pf-img-grid,
+.pf-card-body .pf-card-video-wrap,
+.pf-card-body .pf-link-preview {
+  margin-left: calc(var(--pf-card-pad) * -1);
+  margin-right: calc(var(--pf-card-pad) * -1);
+  border: none;
+  border-radius: 0;
+}
+.pf-card-body .pf-card-image {
+  width: calc(100% + var(--pf-card-pad) * 2);
+  max-width: none;
+  margin-left: calc(var(--pf-card-pad) * -1);
+  margin-right: calc(var(--pf-card-pad) * -1);
+  border: none;
+  border-radius: 0;
+}
+.pf-card-body .pf-card-video {
+  border: none;
+  border-radius: 0;
+}
+.pf-card-body .pf-img-grid { gap: 2px; }
+
+/* ── Header: short time on phones, full date on desktop ── */
+.pf-card-time { white-space: normal; }
+
+/* ── Song: small 🎵 line inside the header subtitle (truncates) ── */
+.pf-card-song {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  color: var(--zx-primary2);
+  font-weight: 700;
+}
+@media (max-width: 768px) {
+  .pf-card-song { max-width: 130px; }
+}
+
+/* ── Action bar: grey pills with icon + count ── */
+.pf-action-bar {
+  border-top: none;
+  padding: 2px var(--pf-card-pad) 12px;
+  gap: 8px;
+}
+.pf-action-btn {
+  background: rgba(26, 20, 20, 0.05);
+  border-radius: 999px;
+  padding: 8px 10px;
+}
+.pf-action-btn:hover {
+  background: rgba(220, 38, 38, 0.09);
+  transform: none;
+}
+.pf-action-btn.pf-action-active { background: rgba(220, 38, 38, 0.10); }
+.pf-action-count {
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* ══════════ PHONES ══════════ */
+@media (max-width: 768px) {
+  /* The feed keeps its 10px side padding for the composer / reels
+     strip / video cards; the post card cancels it with negative
+     margins, so it reaches the screen edges. */
+  .pf-feed .pf-card,
+  .pf-feed .pf-card:hover {
+    --pf-card-pad: 12px;
+    margin-left: -10px;
+    margin-right: -10px;
+    margin-bottom: 8px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .pf-card-header { gap: 8px; padding: 10px var(--pf-card-pad) 6px; }
+  .pf-time-full   { display: none; }
+
+  .pf-connect-btn {
+    padding: 4px 12px;
+    font-size: 11px;
+    border-width: 1.5px;
+  }
+
+  /* Facebook phones show icon + count only, no text labels. */
+  .pf-action-label { display: none; }
+  .pf-action-btn   { padding: 8px 6px; }
+}

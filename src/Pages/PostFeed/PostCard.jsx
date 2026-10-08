@@ -20,10 +20,11 @@ import ReportModal from "../../Component/Moderation/ReportModal";
 // connection_request_migration.sql that added the pending/accepted
 // status column).
 import { supabase } from "../../config/supabase";
-// NEW: attached-song mini player — shown when a post carries `song`
-// ({ title, artist, cover, url }), same component used in Video.jsx /
-// Reels.jsx / PostComposer.jsx.
-import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
+// NEW: shared sound arbiter — keeps sound to one thing at a time across
+// the app (same one the Home feed cards use). The attached song now plays
+// through a hidden <audio> in this card (see below) instead of a song
+// card; it is shown as a small 🎵 line in the header subtitle.
+import { claimSound, releaseSound } from "../../utils/soundArbiter";
 // NEW: hls.js gives adaptive-bitrate HLS playback in every browser that
 // doesn't support it natively (i.e. everything except Safari/iOS).
 // Install with: npm install hls.js
@@ -676,6 +677,72 @@ const PostCard = ({
     return () => observer.disconnect();
   }, []);
 
+  // NEW: real playback for the attached song, now that the big card is
+  // gone. Plays (with sound) while the post is >=50% on screen, pauses
+  // when it isn't or while editing. If the browser blocks sound it shows
+  // 🔇 in the header line and retries on the visitor's next interaction
+  // anywhere on the page. Claims the shared sound arbiter so only one
+  // card is audible at a time.
+  const songAudioRef = useRef(null);
+  const songUnsubscribeRef = useRef(null);
+  const [songBlocked, setSongBlocked] = useState(false);
+  const [songSoundId] = useState(() => Symbol("post-song"));
+
+  useEffect(() => {
+    if (!post.song?.url) return;
+    const el = songAudioRef.current;
+    if (!el) return;
+
+    songUnsubscribeRef.current?.();
+    songUnsubscribeRef.current = null;
+
+    if (!mediaInView || isEditing) {
+      el.pause();
+      setSongBlocked(false);
+      releaseSound(songSoundId);
+      return;
+    }
+
+    // Another card took the sound: pause (audio has no useful "muted
+    // but playing" state) and mark as blocked.
+    const pauseForArbiter = () => {
+      const cur = songAudioRef.current;
+      if (cur) cur.pause();
+      setSongBlocked(true);
+    };
+
+    el
+      .play()
+      .then(() => {
+        setSongBlocked(false);
+        claimSound(songSoundId, pauseForArbiter);
+      })
+      .catch(() => {
+        setSongBlocked(true);
+        songUnsubscribeRef.current = onUserInteract(() => {
+          const cur = songAudioRef.current;
+          if (!cur) return;
+          cur
+            .play()
+            .then(() => {
+              setSongBlocked(false);
+              claimSound(songSoundId, pauseForArbiter);
+            })
+            .catch(() => {});
+        });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaInView, isEditing, post.song?.url]);
+
+  useEffect(
+    () => () => {
+      songUnsubscribeRef.current?.();
+      releaseSound(songSoundId);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   const navigate = useNavigate();
 
   const initials = (post.username || "?").slice(0, 2).toUpperCase();
@@ -1090,6 +1157,11 @@ const PostCard = ({
       )}
 
       <div className="pf-card" ref={cardRef}>
+        {/* NEW: hidden audio for the attached song — driven by the effect
+            above (plays while the post is on screen). */}
+        {post.song?.url && (
+          <audio ref={songAudioRef} src={post.song.url} loop preload="none" />
+        )}
         {/* ── Header ── */}
         <div className="pf-card-header">
           <Link
@@ -1127,6 +1199,25 @@ const PostCard = ({
               <span className="pf-time-full">&nbsp;·&nbsp;{fullDate}</span>
               &nbsp;·&nbsp;
               <span title={formatViews(viewCount)}>👁 {formatCount(viewCount)}</span>
+              {/* NEW: small 🎵 line (replaces the big song card). Shows 🔇
+                  while the browser is blocking sound; playback is driven
+                  by the hidden <audio> + effect further up. */}
+              {post.song && (
+                <>
+                  &nbsp;·&nbsp;
+                  <span
+                    className="pf-card-song"
+                    title={
+                      songBlocked
+                        ? "Tap anywhere to enable sound"
+                        : `${post.song.title}${post.song.artist ? " · " + post.song.artist : ""}`
+                    }
+                  >
+                    {songBlocked ? "🔇" : "🎵"} {post.song.title}
+                    {post.song.artist ? ` · ${post.song.artist}` : ""}
+                  </span>
+                </>
+              )}
               &nbsp;·&nbsp;{PRIVACY_ICON[post.privacy] || "🌐"}
               {post.updated_at && post.updated_at !== post.created_at && (
                 <span> · Edited</span>
@@ -1257,12 +1348,13 @@ const PostCard = ({
               </div>
             )}
 
-            {/* NEW: attached song shown read-only while editing — song
-                itself isn't re-pickable here, only removable via the
-                original post's own attachment card if you want that
-                supported later. Playback stays off while editing. */}
+            {/* Attached song shown read-only while editing — not re-pickable
+                here. */}
             {post.song && (
-              <SongAttachmentCard song={post.song} />
+              <p className="pf-feeling-badge" style={{ margin: "8px 0 0" }}>
+                🎵 {post.song.title}
+                {post.song.artist ? ` · ${post.song.artist}` : ""}
+              </p>
             )}
 
             {/* NEW: editable location — can be cleared during edit. */}
@@ -1320,19 +1412,6 @@ const PostCard = ({
           </div>
         ) : (
           <div className="pf-card-body">
-            {/* Attached song — shown above the post text, same as
-                Facebook's "🎵 Song — Artist" attachment card. `active`
-                ties its playback to the same scroll-visibility signal
-                driving the post video below, so a post's audio starts
-                automatically once it's on-screen and stops the moment
-                it isn't. (SongAttachmentCard needs to actually read
-                this prop and play/pause its underlying <audio> — see
-                the note in the chat reply.) */}
-            {post.song && (
-              <div className="pf-song-compact">
-                <SongAttachmentCard song={post.song} active={mediaInView} />
-              </div>
-            )}
 
             {post.text && (
               <p className="pf-card-text">

@@ -71,6 +71,15 @@ const formatViews = (n) => {
   return n + " views";
 };
 
+// NEW: compact count for the Facebook-style action pills and header
+// meta line (1234 -> "1.2K", 3300000 -> "3.3M").
+const formatCount = (n) => {
+  if (!n) return "0";
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(n);
+};
+
 // NEW: HLS manifests are served as .m3u8. Everything else (mp4/webm/etc)
 // keeps using a plain <video src> exactly as before.
 const isHlsSource = (src) => !!src && /\.m3u8(\?.*)?$/i.test(src);
@@ -670,6 +679,15 @@ const PostCard = ({
   const navigate = useNavigate();
 
   const initials = (post.username || "?").slice(0, 2).toUpperCase();
+  // NEW: full date/time — shown inline on desktop, tooltip-only on phones.
+  const fullDate = new Date(post.created_at).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
   const totalReactions = Object.values(post.reactionCounts || {}).reduce(
     (a, b) => a + b,
     0,
@@ -1101,17 +1119,15 @@ const PostCard = ({
                 </span>
               )}
             </p>
+            {/* CHANGED: Facebook-style compact meta line — short relative
+                time first (full date only on desktop), the view count
+                moved up here from the old counts row, then privacy. */}
             <p className="pf-card-time">
-              {timeAgo(post.created_at)}&nbsp;·&nbsp;
-              {new Date(post.created_at).toLocaleString("en-IN", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-              })}
-              &nbsp;{PRIVACY_ICON[post.privacy] || "🌐"}
+              <span title={fullDate}>{timeAgo(post.created_at)}</span>
+              <span className="pf-time-full">&nbsp;·&nbsp;{fullDate}</span>
+              &nbsp;·&nbsp;
+              <span title={formatViews(viewCount)}>👁 {formatCount(viewCount)}</span>
+              &nbsp;·&nbsp;{PRIVACY_ICON[post.privacy] || "🌐"}
               {post.updated_at && post.updated_at !== post.created_at && (
                 <span> · Edited</span>
               )}
@@ -1313,7 +1329,9 @@ const PostCard = ({
                 this prop and play/pause its underlying <audio> — see
                 the note in the chat reply.) */}
             {post.song && (
-              <SongAttachmentCard song={post.song} active={mediaInView} />
+              <div className="pf-song-compact">
+                <SongAttachmentCard song={post.song} active={mediaInView} />
+              </div>
             )}
 
             {post.text && (
@@ -1381,47 +1399,9 @@ const PostCard = ({
           </div>
         )}
 
-        {/* ── Reaction summary ──
-            CHANGED: this row used to be wrapped in `totalReactions > 0`,
-            which meant the comment-count button (on the same row) also
-            disappeared whenever a post had comments but zero likes — the
-            two counts were accidentally coupled together. Now the row
-            always renders per post, and the like-count/comment-count
-            each show independently — a post can display "0 Likes" next
-            to "3 comments" (or vice versa) instead of hiding one because
-            the other is zero.
-
-            NEW: view count now sits alongside the comment-count button,
-            on the right side of the row, showing total views for this
-            post — same 👁 formatting used on the homepage's video/reel
-            cards. */}
-        {!isEditing && (
-          <div className="pf-reaction-summary">
-            <div className="pf-reaction-emojis">
-              {totalReactions > 0 &&
-                Object.entries(post.reactionCounts || {})
-                  .filter(([, v]) => v > 0)
-                  .sort((a, b) => b[1] - a[1])
-                  .slice(0, 3)
-                  .map(([k]) => {
-                    const r = REACTIONS.find((x) => x.key === k);
-                    return r ? <span key={k}>{r.emoji}</span> : null;
-                  })}
-              <span className="pf-reaction-count pf-count-pop" key={countPopKey}>
-                {totalReactions} {totalReactions === 1 ? "Like" : "Likes"}
-              </span>
-            </div>
-            <div className="pf-reaction-summary-right">
-              <span className="pf-view-count">👁 {formatViews(viewCount)}</span>
-              <button
-                className="pf-text-btn"
-                onClick={() => onToggleComments(post.id)}
-              >
-                {totalComments} comment{totalComments !== 1 ? "s" : ""}
-              </button>
-            </div>
-          </div>
-        )}
+        {/* CHANGED: the separate "0 Likes | views | comments" row is gone —
+            like/comment counts now live inside the action pills below
+            (Facebook-style) and the view count moved to the header. */}
 
         {/* ── Action bar ── */}
         {!isEditing && (
@@ -1449,7 +1429,14 @@ const PostCard = ({
                 <span className="pf-action-icon pf-icon-pop" key={likePopKey}>
                   {myReact ? myReact.emoji : "👍"}
                 </span>
-                <span>{myReact ? myReact.label : "Like"}</span>
+                <span className="pf-action-label">
+                  {myReact ? myReact.label : "Like"}
+                </span>
+                {totalReactions > 0 && (
+                  <span className="pf-action-count pf-count-pop" key={countPopKey}>
+                    {formatCount(totalReactions)}
+                  </span>
+                )}
               </button>
 
               {/* Signature moment: a small particle burst radiating from
@@ -1493,10 +1480,9 @@ const PostCard = ({
             <button
               className="pf-action-btn"
               onClick={() => {
-                if (!currentUser || currentUser === "anonymous") {
-                  window.dispatchEvent(new CustomEvent("openLogin"));
-                  return;
-                }
+                // CHANGED: opening the comments is allowed for guests (the
+                // old "N comments" button used to do this); the input
+                // itself is still disabled until they log in.
                 setCommentBounceKey((k) => k + 1);
                 onToggleComments(post.id);
               }}
@@ -1504,14 +1490,17 @@ const PostCard = ({
               <span className="pf-action-icon pf-comment-bounce" key={commentBounceKey}>
                 💬
               </span>
-              <span>Comment</span>
+              <span className="pf-action-label">Comment</span>
+              {totalComments > 0 && (
+                <span className="pf-action-count">{formatCount(totalComments)}</span>
+              )}
             </button>
 
             {/* Share */}
             <div className="pf-action-wrap" ref={shareRef}>
               <button className="pf-action-btn" onClick={handleShareClick}>
                 <span className="pf-action-icon pf-share-icon">🔁</span>
-                <span>Share</span>
+                <span className="pf-action-label">Share</span>
               </button>
               {showShareMenu && (
                 <div className="pf-dropdown pf-dropdown-up">

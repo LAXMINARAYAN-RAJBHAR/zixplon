@@ -1918,3 +1918,66 @@
   padding: 4px 12px;
 }
 .mp-call-log.missed { color: var(--zx-primary); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   APPEND THIS TO THE END OF MessagesPanel.css
+   NEW (location sharing) — 📍 button in the composer + map card in bubbles
+   ══════════════════════════════════════════════════════════════════════ */
+
+.mp-location-btn.locating {
+  animation: mp-pulse 1s ease-in-out infinite;
+}
+
+/* The bubble around a location gets .mp-bubble-has-attachment padding
+   already; the card itself is one big link. */
+.mp-location-card {
+  display: block;
+  width: 220px;
+  max-width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  background: var(--zx-surface);
+  border: 1.5px solid var(--zx-border);
+  transition: border-color 0.15s;
+}
+.mp-location-card:hover {
+  border-color: var(--zx-primary);
+}
+.mp-location-card.mine {
+  background: rgba(255,255,255,0.14);
+  border-color: rgba(255,255,255,0.35);
+}
+
+/* pointer-events:none lets the click fall through to the <a> so the
+   whole card opens the full map instead of the iframe swallowing it. */
+.mp-location-map {
+  width: 100%;
+  height: 130px;
+  background: var(--zx-bg);
+  overflow: hidden;
+}
+.mp-location-map iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  pointer-events: none;
+}
+
+.mp-location-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px 7px;
+}
+.mp-location-title {
+  font-size: 12px;
+  font-weight: 800;
+  font-family: 'Nunito', sans-serif;
+}
+.mp-location-sub {
+  font-size: 10px;
+  opacity: 0.75;
+}

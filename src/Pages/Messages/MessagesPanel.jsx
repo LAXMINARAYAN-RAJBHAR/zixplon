@@ -150,6 +150,31 @@ const callLogLabel = (m, mine) => {
 const isMissedCallLog = (m, mine) =>
   !mine && ["missed", "cancelled", "busy"].includes(m.attachment_name);
 
+// ── NEW (location sharing) ──
+// A shared location is stored as a normal direct_messages row — no DB
+// migration needed — using the existing attachment columns:
+//   attachment_type = "location"
+//   attachment_url  = https://www.google.com/maps?q=<lat>,<lng>
+//   attachment_name = "<lat>,<lng>" (6 decimals)
+const buildLocationUrl = (lat, lng) =>
+  `https://www.google.com/maps?q=${lat},${lng}`;
+
+const parseCoords = (m) => {
+  const grab = (str) => {
+    const match = /(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/.exec(str || "");
+    if (!match) return null;
+    const lat = parseFloat(match[1]);
+    const lng = parseFloat(match[2]);
+    if (!isFinite(lat) || !isFinite(lng)) return null;
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat, lng };
+  };
+  return grab(m.attachment_name) || grab(m.attachment_url);
+};
+
+// Hard cap on how long we wait for the browser to return a GPS fix.
+const LOCATION_TIMEOUT_MS = 15000;
+
 // Hard cap on recording length so a stray open mic can't produce a
 // huge upload. Auto-stops and hands off to the preview stage.
 const MAX_VOICE_SECONDS = 180;
@@ -192,6 +217,7 @@ const attachmentPreviewLabel = (type, name) => {
   if (type === "voice") return "🎤 Voice message";
   if (type === "gif") return "🎬 GIF";
   if (type === "sticker") return "🏷️ Sticker";
+  if (type === "location") return "📍 Location";
   if (type === "file") return `📎 ${name || "Attachment"}`;
   return "Message";
 };
@@ -254,6 +280,60 @@ const UploadProgressBar = ({ progress, status }) => (
     </span>
   </div>
 );
+
+// ── NEW (location sharing): map card shown inside a message bubble. ──
+// Uses OpenStreetMap's free embed (no API key). The iframe is
+// pointer-events:none (see CSS) so the whole card acts as one link that
+// opens the full map in a new tab.
+const LocationCard = ({ message, mine }) => {
+  const coords = parseCoords(message);
+  if (!coords) {
+    return (
+      <a
+        href={message.attachment_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`mp-location-card ${mine ? "mine" : ""}`}
+      >
+        <div className="mp-location-info">
+          <span className="mp-location-title">📍 Shared location</span>
+          <span className="mp-location-sub">Tap to open map</span>
+        </div>
+      </a>
+    );
+  }
+
+  const { lat, lng } = coords;
+  const d = 0.004;
+  const bbox = [lng - d, lat - d, lng + d, lat + d].join("%2C");
+  const embedSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat}%2C${lng}`;
+
+  return (
+    <a
+      href={message.attachment_url || buildLocationUrl(lat, lng)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`mp-location-card ${mine ? "mine" : ""}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="mp-location-map">
+        <iframe
+          title="Shared location map"
+          src={embedSrc}
+          loading="lazy"
+          tabIndex={-1}
+          referrerPolicy="no-referrer"
+        />
+      </div>
+      <div className="mp-location-info">
+        <span className="mp-location-title">📍 Shared location</span>
+        <span className="mp-location-sub">
+          {lat.toFixed(5)}, {lng.toFixed(5)} · Tap to open
+        </span>
+      </div>
+    </a>
+  );
+};
 
 // ── Compact custom audio player used for both the pre-send preview and
 // the sent voice-message bubble. Built instead of native <audio controls>
@@ -364,6 +444,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+
+  // NEW (location sharing): true while we wait for the browser's GPS fix.
+  const [locating, setLocating] = useState(false);
 
   // ── NEW: typing state for ALL conversations ──
   // Previously only the open chat had a typing channel. Now every
@@ -2090,6 +2173,126 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     setSending(false);
   };
 
+  // ── NEW (location sharing) ──────────────────────────────────────────
+  // Inserts a "location" message for the given coordinates. Like GIFs and
+  // stickers there's nothing to upload — the coordinates live in the
+  // message row itself (attachment_name = "lat,lng", attachment_url = a
+  // Google Maps link), so it sends instantly once we have a GPS fix.
+  const sendLocationMessage = async (lat, lng) => {
+    if (!activeConvo || sending || isIncomingRequest || isChatBlocked) return;
+    setSending(true);
+
+    clearTimeout(stopTypingTimeoutRef.current);
+    sendTyping(false);
+
+    const reply_to_id = replyTarget?.id || null;
+    const reply_to_sender = replyTarget?.sender_username || null;
+    const reply_to_text = replyTarget
+      ? replyTarget.text
+        ? replyTarget.text.slice(0, 120)
+        : attachmentPreviewLabel(
+            replyTarget.attachment_type,
+            replyTarget.attachment_name,
+          )
+      : null;
+
+    const latStr = lat.toFixed(6);
+    const lngStr = lng.toFixed(6);
+
+    const { data: inserted, error } = await supabase
+      .from("direct_messages")
+      .insert({
+        conversation_id: activeConvo.id,
+        sender_username: currentUser,
+        text: null,
+        attachment_url: buildLocationUrl(latStr, lngStr),
+        attachment_type: "location",
+        attachment_name: `${latStr},${lngStr}`,
+        attachment_size: null,
+        reply_to_id,
+        reply_to_text,
+        reply_to_sender,
+      })
+      .select()
+      .single();
+
+    if (error || !inserted) {
+      setSending(false);
+      alert(`Couldn't send your location: ${error?.message || "please try again."}`);
+      return;
+    }
+
+    setMessages((prev) =>
+      prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted],
+    );
+    playSendSound();
+    setReplyTarget(null);
+
+    requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
+
+    await supabase
+      .from("conversations")
+      .update({
+        last_message: attachmentPreviewLabel("location"),
+        last_message_at: new Date().toISOString(),
+        last_message_sender: currentUser,
+      })
+      .eq("id", activeConvo.id);
+
+    setSending(false);
+  };
+
+  // Asks the browser for the device's position (this triggers the
+  // browser's permission prompt the first time), confirms with the user,
+  // then sends it. Requires HTTPS (or localhost).
+  const handleShareLocation = () => {
+    if (
+      !activeConvo ||
+      locating ||
+      sending ||
+      isIncomingRequest ||
+      isChatBlocked
+    )
+      return;
+
+    if (!navigator.geolocation) {
+      alert("Location sharing isn't supported in this browser.");
+      return;
+    }
+
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const { latitude, longitude } = pos.coords;
+        const confirmed = window.confirm(
+          `Share your current location with ${activeUsername}?`,
+        );
+        if (!confirmed) return;
+        sendLocationMessage(latitude, longitude);
+      },
+      (err) => {
+        setLocating(false);
+        if (err.code === 1) {
+          alert(
+            "Location permission was denied. Please allow location access for this site in your browser settings and try again.",
+          );
+        } else if (err.code === 3) {
+          alert("Getting your location timed out. Please try again.");
+        } else {
+          alert("Couldn't get your location. Please try again.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: LOCATION_TIMEOUT_MS,
+        maximumAge: 30000,
+      },
+    );
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -3276,6 +3479,12 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                         />
                                       )}
 
+                                    {/* NEW (location sharing) */}
+                                    {m.attachment_url &&
+                                      m.attachment_type === "location" && (
+                                        <LocationCard message={m} mine={mine} />
+                                      )}
+
                                     {m.attachment_url &&
                                       m.attachment_type === "file" && (
                                         <a
@@ -3579,6 +3788,18 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
                             >
                               📎
+                            </button>
+
+                            {/* NEW (location sharing): send current location */}
+                            <button
+                              type="button"
+                              className={`mp-icon-btn mp-location-btn ${locating ? "locating" : ""}`}
+                              onClick={handleShareLocation}
+                              aria-label="Share my location"
+                              title={locating ? "Getting your location…" : "Share my location"}
+                              disabled={locating || sending}
+                            >
+                              {locating ? "⏳" : "📍"}
                             </button>
 
                             <button

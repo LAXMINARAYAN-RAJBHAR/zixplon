@@ -24,10 +24,9 @@ import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
 import ExpandableText from "../ExpandableText/ExpandableText";
 import AdUnit from "../../Component/Ads/AdUnit";
 import CommentMediaPicker from "../Shared/CommentMediaPicker";
-// NEW: attached-song mini player — shown when a reel carries `song`
-// ({ title, artist, cover, url }), same component used in PostCard.jsx /
-// Video.jsx / the composers.
-import SongAttachmentCard from "../Shared/SongAttachmentCard";
+// CHANGED: SongAttachmentCard import removed — the song now shows only
+// as the compact ticker in the top-left stack (see .reel_top_meta), the
+// bottom song card was deleted.
 // NEW: hls.js gives adaptive-bitrate HLS playback in every browser that
 // doesn't support it natively (i.e. everything except Safari/iOS).
 // Install with: npm install hls.js
@@ -402,7 +401,7 @@ const ReelItem = ({ reel, allReels }) => {
   const [showNewBadge, setShowNewBadge]         = useState(false);
   const [showReportModal, setShowReportModal]   = useState(false);
   const [progress, setProgress]                 = useState(0);
-    // NEW: true while this reel is within one screen of the viewport.
+  // NEW: true while this reel is within one screen of the viewport.
   const [near, setNear]                         = useState(false);
   const hlsLoadStartedRef                       = useRef(false);
 
@@ -424,7 +423,9 @@ const ReelItem = ({ reel, allReels }) => {
   // with the reel's own play/pause/mute state — see the sync effects
   // below.
   const songAudioRef = useRef(null);
-  const [songPlaying, setSongPlaying] = useState(false);
+  // CHANGED: the bottom SongAttachmentCard that read this value was
+  // removed, so only the setter is kept (the sync effect still calls it).
+  const [, setSongPlaying] = useState(false);
 
   const quality = useNetworkQuality();
 
@@ -432,7 +433,7 @@ const ReelItem = ({ reel, allReels }) => {
     setShowNewBadge(isNewReel(reel));
   }, [reel.id]);
 
-    // NEW: preload window — only reels within ~1 screen above/below the
+  // NEW: preload window — only reels within ~1 screen above/below the
   // viewport buffer; everything else stays idle (preload="none").
   useEffect(() => {
     const node = containerRef.current;
@@ -631,7 +632,7 @@ const ReelItem = ({ reel, allReels }) => {
   // reels that aren't served as HLS yet. Skipped entirely for YouTube
   // embeds, which never touch the <video> element at all. Same setup as
   // Video.jsx's HLS effect, ported here for the reel feed.
-      useEffect(() => {
+  useEffect(() => {
     if (isYouTube(reel.src)) return;
     const vid = videoRef.current;
 
@@ -1101,7 +1102,7 @@ const ReelItem = ({ reel, allReels }) => {
     // started.
     const startPlayback = () => {
       clearPendingUnmute();
-            if (hlsInstanceRef.current && !hlsLoadStartedRef.current) {
+      if (hlsInstanceRef.current && !hlsLoadStartedRef.current) {
         hlsLoadStartedRef.current = true;
         hlsInstanceRef.current.startLoad();
       }
@@ -1372,9 +1373,18 @@ const ReelItem = ({ reel, allReels }) => {
   // directly, so no <source> child should be rendered at all. Same
   // pattern as PostCard.jsx / Video.jsx.
   const usingHls = isHlsSource(reel.src);
-    const videoPreload = near
+  const videoPreload = near
     ? (typeof navigator !== "undefined" && navigator.connection?.saveData ? "metadata" : "auto")
     : "none";
+
+  // NEW: whether the top-left stack has anything to show. The quality
+  // chip and "New" badge now live inside the same stack (instead of
+  // each being absolutely positioned at top-left on their own), so
+  // nothing overlaps the song / location / feeling chips any more.
+  const showQualityChip =
+    !isYouTube(reel.src) && reel.src?.includes("cloudinary.com");
+  const hasTopMeta =
+    reel.song || reel.location_name || reel.feeling || showNewBadge || showQualityChip;
 
   return (
     <div
@@ -1421,24 +1431,51 @@ const ReelItem = ({ reel, allReels }) => {
         {!isYouTube(reel.src) && showIcon       && <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>}
         {!isYouTube(reel.src) && showHeartBurst && <div className="reel_heart_burst">❤️</div>}
 
-        {/* NEW: "now playing" song ticker — Instagram-Reels-style,
-            top-left of the reel, above the "New" badge. Purely
-            decorative attribution; doesn't control the reel's own audio
-            track. */}
-        {reel.song && (
-          <div
-            className="map-song-ticker"
-            style={{ position: "absolute", top: "16px", left: "16px", zIndex: 10 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {reel.song.cover ? (
-              <img src={reel.song.cover} className="map-song-ticker-cover" alt="" />
-            ) : (
-              <span>🎵</span>
+        {/* CHANGED: ONE top-left stack that holds everything that used
+            to be scattered around the reel — the "✨ New" badge and
+            quality chip (small badges row), the "now playing" song
+            ticker, the 📍 location, and the "feeling …" chip (with its
+            emoji, if the feeling text carries one). Location and
+            feeling were removed from next to the username at the
+            bottom, and the bottom SongAttachmentCard was removed, so
+            the bottom-left now only shows avatar + username + Connect
+            + description. */}
+        {hasTopMeta && (
+          <div className="reel_top_meta" onClick={(e) => e.stopPropagation()}>
+            {(showNewBadge || showQualityChip) && (
+              <div className="reel_top_badges">
+                {showNewBadge && <div className="reel_new_badge">✨ New</div>}
+                {showQualityChip && (
+                  <div
+                    className="reel_quality_chip"
+                    style={{ opacity: showMuteBtn ? 1 : 0 }}
+                  >
+                    {QUALITY_LABELS[quality]}
+                  </div>
+                )}
+              </div>
             )}
-            <span className="map-song-ticker-text">
-              {reel.song.title} · {reel.song.artist}
-            </span>
+
+            {reel.song && (
+              <div className="map-song-ticker">
+                {reel.song.cover ? (
+                  <img src={reel.song.cover} className="map-song-ticker-cover" alt="" />
+                ) : (
+                  <span>🎵</span>
+                )}
+                <span className="map-song-ticker-text">
+                  {reel.song.title} · {reel.song.artist}
+                </span>
+              </div>
+            )}
+
+            {reel.location_name && (
+              <div className="reel_top_chip">📍 {reel.location_name}</div>
+            )}
+
+            {reel.feeling && (
+              <div className="reel_top_chip">feeling {reel.feeling}</div>
+            )}
           </div>
         )}
 
@@ -1470,39 +1507,11 @@ const ReelItem = ({ reel, allReels }) => {
           </button>
         )}
 
-        {!isYouTube(reel.src) && reel.src?.includes("cloudinary.com") && (
-          <div
-            style={{
-              position: "absolute",
-              top: "16px",
-              left: "16px",
-              background: "rgba(0,0,0,0.65)",
-              color: "#fff",
-              fontSize: "12px",
-              fontWeight: 700,
-              padding: "4px 10px",
-              borderRadius: "999px",
-              zIndex: 5,
-              opacity: showMuteBtn ? 1 : 0,
-              transition: "opacity 0.3s ease",
-              pointerEvents: "none",
-              fontFamily: "'Nunito', sans-serif",
-              letterSpacing: "0.3px",
-            }}
-          >
-            {QUALITY_LABELS[quality]}
-          </div>
-        )}
-
         {reel.remixed_from_username && (
           <div className="reel_remix_origin_badge" onClick={() => navigate(`/reels/db_${reel.remixed_from_id}`)}>
             <MusicNoteIcon style={{ fontSize: "12px" }} />
             🎬 Remixed from @{reel.remixed_from_username}
           </div>
-        )}
-
-        {showNewBadge && (
-          <div className="reel_new_badge">✨ New</div>
         )}
 
         {!isYouTube(reel.src) && (
@@ -1739,7 +1748,9 @@ const ReelItem = ({ reel, allReels }) => {
           />
         )}
 
-        {/* Bottom user info */}
+        {/* Bottom user info — CHANGED: location, feeling and the song
+            card now live in the top-left stack above, so this block is
+            just avatar + username + Connect + description. */}
         <div className="reel_info">
           <div className="reel_user">
             <Link to={`/user/${reel.username}`}>
@@ -1748,34 +1759,6 @@ const ReelItem = ({ reel, allReels }) => {
             <Link to={`/user/${reel.username}`} style={{ textDecoration: "none", color: "white" }}>
               <span className="reel_username">{reel.user}</span>
             </Link>
-            {/* NEW: location, shown right after the username — mirrors
-                the "📍 at <place>" badge on PostCard.jsx / Video.jsx. */}
-            {reel.location_name && (
-              <span
-                style={{
-                  fontSize: "11px",
-                  color: "#fff",
-                  opacity: 0.85,
-                  fontWeight: 700,
-                }}
-              >
-                📍 {reel.location_name}
-              </span>
-            )}
-            {/* NEW: feeling, shown right after location — same "—
-                feeling X" badge as PostCard.jsx / Video.jsx. */}
-            {reel.feeling && (
-              <span
-                style={{
-                  fontSize: "11px",
-                  color: "#fff",
-                  opacity: 0.85,
-                  fontWeight: 700,
-                }}
-              >
-                — feeling {reel.feeling}
-              </span>
-            )}
             {/* CHANGED: three-state label (Connect / Requested / ✓
                 Connected), same as PostCard.jsx and Video.jsx. */}
             {loggedInUser !== reel.username && (
@@ -1791,23 +1774,12 @@ const ReelItem = ({ reel, allReels }) => {
             )}
           </div>
           <div className="reel_description">
-  <ExpandableText
-    text={reel.description}
-    maxChars={90}
-    toggleClassName="reel_description_toggle"
-  />
-</div>
-
-          {/* NEW: optional full song card in the bottom info block, in
-              addition to the top-left "now playing" ticker — gives a
-              tap-friendly title/artist readout with the equalizer
-              animation. Remove this block if the ticker alone is
-              enough. */}
-          {reel.song && (
-            <div style={{ marginTop: "8px", maxWidth: "260px" }}>
-              <SongAttachmentCard song={reel.song} synced isPlaying={songPlaying} />
-            </div>
-          )}
+            <ExpandableText
+              text={reel.description}
+              maxChars={90}
+              toggleClassName="reel_description_toggle"
+            />
+          </div>
         </div>
 
       </div>
@@ -1838,33 +1810,33 @@ const Reels = () => {
       const { data, error } = await supabase.from("reels").select("*").order("created_at", { ascending: false });
       if (!error && data) {
         const mapped = data.map((r) => ({
-            id:                    `db_${r.id}`,
-            short_id:               r.short_id,
-            src:                   r.video_url,
-            thumbnail:             r.thumbnail || "https://picsum.photos/200/350?random=99",
-            title:                 r.title    || "Untitled",
-            duration:              r.duration || "00:00",
-            user:                  r.user     || r.username || "Unknown",
-            username:              r.username || "unknown",
-            profilePic:            `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
-            description:           r.description || "",
-            likes:                 0,
-            created_at:            r.created_at  || null,
-            remixed_from_id:       r.remixed_from_id       || null,
-            remixed_from_username: r.remixed_from_username || null,
-            // NEW: attached song ({ title, artist, cover, url }),
-            // location name, feeling, and the creator's chosen mix
-            // between the reel's own audio and the attached song —
-            // requires:
-            //   alter table reels add column song jsonb;
-            //   alter table reels add column location_name text;
-            //   alter table reels add column feeling text;
-            //   alter table reels add column original_audio_volume numeric default 1;
-            song:          r.song || null,
-            location_name: r.location_name || null,
-            feeling:       r.feeling || null,
-            original_audio_volume: r.original_audio_volume ?? 1,
-          }));
+          id:                    `db_${r.id}`,
+          short_id:               r.short_id,
+          src:                   r.video_url,
+          thumbnail:             r.thumbnail || "https://picsum.photos/200/350?random=99",
+          title:                 r.title    || "Untitled",
+          duration:              r.duration || "00:00",
+          user:                  r.user     || r.username || "Unknown",
+          username:              r.username || "unknown",
+          profilePic:            `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
+          description:           r.description || "",
+          likes:                 0,
+          created_at:            r.created_at  || null,
+          remixed_from_id:       r.remixed_from_id       || null,
+          remixed_from_username: r.remixed_from_username || null,
+          // NEW: attached song ({ title, artist, cover, url }),
+          // location name, feeling, and the creator's chosen mix
+          // between the reel's own audio and the attached song —
+          // requires:
+          //   alter table reels add column song jsonb;
+          //   alter table reels add column location_name text;
+          //   alter table reels add column feeling text;
+          //   alter table reels add column original_audio_volume numeric default 1;
+          song:          r.song || null,
+          location_name: r.location_name || null,
+          feeling:       r.feeling || null,
+          original_audio_volume: r.original_audio_volume ?? 1,
+        }));
         // NEW: shuffled ONCE per load so every refresh opens onto a
         // different mix of reels (the reel that was opened — via URL id
         // or a clicked card — is still pulled to the front by the
@@ -2042,23 +2014,23 @@ const Reels = () => {
   }
 
   return (
-  <>
-    <button className="reels_back_btn" onClick={handleBack} aria-label="Go back">
-      <ArrowBackIosNewIcon style={{ fontSize: 18 }} />
-    </button>
+    <>
+      <button className="reels_back_btn" onClick={handleBack} aria-label="Go back">
+        <ArrowBackIosNewIcon style={{ fontSize: 18 }} />
+      </button>
 
-    <div className="reels_container">
-      {allReels.map((reel, index) => (
-        <React.Fragment key={reel.id}>
-          <ReelItem reel={reel} allReels={allReels} />
-          {(index + 1) % 5 === 0 && index !== allReels.length - 1 && (
-            <ReelAdSlide key={`ad-${index}`} />
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  </>
-);
+      <div className="reels_container">
+        {allReels.map((reel, index) => (
+          <React.Fragment key={reel.id}>
+            <ReelItem reel={reel} allReels={allReels} />
+            {(index + 1) % 5 === 0 && index !== allReels.length - 1 && (
+              <ReelAdSlide key={`ad-${index}`} />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+    </>
+  );
 };
 
 export default Reels;

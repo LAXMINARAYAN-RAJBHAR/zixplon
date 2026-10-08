@@ -292,6 +292,66 @@
 }
 
 /* ══════════════════════════════════════
+   TOP-LEFT META STACK  (NEW)
+   One column that holds, top to bottom:
+   badges row (✨ New + quality), song ticker,
+   📍 location, "feeling …" chip. Replaces the
+   separate absolutely-positioned song ticker,
+   New badge and quality chip, and the location /
+   feeling text that used to sit by the username.
+══════════════════════════════════════ */
+
+.reel_top_meta {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  max-width: calc(100% - 80px); /* keeps clear of the back button on mobile */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  z-index: 20;
+}
+
+.reel_top_badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reel_top_chip {
+  max-width: 100%;
+  background: rgba(12, 8, 35, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #ffffff;
+  font-family: 'Nunito', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Quality label (240p / 360p / 720p HD) — was an inline-styled,
+   absolutely-positioned div; now a normal chip inside the stack. */
+.reel_quality_chip {
+  background: rgba(0, 0, 0, 0.65);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  font-family: 'Nunito', sans-serif;
+  letter-spacing: 0.3px;
+}
+
+/* ══════════════════════════════════════
    PLAY / PAUSE ICON (center flash)
 ══════════════════════════════════════ */
 
@@ -733,14 +793,6 @@
   margin: 6px 0 6px 22px;
 }
 
-/* ── Comment header row: username + relative timestamp ── */
-.reel_comment_item_header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 /* ══════════════════════════════════════
    TOASTS
 ══════════════════════════════════════ */
@@ -953,6 +1005,14 @@ body.reels-open .reel_item   { height: 100dvh; }
 
   .reel_comment_item--reply { margin-left: 14px; }
   .reel_reply_input_row { margin-left: 14px; }
+
+  /* top stack: sit below the status/safe area and clear of the back
+     button at the top-right */
+  .reel_top_meta {
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    left: 12px;
+    max-width: calc(100% - 70px);
+  }
 }
 
 /* ══════════════════════════════════════
@@ -977,12 +1037,11 @@ body.reels-open .reel_item   { height: 100dvh; }
 
 /* ══════════════════════════════════════
    "NEW" BADGE
+   CHANGED: no longer absolutely positioned — it's now the first item
+   of the .reel_top_badges row inside .reel_top_meta.
 ══════════════════════════════════════ */
 
 .reel_new_badge {
-  position: absolute;
-  top: 14px;
-  left: 14px;
   background: linear-gradient(135deg, #f43f5e, #f97316);
   color: #ffffff;
   font-size: 11px;
@@ -990,7 +1049,6 @@ body.reels-open .reel_item   { height: 100dvh; }
   font-weight: 900;
   padding: 5px 12px;
   border-radius: 999px;
-  z-index: 20;
   letter-spacing: 0.5px;
   box-shadow: 0 2px 12px rgba(244,63,94,0.5);
   animation: newBadgePop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
@@ -1142,7 +1200,6 @@ body.reels-open .reel_item   { height: 100dvh; }
 
 /* ══════════════════════════════════════════════════════════════════════
    COMMENT GIF/STICKER ATTACHMENTS + EMOJI PICKER TRIGGER
-   Append this block to the end of reels.css.
    ══════════════════════════════════════════════════════════════════════ */
 
 .reel_comment_media {

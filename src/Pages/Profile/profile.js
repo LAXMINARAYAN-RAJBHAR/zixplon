@@ -1065,7 +1065,9 @@ const Profile = ({ sideNavbar }) => {
     loadProfile();
   }, [key]);
 
-  const hardcodedVideos = allVideos.filter((v) => v.channel?.toLowerCase() === key);
+  const hardcodedVideos = allVideos
+  .filter((v) => v.channel?.toLowerCase() === key)
+  .map((v) => ({ ...v, isSample: true }));
   const allUserVideos   = [...dbVideos, ...hardcodedVideos];
   const allUserReels    = dbReels;
 
@@ -1456,7 +1458,7 @@ const Profile = ({ sideNavbar }) => {
             ? <div style={{ color:"var(--zx-text3)", textAlign:"center", marginTop:"40px" }}>No videos uploaded yet.</div>
             : <div className="profileVideos">
                 {allUserVideos.map((video) => {
-                  const isEditableVideo = user.isOwner && !String(video.id).startsWith("hard_") && typeof video.id === "number";
+                  const isEditableVideo = user.isOwner && !video.isSample;
                   return (
                     <div key={video.id} style={{ position:"relative", minWidth:0 }}>
                       <Link to={`/video/${video.id}`} className="profileVideo_block">

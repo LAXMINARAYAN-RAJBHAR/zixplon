@@ -191,6 +191,14 @@ const ReelStripCard = ({
   // one AND the pointer isn't on it (hover has its own preview).
   const showAutoplay = autoplay && !hovered && !!reel.src;
 
+  // NEW: text for the 🎵 line.
+  const songLabel =
+    typeof reel.song === "string"
+      ? reel.song
+      : reel.song?.title
+        ? `${reel.song.title}${reel.song.artist ? " · " + reel.song.artist : ""}`
+        : "";
+
   return (
     <div
       ref={cardRef}
@@ -255,6 +263,15 @@ const ReelStripCard = ({
       >
         @{reel.user}
       </Link>
+      {/* NEW: small 🎵 line (same idea as the post card header) — shown
+          only when the reel carries a song. Handles both shapes the
+          column has been used with: an object ({ title, artist }) or a
+          plain string. */}
+      {songLabel && (
+        <div className="pf-reel-song" title={songLabel}>
+          🎵 {songLabel}
+        </div>
+      )}
     </div>
   );
 };

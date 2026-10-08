@@ -2792,3 +2792,70 @@
 
   .pf-card-song { max-width: 130px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   FACEBOOK-STYLE REELS STRIP (ReelsStrip)
+   APPEND this block to the very bottom of PostFeed.css, after the
+   post-card and video-card blocks.
+
+   Desktop: the strip becomes a white card with a soft shadow (same as a
+   post), its header lines up with the post header, and the reel cards
+   scroll edge to edge inside it.
+   Phones (≤768px): the strip runs edge to edge with a thin gap above and
+   below, like the posts around it.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-reels-strip {
+  --pf-card-pad: 16px;
+  background: var(--zx-surface);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(26, 20, 20, 0.12);
+  padding: 12px 0 10px;
+}
+
+.pf-reels-strip .pf-reels-strip-header {
+  padding: 0 var(--pf-card-pad);
+  margin-bottom: 10px;
+}
+
+/* The track now owns the side padding, so reels scroll all the way to
+   the card edges and the first card still lines up with the header. */
+.pf-reels-strip .pf-reels-strip-track {
+  padding: 2px var(--pf-card-pad) 6px;
+  scroll-padding-left: var(--pf-card-pad);
+}
+
+/* Softer thumbnails: no pink frame, like Facebook's reel tiles */
+.pf-reels-strip .pf-reel-thumb-wrap {
+  border: none;
+  border-radius: 10px;
+}
+
+/* Small 🎵 line under the username (truncates) */
+.pf-reel-song {
+  font-family: 'Nunito', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--zx-text3);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ══════════ PHONES ══════════ */
+@media (max-width: 768px) {
+  /* Cancel the feed's 10px side padding so the strip reaches the screen
+     edges. max-width:none is needed because `.pf-feed > *` caps direct
+     children at 100%, and the strip is a direct child of the feed. */
+  .pf-feed .pf-reels-strip {
+    --pf-card-pad: 12px;
+    margin-left: -10px;
+    margin-right: -10px;
+    margin-top: 0;
+    margin-bottom: 8px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .pf-feed > .pf-reels-strip { max-width: none; }
+}

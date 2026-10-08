@@ -1065,9 +1065,15 @@ const Profile = ({ sideNavbar }) => {
     loadProfile();
   }, [key]);
 
+  // CHANGED: hardcoded sample videos are now explicitly flagged with
+  // `isSample: true`. The Videos tab uses that flag (instead of guessing
+  // from `typeof video.id === "number"`) to decide whether to show the ⋮
+  // Edit / Delete menu — real database videos have string ids (UUIDs), so
+  // the old numeric check hid the menu for exactly the videos that should
+  // have it.
   const hardcodedVideos = allVideos
-  .filter((v) => v.channel?.toLowerCase() === key)
-  .map((v) => ({ ...v, isSample: true }));
+    .filter((v) => v.channel?.toLowerCase() === key)
+    .map((v) => ({ ...v, isSample: true }));
   const allUserVideos   = [...dbVideos, ...hardcodedVideos];
   const allUserReels    = dbReels;
 
@@ -1458,6 +1464,12 @@ const Profile = ({ sideNavbar }) => {
             ? <div style={{ color:"var(--zx-text3)", textAlign:"center", marginTop:"40px" }}>No videos uploaded yet.</div>
             : <div className="profileVideos">
                 {allUserVideos.map((video) => {
+                  // CHANGED: any real (database) video on the owner's own
+                  // profile is editable/deletable. The old check required
+                  // `typeof video.id === "number"`, which hid the ⋮ menu
+                  // for videos whose id is a string (UUID). Hardcoded
+                  // sample videos are flagged `isSample` and stay
+                  // read-only.
                   const isEditableVideo = user.isOwner && !video.isSample;
                   return (
                     <div key={video.id} style={{ position:"relative", minWidth:0 }}>

@@ -6,12 +6,28 @@ import {
   ReportModal,
   shareContent,
   formatViews,
-  formatTimeAgo,
 } from "../../Component/Shared/ContentMenu";
 // NEW: shared always-mounted, preloading, buffer-hiding preview video.
 import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
 
 const HOVER_PREVIEW_DELAY = 400; // ms
+
+// NEW: compact count (1234 -> "1.2K") and short relative time ("3h ago"),
+// matching the Facebook-style PostCard header / action pills.
+const formatCount = (n) => {
+  if (!n) return "0";
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(n);
+};
+const shortTimeAgo = (dateStr) => {
+  if (!dateStr) return "";
+  const diff = (Date.now() - new Date(dateStr)) / 1000;
+  if (diff < 60) return "Just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+};
 
 // ── A single video card, interleaved into the Posts feed (one per Post,
 // per the Post -> Video -> ReelsStrip sequence in PostFeed.jsx).
@@ -210,7 +226,22 @@ const VideoFeedCard = ({ video }) => {
 
   const goToVideo = () => { incrementView(); navigate(`/video/${video.id}`); };
 
+  // NEW: Facebook-style action pill "Share" (same payload as the ⋮ menu).
+  const handleSharePill = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    shareContent({
+      contentType: "video",
+      contentId: video.short_id || video.id,
+      title: video.title || "Video",
+      text: `Watch "${video.title}" on Zixplon`,
+    });
+  };
+
   if (deleted) return null;
+
+  const channelName = video.channel || video.username || "?";
+  const initials = channelName.slice(0, 2).toUpperCase();
 
   const menuItems = [
     {
@@ -264,12 +295,58 @@ const VideoFeedCard = ({ video }) => {
       onClick={goToVideo}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToVideo(); } }}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return; // ignore keys from inner buttons/links
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToVideo(); }
+      }}
     >
-      <span className="pf-video-card-badge">🎬 Video</span>
       <ThreeDotMenu items={menuItems} />
 
+      {/* CHANGED: Facebook-style header — avatar, channel, and one
+          compact meta line (short time · views · optional 🎵 song). */}
+      <div className="pf-card-header">
+        <Link
+          to={`/user/${video.username}`}
+          className="pf-avatar pf-avatar-green pf-avatar-link"
+          title={`View ${channelName}'s profile`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {initials}
+        </Link>
+        <div className="pf-card-meta">
+          <p className="pf-card-author">
+            <Link
+              to={`/user/${video.username}`}
+              className="pf-author-link"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {channelName}
+            </Link>
+          </p>
+          <p className="pf-card-time">
+            {video.created_at && <span>{shortTimeAgo(video.created_at)}&nbsp;·&nbsp;</span>}
+            <span title={formatViews(viewCount)}>👁 {formatCount(viewCount)}</span>
+            {/* Optional: shows only if the video row carries a song. */}
+            {video.song?.title && (
+              <>
+                &nbsp;·&nbsp;
+                <span
+                  className="pf-card-song"
+                  title={`${video.song.title}${video.song.artist ? " · " + video.song.artist : ""}`}
+                >
+                  🎵 {video.song.title}
+                  {video.song.artist ? ` · ${video.song.artist}` : ""}
+                </span>
+              </>
+            )}
+          </p>
+        </div>
+      </div>
+
+      <p className="pf-video-card-title">{video.title}</p>
+
       <div className="pf-video-card-thumb-wrap">
+        <span className="pf-video-card-badge">🎬 Video</span>
         {video.thumbnail && (
           <img src={video.thumbnail} alt={video.title} className="pf-video-card-thumb" loading="lazy" />
         )}
@@ -290,18 +367,30 @@ const VideoFeedCard = ({ video }) => {
         )}
       </div>
 
-      <div className="pf-video-card-body">
-        <p className="pf-video-card-title">{video.title}</p>
-        <Link to={`/user/${video.username}`} className="pf-video-card-channel" onClick={(e) => e.stopPropagation()}>
-          {video.channel || video.username}
-        </Link>
-        <div className="pf-video-card-stats">
-          <span>👁 {formatViews(viewCount)}</span>
-          <button onClick={handleLike} className={"pf-video-card-like" + (isLiked ? " liked" : "")}>
-            👍 {likeCount}
-          </button>
-          {video.created_at && <span>{formatTimeAgo(video.created_at)}</span>}
-        </div>
+      {/* CHANGED: stats row replaced by grey pill buttons with counts
+          (Facebook-style). Like keeps its existing behaviour. */}
+      <div className="pf-video-card-actions">
+        <button
+          type="button"
+          onClick={handleLike}
+          className={"pf-video-card-pill" + (isLiked ? " liked" : "")}
+        >
+          <span>👍</span>
+          <span className="pf-video-card-pill-label">Like</span>
+          {likeCount > 0 && <span className="pf-video-card-pill-count">{formatCount(likeCount)}</span>}
+        </button>
+        <button
+          type="button"
+          className="pf-video-card-pill"
+          onClick={(e) => { e.stopPropagation(); goToVideo(); }}
+        >
+          <span>▶</span>
+          <span className="pf-video-card-pill-label">Watch</span>
+        </button>
+        <button type="button" className="pf-video-card-pill" onClick={handleSharePill}>
+          <span>↗</span>
+          <span className="pf-video-card-pill-label">Share</span>
+        </button>
       </div>
 
       <ReportModal

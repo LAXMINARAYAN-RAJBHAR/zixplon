@@ -2677,3 +2677,118 @@
   .pf-action-label { display: none; }
   .pf-action-btn   { padding: 8px 6px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   FACEBOOK-STYLE VIDEO CARD (VideoFeedCard)
+   APPEND this block to the very bottom of PostFeed.css, AFTER the
+   post-card block from PostFeed.facebook-style.css.
+   Same look as the post card: white card + soft shadow, header row with
+   avatar / channel / short meta line, full-width video, grey pill
+   buttons. Phones: the card runs edge to edge with a thin gap between
+   posts.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-video-card {
+  --pf-card-pad: 16px;
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(26, 20, 20, 0.12);
+}
+.pf-video-card:hover {
+  border: none;
+  transform: none;
+  box-shadow: 0 2px 8px rgba(26, 20, 20, 0.16);
+}
+
+/* Header (re-uses .pf-card-header / .pf-card-meta / .pf-card-author) */
+.pf-video-card .pf-card-header {
+  padding: 12px 52px 8px var(--pf-card-pad); /* right gap = the ⋮ button */
+}
+.pf-video-card .pf-card-time { white-space: normal; }
+
+/* The ⋮ menu button was built for sitting on a dark thumbnail; make it
+   a quiet icon in the white header instead. */
+.pf-video-card .save-menu-wrapper { top: 8px !important; right: 10px !important; }
+.pf-video-card .save-menu-wrapper > button {
+  background: transparent !important;
+  color: var(--zx-text3) !important;
+}
+
+/* Title sits under the header, above the video */
+.pf-video-card > .pf-video-card-title {
+  margin: 0;
+  padding: 0 var(--pf-card-pad) 10px;
+}
+
+/* Badge + duration are positioned against the thumbnail wrapper now */
+.pf-video-card-thumb-wrap { position: relative; }
+
+/* Song line (same rule as the post card — harmless if already added) */
+.pf-card-song {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  color: var(--zx-primary2);
+  font-weight: 700;
+}
+
+/* Grey action pills */
+.pf-video-card-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px var(--pf-card-pad) 12px;
+}
+.pf-video-card-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(26, 20, 20, 0.05);
+  border: none;
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--zx-text3);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.pf-video-card-pill:hover {
+  background: rgba(220, 38, 38, 0.09);
+  color: var(--zx-primary);
+}
+.pf-video-card-pill.liked {
+  background: rgba(220, 38, 38, 0.10);
+  color: var(--zx-primary);
+}
+.pf-video-card-pill-count { font-weight: 800; }
+
+/* ══════════ PHONES ══════════ */
+@media (max-width: 768px) {
+  /* Cancel the feed's 10px side padding so the card reaches the edges
+     (max-width:none is needed because .pf-feed > * caps children at
+     100%, and this card is a direct child of the feed). */
+  .pf-feed .pf-video-card,
+  .pf-feed .pf-video-card:hover {
+    --pf-card-pad: 12px;
+    margin-left: -10px;
+    margin-right: -10px;
+    margin-bottom: 8px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .pf-feed > .pf-video-card { max-width: none; }
+
+  .pf-video-card .pf-card-header { gap: 8px; padding-top: 10px; padding-bottom: 6px; }
+
+  /* Facebook phones: icon + count only */
+  .pf-video-card-pill-label { display: none; }
+  .pf-video-card-pill { padding: 8px 6px; }
+
+  .pf-card-song { max-width: 130px; }
+}

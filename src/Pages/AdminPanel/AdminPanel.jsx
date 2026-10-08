@@ -63,6 +63,88 @@ const visitRangeStart = (key) => {
   return null;
 };
 
+// ── NEW: IP → approximate location ───────────────────────────────────────────
+// The Logins/Users data only contains each user's last IP address, so the
+// location shown is derived from that IP (city/region/country level — it is
+// approximate, and can point to the ISP's hub rather than the user's exact
+// spot, especially on mobile data or VPNs).
+//
+// Lookups use ipwho.is (free, HTTPS, CORS-enabled, no API key). Results are
+// cached in localStorage for 7 days so each IP is only looked up once.
+//
+// NOTE: this sends your users' IP addresses to a third-party service from
+// the admin's browser. If you'd rather not, do the lookup inside
+// api/user-login-info.js instead and return a `last_location` field.
+const GEO_CACHE_KEY = "zx_admin_ip_geo_v1";
+const GEO_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const GEO_CONCURRENCY = 4;
+
+// Private / loopback / link-local addresses can't be geolocated.
+const isPrivateIp = (ip) =>
+  !ip ||
+  ip === "::1" ||
+  /^(10\.|127\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) ||
+  /^(fc|fd|fe80)/i.test(ip);
+
+const readGeoCache = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || "{}");
+    const now = Date.now();
+    const out = {};
+    Object.entries(raw).forEach(([ip, v]) => {
+      if (v && !v.failed && now - v.t < GEO_TTL_MS) out[ip] = v;
+    });
+    return out;
+  } catch {
+    return {};
+  }
+};
+
+const writeGeoCache = (cache) => {
+  try {
+    const persist = {};
+    Object.entries(cache).forEach(([ip, v]) => {
+      if (v && !v.failed) persist[ip] = v; // never persist failures — retry next time
+    });
+    localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(persist));
+  } catch {
+    /* storage full / blocked — ignore */
+  }
+};
+
+// Returns { t, city, region, country, cc } or { t, failed: true }.
+const lookupIp = async (ip) => {
+  try {
+    const res = await fetch(
+      `https://ipwho.is/${encodeURIComponent(ip)}?fields=success,city,region,country,country_code`,
+    );
+    const j = await res.json();
+    if (!j || j.success === false) return { t: Date.now(), failed: true };
+    return {
+      t: Date.now(),
+      city: j.city || "",
+      region: j.region || "",
+      country: j.country || "",
+      cc: j.country_code || "",
+    };
+  } catch {
+    return { t: Date.now(), failed: true };
+  }
+};
+
+// "India" → 🇮🇳 (regional-indicator pair from the ISO country code)
+const flagEmoji = (cc) =>
+  cc && /^[A-Za-z]{2}$/.test(cc)
+    ? String.fromCodePoint(...cc.toUpperCase().split("").map((c) => 127397 + c.charCodeAt(0)))
+    : "";
+
+// Plain "City, Region, Country" text (no flag) — used for UI, search & exports.
+const geoText = (g) => {
+  if (!g || g.failed) return "";
+  const parts = [g.city, g.region, g.country].filter(Boolean);
+  return parts.filter((p, i) => parts.indexOf(p) === i).join(", ");
+};
+
 const STATUS_COLORS = {
   pending: { bg: "#fff7ed", color: "#f97316", border: "#fed7aa" },
   reviewed: { bg: "#eff6ff", color: "#3b82f6", border: "#bfdbfe" },
@@ -246,6 +328,12 @@ const AdminPanel = () => {
   const [removeContentMap, setRemoveContentMap] = useState({}); // userId -> bool, "also delete content" checkbox state
   // NEW: lowercase usernames that currently have a fresh site_visits heartbeat.
   const [onlineUsernames, setOnlineUsernames] = useState(new Set());
+
+  // NEW: IP → location cache shared by the Users and Logins tabs.
+  //   ipGeo            — ip -> { city, region, country, cc } | { failed: true }
+  //   geoAttemptedRef  — IPs already queued this session (prevents re-fetch loops)
+  const [ipGeo, setIpGeo] = useState(() => readGeoCache());
+  const geoAttemptedRef = React.useRef(new Set());
 
   // ── "Home Hub" tab state ─────────────────────────────────────────────────
   // Controls which tabs show in HomeHub.jsx's tab bar (Home/Posts/Utility)
@@ -574,6 +662,14 @@ const AdminPanel = () => {
     return users || [];
   };
 
+  // NEW: location text for exports. Empty string when the IP hasn't been
+  // looked up yet (open the Logins/Users tab first so lookups can run).
+  const exportLocation = (ip) => {
+    if (!ip) return "";
+    if (isPrivateIp(ip)) return "Local network";
+    return geoText(ipGeo[ip]);
+  };
+
   const loginRowsToTableData = (rows) =>
     rows.map((r) => [
       r.username || "—",
@@ -581,6 +677,7 @@ const AdminPanel = () => {
       (r.providers || []).join(", "),
       r.last_sign_in_at ? new Date(r.last_sign_in_at).toLocaleString("en-IN") : "Never",
       r.last_ip || "—",
+      exportLocation(r.last_ip) || "—",
       truncate(r.last_device, 60) || "—",
     ]);
 
@@ -595,6 +692,7 @@ const AdminPanel = () => {
         "Login Method": (r.providers || []).join(", "),
         "Last Login": r.last_sign_in_at ? new Date(r.last_sign_in_at).toLocaleString("en-IN") : "Never",
         "Last IP": r.last_ip || "",
+        Location: exportLocation(r.last_ip),
         "Last Device": r.last_device || "",
         "Account Created": r.created_at ? new Date(r.created_at).toLocaleString("en-IN") : "",
       }));
@@ -613,7 +711,7 @@ const AdminPanel = () => {
     setExportingLoginsWord(true);
     try {
       const rows = await ensureLoginRows();
-      const headerCells = ["Username", "Email", "Login Method", "Last Login", "Last IP", "Last Device"];
+      const headerCells = ["Username", "Email", "Login Method", "Last Login", "Last IP", "Location", "Last Device"];
 
       const headerRow = new TableRow({
         children: headerCells.map(
@@ -670,7 +768,7 @@ const AdminPanel = () => {
 
       autoTable(doc, {
         startY: 55,
-        head: [["Username", "Email", "Login Method", "Last Login", "Last IP", "Last Device"]],
+        head: [["Username", "Email", "Login Method", "Last Login", "Last IP", "Location", "Last Device"]],
         body: loginRowsToTableData(rows),
         styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
         headStyles: { fillColor: PRIMARY_RGB, textColor: 255, fontStyle: "bold" },
@@ -728,6 +826,49 @@ const AdminPanel = () => {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  // NEW: look up the location of every not-yet-known IP shown on the Users /
+  // Logins tabs (max GEO_CONCURRENCY requests at a time). Already-cached and
+  // already-attempted IPs are skipped, so this is cheap to re-run.
+  useEffect(() => {
+    if (activeTab !== "users" && activeTab !== "logins") return;
+
+    const ips = [...new Set([...userRows, ...loginRows].map((r) => r.last_ip).filter(Boolean))].filter(
+      (ip) => !isPrivateIp(ip) && !ipGeo[ip] && !geoAttemptedRef.current.has(ip),
+    );
+    if (!ips.length) return;
+
+    ips.forEach((ip) => geoAttemptedRef.current.add(ip));
+    const queue = [...ips];
+
+    const worker = async () => {
+      while (queue.length) {
+        const ip = queue.shift();
+        const entry = await lookupIp(ip);
+        setIpGeo((prev) => ({ ...prev, [ip]: entry }));
+      }
+    };
+    for (let i = 0; i < Math.min(GEO_CONCURRENCY, ips.length); i++) worker();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, userRows, loginRows]);
+
+  // NEW: persist successful lookups so reopening the panel is instant.
+  useEffect(() => {
+    writeGeoCache(ipGeo);
+  }, [ipGeo]);
+
+  // NEW: what to show in the UI for an IP's location.
+  const geoLabelFor = (ip) => {
+    if (!ip) return "—";
+    if (isPrivateIp(ip)) return "Local network";
+    const g = ipGeo[ip];
+    if (!g) return "Looking up…";
+    if (g.failed) return "Unknown";
+    const text = geoText(g);
+    if (!text) return "Unknown";
+    const flag = flagEmoji(g.cc);
+    return flag ? `${flag} ${text}` : text;
+  };
 
   const toggleRemoveContent = (userId) => {
     setRemoveContentMap((prev) => ({ ...prev, [userId]: !prev[userId] }));
@@ -792,12 +933,14 @@ const AdminPanel = () => {
     setModeratingId(null);
   };
 
+  // NEW: search now also matches the user's location (e.g. "mumbai").
   const normalizedUserSearch = userSearch.trim().toLowerCase();
   const filteredUserRows = normalizedUserSearch
     ? userRows.filter(
       (u) =>
         (u.username || "").toLowerCase().includes(normalizedUserSearch) ||
-        (u.email || "").toLowerCase().includes(normalizedUserSearch),
+        (u.email || "").toLowerCase().includes(normalizedUserSearch) ||
+        exportLocation(u.last_ip).toLowerCase().includes(normalizedUserSearch),
     )
     : userRows;
 
@@ -976,6 +1119,7 @@ const AdminPanel = () => {
         "Login Method": login ? (login.providers || []).join(", ") : "",
         "Last Login": login?.last_sign_in_at ? new Date(login.last_sign_in_at).toLocaleString("en-IN") : "",
         "Last IP": login?.last_ip || "",
+        Location: exportLocation(login?.last_ip),
         "Last Device": login?.last_device || "",
         "Account Status": login?.is_banned ? "Banned" : "Active",
       };
@@ -1049,7 +1193,7 @@ const AdminPanel = () => {
 
       addSectionTitle("ZIXPLON — Users Summary");
       addTable(
-        ["Username", "Videos", "Reels", "Posts", "Comments", "Login Method", "Last Login", "Status"],
+        ["Username", "Videos", "Reels", "Posts", "Comments", "Login Method", "Last Login", "Location", "Status"],
         usersSheet.map((u) => [
           u.Username,
           u["Videos Uploaded"],
@@ -1058,6 +1202,7 @@ const AdminPanel = () => {
           u["Post Comments Made"],
           u["Login Method"],
           u["Last Login"],
+          u.Location,
           u["Account Status"],
         ]),
       );
@@ -1190,9 +1335,9 @@ const AdminPanel = () => {
             new Paragraph({ text: "ZIXPLON — Full Report", heading: HeadingLevel.HEADING_1 }),
             new Paragraph({ text: `Generated ${new Date().toLocaleString("en-IN")}`, spacing: { after: 200 } }),
             ...section("Users Summary",
-              ["Username", "Videos", "Reels", "Posts", "Comments", "Login Method", "Last Login", "Status"],
+              ["Username", "Videos", "Reels", "Posts", "Comments", "Login Method", "Last Login", "Location", "Status"],
               usersSheet.map((u) => [u.Username, u["Videos Uploaded"], u["Reels Uploaded"], u["Posts Made"],
-                u["Post Comments Made"], u["Login Method"], u["Last Login"], u["Account Status"]])),
+                u["Post Comments Made"], u["Login Method"], u["Last Login"], u.Location, u["Account Status"]])),
             ...section("Videos", ["Title", "Username", "Category", "Duration", "Likes", "Uploaded"],
               (videos || []).map((v) => [truncate(v.title, 50), v.username, v.category, v.duration, v.likes ?? 0, day(v.created_at)])),
             ...section("Reels", ["Title", "Username", "Duration", "Likes", "Uploaded"],
@@ -1313,7 +1458,7 @@ const AdminPanel = () => {
                   <p className="admin_export_hint">
                     {exportScope === "all"
                       ? "Users, videos, reels, posts, comments, reactions, likes and views."
-                      : "Username, email, login method, last login, IP and device."}
+                      : "Username, email, login method, last login, IP, location and device."}
                   </p>
                 </div>
               </>
@@ -1673,8 +1818,10 @@ const AdminPanel = () => {
                 <p className="admin_words_hint" style={{ margin: 0 }}>
                   Login method comes from each account's sign-in provider. Passwords
                   are never retrievable — Supabase stores only irreversible hashes.
-                  IP/device reflect the user's most recent site visit. Use
-                  "Export Report" at the top to download this list.
+                  IP/device reflect the user's most recent site visit. Location is
+                  approximate and derived from that IP (city level; VPNs and mobile
+                  carriers can show a different city). Use "Export Report" at the
+                  top to download this list.
                 </p>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   <button className="admin_add_word_btn" onClick={fetchLogins} disabled={loginsLoading}>
@@ -1699,6 +1846,7 @@ const AdminPanel = () => {
                         <th>Login Method</th>
                         <th>Last Login</th>
                         <th>Last IP</th>
+                        <th>Location</th>
                         <th>Last Device</th>
                       </tr>
                     </thead>
@@ -1721,6 +1869,10 @@ const AdminPanel = () => {
                             <td>{(r.providers || []).join(", ")}</td>
                             <td>{r.last_sign_in_at ? new Date(r.last_sign_in_at).toLocaleString("en-IN") : "Never"}</td>
                             <td>{r.last_ip || "—"}</td>
+                            {/* NEW: approximate location from the IP */}
+                            <td className="admin_user_location_cell" title={r.last_ip ? `IP: ${r.last_ip}` : ""}>
+                              {geoLabelFor(r.last_ip)}
+                            </td>
                             <td className="admin_visits_path" title={r.last_device || ""}>
                               {truncate(r.last_device, 40) || "—"}
                             </td>
@@ -1749,7 +1901,7 @@ const AdminPanel = () => {
                   type="text"
                   className="admin_word_input"
                   style={{ maxWidth: "280px" }}
-                  placeholder="Search by username or email..."
+                  placeholder="Search by username, email or location..."
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
                 />
@@ -1795,6 +1947,13 @@ const AdminPanel = () => {
                               {u.last_sign_in_at
                                 ? ` · last login ${new Date(u.last_sign_in_at).toLocaleDateString("en-IN")}`
                                 : " · never logged in"}
+                            </div>
+                            {/* NEW: approximate location from the user's last IP */}
+                            <div
+                              className="admin_admin_meta admin_user_location"
+                              title={u.last_ip ? `IP: ${u.last_ip}` : "No IP recorded"}
+                            >
+                              📍 {geoLabelFor(u.last_ip)}
                             </div>
                           </div>
                         </div>

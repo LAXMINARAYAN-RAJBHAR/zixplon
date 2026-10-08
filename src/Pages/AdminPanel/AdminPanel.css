@@ -1477,3 +1477,20 @@
     align-items: center !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   APPEND THIS TO THE END OF AdminPanel.css
+   Location (from IP) — Users tab line + Logins tab column
+   ══════════════════════════════════════════════════════════════════ */
+
+.admin_user_location {
+  color: var(--zx-text2);
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.admin_user_location_cell {
+  color: var(--zx-text2);
+  font-weight: 700;
+  white-space: nowrap;
+}

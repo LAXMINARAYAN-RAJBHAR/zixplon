@@ -334,7 +334,7 @@ const SuggestionThumb = ({ thumbnail, src, title }) => {
     );
   }
 
-    if (src && !isHlsSource(src)) {
+  if (src && !isHlsSource(src)) {
     return (
       <AutoPlayVideo
         src={`${src}#t=0.5`}
@@ -619,31 +619,31 @@ const Video = ({ sideNavbar }) => {
         .order("created_at", { ascending: false });
       if (!error && data) {
         const mapped = data.map((v) => ({
-            id: String(v.id),
-            short_id: v.short_id, // alphanumeric alias used only for the share link
-            src: v.video_url,
-            thumbnail: v.thumbnail_url || getCloudinaryThumbnail(v.video_url),
-            title: v.title,
-            duration: v.duration || "00:00",
-            channel: v.channel,
-            username: v.username || v.channel?.toLowerCase() || "unknown",
-            tags: [v.category || "All"],
-            description: v.description || "",
-            created_at: v.created_at,
-            // NEW: attached song ({ title, artist, cover, url }),
-            // location name, feeling, and the creator's chosen mix
-            // between the original clip's own audio and the attached
-            // song — requires:
-            //   alter table videos add column song jsonb;
-            //   alter table videos add column location_name text;
-            //   alter table videos add column feeling text;
-            //   alter table videos add column original_audio_volume numeric default 1;
-            song: v.song || null,
-            location_name: v.location_name || null,
-            feeling: v.feeling || null,
-            original_audio_volume: v.original_audio_volume ?? 1,
-            isDb: true,
-          }));
+          id: String(v.id),
+          short_id: v.short_id, // alphanumeric alias used only for the share link
+          src: v.video_url,
+          thumbnail: v.thumbnail_url || getCloudinaryThumbnail(v.video_url),
+          title: v.title,
+          duration: v.duration || "00:00",
+          channel: v.channel,
+          username: v.username || v.channel?.toLowerCase() || "unknown",
+          tags: [v.category || "All"],
+          description: v.description || "",
+          created_at: v.created_at,
+          // NEW: attached song ({ title, artist, cover, url }),
+          // location name, feeling, and the creator's chosen mix
+          // between the original clip's own audio and the attached
+          // song — requires:
+          //   alter table videos add column song jsonb;
+          //   alter table videos add column location_name text;
+          //   alter table videos add column feeling text;
+          //   alter table videos add column original_audio_volume numeric default 1;
+          song: v.song || null,
+          location_name: v.location_name || null,
+          feeling: v.feeling || null,
+          original_audio_volume: v.original_audio_volume ?? 1,
+          isDb: true,
+        }));
         // NEW: shuffled ONCE per mount, so every fresh visit gets a
         // different Next/Prev order and suggestions list instead of the
         // same newest-first sequence. Navigating between videos while
@@ -792,7 +792,7 @@ const Video = ({ sideNavbar }) => {
     loadChannelAvatar();
   }, [video?.id, video?.username, video?.channel]);
 
-    // NEW: same debounce/disable guard as PostCard.jsx and Reels.jsx.
+  // NEW: same debounce/disable guard as PostCard.jsx and Reels.jsx.
   const [connectLoading, setConnectLoading] = useState(false);
 
   // ── Connect / Withdraw-Disconnect — now wired identically to
@@ -877,7 +877,7 @@ const Video = ({ sideNavbar }) => {
     const vid = videoRef.current;
     if (vid) {
       vid.muted = false;
-      vid.play().catch(() => {});
+      vid.play().catch(() => { });
     }
   };
 
@@ -933,7 +933,7 @@ const Video = ({ sideNavbar }) => {
   // created before the short_id migration ran), so this never breaks.
   const handleShare = () => {
     const shareId = video?.short_id || id;
-    const ogUrl = `https://zixplon.in/api/og?type=video&id=${shareId}`;
+    const ogUrl = `https://zixplon.in/s/video/${encodeURIComponent(shareId)}`;
     if (navigator.share) {
       navigator
         .share({
@@ -1085,8 +1085,8 @@ const Video = ({ sideNavbar }) => {
   // video-level Share button.
   const handleShareComment = (comment) => {
     const shareId = video?.short_id || id;
-    const url = `https://zixplon.in/api/og?type=video&id=${shareId}&comment=${comment.id}`;
-    navigator.clipboard.writeText(url).catch(() => {});
+    const url = `https://zixplon.in/s/video/${encodeURIComponent(shareId)}?comment=${comment.id}`;
+    navigator.clipboard.writeText(url).catch(() => { });
     setCommentMenuOpenId(null);
     setShareToast(true);
     setTimeout(() => setShareToast(false), 2500);
@@ -1296,7 +1296,7 @@ const Video = ({ sideNavbar }) => {
     const syncPlay = () => {
       audio.currentTime = 0;
       audio.muted = vid.muted;
-      audio.play().catch(() => {});
+      audio.play().catch(() => { });
       setSongPlaying(true);
     };
     const syncPause = () => {
@@ -1446,7 +1446,7 @@ const Video = ({ sideNavbar }) => {
         vid.muted = true;
         autoMutedRef.current = true;
         setAutoMuted(true);
-        vid.play().catch(() => {});
+        vid.play().catch(() => { });
 
         unsubscribeInteractRef.current = onUserInteract((e) => {
           if (!autoMutedRef.current) return;
@@ -1537,7 +1537,7 @@ const Video = ({ sideNavbar }) => {
           }
         } else if (autoPausedRef.current && entry.intersectionRatio >= 0.5) {
           autoPausedRef.current = false;
-          vid.play().catch(() => {});
+          vid.play().catch(() => { });
         }
       },
       { threshold: [0, 0.25, 0.5, 1] },
@@ -1568,7 +1568,7 @@ const Video = ({ sideNavbar }) => {
     let cancelled = false;
 
     if (isHlsSource(nextSrc)) {
-      fetch(nextSrc, { mode: "cors" }).catch(() => {});
+      fetch(nextSrc, { mode: "cors" }).catch(() => { });
     } else {
       const preloadEl = document.createElement("video");
       preloadEl.preload = "auto";
@@ -1822,7 +1822,7 @@ const Video = ({ sideNavbar }) => {
             // extension-based format warning below.
             onPlaying={() => setHasPlayedSuccessfully(true)}
             onEnded={handleVideoEnd}
-                        onError={handleVideoError}
+            onError={handleVideoError}
             preload={
               typeof navigator !== "undefined" && navigator.connection?.saveData
                 ? "metadata"
@@ -2099,14 +2099,13 @@ const Video = ({ sideNavbar }) => {
                   {uploadedAt ? timeAgo(uploadedAt) : ""}
                 </div>
               </div>
-                            {/* CHANGED: now a <button>, matching PostCard.jsx / Reels.jsx,
+              {/* CHANGED: now a <button>, matching PostCard.jsx / Reels.jsx,
                   disabled while a request is in flight. Shows three
                   states: Connect / Requested / ✓ Connected. */}
               {loggedInUser !== channelUsername && (
                 <button
-                  className={`connectBtnYoutube ${
-                    connectionStatus === "accepted" ? "connectBtnYoutube--connected" : ""
-                  } ${connectionStatus === "pending" ? "connectBtnYoutube--pending" : ""}`}
+                  className={`connectBtnYoutube ${connectionStatus === "accepted" ? "connectBtnYoutube--connected" : ""
+                    } ${connectionStatus === "pending" ? "connectBtnYoutube--pending" : ""}`}
                   onClick={handleConnect}
                   disabled={connectLoading}
                 >

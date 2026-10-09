@@ -955,7 +955,7 @@ const ReelItem = ({ reel, allReels }) => {
     const isDbReel = String(reel.id).startsWith("db_");
     const shareId = reel.short_id || String(reel.id).replace("db_", "");
     const url = isDbReel
-      ? `https://zixplon.in/api/og?type=reel&id=${shareId}&comment=${comment.id}`
+      ? `https://zixplon.in/s/reel/${encodeURIComponent(shareId)}?comment=${comment.id}`
       : `https://zixplon.in/reels/${reel.id}?comment=${comment.id}`;
     navigator.clipboard.writeText(url).catch(() => {});
     setCommentMenuOpenId(null);
@@ -978,7 +978,7 @@ const ReelItem = ({ reel, allReels }) => {
     const isDbReel = String(reel.id).startsWith("db_");
     const shareId = reel.short_id || String(reel.id).replace("db_", "");
     const url = isDbReel
-      ? `https://zixplon.in/api/og?type=reel&id=${shareId}`
+      ? `https://zixplon.in/s/reel/${encodeURIComponent(shareId)}`
       : `https://zixplon.in/reels/${reel.id}`;
     navigator.clipboard.writeText(url).catch(() => {});
     setShareToast(true);

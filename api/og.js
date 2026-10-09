@@ -159,10 +159,10 @@ export default async function handler(req) {
       description = item?.text?.slice(0, 200) || "Check out this post on ZIXPLON";
       image = absImage(
         item?.image_url ||
-          item?.image_urls?.[0] ||
-          item?.thumbnail_url ||
-          getVideoThumbnailFromCloudinaryUrl(item?.video_url) ||
-          FALLBACK_OG_IMAGE
+        item?.image_urls?.[0] ||
+        item?.thumbnail_url ||
+        getVideoThumbnailFromCloudinaryUrl(item?.video_url) ||
+        FALLBACK_OG_IMAGE
       );
       url = `${SITE}/feed?post=${id}`;
     } else {
@@ -195,9 +195,9 @@ export default async function handler(req) {
       description = item?.description || item?.channel || "Watch videos and reels on ZIXPLON";
       image = absImage(
         item?.thumbnail_url ||
-          item?.thumbnail ||
-          getVideoThumbnailFromCloudinaryUrl(item?.video_url) ||
-          FALLBACK_OG_IMAGE
+        item?.thumbnail ||
+        getVideoThumbnailFromCloudinaryUrl(item?.video_url) ||
+        FALLBACK_OG_IMAGE
       );
 
       url =
@@ -206,6 +206,11 @@ export default async function handler(req) {
           : `${SITE}/video/${item.id}`;
     }
 
+    const commentId = searchParams.get("comment");
+    if (commentId && url) {
+      url += (url.includes("?") ? "&" : "?") + `comment=${encodeURIComponent(commentId)}`;
+    }
+    
     return new Response(renderHtml({ type, title, description, image, url, shareUrl }), { headers });
   } catch (err) {
     console.error("og handler error:", err);

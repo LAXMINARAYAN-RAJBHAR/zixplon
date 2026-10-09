@@ -2859,3 +2859,50 @@
   }
   .pf-feed > .pf-reels-strip { max-width: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   FACEBOOK-STYLE POST COMPOSER (PostComposer)
+   APPEND this block to the very bottom of PostFeed.css, after the
+   post-card / video-card / reels-strip blocks.
+
+   Desktop: white card with a soft shadow instead of the pink border, and
+   a softer grey text box.
+   Phones (≤768px): the composer runs edge to edge with a thin gap below,
+   like the posts under it.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-composer {
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(26, 20, 20, 0.12);
+  padding: 12px 16px;
+}
+
+/* Scoped to the composer so the Edit-post textarea inside PostCard
+   (which also uses .pf-composer-input) is not affected. */
+.pf-composer .pf-composer-input {
+  border: none;
+  background: rgba(26, 20, 20, 0.05);
+  border-radius: 18px;
+}
+.pf-composer .pf-composer-input:focus {
+  background: rgba(26, 20, 20, 0.04);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.18);
+}
+
+/* ══════════ PHONES ══════════ */
+@media (max-width: 768px) {
+  /* Cancel the feed's 10px side padding so the composer reaches the
+     screen edges. max-width:none is needed because `.pf-feed > *` caps
+     direct children at 100%, and the composer is a direct child. */
+  .pf-feed .pf-composer {
+    margin-left: -10px;
+    margin-right: -10px;
+    margin-top: 0;
+    margin-bottom: 8px;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 10px 12px;
+  }
+  .pf-feed > .pf-composer { max-width: none; }
+}

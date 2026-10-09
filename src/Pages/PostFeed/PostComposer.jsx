@@ -4,7 +4,6 @@ import axios from "axios";
 import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
 import MusicPicker from "../../Component/Shared/MusicPicker";
 import LocationPicker from "../../Component/Shared/LocationPicker";
-import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
 import { uploadToR2, buildTransformUrl, uploadVideoToR2 } from "../../utils/mediaUpload";
 
 // NOTE: no cap on image count anymore — ImageGrid/HomeImageGrid already
@@ -537,9 +536,19 @@ const PostComposer = ({ currentUser, onPost }) => {
             <p className="pf-feeling-badge">— feeling {feeling}</p>
           )}
 
-          {/* NEW: attached song preview — playable, removable */}
+          {/* CHANGED: small 🎵 line (same as the post card header) instead
+              of the big song card — removable. */}
           {song && (
-            <SongAttachmentCard song={song} onRemove={() => setSong(null)} />
+            <p className="pf-feeling-badge">
+              🎵 {song.title}
+              {song.artist ? ` · ${song.artist}` : ""}{" "}
+              <span
+                style={{ cursor: "pointer", color: "#b08585", marginLeft: "4px" }}
+                onClick={() => setSong(null)}
+              >
+                ✕
+              </span>
+            </p>
           )}
 
           {/* NEW: attached location preview — removable */}

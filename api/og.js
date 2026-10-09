@@ -9,19 +9,9 @@ function escapeHtml(str = "") {
     .replace(/'/g, "&#39;");
 }
 
-// CHANGED: this used to attempt a Cloudinary-only URL transform
-// (`/upload/so_0/....jpg`) to pull a frame out of a video URL when no
-// stored thumbnail existed. Since the app migrated video/reel/post-video
-// uploads to Cloudflare R2 (uploadVideoToR2 in utils/mediaUpload.js),
-// video_url values no longer contain "/upload/" and never matched — this
-// was silently dead code for every content type. R2 (plain object
-// storage) has no equivalent built-in "grab me a frame" URL transform,
-// so there is currently no way to derive a thumbnail from the video URL
-// alone at request time. Kept as a named no-op (rather than deleted
-// outright) so it's obvious where to plug in a real transform if/when
-// one becomes available (e.g. a Cloudflare Stream thumbnail endpoint, or
-// a dedicated thumbnail-generation worker) — see the comment at each
-// call site below for what would need to change.
+// Kept as a documented no-op for R2 URLs (R2 has no "grab a frame" transform).
+// Only matches legacy Cloudinary video URLs. Real thumbnails must be stored
+// at upload time (thumbnail_url / thumbnail columns).
 function getVideoThumbnailFromCloudinaryUrl(videoUrl) {
   if (!videoUrl) return null;
   if (videoUrl.includes("/upload/")) {
@@ -44,44 +34,48 @@ async function fetchWithTimeout(url, options, timeoutMs = FETCH_TIMEOUT_MS) {
   }
 }
 
-// Explicit allow-list — a typo or a future new content type fails loudly
-// (fallback card) instead of silently matching whatever the `else`
-// branch happened to do.
+const SITE = "https://zixplon.in";
 const ALLOWED_TYPES = ["post", "reel", "video"];
 
-// CHANGED: was a bare string repeated in three places. Pulled into one
-// constant so there's a single source of truth, and documented here
-// rather than left implicit: logo192.png is a square PWA icon, NOT a
-// proper Open Graph image. Most platforms (WhatsApp, Facebook, iMessage,
-// Discord) expect roughly a 1200x630 landscape image and will crop or
-// awkwardly letterbox a square icon. If share-preview quality matters
-// beyond "an image shows up at all", replace this with a real branded
-// 1200x630 asset hosted at a stable URL, e.g.
-// "https://zixplon.in/og-fallback.jpg".
-const FALLBACK_OG_IMAGE = "https://zixplon.in/logo192.png";
+// Ideally replace with a real 1200x630 branded image: put it in /public
+// and change this to `${SITE}/og-fallback.jpg`.
+const FALLBACK_OG_IMAGE = `${SITE}/logo192.png`;
 
-function renderHtml({ type, title, description, image, url }) {
+// NEW: crawlers require an absolute https image URL.
+function absImage(url) {
+  if (!url || typeof url !== "string") return FALLBACK_OG_IMAGE;
+  if (url.startsWith("//")) return `https:${url}`;
+  if (url.startsWith("/")) return `${SITE}${url}`;
+  if (url.startsWith("http://")) return url.replace("http://", "https://");
+  return url;
+}
+
+function renderHtml({ type, title, description, image, url, shareUrl }) {
   const safeTitle = escapeHtml(title);
   const safeDescription = escapeHtml(description);
   const safeImage = escapeHtml(image);
   const safeUrl = escapeHtml(url);
+  const safeShareUrl = escapeHtml(shareUrl || url);
 
   return `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
     <title>${safeTitle} — ZIXPLON</title>
+    <meta name="description" content="${safeDescription}" />
     <meta property="og:type" content="${type === "post" ? "article" : "video.other"}" />
     <meta property="og:title" content="${safeTitle}" />
     <meta property="og:description" content="${safeDescription}" />
     <meta property="og:image" content="${safeImage}" />
-    <meta property="og:url" content="${safeUrl}" />
+    <meta property="og:image:alt" content="${safeTitle}" />
+    <meta property="og:url" content="${safeShareUrl}" />
     <meta property="og:site_name" content="ZIXPLON" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${safeTitle}" />
     <meta name="twitter:description" content="${safeDescription}" />
     <meta name="twitter:image" content="${safeImage}" />
-    <script>window.location.replace("${safeUrl}");</script>
+    <meta http-equiv="refresh" content="0;url=${safeUrl}" />
+    <script>window.location.replace(${JSON.stringify(url).replace(/</g, "\\u003c")});</script>
   </head>
   <body>
     <p>Redirecting... <a href="${safeUrl}">Click here if not redirected</a></p>
@@ -89,13 +83,14 @@ function renderHtml({ type, title, description, image, url }) {
 </html>`;
 }
 
-function fallbackHtml(type, url) {
+function fallbackHtml(type, url, shareUrl) {
   return renderHtml({
     type,
     title: "ZIXPLON",
     description: "Watch videos, reels, and posts on ZIXPLON",
     image: FALLBACK_OG_IMAGE,
     url,
+    shareUrl,
   });
 }
 
@@ -104,27 +99,19 @@ export default async function handler(req) {
   const type = searchParams.get("type");
   const id = searchParams.get("id");
 
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
+  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
 
-  // Normal cache — used for genuine content hits, where the underlying
-  // row isn't expected to disappear or change identity within the hour.
   const headers = {
-    "content-type": "text/html",
+    "content-type": "text/html; charset=utf-8",
     "cache-control": "public, max-age=3600, s-maxage=3600",
   };
-
-  // Much shorter cache for anything that ISN'T a confirmed content hit
-  // (missing params, unknown type, row not found, lookup error) — lets
-  // a freshly-created/shared item self-correct within a minute instead
-  // of serving the fallback card for up to an hour.
   const notFoundHeaders = {
-    "content-type": "text/html",
+    "content-type": "text/html; charset=utf-8",
     "cache-control": "public, max-age=60, s-maxage=60",
   };
 
-  // Generic fallback redirect target — used only if lookup fails entirely.
-  const genericFallbackUrl = "https://zixplon.in";
+  const genericFallbackUrl = SITE;
 
   if (!id || !type) {
     return new Response(fallbackHtml(type || "post", genericFallbackUrl), {
@@ -139,82 +126,59 @@ export default async function handler(req) {
     });
   }
 
+  // The pretty URL people actually share (rewritten to this function).
+  const shareUrl = `${SITE}/s/${type}/${encodeURIComponent(id)}`;
+
+  const sbHeaders = {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    "Content-Type": "application/json",
+  };
+
   try {
     let title, description, image, url;
 
     if (type === "post") {
-      // Posts use real uuid ids — unchanged.
       const res = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/posts?id=eq.${encodeURIComponent(id)}&select=*`,
-        {
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            "Content-Type": "application/json",
-          },
-        }
+        { headers: sbHeaders }
       );
 
       if (!res.ok) throw new Error(`Supabase responded ${res.status}`);
       const data = await res.json();
       const item = data?.[0];
 
-      if (!item) {
-        return new Response(fallbackHtml(type, `https://zixplon.in/feed`), {
+      // NEW: never leak "friends" / "only_me" posts into a public preview.
+      if (!item || (item.privacy && item.privacy !== "public")) {
+        return new Response(fallbackHtml(type, `${SITE}/feed`, shareUrl), {
           headers: notFoundHeaders,
         });
       }
 
       title = item?.username ? `${item.username} on ZIXPLON` : "Post on ZIXPLON";
       description = item?.text?.slice(0, 200) || "Check out this post on ZIXPLON";
-      // CHANGED: added item?.thumbnail_url ahead of the dead Cloudinary
-      // fallback. PostComposer.jsx now captures and uploads a real
-      // thumbnail for video posts at upload time (same approach
-      // VideoUpload.jsx already used for videos/reels) and stores it in
-      // posts.thumbnail_url — see PostComposer.jsx changes. Requires the
-      // migration: alter table posts add column thumbnail_url text;
-      image =
+      image = absImage(
         item?.image_url ||
-        item?.image_urls?.[0] ||
-        item?.thumbnail_url ||
-        getVideoThumbnailFromCloudinaryUrl(item?.video_url) ||
-        FALLBACK_OG_IMAGE;
-      url = `https://zixplon.in/feed?post=${id}`;
+          item?.image_urls?.[0] ||
+          item?.thumbnail_url ||
+          getVideoThumbnailFromCloudinaryUrl(item?.video_url) ||
+          FALLBACK_OG_IMAGE
+      );
+      url = `${SITE}/feed?post=${id}`;
     } else {
-      // Video/reel: match on EITHER the real internal id or short_id,
-      // since our live URLs (/video/:id, /reels/db_:id) use the real
-      // id, but some rows may only have short_id populated.
-      //
-      // `id` is a uuid column, so trying `id.eq.<value>` with a value
-      // that isn't a valid UUID (e.g. an alphanumeric short_id like
-      // "b1bZGDMmzY") makes Postgres throw a type-cast error — which
-      // fails the WHOLE OR query, even though `short_id.eq.` alone would
-      // have matched fine. So: only include the id.eq. comparison when
-      // the requested id actually looks like a UUID.
-      //
-      // Also note the standalone (non-OR) filter below uses
-      // `short_id=eq.value` (an "=" separating column and operator) —
-      // NOT `short_id.eq.value` (a "."). The dot form is only valid
-      // *inside* an or(...) wrapper; used bare as a top-level query
-      // param it isn't recognized by PostgREST and silently applies no
-      // filter at all, which is what caused the wrong reel to be
-      // returned in testing.
       const table = type === "reel" ? "reels" : "videos";
       const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const isUuid = UUID_RE.test(id);
-      const filter = isUuid
+      // `id` may be a uuid OR a numeric id depending on the table; only use
+      // id.eq when it can't cause a type-cast error, and fall back to short_id.
+      const isNumeric = /^\d+$/.test(id);
+      const filter = isUuid || isNumeric
         ? `or=(id.eq.${encodeURIComponent(id)},short_id.eq.${encodeURIComponent(id)})`
         : `short_id=eq.${encodeURIComponent(id)}`;
 
       const res = await fetchWithTimeout(
-        `${SUPABASE_URL}/rest/v1/${table}?${filter}&select=*`,
-        {
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            "Content-Type": "application/json",
-          },
-        }
+        `${SUPABASE_URL}/rest/v1/${table}?${filter}&select=*&limit=1`,
+        { headers: sbHeaders }
       );
 
       if (!res.ok) throw new Error(`Supabase responded ${res.status}`);
@@ -222,39 +186,30 @@ export default async function handler(req) {
       const item = data?.[0];
 
       if (!item) {
-        return new Response(fallbackHtml(type, genericFallbackUrl), {
+        return new Response(fallbackHtml(type, genericFallbackUrl, shareUrl), {
           headers: notFoundHeaders,
         });
       }
 
       title = item?.title || "Watch on ZIXPLON";
       description = item?.description || item?.channel || "Watch videos and reels on ZIXPLON";
-      // CHANGED: the Cloudinary URL transform never matches post-R2-
-      // migration video_url values (see getVideoThumbnailFromCloudinaryUrl
-      // above) — it's kept as a documented no-op rather than silently
-      // dead code. The real fix for videos/reels landing here is making
-      // sure thumbnail_url/thumbnail gets reliably populated at upload
-      // time (VideoUpload.jsx's captureThumbnail) — this handler can
-      // only display what's already stored, it can't generate a frame
-      // from an R2 URL on its own.
-      image =
+      image = absImage(
         item?.thumbnail_url ||
-        item?.thumbnail ||
-        getVideoThumbnailFromCloudinaryUrl(item?.video_url) ||
-        FALLBACK_OG_IMAGE;
+          item?.thumbnail ||
+          getVideoThumbnailFromCloudinaryUrl(item?.video_url) ||
+          FALLBACK_OG_IMAGE
+      );
 
-      // Internal route still uses the REAL id — reels keep their existing
-      // `db_<id>` convention, videos keep their plain numeric id.
       url =
         type === "reel"
-          ? `https://zixplon.in/reels/db_${item.id}`
-          : `https://zixplon.in/video/${item.id}`;
+          ? `${SITE}/reels/db_${item.id}`
+          : `${SITE}/video/${item.id}`;
     }
 
-    return new Response(renderHtml({ type, title, description, image, url }), { headers });
+    return new Response(renderHtml({ type, title, description, image, url, shareUrl }), { headers });
   } catch (err) {
     console.error("og handler error:", err);
-    return new Response(fallbackHtml(type, genericFallbackUrl), {
+    return new Response(fallbackHtml(type, genericFallbackUrl, shareUrl), {
       headers: notFoundHeaders,
     });
   }

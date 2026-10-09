@@ -576,7 +576,7 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, on
           {/* NEW: Share — hidden for "Only me" posts, since nobody else could open the link */}
           {post.privacy !== "only_me" && (
             <button
-              onClick={() => onShare({ url: `${profileBaseUrl()}?tab=posts&post=${post.id}`, title: `${post.username}'s post on ZIXPLON` })}
+              onClick={() => onShare({ url: `${window.location.origin}/s/post/${post.id}`, title: `${post.username}'s post on ZIXPLON` })}
               aria-label="Share post"
               style={{ background:"none", border:"none", color:"#aaa", fontSize:"13px", cursor:"pointer", display:"flex", alignItems:"center", gap:"4px", padding:0, marginLeft:"auto" }}
             >
@@ -1500,7 +1500,7 @@ const Profile = ({ sideNavbar }) => {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                handleShare({ url: `${window.location.origin}/video/${video.id}`, title: video.title });
+                                handleShare({ url: `${window.location.origin}/s/video/${video.id}`, title: video.title });
                               }}
                             >
                               <ShareOutlinedIcon style={{ fontSize:"14px" }} /> Share
@@ -1580,7 +1580,7 @@ const Profile = ({ sideNavbar }) => {
                               aria-label="Share reel"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleShare({ url: `${profileBaseUrl()}?tab=reels&reel=${reel.dbId}`, title: reel.title });
+                                handleShare({ url: `${window.location.origin}/s/reel/${reel.dbId}`, title: reel.title });
                               }}
                             >
                               <ShareOutlinedIcon style={{ fontSize:"14px" }} /> Share

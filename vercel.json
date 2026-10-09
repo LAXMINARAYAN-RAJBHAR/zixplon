@@ -12,6 +12,7 @@
     { "source": "/api/upload-url", "destination": "/api/files?action=upload-url" },
     { "source": "/api/process-bill-payment", "destination": "/api/payments?action=process-bill-payment" },
     { "source": "/api/process-recharge", "destination": "/api/payments?action=process-recharge" },
+    { "source": "/s/:type/:id", "destination": "/api/og?type=:type&id=:id" },
     {
       "source": "/((?!api/).*)",
       "destination": "/index.html"

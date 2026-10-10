@@ -905,3 +905,86 @@
   box-shadow: none !important;
   padding: 2px !important;
 }
+
+/* ══ Multi-select delete (group chat) ══ */
+.gcw-window.gcw-select-mode .gcw-input-row,
+.gcw-window.gcw-select-mode .gcw-pending-attachments-row,
+.gcw-window.gcw-select-mode .gcw-reply-preview {
+  display: none;
+}
+
+.gcw-select-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 2px solid #fbd5d5;
+  background: #fff;
+}
+@media (max-width: 768px) {
+  .gcw-select-bar { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+}
+.gcw-select-count {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+}
+.gcw-select-cancel,
+.gcw-select-all,
+.gcw-select-delete {
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.gcw-select-cancel,
+.gcw-select-all {
+  background: #fff5f5;
+  color: #7a3a3a;
+  border: 2px solid #fbd5d5;
+}
+.gcw-select-delete {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+}
+.gcw-select-delete:hover:not(:disabled) { background: #b91c1c; }
+.gcw-select-cancel:disabled,
+.gcw-select-all:disabled,
+.gcw-select-delete:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.gcw-bubble-row.gcw-selecting {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 2px 4px;
+}
+.gcw-bubble-row.gcw-selecting.mine .gcw-bubble-stack { margin-left: auto; }
+.gcw-bubble-row.gcw-selecting.gcw-selected { background: #fef2f2; }
+.gcw-bubble-row.gcw-select-disabled { cursor: default; opacity: 0.45; }
+.gcw-selecting .gcw-bubble-stack { pointer-events: none; }
+
+.gcw-select-check {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 50%;
+  border: 2px solid #fbd5d5;
+  background: #fff;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gcw-select-check.checked { background: #dc2626; border-color: #dc2626; }
+.gcw-select-check.disabled { visibility: hidden; }

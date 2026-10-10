@@ -1981,3 +1981,83 @@
   font-size: 10px;
   opacity: 0.75;
 }
+
+/* ══ Multi-select delete (1:1 chat) ══ */
+.mp-select-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 2px solid var(--zx-border);
+  background: var(--zx-surface);
+}
+@media (max-width: 768px) {
+  .mp-select-bar { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+}
+.mp-select-count {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+}
+.mp-select-cancel,
+.mp-select-all,
+.mp-select-delete {
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mp-select-cancel,
+.mp-select-all {
+  background: var(--zx-bg);
+  color: var(--zx-text2);
+  border: 2px solid var(--zx-border);
+}
+.mp-select-delete {
+  background: var(--zx-primary);
+  color: #fff;
+  border: none;
+}
+.mp-select-delete:hover:not(:disabled) { background: var(--zx-accent1); }
+.mp-select-cancel:disabled,
+.mp-select-all:disabled,
+.mp-select-delete:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.mp-bubble-row.mp-selecting {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 2px 4px;
+}
+.mp-bubble-row.mp-selecting.mine .mp-bubble-stack { margin-left: auto; }
+.mp-bubble-row.mp-selecting.mp-selected { background: var(--zx-surface2); }
+.mp-bubble-row.mp-select-disabled { cursor: default; opacity: 0.45; }
+.mp-selecting .mp-bubble-stack { pointer-events: none; }
+
+.mp-select-check {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--zx-border);
+  background: var(--zx-surface);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mp-select-check.checked {
+  background: var(--zx-primary);
+  border-color: var(--zx-primary);
+}
+.mp-select-check.disabled { visibility: hidden; }

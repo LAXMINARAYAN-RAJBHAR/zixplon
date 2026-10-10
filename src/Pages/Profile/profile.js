@@ -60,6 +60,23 @@ const matchesKey = (candidate = "", key = "") => {
 // username lookup below.
 const escapeLike = (str = "") => str.replace(/[\\%_]/g, "\\$&");
 
+// NEW: UPLOAD SEQUENCE. Videos, Reels and Posts on the profile are always
+// shown in the order they were uploaded — the first upload comes first, the
+// latest upload comes last. Items without a created_at (the hardcoded sample
+// videos) have no upload time, so they stay at the very end, in their
+// original order. Array.prototype.sort is stable, so ties keep their order.
+const uploadTime = (item) => {
+  const t = item?.created_at ? new Date(item.created_at).getTime() : NaN;
+  return Number.isNaN(t) ? Infinity : t;
+};
+const sortByUploadSequence = (items = []) =>
+  [...items].sort((a, b) => {
+    const ta = uploadTime(a);
+    const tb = uploadTime(b);
+    if (ta === tb) return 0; // also covers Infinity === Infinity
+    return ta < tb ? -1 : 1;
+  });
+
 const timeAgo = (dateStr) => {
   const diff = (Date.now() - new Date(dateStr)) / 1000;
   if (diff < 60) return "Just now";
@@ -946,23 +963,30 @@ const Profile = ({ sideNavbar }) => {
       }
 
       // ── Fetch videos ──
-      const { data: vData } = await supabase.from("videos").select("*").order("created_at", { ascending: false });
+      // CHANGED: ascending (oldest first) so videos follow the UPLOAD
+      // SEQUENCE. created_at is now carried on each item and the list is
+      // sorted again client-side via sortByUploadSequence as a safeguard.
+      const { data: vData } = await supabase.from("videos").select("*").order("created_at", { ascending: true });
       if (vData) {
         setDbVideos(
-          vData
-            .filter((v) => matchesKey(v.username, key) || matchesKey(v.channel, key))
-            .map((v) => ({
-              id: v.id,
-              src: v.video_url,
-              thumbnail: v.thumbnail_url,
-              title: v.title,
-              duration: v.duration || "00:00",
-              channel: v.channel,
-              // NEW: attached song + creator's audio mix, used by the
-              // hover preview on the Videos tab.
-              song: v.song || null,
-              original_audio_volume: v.original_audio_volume ?? 1,
-            })),
+          sortByUploadSequence(
+            vData
+              .filter((v) => matchesKey(v.username, key) || matchesKey(v.channel, key))
+              .map((v) => ({
+                id: v.id,
+                src: v.video_url,
+                thumbnail: v.thumbnail_url,
+                title: v.title,
+                duration: v.duration || "00:00",
+                channel: v.channel,
+                // NEW: upload time, used for the upload-sequence ordering.
+                created_at: v.created_at || null,
+                // NEW: attached song + creator's audio mix, used by the
+                // hover preview on the Videos tab.
+                song: v.song || null,
+                original_audio_volume: v.original_audio_volume ?? 1,
+              })),
+          ),
         );
         const ids = vData.map((v) => String(v.id));
         const [{ data: vLikes }, { data: vViews }] = await Promise.all([
@@ -975,33 +999,36 @@ const Profile = ({ sideNavbar }) => {
       }
 
       // ── Fetch reels ──
-      const { data: rData } = await supabase.from("reels").select("*").order("created_at", { ascending: false });
+      // CHANGED: ascending (oldest first) — upload sequence.
+      const { data: rData } = await supabase.from("reels").select("*").order("created_at", { ascending: true });
       if (rData) {
         setDbReels(
-          rData.filter((r) => matchesKey(r.username, key)).map((r) => ({
-            id:          `db_${r.id}`,
-            dbId:        r.id,
-            short_id:    r.short_id,
-            src:         r.video_url,
-            thumbnail:   r.thumbnail || `https://picsum.photos/seed/${r.id}/200/350`,
-            title:       r.title       || "Untitled",
-            duration:    r.duration    || "00:00",
-            description: r.description || "",
-            username:    r.username,
-            user:        r.user || r.username,
-            profilePic:  `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
-            likes:       0,
-            // NEW: these ride along in the `clickedReel` handoff to
-            // /reels, so a reel opened from the profile keeps its song,
-            // location and feeling instead of losing them.
-            created_at:            r.created_at || null,
-            remixed_from_id:       r.remixed_from_id || null,
-            remixed_from_username: r.remixed_from_username || null,
-            song:                  r.song || null,
-            location_name:         r.location_name || null,
-            feeling:               r.feeling || null,
-            original_audio_volume: r.original_audio_volume ?? 1,
-          }))
+          sortByUploadSequence(
+            rData.filter((r) => matchesKey(r.username, key)).map((r) => ({
+              id:          `db_${r.id}`,
+              dbId:        r.id,
+              short_id:    r.short_id,
+              src:         r.video_url,
+              thumbnail:   r.thumbnail || `https://picsum.photos/seed/${r.id}/200/350`,
+              title:       r.title       || "Untitled",
+              duration:    r.duration    || "00:00",
+              description: r.description || "",
+              username:    r.username,
+              user:        r.user || r.username,
+              profilePic:  `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
+              likes:       0,
+              // NEW: these ride along in the `clickedReel` handoff to
+              // /reels, so a reel opened from the profile keeps its song,
+              // location and feeling instead of losing them.
+              created_at:            r.created_at || null,
+              remixed_from_id:       r.remixed_from_id || null,
+              remixed_from_username: r.remixed_from_username || null,
+              song:                  r.song || null,
+              location_name:         r.location_name || null,
+              feeling:               r.feeling || null,
+              original_audio_volume: r.original_audio_volume ?? 1,
+            })),
+          ),
         );
 
         const ids = rData.map((r) => `db_${r.id}`);
@@ -1023,19 +1050,24 @@ const Profile = ({ sideNavbar }) => {
       // `select *` already returns posts.song (jsonb) once that column exists.
       // CHANGED: .ilike() instead of .eq() so posts are found regardless of
       // the casing the username was stored with.
+      // CHANGED: ascending (oldest first) — upload sequence.
       const { data: postsData } = await supabase
         .from("posts")
         .select(`*, post_reactions ( type, username ), post_comments ( id, text, username, created_at )`)
         .ilike("username", escapeLike(key))
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: true });
       if (postsData) {
         const currentUser = localStorage.getItem("username") || "";
-        setUserPosts(postsData.map((p) => ({
-          ...p,
-          myReaction: p.post_reactions?.find((r) => r.username === currentUser)?.type || null,
-          reactionCounts: p.post_reactions?.reduce((acc, r) => { acc[r.type] = (acc[r.type] || 0) + 1; return acc; }, {}),
-          comments: (p.post_comments || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
-        })));
+        setUserPosts(
+          sortByUploadSequence(
+            postsData.map((p) => ({
+              ...p,
+              myReaction: p.post_reactions?.find((r) => r.username === currentUser)?.type || null,
+              reactionCounts: p.post_reactions?.reduce((acc, r) => { acc[r.type] = (acc[r.type] || 0) + 1; return acc; }, {}),
+              comments: (p.post_comments || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
+            })),
+          ),
+        );
       }
 
       // ── Connection count / connected state ──
@@ -1074,8 +1106,17 @@ const Profile = ({ sideNavbar }) => {
   const hardcodedVideos = allVideos
     .filter((v) => v.channel?.toLowerCase() === key)
     .map((v) => ({ ...v, isSample: true }));
-  const allUserVideos   = [...dbVideos, ...hardcodedVideos];
-  const allUserReels    = dbReels;
+  // CHANGED: upload sequence — real uploads oldest → newest; samples (no
+  // upload time) are kept at the end by sortByUploadSequence.
+  const allUserVideos   = sortByUploadSequence([...dbVideos, ...hardcodedVideos]);
+  const allUserReels    = sortByUploadSequence(dbReels);
+
+  // NEW: the ordered list handed to the player pages, so playback can move
+  // through the profile in the same upload sequence the grid shows.
+  // Reels.jsx can read `location.state.profileQueue` / `queueIndex`;
+  // Video.jsx can read `location.state.profileQueue` / `queueIndex` too.
+  const reelQueue  = allUserReels.map((r) => ({ ...r }));
+  const videoQueue = allUserVideos.filter((v) => !v.isSample).map((v) => ({ id: v.id, title: v.title, thumbnail: v.thumbnail, src: v.src, channel: v.channel }));
 
   // RENAMED from handleSubscribe — now writes to the shared `connections`
   // table with the same shape (`connector_id` / `connector_username` /
@@ -1463,7 +1504,7 @@ const Profile = ({ sideNavbar }) => {
           allUserVideos.length === 0
             ? <div style={{ color:"var(--zx-text3)", textAlign:"center", marginTop:"40px" }}>No videos uploaded yet.</div>
             : <div className="profileVideos">
-                {allUserVideos.map((video) => {
+                {allUserVideos.map((video, videoIndex) => {
                   // CHANGED: any real (database) video on the owner's own
                   // profile is editable/deletable. The old check required
                   // `typeof video.id === "number"`, which hid the ⋮ menu
@@ -1471,9 +1512,17 @@ const Profile = ({ sideNavbar }) => {
                   // sample videos are flagged `isSample` and stay
                   // read-only.
                   const isEditableVideo = user.isOwner && !video.isSample;
+                  // NEW: position of this video inside the playable (non-sample) queue.
+                  const queueIndex = videoQueue.findIndex((q) => q.id === video.id);
                   return (
                     <div key={video.id} style={{ position:"relative", minWidth:0 }}>
-                      <Link to={`/video/${video.id}`} className="profileVideo_block">
+                      <Link
+                        to={`/video/${video.id}`}
+                        // NEW: hand the upload-ordered list to the Video page so
+                        // it can continue to the next upload in sequence.
+                        state={{ profileQueue: videoQueue, queueIndex, fromProfile: key }}
+                        className="profileVideo_block"
+                      >
                         {/* NEW: hover-preview thumbnail (hardcoded sample videos have no
                             `src`, so they simply show the static thumbnail) */}
                         <PreviewThumb
@@ -1528,13 +1577,22 @@ const Profile = ({ sideNavbar }) => {
           allUserReels.length === 0
             ? <div style={{ color:"var(--zx-text3)", textAlign:"center", marginTop:"40px" }}>No reels uploaded yet.</div>
             : <div className="profileVideos">
-                {allUserReels.map((reel) => {
+                {allUserReels.map((reel, reelIndex) => {
                   const isEditableReel = user.isOwner && reel.id.startsWith("db_");
                   return (
                     // NEW: id lets a shared link (?tab=reels&reel=<id>) scroll straight to this card
                     <div key={reel.id} id={`reel-card-${reel.dbId}`} style={{ position:"relative", minWidth:0 }}>
                       <div className="profileVideo_block" style={{ cursor:"pointer" }}
-                        onClick={() => navigate("/reels", { state: { clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 } } })}>
+                        // CHANGED: besides the clicked reel, also hand over the whole
+                        // upload-ordered reel list (`profileQueue`) and the clicked
+                        // reel's position (`queueIndex`) so /reels can play the
+                        // profile's reels in the same upload sequence.
+                        onClick={() => navigate("/reels", { state: {
+                          clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 },
+                          profileQueue: reelQueue.map((r) => ({ ...r, user: r.user || user.name, username: r.username || key, profilePic: r.profilePic || user.profilePic, likes: r.likes || 0 })),
+                          queueIndex: reelIndex,
+                          fromProfile: key,
+                        } })}>
 
                         {/* NEW: hover-preview thumbnail. Its mute button stops
                             propagation so it never triggers the card's navigate. */}

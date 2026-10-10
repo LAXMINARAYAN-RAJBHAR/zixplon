@@ -14,6 +14,21 @@ import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
 import { notifyConnections, notifyUser } from "../../utils/notifications";
 import { extractMentions } from "../../utils/linkify";
 
+// CHANGED: moved out of the component (it's a pure function) so it can be
+// used inside useCallback hooks without a dependency warning.
+const shuffleArray = (arr) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+// NEW: how many videos are fetched (then shuffled) per refill of the
+// video pool. Bigger = more variety in what shows up between posts.
+const VIDEO_POOL_SIZE = 30;
+
 const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const location = useLocation();
 
@@ -36,6 +51,16 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const shuffledPoolRef = useRef([]);
   const [videos, setVideos] = useState([]);
   const videosOffsetRef = useRef(0);
+
+  // NEW: shuffled video pool + helpers.
+  //  - videoPoolRef: videos fetched and shuffled, waiting to be shown.
+  //  - videoFetchChainRef: serialises fetchMoreVideos calls so loadMore
+  //    and realtime inserts can't fill the pool twice at the same time.
+  //  - videoEpochRef: bumped whenever the feed resets or a search
+  //    starts, so an in-flight video fetch from the old feed is dropped.
+  const videoPoolRef = useRef([]);
+  const videoFetchChainRef = useRef(Promise.resolve());
+  const videoEpochRef = useRef(0);
 
   // NEW: request counter — lets fetchPosts ignore a slow, outdated
   // response (e.g. results for "hulk" arriving after a newer search for
@@ -77,15 +102,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     }),
     [currentUser]
   );
-
-  const shuffleArray = (arr) => {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  };
 
   const fetchViewCounts = async (ids) => {
     if (!ids || !ids.length) return;
@@ -135,55 +151,88 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     } catch (_) {}
   }, []);
 
-  const fetchMoreVideos = useCallback(async (count) => {
-    if (!count) return;
-    const { data, error: fetchErr } = await supabase
-      .from("videos")
-      .select("id, short_id, video_url, thumbnail_url, title, channel, username, duration, created_at")
-      .order("created_at", { ascending: false })
-      .range(videosOffsetRef.current, videosOffsetRef.current + count - 1);
+  // CHANGED: videos are now SHUFFLED. Instead of reading the next
+  // newest-first page by offset (which always produced the same order),
+  // this fetches a pool of VIDEO_POOL_SIZE videos, shuffles each batch
+  // once, queues it in videoPoolRef, and hands out `count` videos at a
+  // time. When the catalogue runs out the offset wraps to 0, so videos
+  // repeat in a freshly shuffled order. Shuffling happens once per batch
+  // at load time (never at render time), so hovering/liking a card never
+  // reorders the feed.
+  const fetchMoreVideos = useCallback((count) => {
+    if (!count) return Promise.resolve();
+    const epoch = videoEpochRef.current;
 
-    if (!fetchErr && data && data.length > 0) {
-      const mapped = data.map((v) => ({
-        id: v.id,
-        short_id: v.short_id,
-        src: v.video_url,
-        thumbnail: v.thumbnail_url || null,
-        title: v.title,
-        duration: v.duration || "00:00",
-        channel: v.channel,
-        username: v.username || v.channel?.toLowerCase() || "unknown",
-        created_at: v.created_at || null,
-        likes: 0,
-      }));
+    const fillPool = async () => {
+      let attempts = 0;
+      while (videoPoolRef.current.length < count && attempts++ < 2) {
+        const from = videosOffsetRef.current;
+        const { data, error: fetchErr } = await supabase
+          .from("videos")
+          .select("id, short_id, video_url, thumbnail_url, title, channel, username, duration, created_at")
+          .order("created_at", { ascending: false })
+          .range(from, from + VIDEO_POOL_SIZE - 1);
 
-      const videoIds = mapped.map((v) => String(v.id));
-      const { data: likesData } = await supabase
-        .from("likes")
-        .select("content_id")
-        .eq("content_type", "video")
-        .in("content_id", videoIds);
+        // The feed was reset / a search started while we were fetching.
+        if (epoch !== videoEpochRef.current) return;
 
-      let withLikes = mapped;
-      if (likesData) {
+        if (fetchErr || !data || data.length === 0) {
+          videosOffsetRef.current = 0; // wrap around
+          break;
+        }
+
+        const mapped = data.map((v) => ({
+          id: v.id,
+          short_id: v.short_id,
+          src: v.video_url,
+          thumbnail: v.thumbnail_url || null,
+          title: v.title,
+          duration: v.duration || "00:00",
+          channel: v.channel,
+          username: v.username || v.channel?.toLowerCase() || "unknown",
+          created_at: v.created_at || null,
+          likes: 0,
+        }));
+
+        const { data: likesData } = await supabase
+          .from("likes")
+          .select("content_id")
+          .eq("content_type", "video")
+          .in("content_id", mapped.map((v) => String(v.id)));
+
+        if (epoch !== videoEpochRef.current) return;
+
         const likesMap = {};
-        likesData.forEach((row) => {
+        (likesData || []).forEach((row) => {
           likesMap[row.content_id] = (likesMap[row.content_id] || 0) + 1;
         });
-        withLikes = mapped.map((v) => ({
+        const withLikes = mapped.map((v) => ({
           ...v,
           likes: likesMap[String(v.id)] ?? 0,
         }));
-      }
 
-      setVideos((prev) => [...prev, ...withLikes]);
-      videosOffsetRef.current += data.length;
-      if (data.length < count) {
-        videosOffsetRef.current = 0;
+        // Shuffle each batch once, then queue it.
+        videoPoolRef.current = videoPoolRef.current.concat(
+          shuffleArray(withLikes),
+        );
+        videosOffsetRef.current =
+          data.length < VIDEO_POOL_SIZE ? 0 : from + data.length;
       }
-    } else {
-      videosOffsetRef.current = 0;
-    }
+    };
+
+    // One fetch at a time, so loadMore + realtime inserts can't both
+    // fill the pool simultaneously.
+    videoFetchChainRef.current = videoFetchChainRef.current
+      .then(async () => {
+        if (epoch !== videoEpochRef.current) return;
+        await fillPool();
+        if (epoch !== videoEpochRef.current) return;
+        const batch = videoPoolRef.current.splice(0, count);
+        if (batch.length) setVideos((prev) => [...prev, ...batch]);
+      })
+      .catch(() => {});
+
+    return videoFetchChainRef.current;
   }, []);
 
   const fetchPosts = useCallback(async (reset = false) => {
@@ -225,7 +274,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         offsetRef.current += page.length;
         setHasMore(page.length === PAGE_SIZE);
         setPosts((prev) => (reset ? page : [...prev, ...page]));
+
+        // CHANGED: also invalidate any in-flight / queued feed videos.
+        videoEpochRef.current += 1;
+        videoPoolRef.current = [];
         setVideos([]);
+
         fetchViewCounts(page.map((p) => p.id));
         return; // `finally` below still clears loading flags
       }
@@ -277,8 +331,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       if (reset) {
         setPosts(page);
-        setVideos([]);
+        // CHANGED: bump the epoch (cancels any in-flight video fetch from
+        // the previous feed) and clear the shuffled video pool.
+        videoEpochRef.current += 1;
+        videoPoolRef.current = [];
         videosOffsetRef.current = 0;
+        setVideos([]);
         fetchMoreVideos(page.length);
       } else {
         setPosts((prev) => [...prev, ...page]);

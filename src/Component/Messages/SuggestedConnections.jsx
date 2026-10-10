@@ -1,25 +1,34 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import "./SuggestedConnections.css";
 
-// Horizontal "People you may know" strip shown at the top of the Messages
-// inbox. Each card has a Connect button that opens a chat with that person
-// (a brand-new chat starts as a message request, same as searching for
-// them and tapping "Start new chat").
+// "People you may know" strip with a Connect button on every card.
+// Used in two places:
 //
-// Props
-//   currentUser — logged-in username
-//   exclude     — array/Set of usernames to hide (people you already chat
-//                 with, plus anyone blocked in either direction)
-//   onlineUsers — Set of usernames currently online (they're listed first)
-//   onConnect   — (username) => void
+//  1) Messages inbox (variant="inbox", the default) — pass `exclude`,
+//     `onlineUsers` and `onConnect` from MessagesPanel, exactly as before.
 //
-// The candidate list is fetched once; filtering happens on every render, so
-// a card disappears the moment you connect with that person.
+//  2) Home / Posts tabs (variant="feed") — just render
+//        <SuggestedConnections variant="feed" />
+//     It works out the logged-in user itself, fetches who to hide
+//     (people you already chat with + blocked in either direction), and
+//     Connect opens that person's profile (/user/<username>). Pass your
+//     own `onConnect` if you'd rather open the chat from there.
+//
+// Props (all optional)
+//   variant     — "inbox" | "feed"
+//   currentUser — defaults to localStorage "username"
+//   exclude     — array/Set of usernames to hide; if omitted the component
+//                 fetches conversations + blocks itself
+//   onlineUsers — Set of online usernames (listed first)
+//   onConnect   — (username) => void; defaults to opening their profile
+//   title       — heading text
 
 const DISMISS_KEY = "zx_dismissed_suggestions_v1";
 const FETCH_LIMIT = 40; // candidates pulled from `profiles`
 const MAX_SHOWN = 12; // cards actually rendered
+const PROFILE_PATH = (u) => `/user/${encodeURIComponent(u)}`;
 
 const readDismissed = (user) => {
   try {
@@ -49,13 +58,26 @@ const SuggestionAvatar = ({ username, picUrl, online }) => {
       ) : (
         username.slice(0, 2).toUpperCase()
       )}
-      <span className={`sc-status-dot ${online ? "online" : "offline"}`} />
+      {online !== undefined && (
+        <span className={`sc-status-dot ${online ? "online" : "offline"}`} />
+      )}
     </div>
   );
 };
 
-const SuggestedConnections = ({ currentUser, exclude, onlineUsers, onConnect }) => {
+const SuggestedConnections = ({
+  variant = "inbox",
+  currentUser: currentUserProp,
+  exclude,
+  onlineUsers,
+  onConnect,
+  title,
+}) => {
+  const navigate = useNavigate();
+  const currentUser = currentUserProp || localStorage.getItem("username") || "";
+
   const [candidates, setCandidates] = useState([]);
+  const [selfExclude, setSelfExclude] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [dismissed, setDismissed] = useState(() => readDismissed(currentUser));
 
@@ -80,8 +102,31 @@ const SuggestedConnections = ({ currentUser, exclude, onlineUsers, onConnect }) 
           .limit(FETCH_LIMIT);
       }
 
+      // When the parent doesn't pass `exclude` (Home / Posts tabs), work out
+      // who to hide: existing chats + blocks in either direction.
+      let hide = [];
+      if (!exclude) {
+        const [convRes, blockRes] = await Promise.all([
+          supabase
+            .from("conversations")
+            .select("user_a, user_b")
+            .or(`user_a.eq.${currentUser},user_b.eq.${currentUser}`),
+          supabase
+            .from("user_blocks")
+            .select("blocker, blocked")
+            .or(`blocker.eq.${currentUser},blocked.eq.${currentUser}`),
+        ]);
+        (convRes.data || []).forEach((c) =>
+          hide.push(c.user_a === currentUser ? c.user_b : c.user_a),
+        );
+        (blockRes.data || []).forEach((b) =>
+          hide.push(b.blocker === currentUser ? b.blocked : b.blocker),
+        );
+      }
+
       if (!active) return;
       if (!res.error) setCandidates(res.data || []);
+      setSelfExclude(hide);
       setLoaded(true);
     };
 
@@ -89,9 +134,13 @@ const SuggestedConnections = ({ currentUser, exclude, onlineUsers, onConnect }) 
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
 
-  const excludeSet = new Set(exclude || []);
+  // Logged-out visitors never see suggestions.
+  if (!currentUser) return null;
+
+  const excludeSet = new Set(exclude || selfExclude);
   const dismissedSet = new Set(dismissed);
 
   const visible = candidates
@@ -106,11 +155,18 @@ const SuggestedConnections = ({ currentUser, exclude, onlineUsers, onConnect }) 
     writeDismissed(currentUser, next);
   };
 
+  const connect = (username) => {
+    if (onConnect) onConnect(username);
+    else navigate(PROFILE_PATH(username));
+  };
+
   if (!loaded || visible.length === 0) return null;
 
   return (
-    <div className="sc-strip">
-      <div className="sc-strip-title">Suggested for you</div>
+    <div className={`sc-strip ${variant === "feed" ? "sc-strip-feed" : ""}`}>
+      <div className="sc-strip-title">
+        {title || (variant === "feed" ? "People you may know" : "Suggested for you")}
+      </div>
       <div className="sc-strip-scroll">
         {visible.map((p) => (
           <div key={p.username} className="sc-card">
@@ -126,12 +182,12 @@ const SuggestedConnections = ({ currentUser, exclude, onlineUsers, onConnect }) 
             <SuggestionAvatar
               username={p.username}
               picUrl={p.profile_pic}
-              online={onlineUsers?.has(p.username)}
+              online={onlineUsers ? onlineUsers.has(p.username) : undefined}
             />
             <div className="sc-name" title={p.username}>
               {p.username}
             </div>
-            <button type="button" className="sc-connect-btn" onClick={() => onConnect(p.username)}>
+            <button type="button" className="sc-connect-btn" onClick={() => connect(p.username)}>
               Connect
             </button>
           </div>

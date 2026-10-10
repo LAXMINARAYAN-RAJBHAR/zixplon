@@ -26,6 +26,7 @@ import { onUserInteract } from "../../utils/audioUnlock";
 // NEW: keeps sound to one card at a time — whichever card most
 // recently claimed it mutes/pauses whoever had it before.
 import { claimSound, releaseSound } from "../../utils/soundArbiter";
+import SuggestedConnections from "../../Component/Messages/SuggestedConnections";
 
 const API_KEYS = [
   process.env.REACT_APP_YOUTUBE_KEY_1,
@@ -204,7 +205,7 @@ const shareContent = ({ contentType, contentId, title, text }) => {
   if (navigator.share) {
     navigator
       .share({ title: title || "Zixplon", text: text || title || "Check this out on Zixplon", url })
-      .catch(() => {});
+      .catch(() => { });
   } else {
     navigator.clipboard.writeText(url);
     alert("Link copied!");
@@ -293,7 +294,7 @@ const useHoverPreview = (canPreview) => {
       try {
         videoRef.current.pause();
         videoRef.current.currentTime = 0;
-      } catch (_) {}
+      } catch (_) { }
     }
   };
 
@@ -318,7 +319,7 @@ const useHoverPreview = (canPreview) => {
       .catch(() => {
         vid.muted = true;
         setMuted(true);
-        vid.play().catch(() => {});
+        vid.play().catch(() => { });
         unsubscribeRef.current = onUserInteract(() => {
           const el = videoRef.current;
           if (!el) return;
@@ -344,7 +345,7 @@ const useHoverPreview = (canPreview) => {
     setMuted((m) => {
       const next = !m;
       if (!next && videoRef.current) {
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch(() => { });
         claimSound(soundId, muteForArbiter);
       } else {
         releaseSound(soundId);
@@ -436,7 +437,7 @@ const usePostPreview = (isMobile, canPreview) => {
     unsubscribeRef.current = null;
 
     if (isPreviewing) {
-      try { v.currentTime = 0; } catch (_) {}
+      try { v.currentTime = 0; } catch (_) { }
       v.muted = false;
       v
         .play()
@@ -447,7 +448,7 @@ const usePostPreview = (isMobile, canPreview) => {
         .catch(() => {
           v.muted = true;
           setMuted(true);
-          v.play().catch(() => {});
+          v.play().catch(() => { });
           unsubscribeRef.current = onUserInteract(() => {
             const el = videoRef.current;
             if (!el) return;
@@ -466,7 +467,7 @@ const usePostPreview = (isMobile, canPreview) => {
       try {
         v.pause();
         v.currentTime = 0;
-      } catch (_) {}
+      } catch (_) { }
       releaseSound(soundId);
     }
   }, [isPreviewing]);
@@ -480,7 +481,7 @@ const usePostPreview = (isMobile, canPreview) => {
     setMuted((m) => {
       const next = !m;
       if (!next && videoRef.current) {
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch(() => { });
         claimSound(soundId, muteForArbiter);
       } else {
         releaseSound(soundId);
@@ -635,7 +636,7 @@ const ShortCard = ({
                 playsInline
                 preload="metadata"
                 style={{ position: "absolute", inset: 0, objectFit: "cover" }}
-                onCanPlay={(e) => e.target.play().catch(() => {})}
+                onCanPlay={(e) => e.target.play().catch(() => { })}
               />
             )}
           </>
@@ -1003,7 +1004,7 @@ const PostCard = ({
               setSongBlocked(false);
               claimSound(songSoundId, pauseForArbiter);
             })
-            .catch(() => {});
+            .catch(() => { });
         });
       });
   }, [songInView, post.song]);
@@ -1082,8 +1083,8 @@ const PostCard = ({
           )
         ) : (
           <div className="homePage_postThumbText">
-  <p>{linkifyText(post.text, { disableLinks: true, boldClassName: "homePage_postBold" })}</p>
-</div>
+            <p>{linkifyText(post.text, { disableLinks: true, boldClassName: "homePage_postBold" })}</p>
+          </div>
         )}
         <span className="homePage_postBadge">
           {hasLink ? "🔗 Link" : "📝 Post"}
@@ -1123,8 +1124,8 @@ const PostCard = ({
       </div>
       <div className="homePage_postMeta">
         <p className="homePage_postCaption">
-  {post.text ? linkifyText(post.text, { disableLinks: true, boldClassName: "homePage_postBold" }) : "View post"}
-</p>
+          {post.text ? linkifyText(post.text, { disableLinks: true, boldClassName: "homePage_postBold" }) : "View post"}
+        </p>
 
         {/* NEW: feeling / song / location / link domain — same data
             PostComposer.jsx saves, which this card previously never
@@ -1324,7 +1325,7 @@ const VideoCard = ({
                 playsInline
                 preload="metadata"
                 style={{ position: "absolute", inset: 0, objectFit: "cover" }}
-                onCanPlay={(e) => e.target.play().catch(() => {})}
+                onCanPlay={(e) => e.target.play().catch(() => { })}
               />
             )}
           </>
@@ -2012,18 +2013,18 @@ const SaveMenuButton = ({
     },
     ...(isOwner
       ? [
-          {
-            id: "delete",
-            icon: <span style={{ fontSize: 15 }}>🗑️</span>,
-            label: "Delete video",
-            danger: true,
-            onClick: (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onDelete && onDelete(e, videoId);
-            },
+        {
+          id: "delete",
+          icon: <span style={{ fontSize: 15 }}>🗑️</span>,
+          label: "Delete video",
+          danger: true,
+          onClick: (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete && onDelete(e, videoId);
           },
-        ]
+        },
+      ]
       : []),
   ];
 
@@ -2075,18 +2076,18 @@ const ReelMenuButton = ({ short, loggedInUsername, onDelete, onReport, navigate 
     },
     ...(isOwner
       ? [
-          {
-            id: "delete",
-            icon: <span style={{ fontSize: 15 }}>🗑️</span>,
-            label: "Delete reel",
-            danger: true,
-            onClick: (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onDelete && short?.dbId && onDelete(e, short.dbId);
-            },
+        {
+          id: "delete",
+          icon: <span style={{ fontSize: 15 }}>🗑️</span>,
+          label: "Delete reel",
+          danger: true,
+          onClick: (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete && short?.dbId && onDelete(e, short.dbId);
           },
-        ]
+        },
+      ]
       : []),
   ];
 
@@ -2138,18 +2139,18 @@ const PostMenuButton = ({ post, loggedInUsername, onDelete, onReport }) => {
     },
     ...(isOwner
       ? [
-          {
-            id: "delete",
-            icon: <span style={{ fontSize: 15 }}>🗑️</span>,
-            label: "Delete post",
-            danger: true,
-            onClick: (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onDelete && onDelete(e, post?.id);
-            },
+        {
+          id: "delete",
+          icon: <span style={{ fontSize: 15 }}>🗑️</span>,
+          label: "Delete post",
+          danger: true,
+          onClick: (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete && onDelete(e, post?.id);
           },
-        ]
+        },
+      ]
       : []),
   ];
 
@@ -2324,7 +2325,7 @@ const TrendingCard = ({
     unsubscribeRef.current = null;
 
     if (isPreviewing) {
-      try { v.currentTime = 0; } catch (_) {}
+      try { v.currentTime = 0; } catch (_) { }
       v.muted = false;
       v
         .play()
@@ -2335,7 +2336,7 @@ const TrendingCard = ({
         .catch(() => {
           v.muted = true;
           setMuted(true);
-          v.play().catch(() => {});
+          v.play().catch(() => { });
           unsubscribeRef.current = onUserInteract(() => {
             const el = videoRef.current;
             if (!el) return;
@@ -2354,7 +2355,7 @@ const TrendingCard = ({
       try {
         v.pause();
         v.currentTime = 0;
-      } catch (_) {}
+      } catch (_) { }
       releaseSound(soundId);
     }
   }, [isPreviewing, videoRef]);
@@ -2368,7 +2369,7 @@ const TrendingCard = ({
     setMuted((m) => {
       const next = !m;
       if (!next && videoRef.current) {
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch(() => { });
         claimSound(soundId, muteForArbiter);
       } else {
         releaseSound(soundId);
@@ -2447,7 +2448,7 @@ const TrendingCard = ({
                 playsInline
                 preload="metadata"
                 style={{ position: "absolute", inset: 0, objectFit: "cover" }}
-                onCanPlay={(e) => e.target.play().catch(() => {})}
+                onCanPlay={(e) => e.target.play().catch(() => { })}
               />
             )}
           </>
@@ -3617,7 +3618,7 @@ const WatchPage = ({
         ) {
           if (autoplayRef.current && hasNextRef.current) goNextRef.current();
         }
-      } catch (_) {}
+      } catch (_) { }
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
@@ -3942,7 +3943,7 @@ const HomePage = ({ sideNavbar }) => {
   const isMobile = useIsMobile();
   const [selectedOption, setSelectedOption] = useState("All");
 
-    const liveBrowserRef = useRef(null);
+  const liveBrowserRef = useRef(null);
   // Unique per-mount suffix for this page's realtime channels. Fixes
   // stale/colliding channel names when HomeHub mounts/unmounts this
   // component on every Home <-> Posts tab switch — see channelInstanceIdRef
@@ -4049,7 +4050,7 @@ const HomePage = ({ sideNavbar }) => {
         },
         { onConflict: "user_id,content_id,content_type" },
       );
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const fetchViewCounts = async (ids, contentType) => {
@@ -4071,7 +4072,7 @@ const HomePage = ({ sideNavbar }) => {
         });
       }
       setViewCounts((prev) => ({ ...prev, ...map }));
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const options = [
@@ -4123,25 +4124,25 @@ const HomePage = ({ sideNavbar }) => {
         .order("created_at", { ascending: false });
       if (!error && data) {
         const formatted = data.map((v) => ({
-  id: v.id,
-  short_id: v.short_id,
-  src: v.video_url,
-  // CHANGED: no longer force a placeholder image here. If
-  // thumbnail_url is empty (client-side auto capture failed during
-  // upload — see VideoUpload.jsx), VideoCard now falls back to
-  // rendering the video's own first frame via a <video preload="metadata">
-  // element, the same approach Posts already used (PostVideo in
-  // Posts/PostCard.jsx) — see VideoCard below. makePlaceholderThumb is
-  // now only used as a last resort when there's no video src either.
-  thumbnail: v.thumbnail_url || null,
-  title: v.title,
-  duration: v.duration || "00:00",
-  channel: v.channel,
-  username: v.username || v.channel?.toLowerCase() || "unknown",
-  tags: [v.category || "All"],
-  likes: v.likes ?? 0,
-  created_at: v.created_at || null,
-}));
+          id: v.id,
+          short_id: v.short_id,
+          src: v.video_url,
+          // CHANGED: no longer force a placeholder image here. If
+          // thumbnail_url is empty (client-side auto capture failed during
+          // upload — see VideoUpload.jsx), VideoCard now falls back to
+          // rendering the video's own first frame via a <video preload="metadata">
+          // element, the same approach Posts already used (PostVideo in
+          // Posts/PostCard.jsx) — see VideoCard below. makePlaceholderThumb is
+          // now only used as a last resort when there's no video src either.
+          thumbnail: v.thumbnail_url || null,
+          title: v.title,
+          duration: v.duration || "00:00",
+          channel: v.channel,
+          username: v.username || v.channel?.toLowerCase() || "unknown",
+          tags: [v.category || "All"],
+          likes: v.likes ?? 0,
+          created_at: v.created_at || null,
+        }));
         const videoIds = formatted.map((v) => String(v.id));
         const { data: likesData } = await supabase
           .from("likes")
@@ -4456,22 +4457,22 @@ const HomePage = ({ sideNavbar }) => {
 
   const searchedLocalVideos = searchActive
     ? dbVideos
-        .map((v) => ({ ...v, isUploaded: true }))
-        .map((v) => ({ ...v, _score: scoreVideo(v) }))
-        .filter((v) => v._score > 0)
-        .sort((a, b) => b._score - a._score)
+      .map((v) => ({ ...v, isUploaded: true }))
+      .map((v) => ({ ...v, _score: scoreVideo(v) }))
+      .filter((v) => v._score > 0)
+      .sort((a, b) => b._score - a._score)
     : [];
 
   const searchedReels = searchActive
     ? allReels.filter((r) => {
-        const q = searchQuery;
-        return (
-          (r.title || "").toLowerCase().includes(q) ||
-          (r.user || "").toLowerCase().includes(q) ||
-          (r.username || "").toLowerCase().includes(q) ||
-          (r.description || "").toLowerCase().includes(q)
-        );
-      })
+      const q = searchQuery;
+      return (
+        (r.title || "").toLowerCase().includes(q) ||
+        (r.user || "").toLowerCase().includes(q) ||
+        (r.username || "").toLowerCase().includes(q) ||
+        (r.description || "").toLowerCase().includes(q)
+      );
+    })
     : [];
 
   const handleLikeVideo = async (e, videoId) => {
@@ -4543,7 +4544,7 @@ const HomePage = ({ sideNavbar }) => {
           });
         }
       }
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const handleDeleteVideo = async (e, videoId) => {
@@ -4806,6 +4807,10 @@ const HomePage = ({ sideNavbar }) => {
           </div>
         )}
 
+        {!searchActive && selectedOption === "All" && (
+          <SuggestedConnections variant="feed" />
+        )}
+
         {!searchActive &&
           (selectedOption === "All" ? (
             <>
@@ -4927,25 +4932,25 @@ const HomePage = ({ sideNavbar }) => {
               </div>
               {dbVideos.filter((v) => v.tags?.includes(selectedOption)).length >
                 0 && (
-                <div style={{ marginBottom: "40px" }}>
-                  <SectionLabel
-                    color="#f97316"
-                    bg="#fff7ed"
-                    text="⬆ UPLOADED VIDEOS"
-                    count={
-                      dbVideos.filter((v) => v.tags?.includes(selectedOption))
-                        .length
-                    }
-                  />
-                  <div className="youtube_VideoGrid">
-                    {dbVideos
-                      .filter((v) => v.tags?.includes(selectedOption))
-                      .map((v) => (
-                        <VideoCard key={v.id} video={v} isUploaded={true} {...videoCardProps} />
-                      ))}
+                  <div style={{ marginBottom: "40px" }}>
+                    <SectionLabel
+                      color="#f97316"
+                      bg="#fff7ed"
+                      text="⬆ UPLOADED VIDEOS"
+                      count={
+                        dbVideos.filter((v) => v.tags?.includes(selectedOption))
+                          .length
+                      }
+                    />
+                    <div className="youtube_VideoGrid">
+                      {dbVideos
+                        .filter((v) => v.tags?.includes(selectedOption))
+                        .map((v) => (
+                          <VideoCard key={v.id} video={v} isUploaded={true} {...videoCardProps} />
+                        ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
               {ytLoading && (
                 <div style={{ marginBottom: "40px" }}>
                   <SectionLabel color="#ef4444" bg="#fff1f2" text="▶ YOUTUBE" />

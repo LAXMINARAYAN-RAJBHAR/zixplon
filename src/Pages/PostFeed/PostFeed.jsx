@@ -13,6 +13,7 @@ import AdUnit from "../../Component/Ads/AdUnit";
 import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
 import { notifyConnections, notifyUser } from "../../utils/notifications";
 import { extractMentions } from "../../utils/linkify";
+import SuggestedConnections from "../../Component/Messages/SuggestedConnections";
 
 // CHANGED: moved out of the component (it's a pure function) so it can be
 // used inside useCallback hooks without a dependency warning.
@@ -121,7 +122,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         });
       }
       setViewCounts((prev) => ({ ...prev, ...map }));
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const incrementView = useCallback(async (postId) => {
@@ -148,7 +149,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         },
         { onConflict: "user_id,content_id,content_type" },
       );
-    } catch (_) {}
+    } catch (_) { }
   }, []);
 
   // CHANGED: videos are now SHUFFLED. Instead of reading the next
@@ -230,7 +231,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         const batch = videoPoolRef.current.splice(0, count);
         if (batch.length) setVideos((prev) => [...prev, ...batch]);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     return videoFetchChainRef.current;
   }, []);
@@ -807,13 +808,13 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         p.id !== postId
           ? p
           : {
-              ...p,
-              comments: p.comments.map((c) =>
-                c.id === commentId
-                  ? { ...c, liked_by: nextLikedBy, disliked_by: nextDislikedBy }
-                  : c
-              ),
-            }
+            ...p,
+            comments: p.comments.map((c) =>
+              c.id === commentId
+                ? { ...c, liked_by: nextLikedBy, disliked_by: nextDislikedBy }
+                : c
+            ),
+          }
       )
     );
 
@@ -864,11 +865,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         p.id !== postId
           ? p
           : {
-              ...p,
-              comments: p.comments.map((c) =>
-                c.id === commentId ? { ...c, saved_by: nextSavedBy } : c,
-              ),
-            },
+            ...p,
+            comments: p.comments.map((c) =>
+              c.id === commentId ? { ...c, saved_by: nextSavedBy } : c,
+            ),
+          },
       ),
     );
 
@@ -932,7 +933,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       console.error("Share to feed failed:", err);
       setError(
         err.message ||
-          "Couldn't share this post. Please try again."
+        "Couldn't share this post. Please try again."
       );
     }
   };
@@ -991,19 +992,19 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   // and videos (only computed in search mode).
   const searchProfiles = searchQuery
     ? [
-        ...new Set(
-          [
-            ...posts.map((p) => p.username),
-            ...searchReels.map((r) => r.username),
-            ...searchVideos.map((v) => v.username),
-          ].filter(
-            (u) =>
-              u &&
-              u !== "unknown" &&
-              u.toLowerCase().includes(searchQuery.toLowerCase())
-          )
-        ),
-      ]
+      ...new Set(
+        [
+          ...posts.map((p) => p.username),
+          ...searchReels.map((r) => r.username),
+          ...searchVideos.map((v) => v.username),
+        ].filter(
+          (u) =>
+            u &&
+            u !== "unknown" &&
+            u.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      ),
+    ]
     : [];
 
   const noSearchResults =
@@ -1089,6 +1090,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               </button>
             </div>
           ))}
+
+        {!searchQuery && <SuggestedConnections variant="feed" />}
+
+        {error && <p className="pf-error">{error}</p>}
 
         {error && <p className="pf-error">{error}</p>}
         {postNotFound && (

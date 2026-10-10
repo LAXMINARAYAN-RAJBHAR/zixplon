@@ -18,6 +18,10 @@ import { uploadAttachmentToR2 } from "../../utils/mediaUpload";
 const TYPING_STOP_DELAY_MS = 1500;
 const TYPING_AUTO_CLEAR_MS = 4000;
 
+// ── Jump-to-replied-message tuning (mirrors MessagesPanel) ──
+const JUMP_HIGHLIGHT_MS = 1800;
+const JUMP_NOTICE_MS = 2500;
+
 // ── Report reasons (mirrors MessagesPanel's 1:1 report modal) ──
 const REPORT_REASONS = [
   "Nudity or sexual content",
@@ -149,6 +153,16 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   // ── Reply ──
   const [replyTarget, setReplyTarget] = useState(null);
 
+  // ── NEW: jump-to-replied-message ──
+  // Groups load their full history up front, so unlike the 1:1 chat no
+  // extra fetching is needed — just scroll + flash, or show a notice if
+  // the original isn't in the list (e.g. it was hard-deleted).
+  const [highlightId, setHighlightId] = useState(null);
+  const [jumpNotice, setJumpNotice] = useState("");
+  const highlightTimerRef = useRef(null);
+  const noticeTimerRef = useRef(null);
+  const bodyRef = useRef();
+
   // ── Forward (targets a 1:1 conversation, searched by username) ──
   const [forwardTarget, setForwardTarget] = useState(null);
   const [forwardQuery, setForwardQuery] = useState("");
@@ -216,6 +230,9 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
     // Switching groups invalidates any in-progress reply — the quoted
     // message belongs to the group we're leaving.
     setReplyTarget(null);
+    // NEW: also drop any highlight / notice from the previous group.
+    setHighlightId(null);
+    setJumpNotice("");
 
     const load = async () => {
       setLoading(true);
@@ -368,6 +385,15 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typingUsers]);
+
+  // Clear jump timers on unmount.
+  useEffect(
+    () => () => {
+      clearTimeout(highlightTimerRef.current);
+      clearTimeout(noticeTimerRef.current);
+    },
+    [],
+  );
 
   // Close the members panel when tapping/clicking anywhere outside it.
   useEffect(() => {
@@ -877,6 +903,32 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
 
   const cancelReply = () => setReplyTarget(null);
 
+  // ── NEW: jump to the original of a replied-to message ──
+  // Scrolls to + flashes the original if it's in the list; otherwise
+  // shows a short "no longer available" notice (fallback) instead of
+  // silently doing nothing.
+  const showJumpNotice = (msg) => {
+    setJumpNotice(msg);
+    clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = setTimeout(() => setJumpNotice(""), JUMP_NOTICE_MS);
+  };
+
+  const jumpToMessage = (targetId) => {
+    if (!targetId) return;
+    const el = bodyRef.current?.querySelector(`[data-msg-id="${targetId}"]`);
+    if (!el) {
+      showJumpNotice("Original message is no longer available");
+      return;
+    }
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightId(String(targetId));
+    clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(
+      () => setHighlightId(null),
+      JUMP_HIGHLIGHT_MS,
+    );
+  };
+
   // ── Forward ──
   const openForward = (message) => {
     setForwardTarget(message);
@@ -1268,7 +1320,8 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
         />
       )}
 
-      <div className="gcw-body">
+      {/* CHANGED: bodyRef added so jumpToMessage can find rows. */}
+      <div className="gcw-body" ref={bodyRef}>
         {loading ? (
           <p className="gcw-empty">Loading messages…</p>
         ) : messages.length === 0 && typingUsers.size === 0 ? (
@@ -1288,7 +1341,8 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
             return (
               <div
                 key={m.id}
-                className={`gcw-bubble-row ${mine ? "mine" : ""} ${selectMode ? "gcw-selecting" : ""} ${selectMode && !canSelect(m) ? "gcw-select-disabled" : ""} ${isSelected ? "gcw-selected" : ""}`}
+                data-msg-id={m.id}
+                className={`gcw-bubble-row ${mine ? "mine" : ""} ${selectMode ? "gcw-selecting" : ""} ${selectMode && !canSelect(m) ? "gcw-select-disabled" : ""} ${isSelected ? "gcw-selected" : ""} ${highlightId === String(m.id) ? "gcw-msg-highlight" : ""}`}
                 onClick={selectMode ? () => toggleSelect(m) : undefined}
               >
                 {selectMode && (
@@ -1419,8 +1473,26 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
                       <>
                         {m.forwarded && <div className="gcw-forwarded-tag">↪ Forwarded</div>}
 
+                        {/* CHANGED: the quoted block is now tappable —
+                            scrolls to the original message, or shows a
+                            notice if it's no longer in the list. */}
                         {m.reply_to_id && (
-                          <div className={`gcw-reply-quote ${mine ? "mine" : ""}`}>
+                          <div
+                            className={`gcw-reply-quote ${mine ? "mine" : ""}`}
+                            role="button"
+                            tabIndex={0}
+                            title="Go to original message"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              jumpToMessage(m.reply_to_id);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.stopPropagation();
+                                jumpToMessage(m.reply_to_id);
+                              }
+                            }}
+                          >
                             <span className="gcw-reply-quote-sender">
                               {m.reply_to_sender === currentUser ? "You" : m.reply_to_sender}
                             </span>
@@ -1498,6 +1570,9 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
         {typingUsers.size > 0 && <TypingBubble />}
         <div ref={bottomRef} />
       </div>
+
+      {/* NEW: shown when a replied-to message can't be found. */}
+      {jumpNotice && <div className="gcw-jump-notice">{jumpNotice}</div>}
 
       {/* NEW: selection bar for multi-select delete. While it's showing,
           CSS (.gcw-select-mode) hides the composer, tray and reply bar. */}

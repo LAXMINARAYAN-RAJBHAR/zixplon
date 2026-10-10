@@ -197,6 +197,15 @@ const TYPING_STOP_DELAY_MS = 1500;
 // the receiving side after this long regardless.
 const TYPING_AUTO_CLEAR_MS = 4000;
 
+// ── NEW: jump-to-replied-message tuning ──
+// How long the target message stays highlighted after a jump.
+const JUMP_HIGHLIGHT_MS = 1800;
+// How long the "original message is no longer available" notice shows.
+const JUMP_NOTICE_MS = 2500;
+// Max messages fetched when filling the gap between a replied-to message
+// and the oldest message currently loaded.
+const JUMP_GAP_LIMIT = 1000;
+
 // ── Quick-reaction emoji set for message/attachment reactions ──
 const REACTION_EMOJIS = ["❤️", "😂", "👍", "😮", "😢", "🙏"];
 
@@ -496,6 +505,19 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const skipAutoScrollRef = useRef(false);
   const messagesConvoIdRef = useRef(null);
   const freshConvosLoadedRef = useRef(false);
+
+  // ── NEW: jump-to-replied-message ──
+  // highlightId     — id (as string) of the message currently flashing.
+  // jumpNotice      — short notice shown when the original can't be found.
+  // jumping         — true while the gap fetch is in flight.
+  // pendingJumpRef  — id to scroll to once freshly-loaded older messages
+  //                   have actually rendered.
+  const [highlightId, setHighlightId] = useState(null);
+  const [jumpNotice, setJumpNotice] = useState("");
+  const [jumping, setJumping] = useState(false);
+  const pendingJumpRef = useRef(null);
+  const highlightTimerRef = useRef(null);
+  const noticeTimerRef = useRef(null);
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef();
@@ -1302,6 +1324,10 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     setMessages([]);
     setHasMoreOlder(false);
     messagesConvoIdRef.current = null;
+    // NEW: also drop any in-flight jump / highlight from the old chat.
+    pendingJumpRef.current = null;
+    setHighlightId(null);
+    setJumpNotice("");
 
     let active = true;
     const [user_a, user_b] = [currentUser, activeUsername].sort();
@@ -1679,6 +1705,100 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     );
   };
 
+  // ── NEW: jump to the original of a replied-to message ────────────────
+  // Tapping the quoted block inside a reply:
+  //   1) if the original is already rendered → scroll to it + flash it;
+  //   2) FALLBACK A — it's older than the loaded page → look it up,
+  //      fetch every message between it and the oldest one on screen,
+  //      prepend them, then scroll + flash once they've rendered;
+  //   3) FALLBACK B — the row no longer exists (chat was cleared, etc.)
+  //      → show a small "no longer available" notice instead of doing
+  //      nothing.
+  const showJumpNotice = (msg) => {
+    setJumpNotice(msg);
+    clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = setTimeout(() => setJumpNotice(""), JUMP_NOTICE_MS);
+  };
+
+  // Scrolls to + flashes a message if it's currently rendered.
+  const flashMessage = (id) => {
+    const el = chatBodyRef.current?.querySelector(`[data-msg-id="${id}"]`);
+    if (!el) return false;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightId(String(id));
+    clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(
+      () => setHighlightId(null),
+      JUMP_HIGHLIGHT_MS,
+    );
+    return true;
+  };
+
+  const jumpToMessage = async (targetId) => {
+    if (!targetId || !activeConvo || jumping) return;
+
+    // 1) Already on screen → just scroll.
+    if (flashMessage(targetId)) return;
+
+    // 2) Fallback: older than the loaded page. Look it up first.
+    setJumping(true);
+    try {
+      const { data: target, error } = await supabase
+        .from("direct_messages")
+        .select("id, created_at")
+        .eq("id", targetId)
+        .eq("conversation_id", activeConvo.id)
+        .maybeSingle();
+
+      if (error || !target) {
+        showJumpNotice("Original message is no longer available");
+        return;
+      }
+
+      // Fetch everything from the target up to (but not including) the
+      // oldest message currently loaded, so there's no hole in history.
+      let q = supabase
+        .from("direct_messages")
+        .select("*")
+        .eq("conversation_id", activeConvo.id)
+        .gte("created_at", target.created_at)
+        .order("created_at", { ascending: true })
+        .limit(JUMP_GAP_LIMIT);
+      if (messages[0]?.created_at) q = q.lt("created_at", messages[0].created_at);
+
+      const { data, error: gapErr } = await q;
+      if (gapErr || !data?.length) {
+        showJumpNotice("Couldn't load the original message");
+        return;
+      }
+
+      pendingJumpRef.current = targetId;
+      skipAutoScrollRef.current = true; // don't yank to the bottom
+      setMessages((prev) => mergeMessages(prev, data));
+      setHasMoreOlder(true); // there may still be history above it
+    } finally {
+      setJumping(false);
+    }
+  };
+
+  // After the older messages have rendered, scroll to the one we wanted.
+  useEffect(() => {
+    const id = pendingJumpRef.current;
+    if (!id) return;
+    pendingJumpRef.current = null;
+    flashMessage(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
+
+  // Clear jump timers on unmount.
+  useEffect(
+    () => () => {
+      clearTimeout(highlightTimerRef.current);
+      clearTimeout(noticeTimerRef.current);
+    },
+    [],
+  );
+
   // ── Multi-file attachment picking ──
   // Accepts everything selected in one go (the <input> below has the
   // `multiple` attribute) and queues each valid file as its own tray
@@ -1875,8 +1995,6 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   // NEW (voice calling): same rules as messaging — an accepted chat and
   // nobody blocked. (useCall re-checks both on the caller's and callee's side.)
   const canVoiceCall = !!activeConvo && !isPendingRequest && !isChatBlocked;
-
-  console.log({ activeConvo, isPendingRequest, isChatBlocked, canVoiceCall });
 
   const acceptRequest = async () => {
     if (!activeConvo || requestActionBusy) return;
@@ -3334,7 +3452,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                         return (
                           <div
                             key={m.id}
-                            className={`mp-bubble-row ${mine ? "mine" : ""} ${selectMode ? "mp-selecting" : ""} ${selectMode && !canSelect(m) ? "mp-select-disabled" : ""} ${isSelected ? "mp-selected" : ""}`}
+                            data-msg-id={m.id}
+                            className={`mp-bubble-row ${mine ? "mine" : ""} ${selectMode ? "mp-selecting" : ""} ${selectMode && !canSelect(m) ? "mp-select-disabled" : ""} ${isSelected ? "mp-selected" : ""} ${highlightId === String(m.id) ? "mp-msg-highlight" : ""}`}
                             onClick={selectMode ? () => toggleSelect(m) : undefined}
                           >
                             {selectMode && (
@@ -3530,9 +3649,27 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                       </div>
                                     )}
 
+                                    {/* CHANGED: the quoted block is now
+                                        tappable — jumps to the original
+                                        message (loading older history if
+                                        needed, or showing a notice if it's
+                                        gone). */}
                                     {m.reply_to_id && (
                                       <div
                                         className={`mp-reply-quote ${mine ? "mine" : ""}`}
+                                        role="button"
+                                        tabIndex={0}
+                                        title="Go to original message"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          jumpToMessage(m.reply_to_id);
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") {
+                                            e.stopPropagation();
+                                            jumpToMessage(m.reply_to_id);
+                                          }
+                                        }}
                                       >
                                         <span className="mp-reply-quote-sender">
                                           {m.reply_to_sender === currentUser
@@ -3719,6 +3856,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     {otherTyping && <TypingBubble />}
                     <div ref={bottomRef} />
                   </div>
+
+                  {/* NEW: shown when a replied-to message can't be found / loaded. */}
+                  {jumpNotice && <div className="mp-jump-notice">{jumpNotice}</div>}
 
                   {/* The compose area has four states:
                         0) NEW: select mode → selection bar (count / select

@@ -1616,9 +1616,18 @@
   background: rgba(0,0,0,0.06);
   border-radius: 6px;
   font-size: 12.5px;
+  /* NEW: tappable — jumps to the original message */
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.mp-reply-quote:hover {
+  background: rgba(0,0,0,0.1);
 }
 .mp-reply-quote.mine {
   background: rgba(255,255,255,0.15);
+}
+.mp-reply-quote.mine:hover {
+  background: rgba(255,255,255,0.25);
 }
 .mp-reply-quote-sender {
   font-weight: 700;
@@ -1824,7 +1833,7 @@
 }
 .mp-mini-bar-btn:hover { background: var(--zx-bg); color: var(--zx-primary); }
 
-/* Append this to the end of MessagesPanel.css */
+/* "Load earlier messages" button */
 
 .mp-load-older-btn {
   display: block;
@@ -1844,7 +1853,6 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   APPEND THIS TO THE END OF MessagesPanel.css
    Block-user + inbox typing indicator
    ══════════════════════════════════════════════════════════════════════ */
 
@@ -1920,7 +1928,6 @@
 .mp-call-log.missed { color: var(--zx-primary); }
 
 /* ══════════════════════════════════════════════════════════════════════
-   APPEND THIS TO THE END OF MessagesPanel.css
    NEW (location sharing) — 📍 button in the composer + map card in bubbles
    ══════════════════════════════════════════════════════════════════════ */
 
@@ -2061,3 +2068,28 @@
   border-color: var(--zx-primary);
 }
 .mp-select-check.disabled { visibility: hidden; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   NEW — Jump to replied message (tap a quote → scroll to the original)
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Brief flash on the target row after a jump. */
+.mp-bubble-row.mp-msg-highlight {
+  border-radius: 10px;
+  animation: mp-msg-flash 1.8s ease-out;
+}
+@keyframes mp-msg-flash {
+  0%, 55% { background: rgba(249, 115, 22, 0.28); }
+  100%    { background: transparent; }
+}
+
+/* Small notice bar shown when the original message can't be found. */
+.mp-jump-notice {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--zx-text2);
+  background: var(--zx-surface2);
+  border-top: 1px solid var(--zx-border);
+  padding: 6px 12px;
+}

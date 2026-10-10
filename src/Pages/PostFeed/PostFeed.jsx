@@ -1289,6 +1289,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               <ReelsStrip key={`reels-${index}`} startOffset={index * 10} />
             )}
 
+            {!searchQuery && index >= 3 && (index - 3) % 6 === 0 && (
+              <SuggestedConnections variant="feed" slot={1 + (index - 3) / 6} />
+            )}
+
             {(index + 1) % 5 === 0 && (
               <AdUnit slot="7412839650" format="fluid" layout="in-feed" />
             )}

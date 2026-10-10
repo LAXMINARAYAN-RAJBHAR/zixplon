@@ -4,30 +4,30 @@ import { supabase } from "../../config/supabase";
 import "./SuggestedConnections.css";
 
 // "People you may know" strip with a Connect button on every card.
-// Used in two places:
 //
-//  1) Messages inbox (variant="inbox", the default) — pass `exclude`,
-//     `onlineUsers` and `onConnect` from MessagesPanel, exactly as before.
+//  • Messages inbox (variant="inbox", default): pass `exclude`, `onlineUsers`
+//    and `onConnect` from MessagesPanel, exactly as before.
+//  • Home / Posts tabs (variant="feed"): <SuggestedConnections variant="feed" />
+//    Connect opens that person's profile unless you pass `onConnect`.
 //
-//  2) Home / Posts tabs (variant="feed") — just render
-//        <SuggestedConnections variant="feed" />
-//     It works out the logged-in user itself, fetches who to hide
-//     (people you already chat with + blocked in either direction), and
-//     Connect opens that person's profile (/user/<username>). Pass your
-//     own `onConnect` if you'd rather open the chat from there.
+// NEW — several strips per page: every strip takes a `slot` number
+// (0 = first strip, 1 = second, ...). Slot N shows the Nth group of
+// `count` people, so strips never repeat the same profiles. A strip
+// renders nothing once there is nobody left for its slot.
 //
 // Props (all optional)
 //   variant     — "inbox" | "feed"
+//   slot        — which group of people this strip shows (default 0)
+//   count       — people per strip (default 12)
 //   currentUser — defaults to localStorage "username"
-//   exclude     — array/Set of usernames to hide; if omitted the component
-//                 fetches conversations + blocks itself
+//   exclude     — usernames to hide; if omitted the component works it out
 //   onlineUsers — Set of online usernames (listed first)
 //   onConnect   — (username) => void; defaults to opening their profile
 //   title       — heading text
 
 const DISMISS_KEY = "zx_dismissed_suggestions_v1";
-const FETCH_LIMIT = 40; // candidates pulled from `profiles`
-const MAX_SHOWN = 12; // cards actually rendered
+const FETCH_LIMIT = 80; // candidates pulled from `profiles` (enough for ~6 strips)
+const CACHE_MS = 60 * 1000;
 const PROFILE_PATH = (u) => `/user/${encodeURIComponent(u)}`;
 
 const readDismissed = (user) => {
@@ -49,6 +49,58 @@ const writeDismissed = (user, list) => {
   }
 };
 
+// All strips on a page share ONE fetch (cached for a minute) instead of
+// each strip querying Supabase on its own.
+let cache = { user: null, at: 0, promise: null };
+
+const loadSuggestionData = (currentUser) => {
+  const fresh =
+    cache.user === currentUser && cache.promise && Date.now() - cache.at < CACHE_MS;
+  if (fresh) return cache.promise;
+
+  const promise = (async () => {
+    let res = await supabase
+      .from("profiles")
+      .select("username, profile_pic")
+      .neq("username", currentUser)
+      .order("created_at", { ascending: false })
+      .limit(FETCH_LIMIT);
+
+    // If the profile_pic column isn't available, retry with just usernames.
+    if (res.error) {
+      res = await supabase
+        .from("profiles")
+        .select("username")
+        .neq("username", currentUser)
+        .limit(FETCH_LIMIT);
+    }
+
+    const [convRes, blockRes] = await Promise.all([
+      supabase
+        .from("conversations")
+        .select("user_a, user_b")
+        .or(`user_a.eq.${currentUser},user_b.eq.${currentUser}`),
+      supabase
+        .from("user_blocks")
+        .select("blocker, blocked")
+        .or(`blocker.eq.${currentUser},blocked.eq.${currentUser}`),
+    ]);
+
+    const hide = [];
+    (convRes.data || []).forEach((c) =>
+      hide.push(c.user_a === currentUser ? c.user_b : c.user_a),
+    );
+    (blockRes.data || []).forEach((b) =>
+      hide.push(b.blocker === currentUser ? b.blocked : b.blocker),
+    );
+
+    return { candidates: res.error ? [] : res.data || [], hide };
+  })();
+
+  cache = { user: currentUser, at: Date.now(), promise };
+  return promise;
+};
+
 const SuggestionAvatar = ({ username, picUrl, online }) => {
   const [broken, setBroken] = useState(false);
   return (
@@ -67,6 +119,8 @@ const SuggestionAvatar = ({ username, picUrl, online }) => {
 
 const SuggestedConnections = ({
   variant = "inbox",
+  slot = 0,
+  count = 12,
   currentUser: currentUserProp,
   exclude,
   onlineUsers,
@@ -76,78 +130,38 @@ const SuggestedConnections = ({
   const navigate = useNavigate();
   const currentUser = currentUserProp || localStorage.getItem("username") || "";
 
-  const [candidates, setCandidates] = useState([]);
-  const [selfExclude, setSelfExclude] = useState([]);
-  const [loaded, setLoaded] = useState(false);
+  const [data, setData] = useState(null);
   const [dismissed, setDismissed] = useState(() => readDismissed(currentUser));
 
   useEffect(() => {
     if (!currentUser) return;
     let active = true;
-
-    const load = async () => {
-      let res = await supabase
-        .from("profiles")
-        .select("username, profile_pic")
-        .neq("username", currentUser)
-        .order("created_at", { ascending: false })
-        .limit(FETCH_LIMIT);
-
-      // If the profile_pic column isn't available, retry with just usernames.
-      if (res.error) {
-        res = await supabase
-          .from("profiles")
-          .select("username")
-          .neq("username", currentUser)
-          .limit(FETCH_LIMIT);
-      }
-
-      // When the parent doesn't pass `exclude` (Home / Posts tabs), work out
-      // who to hide: existing chats + blocks in either direction.
-      let hide = [];
-      if (!exclude) {
-        const [convRes, blockRes] = await Promise.all([
-          supabase
-            .from("conversations")
-            .select("user_a, user_b")
-            .or(`user_a.eq.${currentUser},user_b.eq.${currentUser}`),
-          supabase
-            .from("user_blocks")
-            .select("blocker, blocked")
-            .or(`blocker.eq.${currentUser},blocked.eq.${currentUser}`),
-        ]);
-        (convRes.data || []).forEach((c) =>
-          hide.push(c.user_a === currentUser ? c.user_b : c.user_a),
-        );
-        (blockRes.data || []).forEach((b) =>
-          hide.push(b.blocker === currentUser ? b.blocked : b.blocker),
-        );
-      }
-
-      if (!active) return;
-      if (!res.error) setCandidates(res.data || []);
-      setSelfExclude(hide);
-      setLoaded(true);
-    };
-
-    load();
+    loadSuggestionData(currentUser)
+      .then((d) => {
+        if (active) setData(d);
+      })
+      .catch(() => {
+        if (active) setData({ candidates: [], hide: [] });
+      });
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
 
   // Logged-out visitors never see suggestions.
-  if (!currentUser) return null;
+  if (!currentUser || !data) return null;
 
-  const excludeSet = new Set(exclude || selfExclude);
+  const excludeSet = new Set(exclude || data.hide);
   const dismissedSet = new Set(dismissed);
 
-  const visible = candidates
+  const pool = data.candidates
     .filter((p) => p.username && !excludeSet.has(p.username) && !dismissedSet.has(p.username))
     // online people first; otherwise keep newest-first order from the query
-    .sort((a, b) => Number(onlineUsers?.has(b.username)) - Number(onlineUsers?.has(a.username)))
-    .slice(0, MAX_SHOWN);
+    .sort((a, b) => Number(onlineUsers?.has(b.username)) - Number(onlineUsers?.has(a.username)));
+
+  // Each slot gets its own group of people, so strips never repeat profiles.
+  const visible = pool.slice(slot * count, slot * count + count);
+  if (visible.length === 0) return null;
 
   const dismiss = (username) => {
     const next = [...dismissed, username];
@@ -159,8 +173,6 @@ const SuggestedConnections = ({
     if (onConnect) onConnect(username);
     else navigate(PROFILE_PATH(username));
   };
-
-  if (!loaded || visible.length === 0) return null;
 
   return (
     <div className={`sc-strip ${variant === "feed" ? "sc-strip-feed" : ""}`}>

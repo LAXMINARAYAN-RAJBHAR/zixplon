@@ -4675,7 +4675,15 @@ const HomePage = ({ sideNavbar }) => {
       reel: feedReels,
       video: feedVideos.map((v) => ({ ...v, isUploaded: true })),
     };
-    return buildContentRows(buckets, sizes);
+    const rows = buildContentRows(buckets, sizes);
+    const out = [];
+    rows.forEach((r, i) => {
+      out.push(r);
+      if ((i + 1) % 3 === 0) {
+        out.push({ type: "suggest", key: `suggest-${(i + 1) / 3}`, slot: (i + 1) / 3 });
+      }
+    });
+    return out;
   }, [feedPosts, feedReels, feedVideos, isMobile]);
 
   return (
@@ -4843,6 +4851,9 @@ const HomePage = ({ sideNavbar }) => {
                 (() => {
                   let videoRowCount = 0;
                   return contentRows.map((row) => {
+                    if (row.type === "suggest") {
+                      return <SuggestedConnections key={row.key} variant="feed" slot={row.slot} />;
+                    }
                     if (row.type === "post") {
                       return (
                         <PostsRow

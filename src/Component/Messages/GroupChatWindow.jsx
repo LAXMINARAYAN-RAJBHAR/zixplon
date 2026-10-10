@@ -164,6 +164,21 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   // ── Per-message "⋮" action menu (Reply / Forward / Edit / Report / Delete) ──
   const [openMenuFor, setOpenMenuFor] = useState(null);
 
+  // ── NEW: multi-select delete ──
+  // selectMode   — true while the user is ticking several of their own
+  //                messages to delete them together.
+  // selectedIds  — Set of selected message ids.
+  // bulkDeleting — true while the batched delete request is in flight.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Switching groups always cancels select mode.
+  useEffect(() => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }, [group.id]);
+
   // ── Reporting ──
   const [reportTarget, setReportTarget] = useState(null);
   const [reportReason, setReportReason] = useState("");
@@ -1027,6 +1042,91 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
       .eq("id", message.id);
   };
 
+  // ── NEW: multi-select delete ──────────────────────────────────────────
+  // Only my own, still-existing, fully-sent messages can be selected —
+  // delete is "for everyone", and the schema has no per-user hide, so
+  // other members' messages are never selectable.
+  const canSelect = (m) =>
+    m.sender_username === currentUser &&
+    !m.deleted_at &&
+    !m._uploading &&
+    !String(m.id).startsWith("temp-");
+
+  // Starts select mode from a message's "⋮" menu, with that message
+  // already ticked.
+  const enterSelectMode = (m) => {
+    setOpenMenuFor(null);
+    if (editingId) cancelEdit();
+    setSelectMode(true);
+    setSelectedIds(new Set(canSelect(m) ? [m.id] : []));
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelect = (m) => {
+    if (!canSelect(m)) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(m.id)) next.delete(m.id);
+      else next.add(m.id);
+      return next;
+    });
+  };
+
+  // Ticks every selectable message; if they're all ticked already, clears.
+  const selectAllMine = () => {
+    const all = messages.filter(canSelect).map((m) => m.id);
+    setSelectedIds((prev) =>
+      prev.size === all.length ? new Set() : new Set(all),
+    );
+  };
+
+  // Deletes every ticked message in ONE batched update (not N requests),
+  // updates the screen immediately, and leaves select mode.
+  const deleteSelected = async () => {
+    const ids = messages
+      .filter((m) => selectedIds.has(m.id) && canSelect(m))
+      .map((m) => m.id);
+    if (ids.length === 0 || bulkDeleting) return;
+
+    const confirmed = window.confirm(
+      `Delete ${ids.length} message${ids.length === 1 ? "" : "s"} for everyone?`,
+    );
+    if (!confirmed) return;
+
+    setBulkDeleting(true);
+    const deletedAt = new Date().toISOString();
+    const cleared = {
+      deleted_at: deletedAt,
+      text: null,
+      attachment_url: null,
+      attachment_type: null,
+      attachment_name: null,
+      attachment_size: null,
+    };
+
+    const { error } = await supabase
+      .from("group_messages")
+      .update(cleared)
+      .in("id", ids);
+
+    setBulkDeleting(false);
+
+    if (error) {
+      alert(`Couldn't delete the messages: ${error.message || "please try again."}`);
+      return;
+    }
+
+    const idSet = new Set(ids);
+    setMessages((prev) =>
+      prev.map((m) => (idSet.has(m.id) ? { ...m, ...cleared } : m)),
+    );
+    exitSelectMode();
+  };
+
   // ── Reporting ──
   const openReport = (message) => {
     setReportTarget(message);
@@ -1077,7 +1177,7 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   const isUploadingAny = pendingAttachments.some((a) => a.status === "uploading");
 
   return (
-    <div className="gcw-window">
+    <div className={`gcw-window ${selectMode ? "gcw-select-mode" : ""}`}>
       <div className="gcw-header">
         <button className="gcw-back-btn" onClick={onBack}>←</button>
         <div className="gcw-avatar">{group.name.slice(0, 2).toUpperCase()}</div>
@@ -1180,10 +1280,27 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
             // While an attachment is uploading, use the local blob preview
             // instead of attachment_url (which is still null at that point).
             const displayUrl = m._uploading ? m._previewUrl : m.attachment_url;
+
+            // NEW: multi-select state for this row.
+            const selectable = selectMode && canSelect(m);
+            const isSelected = selectedIds.has(m.id);
+
             return (
-              <div key={m.id} className={`gcw-bubble-row ${mine ? "mine" : ""}`}>
+              <div
+                key={m.id}
+                className={`gcw-bubble-row ${mine ? "mine" : ""} ${selectMode ? "gcw-selecting" : ""} ${selectMode && !canSelect(m) ? "gcw-select-disabled" : ""} ${isSelected ? "gcw-selected" : ""}`}
+                onClick={selectMode ? () => toggleSelect(m) : undefined}
+              >
+                {selectMode && (
+                  <span
+                    className={`gcw-select-check ${isSelected ? "checked" : ""} ${selectable ? "" : "disabled"}`}
+                    aria-hidden="true"
+                  >
+                    {isSelected ? "✓" : ""}
+                  </span>
+                )}
                 <div className="gcw-bubble-stack">
-                  {editingId !== m.id && !m.deleted_at && hasContent && !m._uploading && (
+                  {!selectMode && editingId !== m.id && !m.deleted_at && hasContent && !m._uploading && (
                     <div className="gcw-bubble-actions">
                       <div className="gcw-menu-wrap">
                         <button
@@ -1228,6 +1345,16 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
                                 }}
                               >
                                 ✎ Edit
+                              </button>
+                            )}
+                            {/* NEW: enter multi-select delete mode */}
+                            {canSelect(m) && (
+                              <button
+                                type="button"
+                                className="gcw-menu-item"
+                                onClick={() => enterSelectMode(m)}
+                              >
+                                ☑ Select
                               </button>
                             )}
                             {!mine && (
@@ -1371,6 +1498,42 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
         {typingUsers.size > 0 && <TypingBubble />}
         <div ref={bottomRef} />
       </div>
+
+      {/* NEW: selection bar for multi-select delete. While it's showing,
+          CSS (.gcw-select-mode) hides the composer, tray and reply bar. */}
+      {selectMode && (
+        <div className="gcw-select-bar">
+          <button
+            type="button"
+            className="gcw-select-cancel"
+            onClick={exitSelectMode}
+            disabled={bulkDeleting}
+            aria-label="Cancel selection"
+          >
+            ✕
+          </button>
+          <span className="gcw-select-count">{selectedIds.size} selected</span>
+          <button
+            type="button"
+            className="gcw-select-all"
+            onClick={selectAllMine}
+            disabled={bulkDeleting}
+          >
+            {selectedIds.size > 0 &&
+            selectedIds.size === messages.filter(canSelect).length
+              ? "Clear"
+              : "Select all mine"}
+          </button>
+          <button
+            type="button"
+            className="gcw-select-delete"
+            onClick={deleteSelected}
+            disabled={selectedIds.size === 0 || bulkDeleting}
+          >
+            🗑 {bulkDeleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      )}
 
       {replyTarget && (
         <div className="gcw-reply-preview">

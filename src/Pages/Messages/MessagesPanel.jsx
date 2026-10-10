@@ -12,6 +12,7 @@ import NewGroupOrBroadcastModal from "../../Component/Messages/NewGroupOrBroadca
 import GroupChatWindow from "../../Component/Messages/GroupChatWindow";
 import BroadcastComposeWindow from "../../Component/Messages/BroadcastComposeWindow";
 import EmojiGifStickerPicker from "../../Component/Messages/EmojiGifStickerPicker";
+import SuggestedConnections from "../../Component/Messages/SuggestedConnections";
 import { playSendSound, playReceiveSound, playNotificationSound } from "../../utils/soundEffects";
 import { ensureNotificationPermission, showChatNotification } from "../../utils/chatNotifications";
 import { extractFirstUrl } from "../../utils/linkPreview";
@@ -376,7 +377,7 @@ const VoiceMessagePlayer = ({ src, mine, initialDuration }) => {
     const audio = audioRef.current;
     if (!audio) return;
     if (isPlaying) audio.pause();
-    else audio.play().catch(() => {});
+    else audio.play().catch(() => { });
   };
 
   const handleSeek = (e) => {
@@ -622,7 +623,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const [minimized, setMinimized] = useState(false);
   const minimizePanel = () => setMinimized(true);
   const maximizePanel = () => setMinimized(false);
-    // Pause background music/video while the chat is open (resumes on close or minimize).
+  // Pause background music/video while the chat is open (resumes on close or minimize).
   usePauseMediaWhileOpen(!!currentUser && !minimized);
   // Used by the mini-bar's own "✕" — closing from the mini-bar should
   // behave exactly like closing the full panel (same history-depth
@@ -1650,10 +1651,10 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           prev.map((m) =>
             ids.includes(m.id)
               ? {
-                  ...m,
-                  seen_at: m.seen_at || nowIso,
-                  delivered_at: m.delivered_at || nowIso,
-                }
+                ...m,
+                seen_at: m.seen_at || nowIso,
+                delivered_at: m.delivered_at || nowIso,
+              }
               : m,
           ),
         );
@@ -2153,9 +2154,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       ? replyTarget.text
         ? replyTarget.text.slice(0, 120)
         : attachmentPreviewLabel(
-            replyTarget.attachment_type,
-            replyTarget.attachment_name,
-          )
+          replyTarget.attachment_type,
+          replyTarget.attachment_name,
+        )
       : null;
     setReplyTarget(null);
 
@@ -2261,9 +2262,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       ? replyTarget.text
         ? replyTarget.text.slice(0, 120)
         : attachmentPreviewLabel(
-            replyTarget.attachment_type,
-            replyTarget.attachment_name,
-          )
+          replyTarget.attachment_type,
+          replyTarget.attachment_name,
+        )
       : null;
 
     const { data: inserted, error } = await supabase
@@ -2324,9 +2325,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       ? replyTarget.text
         ? replyTarget.text.slice(0, 120)
         : attachmentPreviewLabel(
-            replyTarget.attachment_type,
-            replyTarget.attachment_name,
-          )
+          replyTarget.attachment_type,
+          replyTarget.attachment_name,
+        )
       : null;
 
     const latStr = lat.toFixed(6);
@@ -2507,15 +2508,15 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       prev.map((m) =>
         m.id === message.id
           ? {
-              ...m,
-              deleted_at: deletedAt,
-              text: null,
-              attachment_url: null,
-              attachment_type: null,
-              attachment_name: null,
-              attachment_size: null,
-              reactions: {},
-            }
+            ...m,
+            deleted_at: deletedAt,
+            text: null,
+            attachment_url: null,
+            attachment_type: null,
+            attachment_name: null,
+            attachment_size: null,
+            reactions: {},
+          }
           : m,
       ),
     );
@@ -2793,24 +2794,24 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
   const panelStyle = position
     ? {
-        position: "fixed",
-        left: position.x,
-        top: position.y,
-        right: "auto",
-        bottom: "auto",
-        margin: 0,
-      }
+      position: "fixed",
+      left: position.x,
+      top: position.y,
+      right: "auto",
+      bottom: "auto",
+      margin: 0,
+    }
     : undefined;
 
   const normalizedSearch = inboxSearch.trim().toLowerCase();
   const filteredConversations = normalizedSearch
     ? conversations.filter((conv) => {
-        const other = getOtherUser(conv).toLowerCase();
-        const lastMsg = (conv.last_message || "").toLowerCase();
-        return (
-          other.includes(normalizedSearch) || lastMsg.includes(normalizedSearch)
-        );
-      })
+      const other = getOtherUser(conv).toLowerCase();
+      const lastMsg = (conv.last_message || "").toLowerCase();
+      return (
+        other.includes(normalizedSearch) || lastMsg.includes(normalizedSearch)
+      );
+    })
     : conversations;
 
   // NEW: split the inbox into incoming message requests (pending,
@@ -2833,8 +2834,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const normalizedForwardSearch = forwardSearch.trim().toLowerCase();
   const forwardableConversations = normalizedForwardSearch
     ? conversations.filter((c) =>
-        getOtherUser(c).toLowerCase().includes(normalizedForwardSearch),
-      )
+      getOtherUser(c).toLowerCase().includes(normalizedForwardSearch),
+    )
     : conversations;
 
   const startChatWith = (username) => {
@@ -3035,7 +3036,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
         if (!dragging) closePanel();
       }}
     >
-        <div
+      <div
         ref={panelRef}
         data-keep-playing="true"
         className={`mp-panel ${dragging ? "mp-dragging" : ""} ${!currentUser ? "mp-panel-login" : ""}`}
@@ -3157,6 +3158,15 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                 )}
               </div>
 
+              {!normalizedSearch && (
+                <SuggestedConnections
+                  currentUser={currentUser}
+                  exclude={[...existingUsernames, ...blockedByMe, ...blockedMe]}
+                  onlineUsers={onlineUsers}
+                  onConnect={startChatWith}
+                />
+              )}
+
               {loadingConvos ? (
                 <p className="mp-empty">Loading…</p>
               ) : conversations.length === 0 &&
@@ -3167,11 +3177,11 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
               ) : (
                 <>
                   {filteredConversations.length === 0 &&
-                  groups.length === 0 &&
-                  broadcastLists.length === 0 &&
-                  newProfileResults.length === 0 &&
-                  !searchingProfiles &&
-                  normalizedSearch ? (
+                    groups.length === 0 &&
+                    broadcastLists.length === 0 &&
+                    newProfileResults.length === 0 &&
+                    !searchingProfiles &&
+                    normalizedSearch ? (
                     <p className="mp-empty">No matches for "{inboxSearch}"</p>
                   ) : (
                     <>
@@ -3325,13 +3335,12 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                         {activeUsername}
                       </span>
                       <span
-                        className={`mp-chat-status ${
-                          otherTyping
+                        className={`mp-chat-status ${otherTyping
                             ? "typing"
                             : onlineUsers.has(activeUsername)
                               ? "online"
                               : "offline"
-                        }`}
+                          }`}
                       >
                         {otherTyping
                           ? "typing…"
@@ -3595,21 +3604,18 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               )}
 
                               <div
-                                className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""} ${
-                                  m.attachment_type === "voice"
+                                className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""} ${m.attachment_type === "voice"
                                     ? "mp-bubble-has-voice"
                                     : ""
-                                } ${
-                                  m.attachment_type === "sticker"
+                                  } ${m.attachment_type === "sticker"
                                     ? "mp-bubble-sticker-wrap"
                                     : ""
-                                } ${
-                                  m.text &&
-                                  !m.attachment_url &&
-                                  isEmojiOnlyMessage(m.text)
+                                  } ${m.text &&
+                                    !m.attachment_url &&
+                                    isEmojiOnlyMessage(m.text)
                                     ? "mp-bubble-emoji-only"
                                     : ""
-                                } ${m.deleted_at ? "mp-bubble-deleted" : ""}`}
+                                  } ${m.deleted_at ? "mp-bubble-deleted" : ""}`}
                               >
                                 {m.deleted_at ? (
                                   <span className="mp-deleted-text">
@@ -3834,11 +3840,10 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                     <button
                                       key={emoji}
                                       type="button"
-                                      className={`mp-reaction-pill ${
-                                        users.includes(currentUser)
+                                      className={`mp-reaction-pill ${users.includes(currentUser)
                                           ? "mine-reacted"
                                           : ""
-                                      }`}
+                                        }`}
                                       onClick={() => toggleReaction(m, emoji)}
                                       title={users.join(", ")}
                                     >
@@ -3888,7 +3893,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                         disabled={bulkDeleting}
                       >
                         {selectedIds.size > 0 &&
-                        selectedIds.size === messages.filter(canSelect).length
+                          selectedIds.size === messages.filter(canSelect).length
                           ? "Clear"
                           : "Select all mine"}
                       </button>
@@ -3954,9 +3959,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               {replyTarget.text
                                 ? replyTarget.text.slice(0, 80)
                                 : attachmentPreviewLabel(
-                                    replyTarget.attachment_type,
-                                    replyTarget.attachment_name,
-                                  )}
+                                  replyTarget.attachment_type,
+                                  replyTarget.attachment_name,
+                                )}
                             </span>
                           </div>
                           <button
@@ -3983,9 +3988,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                             {pendingAttachments.map((att) => (
                               <div
                                 key={att.id}
-                                className={`mp-pending-attachment-chip ${
-                                  att.status === "error" ? "mp-pending-error" : ""
-                                } ${att.status === "uploading" ? "mp-pending-uploading-chip" : ""}`}
+                                className={`mp-pending-attachment-chip ${att.status === "error" ? "mp-pending-error" : ""
+                                  } ${att.status === "uploading" ? "mp-pending-uploading-chip" : ""}`}
                               >
                                 {att.type === "image" && (
                                   <img src={att.previewUrl} alt="preview" />
@@ -4197,9 +4201,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                 {forwardTarget.text
                   ? `"${forwardTarget.text.slice(0, 80)}"`
                   : attachmentPreviewLabel(
-                      forwardTarget.attachment_type,
-                      forwardTarget.attachment_name,
-                    )}
+                    forwardTarget.attachment_type,
+                    forwardTarget.attachment_name,
+                  )}
               </p>
               <input
                 type="text"

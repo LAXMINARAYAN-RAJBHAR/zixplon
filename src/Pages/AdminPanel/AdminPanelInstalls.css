@@ -1,0 +1,83 @@
+/* ══════════════════════════════════════════════════════════════════
+   INSTALLS TAB — PWA install stats
+   ══════════════════════════════════════════════════════════════════ */
+
+.admin_installs_card {
+  background: var(--zx-surface);
+  border: 2px solid var(--zx-border);
+  border-radius: var(--zx-radius);
+  padding: 16px 18px;
+  box-shadow: var(--zx-shadow2);
+  margin-bottom: 16px;
+}
+
+.admin_installs_card_title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 900;
+  font-family: 'Nunito', sans-serif;
+  color: var(--zx-text);
+}
+
+.admin_installs_bar_row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.admin_installs_bar_label {
+  width: 80px;
+  flex-shrink: 0;
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--zx-text2);
+  text-transform: capitalize;
+}
+
+.admin_installs_bar_track {
+  flex: 1;
+  height: 10px;
+  min-width: 0;
+  background: var(--zx-surface2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.admin_installs_bar_fill {
+  height: 100%;
+  background: var(--zx-primary);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.admin_installs_bar_count {
+  min-width: 28px;
+  text-align: right;
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--zx-text);
+}
+
+.admin_installs_event {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.admin_installs_event.installed {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+.admin_installs_event.standalone_open {
+  background: #eff6ff;
+  color: #3b82f6;
+  border: 1px solid #bfdbfe;
+}

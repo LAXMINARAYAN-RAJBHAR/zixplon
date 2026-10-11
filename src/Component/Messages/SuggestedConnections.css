@@ -166,3 +166,36 @@
   padding: 7px 0;
   font-size: 12px;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   CONNECT BUTTON STATES (toggle)
+   ══════════════════════════════════════════════════════════════════ */
+
+.sc-connect-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Request sent — click again to cancel */
+.sc-connect-btn.requested {
+  background: transparent;
+  color: var(--zx-text2, #7a3a3a);
+  border: 1.5px solid var(--zx-border, #fbd5d5);
+}
+.sc-connect-btn.requested:hover:not(:disabled) {
+  background: var(--zx-surface2, #fef2f2);
+  border-color: var(--zx-primary, #dc2626);
+  color: var(--zx-primary, #dc2626);
+}
+
+/* They already sent you a request */
+.sc-connect-btn.accept { background: var(--zx-accent4, #10b981); }
+.sc-connect-btn.accept:hover:not(:disabled) { background: #059669; }
+
+/* Connected — opens chat / profile */
+.sc-connect-btn.message {
+  background: transparent;
+  color: var(--zx-primary, #dc2626);
+  border: 1.5px solid var(--zx-primary, #dc2626);
+}
+.sc-connect-btn.message:hover:not(:disabled) {
+  background: var(--zx-primary, #dc2626);
+  color: #fff;
+}

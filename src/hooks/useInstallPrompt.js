@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { logInstallEvent, trackStandaloneOpen } from "../utils/installTracking";
 
 const INSTALLED_KEY = "zixplon_pwa_installed";
 
@@ -22,8 +23,12 @@ if (typeof window !== "undefined") {
     try {
       localStorage.setItem(INSTALLED_KEY, "1");
     } catch {}
+    logInstallEvent("installed"); // NEW: count this install
     notify();
   });
+
+  // NEW: count opens of the installed app (covers iOS and older installs)
+  trackStandaloneOpen();
 }
 
 export function useInstallPrompt() {

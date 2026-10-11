@@ -3,6 +3,8 @@ import "./AdminPanel.css";
 // NEW: styles for the Users tab serial number + online/offline indicator.
 // Kept in its own file so the existing AdminPanel.css doesn't need editing.
 import "./AdminPanelUsersStatus.css";
+// NEW: styles for the Installs tab (PWA install stats).
+import "./AdminPanelInstalls.css";
 import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
 // SheetJS — generates the .xlsx workbook entirely client-side and
@@ -297,6 +299,13 @@ const AdminPanel = () => {
   const [visitsLoggedIn, setVisitsLoggedIn] = useState(null);
   const [visitsLoadingMore, setVisitsLoadingMore] = useState(false);
 
+  // ── NEW: "Installs" tab state (PWA install stats) ───────────────────────
+  // Filled by the pwa_install_stats() Supabase function (admin-only).
+  const [installStats, setInstallStats] = useState(null);
+  const [installsLoading, setInstallsLoading] = useState(false);
+  const [installsLoaded, setInstallsLoaded] = useState(false);
+  const [installsError, setInstallsError] = useState("");
+
   // ── "Admins" tab state ──────────────────────────────────────────────────
   const [admins, setAdmins] = useState([]);
   const [adminsLoading, setAdminsLoading] = useState(false);
@@ -568,6 +577,32 @@ const AdminPanel = () => {
       : 0;
     return { totalVisits, uniqueSessions, loggedIn, guests, avgDurationSec };
   }, [visits, visitsTotal, visitsLoggedIn]);
+
+  // ── NEW: Installs tab — PWA install stats ──────────────────────────────────
+  // Calls the admin-only pwa_install_stats() Supabase function. The raw
+  // pwa_installs table is insert-only for the public, so it cannot be read
+  // directly from the browser.
+  const fetchInstalls = async () => {
+    setInstallsLoading(true);
+    setInstallsError("");
+    try {
+      const { data, error } = await supabase.rpc("pwa_install_stats");
+      if (error) throw error;
+      setInstallStats(data || null);
+    } catch (e) {
+      setInstallsError(e.message || "Failed to load install stats");
+      showToast(`❌ ${e.message || "Failed to load install stats"}`);
+    }
+    setInstallsLoading(false);
+    setInstallsLoaded(true);
+  };
+
+  useEffect(() => {
+    if (activeTab === "installs" && !installsLoaded && !installsLoading) {
+      fetchInstalls();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // ── Admins tab: list / grant / revoke ───────────────────────────────────────
   const fetchAdmins = async () => {
@@ -1404,6 +1439,9 @@ const AdminPanel = () => {
   const filteredReports = reports.filter((r) => filterStatus === "all" ? true : r.status === filterStatus);
   const pendingCount = reports.filter((r) => r.status === "pending").length;
 
+  // NEW: widest platform bar = 100% (guards against divide-by-zero)
+  const platformMax = Math.max(1, ...((installStats?.by_platform || []).map((p) => p.devices)));
+
   return (
     <div className="admin_panel">
       {toast && <div className="admin_toast">{toast}</div>}
@@ -1492,6 +1530,10 @@ const AdminPanel = () => {
         </button>
         <button className={`admin_tab ${activeTab === "visitors" ? "active" : ""}`} onClick={() => setActiveTab("visitors")}>
           📈 Visitors
+        </button>
+        {/* NEW: PWA install stats. See pwa_install_stats() in Supabase. */}
+        <button className={`admin_tab ${activeTab === "installs" ? "active" : ""}`} onClick={() => setActiveTab("installs")}>
+          📲 Installs
         </button>
         <button className={`admin_tab ${activeTab === "admins" ? "active" : ""}`} onClick={() => setActiveTab("admins")}>
           👑 Admins {admins.length > 0 && <span className="admin_badge" style={{ background: "#7c3aed" }}>{admins.length}</span>}
@@ -1727,6 +1769,140 @@ const AdminPanel = () => {
                   </button>
                 </div>
               )}
+            </>
+          )}
+        </div>
+      ) : activeTab === "installs" ? (
+        /* ── NEW: Installs Tab — PWA install stats ── */
+        <div className="admin_visitors_section">
+          {installsLoading ? (
+            <div className="admin_loading">
+              <div className="admin_spinner" />
+              <p>Loading install stats...</p>
+            </div>
+          ) : !installStats ? (
+            <div className="admin_empty">
+              <div style={{ fontSize: "48px" }}>📲</div>
+              <p>{installsError || "No install data yet"}</p>
+              <p className="admin_words_hint" style={{ textAlign: "center" }}>
+                If this says the function doesn't exist, run the pwa_install_stats()
+                SQL in the Supabase SQL editor.
+              </p>
+              <button className="admin_add_word_btn" onClick={fetchInstalls}>↻ Retry</button>
+            </div>
+          ) : (
+            <>
+              <div className="admin_stats" style={{ marginBottom: "20px" }}>
+                {[
+                  { label: "Installs", value: installStats.installs ?? 0, color: "#7c3aed" },
+                  { label: "App Users", value: installStats.app_users ?? 0, color: "#3b82f6" },
+                  { label: "Active Today", value: installStats.active_today ?? 0, color: "#22c55e" },
+                  { label: "Active 7d", value: installStats.active_7d ?? 0, color: "#f97316" },
+                  { label: "Active 30d", value: installStats.active_30d ?? 0, color: "#ef4444" },
+                ].map((s) => (
+                  <div key={s.label} className="admin_stat_card">
+                    <div className="admin_stat_value" style={{ color: s.color }}>{s.value}</div>
+                    <div className="admin_stat_label">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", gap: "8px", flexWrap: "wrap" }}>
+                <p className="admin_words_hint" style={{ margin: 0 }}>
+                  Installs = devices that fired the install event. App Users = devices that have
+                  opened the installed app (also covers iOS and installs from before tracking).
+                  Uninstalls can't be detected, so "Active" is the more honest number.
+                </p>
+                <button className="admin_add_word_btn" onClick={fetchInstalls} disabled={installsLoading}>
+                  ↻ Refresh
+                </button>
+              </div>
+
+              <div className="admin_installs_card">
+                <h3 className="admin_installs_card_title">Devices by platform</h3>
+                {(installStats.by_platform || []).length === 0 ? (
+                  <p className="admin_words_hint">No data yet</p>
+                ) : (
+                  (installStats.by_platform || []).map((p) => (
+                    <div key={p.platform} className="admin_installs_bar_row">
+                      <span className="admin_installs_bar_label">{p.platform}</span>
+                      <div className="admin_installs_bar_track">
+                        <div
+                          className="admin_installs_bar_fill"
+                          style={{ width: `${(p.devices / platformMax) * 100}%` }}
+                        />
+                      </div>
+                      <span className="admin_installs_bar_count">{p.devices}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="admin_installs_card">
+                <h3 className="admin_installs_card_title">Installs per day (last 30 days)</h3>
+                {(installStats.per_day || []).length === 0 ? (
+                  <p className="admin_words_hint">No installs recorded in the last 30 days</p>
+                ) : (
+                  <div className="admin_visits_table_wrap">
+                    <table className="admin_visits_table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Installs</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(installStats.per_day || []).map((d) => (
+                          <tr key={d.day}>
+                            <td>{new Date(d.day).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                            <td>{d.installs}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="admin_installs_card">
+                <h3 className="admin_installs_card_title">Recent events</h3>
+                {(installStats.recent || []).length === 0 ? (
+                  <p className="admin_words_hint">No events yet</p>
+                ) : (
+                  <div className="admin_visits_table_wrap">
+                    <table className="admin_visits_table">
+                      <thead>
+                        <tr>
+                          <th>Event</th>
+                          <th>User</th>
+                          <th>Platform</th>
+                          <th>Device</th>
+                          <th>When</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(installStats.recent || []).map((r, i) => (
+                          <tr key={`${r.created_at}-${i}`}>
+                            <td>
+                              <span className={`admin_installs_event ${r.event}`}>
+                                {r.event === "installed" ? "Installed" : "App opened"}
+                              </span>
+                            </td>
+                            <td>{r.username ? `@${r.username}` : "Guest"}</td>
+                            <td style={{ textTransform: "capitalize" }}>{r.platform || "—"}</td>
+                            <td>{r.device || "—"}</td>
+                            <td>
+                              {new Date(r.created_at).toLocaleString("en-IN", {
+                                day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                              })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>

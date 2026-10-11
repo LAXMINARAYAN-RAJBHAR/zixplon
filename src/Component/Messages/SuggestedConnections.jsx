@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../config/supabase";
 import { notifyUser } from "../../utils/notifications";
+// Live presence (same source the Messages panel uses for its green/red dots).
+import { usePresence } from "../../context/PresenceContext";
 import "./SuggestedConnections.css";
 
 // "People you may know" strip. The button on every card is a TOGGLE that
@@ -24,7 +26,8 @@ import "./SuggestedConnections.css";
 //   count       — people per strip (default 12)
 //   currentUser — defaults to localStorage "username"
 //   exclude     — usernames to hide; if omitted the component works it out
-//   onlineUsers — Set of online usernames (shows the green/red status dot)
+//   onlineUsers — optional Set of online usernames; if omitted the strip
+//                 reads live presence itself (PresenceContext)
 //   onConnect   — (username) => void, used by the "Message" button
 //                 (Messages inbox). Without it, connected people just
 //                 show "✓ Connected".
@@ -176,10 +179,15 @@ const SuggestedConnections = ({
   count = 12,
   currentUser: currentUserProp,
   exclude,
-  onlineUsers,
+  onlineUsers: onlineUsersProp,
   onConnect,
   title,
 }) => {
+  // Works on every tab: use the Set passed by the parent (Messages inbox),
+  // otherwise read live presence directly.
+  const presence = usePresence();
+  const onlineUsers = onlineUsersProp || presence?.onlineUsers;
+
   const currentUser = currentUserProp || localStorage.getItem("username") || "";
 
   const [data, setData] = useState(null);
@@ -336,6 +344,14 @@ const SuggestedConnections = ({
               <div className="sc-name" title={p.username}>
                 {p.username}
               </div>
+              {onlineUsers && (
+                <div
+                  className={`sc-status-text ${onlineUsers.has(p.username) ? "online" : "offline"}`}
+                >
+                  <span className="sc-status-text-dot" />
+                  {onlineUsers.has(p.username) ? "Online" : "Offline"}
+                </div>
+              )}
               <button
                 type="button"
                 className={`sc-connect-btn ${btn.cls}`}

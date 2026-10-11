@@ -83,6 +83,11 @@ import HashtagPage from "./Pages/Hashtag/HashtagPage";
 // the user landed on.
 import ResetPassword from "./Component/Auth/ResetPassword";
 import SignInPage from "./Pages/SignIn/SignInPage";
+// NEW: shareable PWA install page — https://zixplon-tawny.vercel.app/install.
+// Importing it also loads src/hooks/useInstallPrompt.js at app start, which
+// registers the `beforeinstallprompt` listener early so the event isn't
+// missed while the loading screen is showing.
+import InstallPage from "./Pages/Install/InstallPage";
 
 // ── FeedRedirect ──────────────────────────────────────────────────────────
 // FIX: old links to /feed?post=<id> — from the navbar's post-notification
@@ -528,7 +533,9 @@ function App() {
   // into the browser and log the user straight in. Falls back to the
   // existing LoginOptionsModal if One Tap can't be displayed (no Google
   // session in the browser, user opted out, FedCM blocked, etc). ──
-  const suppressAutoModalRoutes = ["/signup"];
+  // NEW: "/install" added so the shared PWA install link opens cleanly,
+  // without One Tap or the login modal appearing on top of it.
+  const suppressAutoModalRoutes = ["/signup", "/install"];
 
   useEffect(() => {
     if (!sessionChecked || currentUser) return;
@@ -868,6 +875,9 @@ const hideFooter =
               {/* NEW: hashtag pages — /tag/:tag. Linked from every
                   #hashtag rendered via ExpandableText/linkifyText. */}
               <Route path="/tag/:tag"              element={<HashtagPage sideNavbar={sideNavbar} currentUser={currentUser} />} />
+              {/* NEW: shareable PWA install page. Share this link:
+                  https://zixplon-tawny.vercel.app/install */}
+              <Route path="/install"               element={<InstallPage />} />
             </Routes>
           </div>
         </div>

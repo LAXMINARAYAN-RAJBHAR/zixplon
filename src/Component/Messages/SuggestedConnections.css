@@ -237,3 +237,13 @@
   0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); }
   50%      { box-shadow: 0 0 0 4px rgba(22, 163, 74, 0); }
 }
+
+/* Whole card opens the profile */
+.sc-card-clickable { cursor: pointer; }
+.sc-card-clickable:focus-visible {
+  outline: 2px solid var(--zx-primary, #dc2626);
+  outline-offset: 2px;
+}
+.sc-card-clickable .sc-connect-btn,
+.sc-card-clickable .sc-dismiss { cursor: pointer; }
+.sc-card-clickable .sc-connect-btn:disabled { cursor: not-allowed; }

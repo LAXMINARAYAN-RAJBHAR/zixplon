@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import { notifyUser } from "../../utils/notifications";
 // Live presence (same source the Messages panel uses for its green/red dots).
@@ -28,11 +29,14 @@ import "./SuggestedConnections.css";
 //   exclude     — usernames to hide; if omitted the component works it out
 //   onlineUsers — optional Set of online usernames; if omitted the strip
 //                 reads live presence itself (PresenceContext)
+//   onOpenProfile — (username) => void, called when a card is clicked;
+//                 defaults to navigating to /user/<username>
 //   onConnect   — (username) => void, used by the "Message" button
 //                 (Messages inbox). Without it, connected people just
 //                 show "✓ Connected".
 //   title       — heading text
 
+const PROFILE_PATH = (u) => `/user/${encodeURIComponent(u)}`;
 const DISMISS_KEY = "zx_dismissed_suggestions_v1";
 const FETCH_LIMIT = 80; // candidates pulled from `profiles` (enough for ~6 strips)
 const CACHE_MS = 60 * 1000;
@@ -181,8 +185,10 @@ const SuggestedConnections = ({
   exclude,
   onlineUsers: onlineUsersProp,
   onConnect,
+  onOpenProfile,
   title,
 }) => {
+  const navigate = useNavigate();
   // Works on every tab: use the Set passed by the parent (Messages inbox),
   // otherwise read live presence directly.
   const presence = usePresence();
@@ -300,6 +306,13 @@ const SuggestedConnections = ({
     }
   };
 
+  // Clicking the card (avatar / name / empty space) opens the profile.
+  // The Connect button and the ✕ stop propagation, so they don't.
+  const openProfile = (username) => {
+    if (onOpenProfile) onOpenProfile(username);
+    else navigate(PROFILE_PATH(username));
+  };
+
   const dismiss = (username) => {
     const next = [...dismissed, username];
     setDismissed(next);
@@ -326,11 +339,24 @@ const SuggestedConnections = ({
         {visible.map((p) => {
           const btn = buttonFor(p.username);
           return (
-            <div key={p.username} className="sc-card">
+            <div
+              key={p.username}
+              className="sc-card sc-card-clickable"
+              role="link"
+              tabIndex={0}
+              title={`View ${p.username}'s profile`}
+              onClick={() => openProfile(p.username)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && e.target === e.currentTarget) openProfile(p.username);
+              }}
+            >
               <button
                 type="button"
                 className="sc-dismiss"
-                onClick={() => dismiss(p.username)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  dismiss(p.username);
+                }}
                 aria-label={`Hide suggestion ${p.username}`}
                 title="Hide"
               >

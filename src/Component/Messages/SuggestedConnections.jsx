@@ -65,20 +65,35 @@ const loadSuggestionData = (currentUser) => {
   if (fresh) return cache.promise;
 
   const promise = (async () => {
-    let res = await supabase
-      .from("profiles")
-      .select("username, profile_pic")
-      .neq("username", currentUser)
-      .order("created_at", { ascending: false })
-      .limit(FETCH_LIMIT);
-
-    // If the profile_pic column isn't available, retry with just usernames.
-    if (res.error) {
-      res = await supabase
-        .from("profiles")
-        .select("username")
-        .neq("username", currentUser)
-        .limit(FETCH_LIMIT);
+    // Try the richest query first and degrade step by step, ALWAYS keeping
+    // profile_pic if the column exists (a failing ORDER BY on created_at
+    // used to drop the picture along with it).
+    const attempts = [
+      () =>
+        supabase
+          .from("profiles")
+          .select("username, profile_pic")
+          .neq("username", currentUser)
+          .order("created_at", { ascending: false })
+          .limit(FETCH_LIMIT),
+      () =>
+        supabase
+          .from("profiles")
+          .select("username, profile_pic")
+          .neq("username", currentUser)
+          .limit(FETCH_LIMIT),
+      () =>
+        supabase
+          .from("profiles")
+          .select("username")
+          .neq("username", currentUser)
+          .limit(FETCH_LIMIT),
+    ];
+    let res = { data: [], error: new Error("no query ran") };
+    for (const run of attempts) {
+      res = await run();
+      if (!res.error) break;
+      console.warn("[SuggestedConnections] profiles query failed:", res.error.message);
     }
 
     const [convRes, blockRes, reqRes] = await Promise.all([
@@ -127,7 +142,13 @@ const SuggestionAvatar = ({ username, picUrl, online }) => {
   return (
     <div className="sc-avatar">
       {picUrl && !broken ? (
-        <img src={picUrl} alt="" onError={() => setBroken(true)} />
+        <img
+          src={picUrl}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setBroken(true)}
+        />
       ) : (
         username.slice(0, 2).toUpperCase()
       )}

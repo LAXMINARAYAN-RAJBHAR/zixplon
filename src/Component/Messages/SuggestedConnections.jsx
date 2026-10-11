@@ -24,7 +24,7 @@ import "./SuggestedConnections.css";
 //   count       — people per strip (default 12)
 //   currentUser — defaults to localStorage "username"
 //   exclude     — usernames to hide; if omitted the component works it out
-//   onlineUsers — Set of online usernames (listed first)
+//   onlineUsers — Set of online usernames (shows the green/red status dot)
 //   onConnect   — (username) => void, used by the "Message" button
 //                 (Messages inbox). Without it, connected people just
 //                 show "✓ Connected".
@@ -137,6 +137,17 @@ const loadSuggestionData = (currentUser) => {
   return promise;
 };
 
+// Random sort key per username, assigned once per page load. A browser
+// refresh starts a new session (new keys → new order); switching tabs or
+// re-fetching during the same session keeps the order stable, so cards
+// don't jump around while you're looking at them, and every strip slices
+// the SAME shuffled list (no repeated profiles between strips).
+const shuffleKeys = new Map();
+const shuffleKey = (username) => {
+  if (!shuffleKeys.has(username)) shuffleKeys.set(username, Math.random());
+  return shuffleKeys.get(username);
+};
+
 const SuggestionAvatar = ({ username, picUrl, online }) => {
   const [broken, setBroken] = useState(false);
   return (
@@ -200,8 +211,8 @@ const SuggestedConnections = ({
 
   const pool = data.candidates
     .filter((p) => p.username && !excludeSet.has(p.username) && !dismissedSet.has(p.username))
-    // online people first; otherwise keep newest-first order from the query
-    .sort((a, b) => Number(onlineUsers?.has(b.username)) - Number(onlineUsers?.has(a.username)));
+    // shuffled on every page refresh (see shuffleKey above)
+    .sort((a, b) => shuffleKey(a.username) - shuffleKey(b.username));
 
   // Each slot gets its own group of people, so strips never repeat profiles.
   const visible = pool.slice(slot * count, slot * count + count);

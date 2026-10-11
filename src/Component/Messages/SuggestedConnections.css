@@ -199,3 +199,11 @@
   background: var(--zx-primary, #dc2626);
   color: #fff;
 }
+
+/* Connected, no chat handler (Home / Posts) — just a status label */
+.sc-connect-btn.connected {
+  background: transparent;
+  color: var(--zx-accent4, #10b981);
+  border: 1.5px solid var(--zx-accent4, #10b981);
+  cursor: default;
+}

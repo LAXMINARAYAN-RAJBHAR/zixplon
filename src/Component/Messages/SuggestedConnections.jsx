@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import { notifyUser } from "../../utils/notifications";
 import "./SuggestedConnections.css";
@@ -9,7 +8,8 @@ import "./SuggestedConnections.css";
 //
 //     Connect  ──click──▶  Requested  ──click──▶  Connect   (cancels)
 //     Accept   (they already sent YOU a request) ──click──▶  Message
-//     Message  (you're connected) ──click──▶  opens chat / profile
+//     Message  (you're connected) ──click──▶  opens the chat (inbox only);
+//              on Home/Posts it shows "✓ Connected" — it never opens a profile
 //
 // Requests live in a `connection_requests` table — see
 // connection_requests.sql. The other person is sent a notification.
@@ -25,14 +25,14 @@ import "./SuggestedConnections.css";
 //   currentUser — defaults to localStorage "username"
 //   exclude     — usernames to hide; if omitted the component works it out
 //   onlineUsers — Set of online usernames (listed first)
-//   onConnect   — (username) => void, used by the "Message" button;
-//                 defaults to opening their profile
+//   onConnect   — (username) => void, used by the "Message" button
+//                 (Messages inbox). Without it, connected people just
+//                 show "✓ Connected".
 //   title       — heading text
 
 const DISMISS_KEY = "zx_dismissed_suggestions_v1";
 const FETCH_LIMIT = 80; // candidates pulled from `profiles` (enough for ~6 strips)
 const CACHE_MS = 60 * 1000;
-const PROFILE_PATH = (u) => `/user/${encodeURIComponent(u)}`;
 
 const readDismissed = (user) => {
   try {
@@ -148,7 +148,6 @@ const SuggestedConnections = ({
   onConnect,
   title,
 }) => {
-  const navigate = useNavigate();
   const currentUser = currentUserProp || localStorage.getItem("username") || "";
 
   const [data, setData] = useState(null);
@@ -213,10 +212,10 @@ const SuggestedConnections = ({
     if (busyUser) return;
     const state = data.states[username];
 
-    // Connected → this button is "Message".
+    // Connected → "Message" (only when a chat handler was passed in,
+    // i.e. the Messages inbox). Never navigates to a profile.
     if (state === "connected") {
       if (onConnect) onConnect(username);
-      else navigate(PROFILE_PATH(username));
       return;
     }
 
@@ -271,7 +270,10 @@ const SuggestedConnections = ({
     const state = data.states[username];
     if (state === "requested") return { label: "Requested", cls: "requested" };
     if (state === "incoming") return { label: "Accept", cls: "accept" };
-    if (state === "connected") return { label: "Message", cls: "message" };
+    if (state === "connected")
+      return onConnect
+        ? { label: "Message", cls: "message" }
+        : { label: "✓ Connected", cls: "connected" };
     return { label: "Connect", cls: "" };
   };
 
@@ -305,8 +307,12 @@ const SuggestedConnections = ({
               <button
                 type="button"
                 className={`sc-connect-btn ${btn.cls}`}
-                onClick={() => handleToggle(p.username)}
-                disabled={busyUser === p.username}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleToggle(p.username);
+                }}
+                disabled={busyUser === p.username || (btn.cls === "connected")}
                 title={btn.cls === "requested" ? "Click to cancel request" : undefined}
               >
                 {btn.cls === "requested" ? "✓ " : ""}

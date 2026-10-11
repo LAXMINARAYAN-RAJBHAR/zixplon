@@ -704,8 +704,9 @@ function App() {
   location.pathname === "/" &&
   new URLSearchParams(location.search).get("tab") === "utility";
 
+// NEW: "/install" added so the PWA install page has no footer.
 const hideFooter =
-  ["/youtube", "/local-player", "/videoUpload"].includes(location.pathname) ||
+  ["/youtube", "/local-player", "/videoUpload", "/install"].includes(location.pathname) ||
   location.pathname.startsWith("/reels") ||
   location.pathname.endsWith("/upload") ||
   location.pathname.startsWith("/utility") ||

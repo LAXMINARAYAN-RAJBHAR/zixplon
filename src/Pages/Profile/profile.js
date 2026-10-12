@@ -60,21 +60,22 @@ const matchesKey = (candidate = "", key = "") => {
 // username lookup below.
 const escapeLike = (str = "") => str.replace(/[\\%_]/g, "\\$&");
 
-// NEW: UPLOAD SEQUENCE. Videos, Reels and Posts on the profile are always
-// shown in the order they were uploaded — the first upload comes first, the
-// latest upload comes last. Items without a created_at (the hardcoded sample
+// CHANGED: ORDER OF UPLOADS — NEWEST FIRST. Videos, Reels and Posts on the
+// profile are always shown with the latest upload at the top and the oldest
+// upload at the bottom. Items without a created_at (the hardcoded sample
 // videos) have no upload time, so they stay at the very end, in their
 // original order. Array.prototype.sort is stable, so ties keep their order.
+// (The function keeps its old name so nothing else needs renaming.)
 const uploadTime = (item) => {
   const t = item?.created_at ? new Date(item.created_at).getTime() : NaN;
-  return Number.isNaN(t) ? Infinity : t;
+  return Number.isNaN(t) ? -Infinity : t;
 };
 const sortByUploadSequence = (items = []) =>
   [...items].sort((a, b) => {
     const ta = uploadTime(a);
     const tb = uploadTime(b);
-    if (ta === tb) return 0; // also covers Infinity === Infinity
-    return ta < tb ? -1 : 1;
+    if (ta === tb) return 0; // also covers -Infinity === -Infinity
+    return ta > tb ? -1 : 1; // newest first
   });
 
 const timeAgo = (dateStr) => {
@@ -963,10 +964,11 @@ const Profile = ({ sideNavbar }) => {
       }
 
       // ── Fetch videos ──
-      // CHANGED: ascending (oldest first) so videos follow the UPLOAD
-      // SEQUENCE. created_at is now carried on each item and the list is
-      // sorted again client-side via sortByUploadSequence as a safeguard.
-      const { data: vData } = await supabase.from("videos").select("*").order("created_at", { ascending: true });
+      // CHANGED: descending (newest first) so the latest upload is at the
+      // top of the Videos tab. created_at is carried on each item and the
+      // list is sorted again client-side via sortByUploadSequence as a
+      // safeguard.
+      const { data: vData } = await supabase.from("videos").select("*").order("created_at", { ascending: false });
       if (vData) {
         setDbVideos(
           sortByUploadSequence(
@@ -979,7 +981,7 @@ const Profile = ({ sideNavbar }) => {
                 title: v.title,
                 duration: v.duration || "00:00",
                 channel: v.channel,
-                // NEW: upload time, used for the upload-sequence ordering.
+                // NEW: upload time, used for the newest-first ordering.
                 created_at: v.created_at || null,
                 // NEW: attached song + creator's audio mix, used by the
                 // hover preview on the Videos tab.
@@ -999,8 +1001,8 @@ const Profile = ({ sideNavbar }) => {
       }
 
       // ── Fetch reels ──
-      // CHANGED: ascending (oldest first) — upload sequence.
-      const { data: rData } = await supabase.from("reels").select("*").order("created_at", { ascending: true });
+      // CHANGED: descending (newest first).
+      const { data: rData } = await supabase.from("reels").select("*").order("created_at", { ascending: false });
       if (rData) {
         setDbReels(
           sortByUploadSequence(
@@ -1050,12 +1052,12 @@ const Profile = ({ sideNavbar }) => {
       // `select *` already returns posts.song (jsonb) once that column exists.
       // CHANGED: .ilike() instead of .eq() so posts are found regardless of
       // the casing the username was stored with.
-      // CHANGED: ascending (oldest first) — upload sequence.
+      // CHANGED: descending (newest first).
       const { data: postsData } = await supabase
         .from("posts")
         .select(`*, post_reactions ( type, username ), post_comments ( id, text, username, created_at )`)
         .ilike("username", escapeLike(key))
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false });
       if (postsData) {
         const currentUser = localStorage.getItem("username") || "";
         setUserPosts(
@@ -1106,13 +1108,13 @@ const Profile = ({ sideNavbar }) => {
   const hardcodedVideos = allVideos
     .filter((v) => v.channel?.toLowerCase() === key)
     .map((v) => ({ ...v, isSample: true }));
-  // CHANGED: upload sequence — real uploads oldest → newest; samples (no
+  // CHANGED: newest first — real uploads newest → oldest; samples (no
   // upload time) are kept at the end by sortByUploadSequence.
   const allUserVideos   = sortByUploadSequence([...dbVideos, ...hardcodedVideos]);
   const allUserReels    = sortByUploadSequence(dbReels);
 
   // NEW: the ordered list handed to the player pages, so playback can move
-  // through the profile in the same upload sequence the grid shows.
+  // through the profile in the same order the grid shows (newest first).
   // Reels.jsx can read `location.state.profileQueue` / `queueIndex`;
   // Video.jsx can read `location.state.profileQueue` / `queueIndex` too.
   const reelQueue  = allUserReels.map((r) => ({ ...r }));
@@ -1518,8 +1520,9 @@ const Profile = ({ sideNavbar }) => {
                     <div key={video.id} style={{ position:"relative", minWidth:0 }}>
                       <Link
                         to={`/video/${video.id}`}
-                        // NEW: hand the upload-ordered list to the Video page so
-                        // it can continue to the next upload in sequence.
+                        // NEW: hand the ordered list (newest first) to the Video
+                        // page so it can continue to the next video in the same
+                        // sequence the grid shows.
                         state={{ profileQueue: videoQueue, queueIndex, fromProfile: key }}
                         className="profileVideo_block"
                       >
@@ -1584,9 +1587,9 @@ const Profile = ({ sideNavbar }) => {
                     <div key={reel.id} id={`reel-card-${reel.dbId}`} style={{ position:"relative", minWidth:0 }}>
                       <div className="profileVideo_block" style={{ cursor:"pointer" }}
                         // CHANGED: besides the clicked reel, also hand over the whole
-                        // upload-ordered reel list (`profileQueue`) and the clicked
-                        // reel's position (`queueIndex`) so /reels can play the
-                        // profile's reels in the same upload sequence.
+                        // ordered reel list (`profileQueue`, newest first) and the
+                        // clicked reel's position (`queueIndex`) so /reels can play
+                        // the profile's reels in the same sequence the grid shows.
                         onClick={() => navigate("/reels", { state: {
                           clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 },
                           profileQueue: reelQueue.map((r) => ({ ...r, user: r.user || user.name, username: r.username || key, profilePic: r.profilePic || user.profilePic, likes: r.likes || 0 })),

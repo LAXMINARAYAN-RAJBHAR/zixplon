@@ -120,8 +120,8 @@ const timeAgo = (dateStr) => {
   return `${Math.floor(diff / 31536000)}y ago`;
 };
 
-const VIEWED_KEY  = "zixplon_viewed_reels";
-const FRESH_KEY   = "zixplon_fresh_reels";
+const VIEWED_KEY = "zixplon_viewed_reels";
+const FRESH_KEY = "zixplon_fresh_reels";
 
 const getViewedReels = () => {
   try { return JSON.parse(localStorage.getItem(VIEWED_KEY) || "[]"); }
@@ -283,12 +283,12 @@ const MoreDropdown = ({ onRemix, onSound, onCollab, onGreenScreen, onCut, onRepo
   }, [onClose]);
 
   const items = [
-    { icon: <MusicNoteIcon style={{ fontSize: 18 }} />,         label: "Remix",        color: "#a855f7", onClick: onRemix },
-    { icon: <span style={{ fontSize: 17 }}>🎵</span>,           label: "Use Sound",    color: "#f97316", onClick: onSound },
-    { icon: <PeopleAltOutlinedIcon style={{ fontSize: 18 }} />,  label: "Collab",       color: "#06b6d4", onClick: onCollab },
-    { icon: <GrassOutlinedIcon style={{ fontSize: 18 }} />,      label: "Green Screen", color: "#22c55e", onClick: onGreenScreen },
-    { icon: <ContentCutOutlinedIcon style={{ fontSize: 18 }} />, label: "Cut Video",    color: "#f43f5e", onClick: onCut },
-    { icon: <span style={{ fontSize: 18 }}>🚩</span>,            label: "Report",       color: "#f43f5e", onClick: onReport },
+    { icon: <MusicNoteIcon style={{ fontSize: 18 }} />, label: "Remix", color: "#a855f7", onClick: onRemix },
+    { icon: <span style={{ fontSize: 17 }}>🎵</span>, label: "Use Sound", color: "#f97316", onClick: onSound },
+    { icon: <PeopleAltOutlinedIcon style={{ fontSize: 18 }} />, label: "Collab", color: "#06b6d4", onClick: onCollab },
+    { icon: <GrassOutlinedIcon style={{ fontSize: 18 }} />, label: "Green Screen", color: "#22c55e", onClick: onGreenScreen },
+    { icon: <ContentCutOutlinedIcon style={{ fontSize: 18 }} />, label: "Cut Video", color: "#f43f5e", onClick: onCut },
+    { icon: <span style={{ fontSize: 18 }}>🚩</span>, label: "Report", color: "#f43f5e", onClick: onReport },
   ];
 
   return (
@@ -321,21 +321,21 @@ const ReelAdSlide = () => (
 
 const ReelItem = ({ reel, allReels }) => {
   const navigate = useNavigate();
-  const videoRef        = useRef(null);
-  const containerRef    = useRef(null);
-  const isMounted       = useRef(true);
-  const observerRef     = useRef(null);
-  const iconTimeoutRef  = useRef(null);
+  const videoRef = useRef(null);
+  const containerRef = useRef(null);
+  const isMounted = useRef(true);
+  const observerRef = useRef(null);
+  const iconTimeoutRef = useRef(null);
   const commentPanelRef = useRef(null);
-  const commentBtnRef   = useRef(null);
-  const lastTapRef      = useRef(0);
-  const tapTimeoutRef   = useRef(null);
+  const commentBtnRef = useRef(null);
+  const lastTapRef = useRef(0);
+  const tapTimeoutRef = useRef(null);
   const muteBtnTimerRef = useRef(null);
-  const progressBarRef  = useRef(null);
+  const progressBarRef = useRef(null);
   // NEW: holds the active hls.js instance for this reel, torn down on
   // unmount or whenever reel.id/reel.src changes. Same pattern as
   // PostCard.jsx's PostVideo / Video.jsx.
-  const hlsInstanceRef  = useRef(null);
+  const hlsInstanceRef = useRef(null);
 
   // NEW: sound-first autoplay bookkeeping.
   //  - isActiveRef: whether this reel is the one currently scrolled
@@ -346,8 +346,8 @@ const ReelItem = ({ reel, allReels }) => {
   //    choosing to mute. Only an auto-mute gets lifted by the retry.
   //  - unsubscribeInteractRef: cancels a pending "retry after the next
   //    interaction" registration (see utils/audioUnlock.js).
-  const isActiveRef            = useRef(false);
-  const autoMutedRef           = useRef(false);
+  const isActiveRef = useRef(false);
+  const autoMutedRef = useRef(false);
   const unsubscribeInteractRef = useRef(null);
 
   // NEW: this reel's identity in the shared sound arbiter (a Symbol is
@@ -379,45 +379,45 @@ const ReelItem = ({ reel, allReels }) => {
   // NEW: connectLoading — same debounce/disable guard PostCard.jsx uses,
   // so a double-click (or double-tap on mobile) can't fire two
   // overlapping Supabase requests and desync the optimistic UI state.
-  const [connectLoading, setConnectLoading]     = useState(false);
-  const [liked, setLiked]                       = useState(false);
-  const [disliked, setDisliked]                 = useState(false);
-  const [likeCount, setLikeCount]               = useState(0);
-  const [dislikeCount, setDislikeCount]         = useState(0);
+  const [connectLoading, setConnectLoading] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [disliked, setDisliked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [dislikeCount, setDislikeCount] = useState(0);
   const [likeCountLoading, setLikeCountLoading] = useState(true);
-  const [isActing, setIsActing]                 = useState(false);
-  const [muted, setMuted]                       = useState(() => isGloballyMuted());
-  const [isPlaying, setIsPlaying]               = useState(false);
-  const [showIcon, setShowIcon]                 = useState(false);
-  const [showComments, setShowComments]         = useState(false);
-  const [commentText, setCommentText]           = useState("");
-  const [comments, setComments]                 = useState([]);
-  const [shareToast, setShareToast]             = useState(false);
-  const [actionToast, setActionToast]           = useState({ show: false, msg: "", type: "" });
-  const [showMoreMenu, setShowMoreMenu]         = useState(false);
-  const [viewCount, setViewCount]               = useState(0);
-  const [showHeartBurst, setShowHeartBurst]     = useState(false);
-  const [showMuteBtn, setShowMuteBtn]           = useState(true);
-  const [showNewBadge, setShowNewBadge]         = useState(false);
-  const [showReportModal, setShowReportModal]   = useState(false);
-  const [progress, setProgress]                 = useState(0);
+  const [isActing, setIsActing] = useState(false);
+  const [muted, setMuted] = useState(() => isGloballyMuted());
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showIcon, setShowIcon] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [comments, setComments] = useState([]);
+  const [shareToast, setShareToast] = useState(false);
+  const [actionToast, setActionToast] = useState({ show: false, msg: "", type: "" });
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [viewCount, setViewCount] = useState(0);
+  const [showHeartBurst, setShowHeartBurst] = useState(false);
+  const [showMuteBtn, setShowMuteBtn] = useState(true);
+  const [showNewBadge, setShowNewBadge] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [progress, setProgress] = useState(0);
   // NEW: true while this reel is within one screen of the viewport.
-  const [near, setNear]                         = useState(false);
-  const hlsLoadStartedRef                       = useRef(false);
+  const [near, setNear] = useState(false);
+  const hlsLoadStartedRef = useRef(false);
 
   // NEW: per-comment feature state — kebab menu, one-level replies,
   // and the translate-to-Hindi toggle (per comment id).
   const [commentMenuOpenId, setCommentMenuOpenId] = useState(null);
-  const [replyingToId, setReplyingToId]           = useState(null);
-  const [replyText, setReplyText]                 = useState("");
-  const [translatedIds, setTranslatedIds]         = useState(() => new Set());
-  const [savedToast, setSavedToast]               = useState(false);
+  const [replyingToId, setReplyingToId] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const [translatedIds, setTranslatedIds] = useState(() => new Set());
+  const [savedToast, setSavedToast] = useState(false);
   const [reportCommentTarget, setReportCommentTarget] = useState(null);
 
   // NEW: Emoji/GIF/Sticker picker open state — one for the main comment
   // box, one for whichever reply row is currently open.
   const [showCommentEmoji, setShowCommentEmoji] = useState(false);
-  const [showReplyEmoji, setShowReplyEmoji]     = useState(false);
+  const [showReplyEmoji, setShowReplyEmoji] = useState(false);
 
   // NEW: hidden <audio> element for an attached song, kept in lockstep
   // with the reel's own play/pause/mute state — see the sync effects
@@ -496,7 +496,7 @@ const ReelItem = ({ reel, allReels }) => {
       setDislikeCount(dCount);
       setLikeCountLoading(false);
       if (!userId) return;
-      const { data: likeData }    = await supabase.from("likes").select("id").match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "like" }).maybeSingle();
+      const { data: likeData } = await supabase.from("likes").select("id").match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "like" }).maybeSingle();
       setLiked(!!likeData);
       const { data: dislikeData } = await supabase.from("likes").select("id").match({ user_id: userId, content_id: String(reel.id), content_type: "reel", reaction_type: "dislike" }).maybeSingle();
       setDisliked(!!dislikeData);
@@ -704,7 +704,7 @@ const ReelItem = ({ reel, allReels }) => {
 
     if (isPlaying) {
       audio.muted = muted;
-      audio.play().catch(() => {});
+      audio.play().catch(() => { });
       setSongPlaying(true);
     } else {
       audio.pause();
@@ -957,7 +957,7 @@ const ReelItem = ({ reel, allReels }) => {
     const url = isDbReel
       ? `https://zixplon.in/s/reel/${encodeURIComponent(shareId)}?comment=${comment.id}`
       : `https://zixplon.in/reels/${reel.id}?comment=${comment.id}`;
-    navigator.clipboard.writeText(url).catch(() => {});
+    navigator.clipboard.writeText(url).catch(() => { });
     setCommentMenuOpenId(null);
     setShareToast(true);
     setTimeout(() => setShareToast(false), 2500);
@@ -980,7 +980,7 @@ const ReelItem = ({ reel, allReels }) => {
     const url = isDbReel
       ? `https://zixplon.in/s/reel/${encodeURIComponent(shareId)}`
       : `https://zixplon.in/reels/${reel.id}`;
-    navigator.clipboard.writeText(url).catch(() => {});
+    navigator.clipboard.writeText(url).catch(() => { });
     setShareToast(true);
     setTimeout(() => setShareToast(false), 2500);
   };
@@ -992,10 +992,10 @@ const ReelItem = ({ reel, allReels }) => {
     showToast("🎬 Opening remix editor...", "remix");
     goToUpload({
       remixData: {
-        remixed_from_id:        String(reel.id).replace("db_", ""),
-        remixed_from_username:  reel.username,
-        remixed_from_user:      reel.user,
-        remixed_from_title:     reel.title,
+        remixed_from_id: String(reel.id).replace("db_", ""),
+        remixed_from_username: reel.username,
+        remixed_from_user: reel.user,
+        remixed_from_title: reel.title,
         remixed_from_thumbnail: reel.thumbnail,
       },
     });
@@ -1006,11 +1006,11 @@ const ReelItem = ({ reel, allReels }) => {
     showToast("🎵 Loading sound...", "sound");
     goToUpload({
       soundData: {
-        sound_from_id:        String(reel.id).replace("db_", ""),
-        sound_from_username:  reel.username,
-        sound_from_title:     reel.title,
+        sound_from_id: String(reel.id).replace("db_", ""),
+        sound_from_username: reel.username,
+        sound_from_title: reel.title,
         sound_from_thumbnail: reel.thumbnail,
-        sound_video_url:      reel.src,
+        sound_video_url: reel.src,
       },
     });
   };
@@ -1022,12 +1022,12 @@ const ReelItem = ({ reel, allReels }) => {
     showToast("🤝 Setting up collab...", "collab");
     goToUpload({
       collabData: {
-        collab_with_id:        String(reel.id).replace("db_", ""),
-        collab_with_username:  reel.username,
-        collab_with_user:      reel.user,
-        collab_with_title:     reel.title,
+        collab_with_id: String(reel.id).replace("db_", ""),
+        collab_with_username: reel.username,
+        collab_with_user: reel.user,
+        collab_with_title: reel.title,
         collab_with_thumbnail: reel.thumbnail,
-        collab_video_url:      reel.src,
+        collab_video_url: reel.src,
       },
     });
   };
@@ -1037,11 +1037,11 @@ const ReelItem = ({ reel, allReels }) => {
     showToast("💚 Opening green screen...", "greenscreen");
     goToUpload({
       greenScreenData: {
-        bg_reel_id:        String(reel.id).replace("db_", ""),
-        bg_reel_username:  reel.username,
-        bg_reel_title:     reel.title,
+        bg_reel_id: String(reel.id).replace("db_", ""),
+        bg_reel_username: reel.username,
+        bg_reel_title: reel.title,
         bg_reel_thumbnail: reel.thumbnail,
-        bg_video_url:      reel.src,
+        bg_video_url: reel.src,
       },
     });
   };
@@ -1051,11 +1051,11 @@ const ReelItem = ({ reel, allReels }) => {
     showToast("✂️ Opening cut editor...", "cut");
     goToUpload({
       cutData: {
-        cut_from_id:        String(reel.id).replace("db_", ""),
-        cut_from_username:  reel.username,
-        cut_from_title:     reel.title,
+        cut_from_id: String(reel.id).replace("db_", ""),
+        cut_from_username: reel.username,
+        cut_from_title: reel.title,
         cut_from_thumbnail: reel.thumbnail,
-        cut_video_url:      reel.src,
+        cut_video_url: reel.src,
       },
     });
   };
@@ -1071,15 +1071,15 @@ const ReelItem = ({ reel, allReels }) => {
   const isYouTube = (url) => url && (url.includes("youtube.com") || url.includes("youtu.be"));
   const getEmbedUrl = (url) => {
     if (url.includes("youtube.com/shorts/")) { const id = url.split("/shorts/")[1].split("?")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
-    if (url.includes("watch?v="))            { const id = url.split("watch?v=")[1].split("&")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
-    if (url.includes("youtu.be/"))           { const id = url.split("youtu.be/")[1].split("?")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
+    if (url.includes("watch?v=")) { const id = url.split("watch?v=")[1].split("&")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
+    if (url.includes("youtu.be/")) { const id = url.split("youtu.be/")[1].split("?")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
     return url;
   };
 
   useEffect(() => {
     if (isYouTube(reel.src)) return;
     isMounted.current = true;
-    const video     = videoRef.current;
+    const video = videoRef.current;
     const container = containerRef.current;
     if (!video || !container) return;
 
@@ -1137,7 +1137,7 @@ const ReelItem = ({ reel, allReels }) => {
               }
               setIsPlaying(true);
             })
-            .catch(() => {});
+            .catch(() => { });
 
           unsubscribeInteractRef.current = onUserInteract(() => {
             // Only lift a browser-forced mute — never override a mute
@@ -1201,7 +1201,7 @@ const ReelItem = ({ reel, allReels }) => {
     video.load();
     video.currentTime = resumeTime;
     video.muted = isGloballyMuted();
-    if (wasPlaying) video.play().catch(() => {});
+    if (wasPlaying) video.play().catch(() => { });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quality]);
 
@@ -1247,7 +1247,7 @@ const ReelItem = ({ reel, allReels }) => {
     tapTimeoutRef.current = setTimeout(() => {
       const video = videoRef.current;
       if (!video) return;
-      if (video.paused) { video.play().catch(() => {}); setIsPlaying(true); }
+      if (video.paused) { video.play().catch(() => { }); setIsPlaying(true); }
       else { video.pause(); setIsPlaying(false); }
       flashIcon();
     }, 250);
@@ -1288,7 +1288,7 @@ const ReelItem = ({ reel, allReels }) => {
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
-      video.play().catch(() => {});
+      video.play().catch(() => { });
       setIsPlaying(true);
     } else {
       video.pause();
@@ -1393,9 +1393,8 @@ const ReelItem = ({ reel, allReels }) => {
       ref={containerRef}
     >
       <div
-        className={`reel_video_wrapper${
-          showComments ? " reel_video_wrapper--comments-open" : ""
-        }`}
+        className={`reel_video_wrapper${showComments ? " reel_video_wrapper--comments-open" : ""
+          }`}
       >
 
         {isYouTube(reel.src) ? (
@@ -1428,7 +1427,7 @@ const ReelItem = ({ reel, allReels }) => {
           />
         )}
 
-        {!isYouTube(reel.src) && showIcon       && <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>}
+        {!isYouTube(reel.src) && showIcon && <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>}
         {!isYouTube(reel.src) && showHeartBurst && <div className="reel_heart_burst">❤️</div>}
 
         {/* CHANGED: ONE top-left stack that holds everything that used
@@ -1763,9 +1762,8 @@ const ReelItem = ({ reel, allReels }) => {
                 Connected), same as PostCard.jsx and Video.jsx. */}
             {loggedInUser !== reel.username && (
               <button
-                className={`reel_connect_btn ${
-                  connectionStatus === "accepted" ? "reel_connect_btn--connected" : ""
-                } ${connectionStatus === "pending" ? "reel_connect_btn--pending" : ""}`}
+                className={`reel_connect_btn ${connectionStatus === "accepted" ? "reel_connect_btn--connected" : ""
+                  } ${connectionStatus === "pending" ? "reel_connect_btn--pending" : ""}`}
                 onClick={handleConnect}
                 disabled={connectLoading}
               >
@@ -1791,7 +1789,7 @@ const Reels = () => {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [dbReels, setDbReels]     = useState([]);
+  const [dbReels, setDbReels] = useState([]);
   const [dbLoading, setDbLoading] = useState(true);
 
   const handleBack = () => {
@@ -1810,19 +1808,19 @@ const Reels = () => {
       const { data, error } = await supabase.from("reels").select("*").order("created_at", { ascending: false });
       if (!error && data) {
         const mapped = data.map((r) => ({
-          id:                    `db_${r.id}`,
-          short_id:               r.short_id,
-          src:                   r.video_url,
-          thumbnail:             r.thumbnail || "https://picsum.photos/200/350?random=99",
-          title:                 r.title    || "Untitled",
-          duration:              r.duration || "00:00",
-          user:                  r.user     || r.username || "Unknown",
-          username:              r.username || "unknown",
-          profilePic:            `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
-          description:           r.description || "",
-          likes:                 0,
-          created_at:            r.created_at  || null,
-          remixed_from_id:       r.remixed_from_id       || null,
+          id: `db_${r.id}`,
+          short_id: r.short_id,
+          src: r.video_url,
+          thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99",
+          title: r.title || "Untitled",
+          duration: r.duration || "00:00",
+          user: r.user || r.username || "Unknown",
+          username: r.username || "unknown",
+          profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
+          description: r.description || "",
+          likes: 0,
+          created_at: r.created_at || null,
+          remixed_from_id: r.remixed_from_id || null,
           remixed_from_username: r.remixed_from_username || null,
           // NEW: attached song ({ title, artist, cover, url }),
           // location name, feeling, and the creator's chosen mix
@@ -1832,9 +1830,9 @@ const Reels = () => {
           //   alter table reels add column location_name text;
           //   alter table reels add column feeling text;
           //   alter table reels add column original_audio_volume numeric default 1;
-          song:          r.song || null,
+          song: r.song || null,
           location_name: r.location_name || null,
-          feeling:       r.feeling || null,
+          feeling: r.feeling || null,
           original_audio_volume: r.original_audio_volume ?? 1,
         }));
         // NEW: shuffled ONCE per load so every refresh opens onto a
@@ -1842,6 +1840,8 @@ const Reels = () => {
         // or a clicked card — is still pulled to the front by the
         // allReels memo below). New uploads arriving in realtime are
         // still prepended unshuffled, so they show up at the top.
+        // (When opened from a profile, this shuffled list is ignored —
+        // the allReels memo below plays the profile's own queue instead.)
         setDbReels(shuffleArray(mapped));
       }
       setDbLoading(false);
@@ -1854,26 +1854,26 @@ const Reels = () => {
         const r = payload.new;
         markReelFresh(`db_${r.id}`);
         setDbReels((prev) => [{
-          id:                    `db_${r.id}`,
-          short_id:               r.short_id,
-          src:                   r.video_url,
-          thumbnail:             r.thumbnail || "https://picsum.photos/200/350?random=99",
-          title:                 r.title    || "Untitled",
-          duration:              r.duration || "00:00",
-          user:                  r.user     || r.username || "Unknown",
-          username:              r.username || "unknown",
-          profilePic:            `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
-          description:           r.description || "",
-          likes:                 0,
-          created_at:            r.created_at  || null,
-          remixed_from_id:       r.remixed_from_id       || null,
+          id: `db_${r.id}`,
+          short_id: r.short_id,
+          src: r.video_url,
+          thumbnail: r.thumbnail || "https://picsum.photos/200/350?random=99",
+          title: r.title || "Untitled",
+          duration: r.duration || "00:00",
+          user: r.user || r.username || "Unknown",
+          username: r.username || "unknown",
+          profilePic: `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
+          description: r.description || "",
+          likes: 0,
+          created_at: r.created_at || null,
+          remixed_from_id: r.remixed_from_id || null,
           remixed_from_username: r.remixed_from_username || null,
           // NEW: same song/location/feeling/mix fields, kept in sync
           // for realtime INSERTs (new reels posted while the Reels
           // page is open).
-          song:          r.song || null,
+          song: r.song || null,
           location_name: r.location_name || null,
-          feeling:       r.feeling || null,
+          feeling: r.feeling || null,
           original_audio_volume: r.original_audio_volume ?? 1,
         }, ...prev]);
       })
@@ -1887,12 +1887,32 @@ const Reels = () => {
   const fromTrending = location.state?.fromTrending || false;
   const trendingIds = location.state?.trendingIds || null;
 
+  // NEW: Profile mode — when a reel is opened from a profile's Reels
+  // tab, location.state carries `profileQueue` (that profile's reels in
+  // UPLOAD SEQUENCE: oldest first, newest last) and `queueIndex` (the
+  // clicked reel's position in it).
+  const profileQueue = location.state?.profileQueue || null;
+  const profileQueueIndex = location.state?.queueIndex ?? 0;
+
   const normalizeReelId = (value) => {
     const str = String(value);
     return str.startsWith("db_") ? str : `db_${str}`;
   };
 
   const allReels = React.useMemo(() => {
+    // NEW: opened from a profile → play ONLY that profile's reels, in
+    // upload order. The feed starts on the reel that was clicked, then
+    // continues oldest → newest through the rest of the queue; reels
+    // that were uploaded BEFORE the clicked one come after the newest
+    // one (so scrolling down never runs out of reels).
+    if (profileQueue && profileQueue.length > 0) {
+      const start = Math.min(
+        Math.max(Number(profileQueueIndex) || 0, 0),
+        profileQueue.length - 1,
+      );
+      return [...profileQueue.slice(start), ...profileQueue.slice(0, start)];
+    }
+
     let pool = baseReels;
 
     if (fromTrending && trendingIds) {
@@ -1918,11 +1938,12 @@ const Reels = () => {
       return [clickedReel, ...rest];
     }
     return pool;
-  }, [baseReels, id, location.state, fromTrending, trendingIds]);
+  }, [baseReels, id, location.state, fromTrending, trendingIds, profileQueue, profileQueueIndex]);
 
   const requestedReelMissing =
     Boolean(id) &&
     !location.state?.clickedReel &&
+    !(profileQueue && profileQueue.length > 0) &&
     !baseReels.some(
       (r) => String(r.id) === String(id) || String(r.id) === normalizeReelId(id),
     );

@@ -363,7 +363,21 @@ const Video = ({ sideNavbar }) => {
   //    navigation so trending mode stays "sticky" while browsing.
   const fromTrending = location.state?.fromTrending || false;
   const trendingIds = location.state?.trendingIds || null;
-  const navState = fromTrending ? { trendingIds, fromTrending: true } : undefined;
+
+  // NEW: Profile mode — if we arrived from a profile's Videos tab,
+  // location.state carries `profileQueue` (that profile's videos in
+  // UPLOAD SEQUENCE: oldest first, newest last). Next / Prev / autoplay /
+  // the suggestions list then follow that same ascending order instead
+  // of the shuffled catalogue. Re-passed on every navigation (like
+  // trending mode) so it stays sticky while moving through the queue.
+  const profileQueue = location.state?.profileQueue || null;
+  const fromProfile = location.state?.fromProfile || null;
+
+  const navState = fromTrending
+    ? { trendingIds, fromTrending: true }
+    : profileQueue && profileQueue.length > 0
+      ? { profileQueue, fromProfile }
+      : undefined;
 
   const [dbVideos, setDbVideos] = useState([]);
   const [dbLoading, setDbLoading] = useState(true);
@@ -649,6 +663,8 @@ const Video = ({ sideNavbar }) => {
         // same newest-first sequence. Navigating between videos while
         // this component stays mounted keeps the same shuffled order, so
         // Prev/Next remain consistent within a session.
+        // (When opened from a profile, the shuffled order is ignored —
+        // see the allVideos memo below, which re-orders by profileQueue.)
         setDbVideos(shuffleArray(mapped));
       }
       setDbLoading(false);
@@ -667,18 +683,28 @@ const Video = ({ sideNavbar }) => {
     loadViewCount();
   }, [id]);
 
-  // ── If we came from "Trending Now", restrict the working pool to only
-  //    the trending IDs (always keeping the current video included so it
-  //    never 404s if it somehow fell outside the whitelist). Otherwise the
-  //    full uploaded catalogue is used, same as before.
+  // ── Working pool of videos used for Prev / Next / autoplay / suggestions.
+  //    1. Opened from a profile → ONLY that profile's videos, in upload
+  //       sequence (oldest first, newest last), exactly as the profile
+  //       grid shows them.
+  //    2. Opened from "Trending Now" → restricted to the trending IDs
+  //       (always keeping the current video included so it never 404s).
+  //    3. Otherwise → the full uploaded catalogue (shuffled).
   const allVideos = React.useMemo(() => {
+    if (profileQueue && profileQueue.length > 0) {
+      const order = new Map(profileQueue.map((q, i) => [String(q.id), i]));
+      const rank = (v) => (order.has(String(v.id)) ? order.get(String(v.id)) : 1e9);
+      return dbVideos
+        .filter((v) => order.has(String(v.id)) || String(v.id) === String(id))
+        .sort((a, b) => rank(a) - rank(b));
+    }
     if (fromTrending && trendingIds) {
       return dbVideos.filter(
         (v) => trendingIds.includes(String(v.id)) || String(v.id) === String(id),
       );
     }
     return dbVideos;
-  }, [dbVideos, fromTrending, trendingIds, id]);
+  }, [dbVideos, fromTrending, trendingIds, profileQueue, id]);
 
   const currentIndex = allVideos.findIndex((v) => String(v.id) === String(id));
   const video = allVideos[currentIndex];

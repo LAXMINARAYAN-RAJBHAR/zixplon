@@ -11,7 +11,7 @@ import { uploadToR2, buildTransformUrl, uploadVideoToR2 } from "../../utils/medi
 // the rest, and PhotoViewer swipes through the full array). Uploads now
 // go out sequentially regardless of count; a very large batch will just
 // take proportionally longer and move the progress bar more slowly.
-const MAX_VIDEO_MB = 100; // adjust as needed — R2 has no per-request size ceiling like Vercel's function body did
+const MAX_VIDEO_MB = 4096; // adjust as needed — R2 has no per-request size ceiling like Vercel's function body did
 const LINK_PREVIEW_DEBOUNCE_MS = 600;
 
 const PRIVACY_OPTIONS = [
@@ -298,11 +298,11 @@ const PostComposer = ({ currentUser, onPost }) => {
     }
 
     const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > MAX_VIDEO_MB) {
-      setError(`Video is too large. Max size is ${MAX_VIDEO_MB}MB.`);
-      if (videoRef.current) videoRef.current.value = "";
-      return;
-    }
+if (sizeMB > MAX_VIDEO_MB) {
+  setError(`Video is too large. Max size is ${MAX_VIDEO_MB / 1024}GB.`);
+  if (videoRef.current) videoRef.current.value = "";
+  return;
+}
 
     setVideoFile({ file, preview: URL.createObjectURL(file) });
     if (videoRef.current) videoRef.current.value = "";

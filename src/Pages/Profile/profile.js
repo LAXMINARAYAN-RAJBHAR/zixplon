@@ -4,33 +4,16 @@ import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 import ThumbUpOutlinedIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-// NEW: share icon for the Share buttons on videos / reels / posts.
 import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import { uploadToR2, buildTransformUrl } from "../../utils/mediaUpload";
-// NEW: attached-song mini player — same component used in PostCard.jsx /
-// Video.jsx / Reels.jsx.
 import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
-// NEW: "retry sound after the visitor's next interaction" gate — same one
-// used by Reels.jsx / Video.jsx. See utils/audioUnlock.js.
 import { onUserInteract } from "../../utils/audioUnlock";
-// CHANGED: the hover-preview thumbnail and the sound arbiter are now the
-// shared ones (the same used by the Home feed, the reels strip, Reels and
-// Video), instead of private copies inside this file. That is what makes
-// the profile obey the same "one thing with sound at a time" rule and the
-// same mute preference as the rest of the app.
 import PreviewThumb from "../../Component/Shared/PreviewThumb";
 import { claimSound, releaseSound, soundPrefs } from "../../utils/soundArbiter";
-// NEW: shared notification helper — same one PostCard.jsx / Video.jsx /
-// Reels.jsx already use for their Connect buttons. Profile.js previously
-// had no equivalent notification on a successful connect at all.
-import { notifyUser } from "../../utils/notifications";
-// NEW: lets a visitor start/open a DM with the profile owner directly
-// from the profile page, without navigating away. MessagesPanel is
-// self-contained (own overlay, own currentUser lookup via localStorage,
-// own conversation create-or-load logic) so mounting it here needs no
-// extra global state — see handleMessage / messageTarget below.
+// CHANGED: notifyUser import removed — the notify_on_subscribe DB trigger
+// now owns "wants to connect" notifications, so a client call would duplicate it.
 import MessagesPanel from "../Messages/MessagesPanel";
 
 const allVideos = [
@@ -48,24 +31,30 @@ const allVideos = [
   { id: 12, thumbnail: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQdcK3NWfTM_cOjFOH6ArcBdUbu29e0AVjFZw&s", title: "Understanding 3D Computer Graphics", duration: "20:50", channel: "Laxminarayan" },
 ];
 
+// CHANGED: also matches when spaces are stripped on either side. Older reels
+// were saved with the username's spaces removed ("ashutoshpawar"), which the
+// exact / "_" / "." variants never matched.
 const matchesKey = (candidate = "", key = "") => {
   if (!candidate || !key) return false;
   const c = candidate.toLowerCase();
-  return c === key || c.replace(/\s+/g, "_") === key || c.replace(/\s+/g, ".") === key;
+  if (c === key || c.replace(/\s+/g, "_") === key || c.replace(/\s+/g, ".") === key) return true;
+  return c.replace(/\s+/g, "") === key.replace(/\s+/g, "");
 };
 
-// NEW: escapes the LIKE wildcards (% and _) so a username such as
-// "john_doe" is matched literally by .ilike() instead of "_" acting as a
-// "any single character" wildcard. Used for every case-insensitive
-// username lookup below.
 const escapeLike = (str = "") => str.replace(/[\\%_]/g, "\\$&");
 
-// CHANGED: ORDER OF UPLOADS — NEWEST FIRST. Videos, Reels and Posts on the
-// profile are always shown with the latest upload at the top and the oldest
-// upload at the bottom. Items without a created_at (the hardcoded sample
-// videos) have no upload time, so they stay at the very end, in their
-// original order. Array.prototype.sort is stable, so ties keep their order.
-// (The function keeps its old name so nothing else needs renaming.)
+// NEW: exact count for ONE item — the same query shape Video.jsx / Reels.jsx use.
+// Replaces the old bulk `.in(content_id, ids)` queries, which were capped at
+// 1000 rows / could exceed URL length and silently returned nothing.
+const countRows = async (table, contentType, contentId, extra = {}) => {
+  const { count, error } = await supabase
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .match({ content_id: String(contentId), content_type: contentType, ...extra });
+  if (error) console.error(`countRows ${table} error:`, error);
+  return count ?? 0;
+};
+
 const uploadTime = (item) => {
   const t = item?.created_at ? new Date(item.created_at).getTime() : NaN;
   return Number.isNaN(t) ? -Infinity : t;
@@ -74,7 +63,7 @@ const sortByUploadSequence = (items = []) =>
   [...items].sort((a, b) => {
     const ta = uploadTime(a);
     const tb = uploadTime(b);
-    if (ta === tb) return 0; // also covers -Infinity === -Infinity
+    if (ta === tb) return 0;
     return ta > tb ? -1 : 1; // newest first
   });
 
@@ -86,11 +75,8 @@ const timeAgo = (dateStr) => {
   return `${Math.floor(diff / 86400)}d ago`;
 };
 
-// NEW: link to the profile page currently open (works for any route pattern).
 const profileBaseUrl = () => `${window.location.origin}${window.location.pathname}`;
 
-// NEW: native share sheet when available (phones), otherwise copy the link.
-// Returns "shared" | "cancelled" | "copied" | "prompt".
 const shareLink = async ({ url, title }) => {
   if (navigator.share) {
     try {
@@ -98,7 +84,6 @@ const shareLink = async ({ url, title }) => {
       return "shared";
     } catch (e) {
       if (e?.name === "AbortError") return "cancelled";
-      // any other error → fall through to copy
     }
   }
   try {
@@ -123,7 +108,6 @@ const getUserGradient = (name = "") => {
   return `linear-gradient(${angle}deg, ${pair[0]}, ${pair[1]})`;
 };
 
-// ── Feelings list — matches PostComposer.jsx so edited posts can pick the same set ──
 const FEELINGS = [
   "Happy 😊", "Excited 🤩", "Grateful 🙏", "Blessed ✨",
   "Motivated 💪", "Tired 😴", "Loved ❤️", "Proud 🎉",
@@ -135,23 +119,11 @@ const PRIVACY_OPTIONS = [
   { value: "only_me", label: "Only me", icon: "🔒" },
 ];
 
-// ── Tabs, in swipe order ──
 const PROFILE_TABS = ["videos", "reels", "posts"];
 
-// How many characters of post text to show before offering "Show more"
 const POST_TEXT_LIMIT = 220;
 
-// ─── Post song player (sound-first autoplay) (NEW) ───────────────────────────
-// Plays a post's attached song when the card is mostly in view; pauses when
-// it scrolls away. Sound-first: unmuted first → muted fallback if the browser
-// blocks it → unmute on the visitor's next interaction. A manual pause is
-// respected until the visitor presses play again.
-//
-// Sound coordination follows utils/soundArbiter.js: the song CLAIMS the sound
-// only while it is genuinely audible (playing and unmuted) and releases the
-// claim whenever it is paused, muted or unmounted. If something else claims
-// the sound, the song goes QUIET (mutes itself, keeps playing) — a temporary
-// silence that is NOT saved as the visitor's own mute preference.
+// ─── Post song player (sound-first autoplay) ─────────────────────────────────
 const PostSongPlayer = ({ postId, song }) => {
   const wrapRef = useRef(null);
   const audioRef = useRef(null);
@@ -172,7 +144,6 @@ const PostSongPlayer = ({ postId, song }) => {
 
     const clearUnsub = () => { unsubRef.current?.(); unsubRef.current = null; };
 
-    // Another card took over the sound: go quiet, keep playing.
     const goQuiet = () => {
       audio.muted = true;
       setMuted(true);
@@ -198,8 +169,6 @@ const PostSongPlayer = ({ postId, song }) => {
       audio.muted = soundPrefs.muted;
       setMuted(soundPrefs.muted);
       audio.play().catch(() => {
-        // Browser blocked unmuted autoplay → muted, then unmute on the
-        // visitor's next interaction.
         audio.muted = true;
         autoMutedRef.current = true;
         setAutoMuted(true);
@@ -225,7 +194,7 @@ const PostSongPlayer = ({ postId, song }) => {
           clearUnsub();
           autoMutedRef.current = false;
           setAutoMuted(false);
-          audio.pause(); // the "pause" listener updates state + releases the claim
+          audio.pause();
         }
       },
       { threshold: [0, 0.6, 1] },
@@ -258,8 +227,6 @@ const PostSongPlayer = ({ postId, song }) => {
     const next = !muted;
     soundPrefs.muted = next;
     setMuted(next);
-    // Changing audio.muted fires "volumechange", which claims / releases
-    // the shared arbiter.
     if (audioRef.current) audioRef.current.muted = next;
   };
 
@@ -414,13 +381,36 @@ const Lightbox = ({ images, startIndex = 0, onClose }) => {
 };
 
 // ─── Profile Post Card ────────────────────────────────────────────────────────
-const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, onAddComment, onShare }) => {
+// CHANGED: now takes `viewCount` + `onView`. Shows 👁 N in the header and
+// records a view once the card is 60% on screen (same rule as PostCard.jsx).
+const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, onAddComment, onShare, viewCount = 0, onView }) => {
   const [lightboxData, setLightboxData] = useState(null);
   const [showComments, setShowComments] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [commentSending, setCommentSending] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
+
+  const cardRef = useRef(null);
+  const viewFiredRef = useRef(false);
+
+  useEffect(() => {
+    viewFiredRef.current = false;
+    const node = cardRef.current;
+    if (!node || !onView) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.6 && !viewFiredRef.current) {
+          viewFiredRef.current = true;
+          onView(post.id);
+        }
+      },
+      { threshold: 0.6 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post.id]);
 
   const totalReactions = Object.values(post.reactionCounts || {}).reduce((a, b) => a + b, 0);
   const images = post.image_urls?.length > 0 ? post.image_urls : post.image_url ? [post.image_url] : [];
@@ -490,8 +480,7 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, on
   return (
     <>
       {lightboxData && <Lightbox images={lightboxData.images} startIndex={lightboxData.startIndex} onClose={() => setLightboxData(null)} />}
-      {/* NEW: id lets a shared link (?tab=posts&post=<id>) scroll straight to this card */}
-      <div id={`post-card-${post.id}`} style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:"12px", padding:"16px", marginBottom:"14px", position:"relative" }}>
+      <div ref={cardRef} id={`post-card-${post.id}`} style={{ background:"#1a1a1a", border:"1px solid #2a2a2a", borderRadius:"12px", padding:"16px", marginBottom:"14px", position:"relative" }}>
         <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"12px" }}>
           <div style={{ width:"38px", height:"38px", borderRadius:"50%", background:"linear-gradient(135deg,#7c3aed,#a855f7)", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontWeight:"700", fontSize:"14px", flexShrink:0 }}>
             {(post.username || "?").slice(0, 2).toUpperCase()}
@@ -501,8 +490,9 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, on
               {post.username}
               {post.feeling && <span style={{ color:"#aaa", fontWeight:"400", fontSize:"13px" }}> — feeling {post.feeling}</span>}
             </div>
+            {/* CHANGED: view count shown right next to the time */}
             <div style={{ color:"#888", fontSize:"12px" }}>
-              {timeAgo(post.created_at)}
+              {timeAgo(post.created_at)} · 👁 {viewCount}
               {post.privacy === "only_me" && " · 🔒"}
               {post.privacy === "friends" && " · 👥"}
               {post.privacy === "public" && " · 🌐"}
@@ -541,7 +531,6 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, on
             ))}
           </div>
         )}
-        {/* ── NEW: post video ── */}
         {post.video_url && (
           <div style={{ borderRadius:"8px", overflow:"hidden", marginBottom:"12px", border:"1px solid #2a2a2a", background:"#000" }}>
             <video
@@ -559,13 +548,14 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, on
             <div style={{ color:"#3ea6ff", fontSize:"14px", fontWeight:"600" }}>{post.link.title}</div>
           </a>
         )}
-        {/* NEW: attached song — sound-first autoplay while the card is in view */}
         {post.song?.url && (
           <div style={{ marginBottom:"12px" }}>
             <PostSongPlayer postId={post.id} song={post.song} />
           </div>
         )}
         <div style={{ display:"flex", gap:"16px", alignItems:"center", paddingTop:"10px", borderTop:"1px solid #2a2a2a" }}>
+          {/* CHANGED: view count also in the action row so it can't be missed */}
+          <span style={{ color:"#888", fontSize:"13px", display:"flex", alignItems:"center", gap:"4px" }}>👁 {viewCount}</span>
           <button
             onClick={handleToggleLike}
             disabled={likeBusy}
@@ -591,7 +581,6 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, on
             <ChatBubbleOutlineIcon style={{ fontSize:"16px" }} />
             {post.comments?.length || 0} comment{post.comments?.length !== 1 ? "s" : ""}
           </button>
-          {/* NEW: Share — hidden for "Only me" posts, since nobody else could open the link */}
           {post.privacy !== "only_me" && (
             <button
               onClick={() => onShare({ url: `${window.location.origin}/s/post/${post.id}`, title: `${post.username}'s post on ZIXPLON` })}
@@ -651,14 +640,8 @@ const ProfilePostCard = ({ post, isOwner, onDelete, onEdit, onReactionChange, on
 };
 
 // ─── Connections Modal ─────────────────────────────────────────────────────
-// RENAMED from SubscribersModal. Now reads the shared `connections` table
-// (same one PostCard.jsx / Video.jsx / Reels.jsx write to via handleConnect)
-// instead of the old `subscriptions` table. This also drops the old
-// UUID-vs-username resolution hack that SubscribersModal needed — that
-// hack existed only because `subscriptions.subscriber_id` was written
-// inconsistently (sometimes a uuid, sometimes a raw username). The
-// `connections` table always stores the human-readable username directly
-// in `connector_username`, so no lookup against `profiles` is needed here.
+// CHANGED: only lists ACCEPTED connections (pending requests are not
+// connections yet), and is given the profile's exact stored username.
 const ConnectionsModal = ({ channelUsername, onClose }) => {
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -677,6 +660,7 @@ const ConnectionsModal = ({ channelUsername, onClose }) => {
         .from("connections")
         .select("connector_username, created_at")
         .eq("connected_to", channelUsername)
+        .eq("status", "accepted")
         .order("created_at", { ascending: false });
       if (error) console.error("fetchConnections error:", error);
       setConnections(
@@ -734,9 +718,6 @@ const ConnectionsModal = ({ channelUsername, onClose }) => {
 // ─── Main Profile Component ───────────────────────────────────────────────────
 const Profile = ({ sideNavbar }) => {
   const { username } = useParams();
-  // The URL param may be percent-decoded already (React Router decodes it),
-  // e.g. "ashutosh pawar". Lowercased for matching; the DB lookups below
-  // use .ilike() so stored casing ("Ashutosh Pawar") doesn't matter.
   const key = username?.toLowerCase();
   const navigate = useNavigate();
 
@@ -748,20 +729,16 @@ const Profile = ({ sideNavbar }) => {
   const [loading, setLoading]       = useState(true);
   const [videoCounts, setVideoCounts] = useState({});
   const [reelCounts, setReelCounts]   = useState({});
+  // NEW: view counts per post id (string keys)
+  const [postViews, setPostViews]     = useState({});
 
-  // RENAMED from subscriberCount / isSubscribed / subLoading /
-  // showSubscribersModal — now backed by the shared `connections` table
-  // instead of a Profile-only `subscriptions` table. See handleConnect
-  // below for the write-side wiring, matched to PostCard.jsx / Video.jsx
-  // / Reels.jsx's handleConnect implementations.
   const [connectionCount, setConnectionCount]       = useState(0);
-  const [connected, setConnected]                   = useState(false);
+  // CHANGED: three-state (null | "pending" | "accepted") instead of a boolean,
+  // matching PostCard.jsx / Video.jsx / Reels.jsx.
+  const [connectionStatus, setConnectionStatus]     = useState(null);
   const [connectLoading, setConnectLoading]         = useState(false);
   const [showConnectionsModal, setShowConnectionsModal] = useState(false);
 
-  // NEW: when set to a username, mounts <MessagesPanel initialUsername=...>
-  // focused straight on a DM with that person. Cleared (unmounts the
-  // panel) via MessagesPanel's own onClose.
   const [messageTarget, setMessageTarget] = useState(null);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -771,15 +748,13 @@ const Profile = ({ sideNavbar }) => {
   const [editLoading, setEditLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  // ── Edit Video/Reel content state ──
-  const [editContentTarget, setEditContentTarget]           = useState(null); // { type: 'video' | 'reel', id, dbId }
+  const [editContentTarget, setEditContentTarget]           = useState(null);
   const [editContentTitle, setEditContentTitle]             = useState("");
   const [editContentDescription, setEditContentDescription] = useState("");
   const [editContentThumbnail, setEditContentThumbnail]     = useState("");
   const [editContentLoading, setEditContentLoading]         = useState(false);
   const [editContentSaving, setEditContentSaving]           = useState(false);
 
-  // ── Edit Post state ──
   const [editPostTarget, setEditPostTarget]   = useState(null);
   const [editPostText, setEditPostText]       = useState("");
   const [editPostFeeling, setEditPostFeeling] = useState("");
@@ -787,19 +762,11 @@ const Profile = ({ sideNavbar }) => {
   const [editPostSaving, setEditPostSaving]   = useState(false);
   const [editPostError, setEditPostError]     = useState("");
 
-  // ── NEW: scroll to the top whenever the profile being viewed changes ──
-  // Navigating here from another page (e.g. "View profile" in Messages)
-  // keeps the previous page's scroll offset, which can leave the header
-  // and tabs above the visible area and only the footer showing.
-  // Also reset to the Videos tab so a previous profile's tab doesn't stick.
   useEffect(() => {
     window.scrollTo(0, 0);
     setActiveTab("videos");
   }, [key]);
 
-  // ── NEW: Share ──────────────────────────────────────────────────────────
-  // Shows a small "Link copied" toast on desktop (phones open the native
-  // share sheet instead, so they need no toast).
   const [shareNotice, setShareNotice] = useState("");
   const handleShare = async (item) => {
     const result = await shareLink(item);
@@ -809,10 +776,6 @@ const Profile = ({ sideNavbar }) => {
     }
   };
 
-  // ── NEW: open the right tab + scroll to the item for shared links ──────
-  // Handles ?tab=reels&reel=<id> and ?tab=posts&post=<id>. Waits until THIS
-  // profile has finished loading (sawLoading guards against firing before
-  // the load for a newly-opened profile has even started).
   const deepLinkDone = useRef(false);
   const sawLoading = useRef(false);
   useEffect(() => { deepLinkDone.current = false; sawLoading.current = false; }, [key]);
@@ -833,7 +796,6 @@ const Profile = ({ sideNavbar }) => {
     }
   }, [loading, user, key]);
 
-  // ── Swipe-to-switch-tabs (mobile) ──
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
 
@@ -851,14 +813,13 @@ const Profile = ({ sideNavbar }) => {
     touchStartX.current = null;
     touchStartY.current = null;
 
-    // Ignore short or mostly-vertical swipes (scrolling)
     if (Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return;
 
     const currentIndex = PROFILE_TABS.indexOf(activeTab);
     if (deltaX < 0 && currentIndex < PROFILE_TABS.length - 1) {
-      setActiveTab(PROFILE_TABS[currentIndex + 1]); // swipe left → next tab
+      setActiveTab(PROFILE_TABS[currentIndex + 1]);
     } else if (deltaX > 0 && currentIndex > 0) {
-      setActiveTab(PROFILE_TABS[currentIndex - 1]); // swipe right → previous tab
+      setActiveTab(PROFILE_TABS[currentIndex - 1]);
     }
   };
 
@@ -871,8 +832,14 @@ const Profile = ({ sideNavbar }) => {
       const lsEmail      = localStorage.getItem("email");
       const lsUserId     = localStorage.getItem("userId");
 
+      // NEW: the profile owner's EXACT stored username. Connections are written
+      // by the other pages with the exact username (not the lowercased URL
+      // key), so every `connections` read here must use this value.
+      let canonicalUsername = key;
+
       // ── PATH 1: Owner via localStorage ──
       if (lsUsername && matchesKey(lsUsername, key)) {
+        canonicalUsername = lsUsername;
         const { data: ownerProfile } = await supabase
           .from("profiles")
           .select("id, banner_pic, profile_pic, about, channel_name")
@@ -898,6 +865,7 @@ const Profile = ({ sideNavbar }) => {
         const authUsername = authUser?.user_metadata?.username || authUser?.user_metadata?.channelName;
 
         if (authUsername && matchesKey(authUsername, key)) {
+          canonicalUsername = authUsername;
           const { data: ownerProfile } = await supabase
             .from("profiles")
             .select("id, banner_pic, profile_pic, about, channel_name")
@@ -921,9 +889,6 @@ const Profile = ({ sideNavbar }) => {
         } else {
           let foundUser = null;
 
-          // CHANGED: case-insensitive lookup (.ilike) instead of .eq(),
-          // so a profile stored as "Ashutosh Pawar" is found from the
-          // lowercased URL key "ashutosh pawar".
           const { data: profileRow } = await supabase
             .from("profiles")
             .select("id, username, channel_name, banner_pic, profile_pic, about")
@@ -959,54 +924,51 @@ const Profile = ({ sideNavbar }) => {
             }
           }
 
+          if (foundUser?.username) canonicalUsername = foundUser.username;
           setUser(foundUser || null);
         }
       }
 
       // ── Fetch videos ──
-      // CHANGED: descending (newest first) so the latest upload is at the
-      // top of the Videos tab. created_at is carried on each item and the
-      // list is sorted again client-side via sortByUploadSequence as a
-      // safeguard.
+      // CHANGED: counts are fetched PER ITEM (only this profile's videos) with
+      // head:true count queries, in the background so they never block the page.
       const { data: vData } = await supabase.from("videos").select("*").order("created_at", { ascending: false });
       if (vData) {
+        const mine = vData.filter((v) => matchesKey(v.username, key) || matchesKey(v.channel, key));
         setDbVideos(
           sortByUploadSequence(
-            vData
-              .filter((v) => matchesKey(v.username, key) || matchesKey(v.channel, key))
-              .map((v) => ({
-                id: v.id,
-                src: v.video_url,
-                thumbnail: v.thumbnail_url,
-                title: v.title,
-                duration: v.duration || "00:00",
-                channel: v.channel,
-                // NEW: upload time, used for the newest-first ordering.
-                created_at: v.created_at || null,
-                // NEW: attached song + creator's audio mix, used by the
-                // hover preview on the Videos tab.
-                song: v.song || null,
-                original_audio_volume: v.original_audio_volume ?? 1,
-              })),
+            mine.map((v) => ({
+              id: v.id,
+              src: v.video_url,
+              thumbnail: v.thumbnail_url,
+              title: v.title,
+              duration: v.duration || "00:00",
+              channel: v.channel,
+              created_at: v.created_at || null,
+              song: v.song || null,
+              original_audio_volume: v.original_audio_volume ?? 1,
+            })),
           ),
         );
-        const ids = vData.map((v) => String(v.id));
-        const [{ data: vLikes }, { data: vViews }] = await Promise.all([
-          supabase.from("likes").select("content_id").eq("content_type", "video").in("content_id", ids),
-          supabase.from("views").select("content_id").eq("content_type", "video").in("content_id", ids),
-        ]);
-        const counts = {};
-        ids.forEach((id) => { counts[id] = { likes: vLikes?.filter((l) => l.content_id === id).length || 0, views: vViews?.filter((v) => v.content_id === id).length || 0 }; });
-        setVideoCounts(counts);
+        Promise.all(
+          mine.map(async (v) => {
+            const id = String(v.id);
+            const [likes, views] = await Promise.all([
+              countRows("likes", "video", id),
+              countRows("views", "video", id),
+            ]);
+            return [id, { likes, views }];
+          }),
+        ).then((entries) => setVideoCounts(Object.fromEntries(entries)));
       }
 
       // ── Fetch reels ──
-      // CHANGED: descending (newest first).
       const { data: rData } = await supabase.from("reels").select("*").order("created_at", { ascending: false });
       if (rData) {
+        const mineReels = rData.filter((r) => matchesKey(r.username, key));
         setDbReels(
           sortByUploadSequence(
-            rData.filter((r) => matchesKey(r.username, key)).map((r) => ({
+            mineReels.map((r) => ({
               id:          `db_${r.id}`,
               dbId:        r.id,
               short_id:    r.short_id,
@@ -1019,9 +981,6 @@ const Profile = ({ sideNavbar }) => {
               user:        r.user || r.username,
               profilePic:  `https://api.dicebear.com/7.x/initials/svg?seed=${r.username || "user"}`,
               likes:       0,
-              // NEW: these ride along in the `clickedReel` handoff to
-              // /reels, so a reel opened from the profile keeps its song,
-              // location and feeling instead of losing them.
               created_at:            r.created_at || null,
               remixed_from_id:       r.remixed_from_id || null,
               remixed_from_username: r.remixed_from_username || null,
@@ -1033,26 +992,19 @@ const Profile = ({ sideNavbar }) => {
           ),
         );
 
-        const ids = rData.map((r) => `db_${r.id}`);
-        const [{ data: rLikes }, { data: rViews }] = await Promise.all([
-          supabase.from("likes").select("content_id").eq("content_type", "reel").in("content_id", ids),
-          supabase.from("views").select("content_id").eq("content_type", "reel").in("content_id", ids),
-        ]);
-        const counts = {};
-        ids.forEach((id) => {
-          counts[id] = {
-            likes: rLikes?.filter((l) => l.content_id === id).length || 0,
-            views: rViews?.filter((v) => v.content_id === id).length || 0,
-          };
-        });
-        setReelCounts(counts);
+        Promise.all(
+          mineReels.map(async (r) => {
+            const id = `db_${r.id}`;
+            const [likes, views] = await Promise.all([
+              countRows("likes", "reel", id, { reaction_type: "like" }), // likes only, no dislikes
+              countRows("views", "reel", id),
+            ]);
+            return [id, { likes, views }];
+          }),
+        ).then((entries) => setReelCounts(Object.fromEntries(entries)));
       }
 
       // ── Fetch posts ──
-      // `select *` already returns posts.song (jsonb) once that column exists.
-      // CHANGED: .ilike() instead of .eq() so posts are found regardless of
-      // the casing the username was stored with.
-      // CHANGED: descending (newest first).
       const { data: postsData } = await supabase
         .from("posts")
         .select(`*, post_reactions ( type, username ), post_comments ( id, text, username, created_at )`)
@@ -1070,63 +1022,55 @@ const Profile = ({ sideNavbar }) => {
             })),
           ),
         );
+
+        // NEW: post view counts (views rows with content_type "post",
+        // content_id = String(post.id) — same as PostFeed.jsx writes them).
+        Promise.all(
+          postsData.map(async (p) => [String(p.id), await countRows("views", "post", p.id)]),
+        ).then((entries) => setPostViews(Object.fromEntries(entries)));
       }
 
       // ── Connection count / connected state ──
-      // RENAMED from the old "Subscriber count" block. Reads the shared
-      // `connections` table instead of `subscriptions`, and — since
-      // `connections` always stores a real userId in `connector_id` (no
-      // legacy username-as-id rows like `subscriptions` had) — only needs
-      // a single lookup instead of the old id-then-username double-check.
-      const { count: connCount } = await supabase.from("connections").select("*", { count: "exact", head: true }).eq("connected_to", key);
+      // CHANGED: only ACCEPTED rows count; the visitor's own row can be
+      // pending/accepted; all queries use the exact stored username.
+      const { count: connCount } = await supabase
+        .from("connections")
+        .select("*", { count: "exact", head: true })
+        .eq("connected_to", canonicalUsername)
+        .eq("status", "accepted");
       const currentUser   = localStorage.getItem("username") || "";
       const currentUserId = localStorage.getItem("userId") || "";
-      let alreadyConnected = false;
+      let status = null;
       if (currentUserId && currentUser && currentUser.toLowerCase() !== key) {
         const { data: connCheck, error: connCheckError } = await supabase
           .from("connections")
-          .select("id")
-          .match({ connector_id: currentUserId, connected_to: key })
+          .select("id, status")
+          .match({ connector_id: currentUserId, connected_to: canonicalUsername })
           .maybeSingle();
         if (connCheckError) console.error("connection check error:", connCheckError);
-        alreadyConnected = !!connCheck;
+        status = connCheck?.status || null;
       }
       setConnectionCount(connCount || 0);
-      setConnected(alreadyConnected);
+      setConnectionStatus(status);
       setLoading(false);
     };
 
     loadProfile();
   }, [key]);
 
-  // CHANGED: hardcoded sample videos are now explicitly flagged with
-  // `isSample: true`. The Videos tab uses that flag (instead of guessing
-  // from `typeof video.id === "number"`) to decide whether to show the ⋮
-  // Edit / Delete menu — real database videos have string ids (UUIDs), so
-  // the old numeric check hid the menu for exactly the videos that should
-  // have it.
   const hardcodedVideos = allVideos
     .filter((v) => v.channel?.toLowerCase() === key)
     .map((v) => ({ ...v, isSample: true }));
-  // CHANGED: newest first — real uploads newest → oldest; samples (no
-  // upload time) are kept at the end by sortByUploadSequence.
   const allUserVideos   = sortByUploadSequence([...dbVideos, ...hardcodedVideos]);
   const allUserReels    = sortByUploadSequence(dbReels);
 
-  // NEW: the ordered list handed to the player pages, so playback can move
-  // through the profile in the same order the grid shows (newest first).
-  // Reels.jsx can read `location.state.profileQueue` / `queueIndex`;
-  // Video.jsx can read `location.state.profileQueue` / `queueIndex` too.
   const reelQueue  = allUserReels.map((r) => ({ ...r }));
   const videoQueue = allUserVideos.filter((v) => !v.isSample).map((v) => ({ id: v.id, title: v.title, thumbnail: v.thumbnail, src: v.src, channel: v.channel }));
 
-  // RENAMED from handleSubscribe — now writes to the shared `connections`
-  // table with the same shape (`connector_id` / `connector_username` /
-  // `connected_to`) and the same optimistic-flip-with-rollback +
-  // connectLoading-guard + notifyUser() pattern used by
-  // PostCard.jsx / Video.jsx / Reels.jsx's handleConnect. Also swaps the
-  // old alert() login gate for the shared "openLogin" event, matching
-  // those same three files.
+  // CHANGED: pending-request flow, same as PostCard.jsx / Video.jsx / Reels.jsx.
+  // A fresh click inserts status "pending"; clicking again while pending or
+  // accepted withdraws / disconnects. Uses user.username (exact stored value).
+  // No notifyUser() — the notify_on_subscribe DB trigger owns that.
   const handleConnect = async () => {
     const currentUser   = localStorage.getItem("username") || "";
     const currentUserId = localStorage.getItem("userId") || "";
@@ -1135,41 +1079,36 @@ const Profile = ({ sideNavbar }) => {
       return;
     }
     if (currentUser.toLowerCase() === key) return; // self-connect guard
-    if (connectLoading) return;
+    if (connectLoading || !user) return;
 
-    const wasConnected = connected;
+    const target = user.username;
+    const wasStatus = connectionStatus; // null | "pending" | "accepted"
     setConnectLoading(true);
-    setConnected(!wasConnected); // optimistic flip
 
     try {
-      if (wasConnected) {
+      if (wasStatus) {
+        setConnectionStatus(null);
         const { error } = await supabase
           .from("connections")
           .delete()
-          .match({ connector_id: currentUserId, connected_to: key });
+          .match({ connector_id: currentUserId, connected_to: target });
         if (error) {
           console.error("handleConnect delete error:", error);
-          setConnected(true); // rollback
-        } else {
+          setConnectionStatus(wasStatus); // rollback
+        } else if (wasStatus === "accepted") {
           setConnectionCount((n) => Math.max(0, n - 1));
         }
       } else {
+        setConnectionStatus("pending");
         const { error } = await supabase.from("connections").insert({
           connector_id: currentUserId,
           connector_username: currentUser,
-          connected_to: key,
+          connected_to: target,
+          status: "pending",
         });
         if (error) {
           console.error("handleConnect insert error:", error);
-          setConnected(false); // rollback
-        } else {
-          setConnectionCount((n) => n + 1);
-          notifyUser({
-            recipientUsername: key,
-            senderUsername: currentUser,
-            type: "connection",
-            message: `${currentUser} connected with you`,
-          });
+          setConnectionStatus(null); // rollback
         }
       }
     } finally {
@@ -1177,18 +1116,13 @@ const Profile = ({ sideNavbar }) => {
     }
   };
 
-  // NEW: opens a DM with this profile's owner. Same login/self-action
-  // guard shape as handleConnect above. MessagesPanel itself takes care
-  // of creating the conversation (as a pending "message request" if the
-  // two users have never messaged before) once it mounts with
-  // initialUsername set — no extra state needed here beyond the target.
   const handleMessage = () => {
     const currentUser = localStorage.getItem("username") || "";
     if (!currentUser) {
       window.dispatchEvent(new CustomEvent("openLogin"));
       return;
     }
-    if (currentUser.toLowerCase() === key) return; // can't message yourself
+    if (currentUser.toLowerCase() === key) return;
     setMessageTarget(user.username);
   };
 
@@ -1222,14 +1156,11 @@ const Profile = ({ sideNavbar }) => {
     setDeleteTarget(null);
   };
 
-  // CHANGED: .ilike() so deleting works even if the username is stored
-  // with capital letters (the lowercased `key` would never match .eq()).
   const handleDeletePost = async (postId) => {
     await supabase.from("posts").delete().eq("id", postId).ilike("username", escapeLike(key));
     setUserPosts((prev) => prev.filter((p) => p.id !== postId));
   };
 
-  // ── Post reaction / comment state updates (from ProfilePostCard) ──
   const handleReactionChange = (postId, updates) => {
     setUserPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, ...updates } : p)));
   };
@@ -1240,7 +1171,29 @@ const Profile = ({ sideNavbar }) => {
     );
   };
 
-  // ── Edit Post handlers ──
+  // NEW: records a post view from the profile page — mirrors incrementView in
+  // PostFeed.jsx (24h per-browser guard, upsert on user_id,content_id,content_type).
+  // The logged-in check comes BEFORE the 24h guard, so a logged-out visit
+  // doesn't block a counted view after logging in.
+  const handlePostView = async (postId) => {
+    const storageKey = `lastViewed_post_${postId}`;
+    const last = localStorage.getItem(storageKey);
+    if (last && Date.now() - parseInt(last, 10) < 24 * 60 * 60 * 1000) return;
+
+    const userId = localStorage.getItem("userId");
+    if (!userId) return;
+    localStorage.setItem(storageKey, String(Date.now()));
+
+    const k = String(postId);
+    setPostViews((prev) => ({ ...prev, [k]: (prev[k] ?? 0) + 1 }));
+    try {
+      await supabase.from("views").upsert(
+        { user_id: userId, content_id: k, content_type: "post", viewed_at: new Date().toISOString() },
+        { onConflict: "user_id,content_id,content_type" },
+      );
+    } catch (_) {}
+  };
+
   const openEditPost = (post) => {
     setEditPostTarget(post);
     setEditPostText(post.text || "");
@@ -1261,8 +1214,6 @@ const Profile = ({ sideNavbar }) => {
     if (!editPostTarget) return;
     const newText = editPostText.trim();
 
-    // ── UPDATED: also treat an attached video as "has media" so clearing text on a
-    // video-only post doesn't incorrectly report the post as empty ──
     const hasImages = editPostTarget.image_urls?.length > 0 || editPostTarget.image_url || editPostTarget.video_url;
     if (!newText && !hasImages && !editPostTarget.link) {
       setEditPostError("Post can't be empty.");
@@ -1272,7 +1223,6 @@ const Profile = ({ sideNavbar }) => {
     setEditPostSaving(true);
     setEditPostError("");
     try {
-      // CHANGED: .ilike() instead of .eq() (see handleDeletePost).
       const { error } = await supabase
         .from("posts")
         .update({
@@ -1300,7 +1250,6 @@ const Profile = ({ sideNavbar }) => {
     }
   };
 
-  // ── Edit Video/Reel content handlers ──
   const openEditContent = (type, item) => {
     setEditContentTarget({ type, id: item.id, dbId: item.dbId || null });
     setEditContentTitle(item.title || "");
@@ -1349,7 +1298,6 @@ const Profile = ({ sideNavbar }) => {
     }
   };
 
-  // ── Edit content thumbnail upload — now goes to R2 instead of Cloudinary ──
   const handleEditContentThumbnailUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1393,11 +1341,15 @@ const Profile = ({ sideNavbar }) => {
     fontFamily:"Nunito, sans-serif",
   });
 
-  // NEW: style for the Share buttons on video / reel cards.
   const shareBtnStyle = {
     background:"none", border:"none", color:"var(--zx-text3)", fontSize:"12px",
     cursor:"pointer", display:"flex", alignItems:"center", gap:"3px", padding:0, marginLeft:"auto",
   };
+
+  const connectLabel =
+    connectionStatus === "accepted" ? "✓ Connected"
+    : connectionStatus === "pending" ? "Requested"
+    : "Connect";
 
   return (
     <div className="profile">
@@ -1422,7 +1374,6 @@ const Profile = ({ sideNavbar }) => {
               🖼️ {user.bannerPic ? "Change Banner" : "Add Banner"}
             </div>
           )}
-          {/* ── Banner upload — now goes to R2 instead of Cloudinary ── */}
           <input type="file" id="bannerInput" accept="image/*" style={{ display:"none" }}
             onChange={async (e) => {
               const file = e.target.files[0]; if (!file) return;
@@ -1471,19 +1422,18 @@ const Profile = ({ sideNavbar }) => {
                 </>
               ) : (
                 <>
-                  {/* NEW: Message button — opens a DM with this profile's owner via MessagesPanel */}
                   <button onClick={handleMessage}
                     style={{ background:"#f0f4ff", color:"#1e1b4b", border:"2px solid #e0d4ff", borderRadius:"20px", padding:"8px 24px", fontSize:"14px", fontWeight:"600", cursor:"pointer", display:"flex", alignItems:"center", gap:"6px" }}>
                     💬 Message
                   </button>
                   <button onClick={handleConnect} disabled={connectLoading}
-                    style={{ background: connected ? "#f0f4ff" : "var(--zx-primary)", color: connected ? "#1e1b4b" : "white", border: connected ? "2px solid #e0d4ff" : "none", borderRadius:"20px", padding:"8px 24px", fontSize:"14px", fontWeight:"600", cursor: connectLoading ? "not-allowed" : "pointer", transition:"all 0.2s", opacity: connectLoading ? 0.7 : 1, display:"flex", alignItems:"center", gap:"6px" }}>
+                    style={{ background: connectionStatus ? "#f0f4ff" : "var(--zx-primary)", color: connectionStatus ? "#1e1b4b" : "white", border: connectionStatus ? "2px solid #e0d4ff" : "none", borderRadius:"20px", padding:"8px 24px", fontSize:"14px", fontWeight:"600", cursor: connectLoading ? "not-allowed" : "pointer", transition:"all 0.2s", opacity: connectLoading ? 0.7 : 1, display:"flex", alignItems:"center", gap:"6px" }}>
                     {connectLoading ? (
                       <span style={{ display:"flex", alignItems:"center", gap:"6px" }}>
                         <span style={{ width:"14px", height:"14px", border:"2px solid rgba(255,255,255,0.4)", borderTop:"2px solid white", borderRadius:"50%", animation:"spin 0.7s linear infinite", display:"inline-block" }} />
-                        {connected ? "Disconnecting..." : "Connecting..."}
+                        {connectionStatus ? "Disconnecting..." : "Connecting..."}
                       </span>
-                    ) : connected ? "✓ Connected" : "Connect"}
+                    ) : connectLabel}
                   </button>
                 </>
               )}
@@ -1498,7 +1448,6 @@ const Profile = ({ sideNavbar }) => {
           <button style={tabStyle("posts")}  onClick={() => setActiveTab("posts")}>📝 Posts ({userPosts.length})</button>
         </div>
 
-        {/* ── Swipeable tab content (mobile: swipe left/right to switch tabs) ── */}
         <div onTouchStart={handleTabTouchStart} onTouchEnd={handleTabTouchEnd}>
 
         {/* ── Videos Tab ── */}
@@ -1506,28 +1455,16 @@ const Profile = ({ sideNavbar }) => {
           allUserVideos.length === 0
             ? <div style={{ color:"var(--zx-text3)", textAlign:"center", marginTop:"40px" }}>No videos uploaded yet.</div>
             : <div className="profileVideos">
-                {allUserVideos.map((video, videoIndex) => {
-                  // CHANGED: any real (database) video on the owner's own
-                  // profile is editable/deletable. The old check required
-                  // `typeof video.id === "number"`, which hid the ⋮ menu
-                  // for videos whose id is a string (UUID). Hardcoded
-                  // sample videos are flagged `isSample` and stay
-                  // read-only.
+                {allUserVideos.map((video) => {
                   const isEditableVideo = user.isOwner && !video.isSample;
-                  // NEW: position of this video inside the playable (non-sample) queue.
                   const queueIndex = videoQueue.findIndex((q) => q.id === video.id);
                   return (
                     <div key={video.id} style={{ position:"relative", minWidth:0 }}>
                       <Link
                         to={`/video/${video.id}`}
-                        // NEW: hand the ordered list (newest first) to the Video
-                        // page so it can continue to the next video in the same
-                        // sequence the grid shows.
                         state={{ profileQueue: videoQueue, queueIndex, fromProfile: key }}
                         className="profileVideo_block"
                       >
-                        {/* NEW: hover-preview thumbnail (hardcoded sample videos have no
-                            `src`, so they simply show the static thumbnail) */}
                         <PreviewThumb
                           id={`video-${video.id}`}
                           src={video.src}
@@ -1537,6 +1474,10 @@ const Profile = ({ sideNavbar }) => {
                         >
                           <img className="profileVideo_block_thumbnail_img" src={video.thumbnail} alt={video.title} />
                           <span style={{ position:"absolute", bottom:"6px", right:"6px", background:"rgba(0,0,0,0.75)", color:"white", fontSize:"11px", padding:"2px 5px", borderRadius:"4px", zIndex:2 }}>{video.duration}</span>
+                          {/* NEW: view badge on the thumbnail itself */}
+                          <span style={{ position:"absolute", bottom:"6px", left:"6px", background:"rgba(0,0,0,0.75)", color:"white", fontSize:"11px", padding:"2px 6px", borderRadius:"4px", zIndex:2 }}>
+                            👁 {videoCounts[String(video.id)]?.views ?? 0}
+                          </span>
                         </PreviewThumb>
                         <div className="profileVideo_block_detail">
                           <div className="profileVideo_block_detai_name">{video.title}</div>
@@ -1544,8 +1485,6 @@ const Profile = ({ sideNavbar }) => {
                           <div style={{ color:"var(--zx-text3)", fontSize:"12px", marginTop:"4px", display:"flex", gap:"10px", alignItems:"center" }}>
                             <span>👁 {videoCounts[String(video.id)]?.views ?? 0}</span>
                             <span>👍 {videoCounts[String(video.id)]?.likes ?? 0}</span>
-                            {/* NEW: Share video — preventDefault/stopPropagation so the
-                                click doesn't also open the video page */}
                             <button
                               style={shareBtnStyle}
                               aria-label="Share video"
@@ -1583,13 +1522,8 @@ const Profile = ({ sideNavbar }) => {
                 {allUserReels.map((reel, reelIndex) => {
                   const isEditableReel = user.isOwner && reel.id.startsWith("db_");
                   return (
-                    // NEW: id lets a shared link (?tab=reels&reel=<id>) scroll straight to this card
                     <div key={reel.id} id={`reel-card-${reel.dbId}`} style={{ position:"relative", minWidth:0 }}>
                       <div className="profileVideo_block" style={{ cursor:"pointer" }}
-                        // CHANGED: besides the clicked reel, also hand over the whole
-                        // ordered reel list (`profileQueue`, newest first) and the
-                        // clicked reel's position (`queueIndex`) so /reels can play
-                        // the profile's reels in the same sequence the grid shows.
                         onClick={() => navigate("/reels", { state: {
                           clickedReel: { ...reel, user: reel.user || user.name, username: reel.username || key, profilePic: reel.profilePic || user.profilePic, likes: reel.likes || 0 },
                           profileQueue: reelQueue.map((r) => ({ ...r, user: r.user || user.name, username: r.username || key, profilePic: r.profilePic || user.profilePic, likes: r.likes || 0 })),
@@ -1597,8 +1531,6 @@ const Profile = ({ sideNavbar }) => {
                           fromProfile: key,
                         } })}>
 
-                        {/* NEW: hover-preview thumbnail. Its mute button stops
-                            propagation so it never triggers the card's navigate. */}
                         <PreviewThumb
                           id={`reel-${reel.id}`}
                           src={reel.src}
@@ -1626,6 +1558,10 @@ const Profile = ({ sideNavbar }) => {
                           />
                           <span style={{ position:"absolute", top:"6px", left:"6px", background:"rgba(0,0,0,0.7)", color:"white", fontSize:"10px", padding:"2px 6px", borderRadius:"4px", fontWeight:"600", zIndex:2 }}>🎬 Reel</span>
                           <span style={{ position:"absolute", bottom:"6px", right:"6px", background:"rgba(0,0,0,0.7)", color:"white", fontSize:"11px", padding:"2px 5px", borderRadius:"4px", zIndex:2 }}>{reel.duration}</span>
+                          {/* NEW: view badge on the thumbnail itself */}
+                          <span style={{ position:"absolute", bottom:"6px", left:"6px", background:"rgba(0,0,0,0.7)", color:"white", fontSize:"11px", padding:"2px 6px", borderRadius:"4px", zIndex:2 }}>
+                            👁 {reelCounts[`db_${reel.dbId}`]?.views ?? 0}
+                          </span>
                         </PreviewThumb>
 
                         <div className="profileVideo_block_detail">
@@ -1634,8 +1570,6 @@ const Profile = ({ sideNavbar }) => {
                           <div style={{ color:"var(--zx-text3)", fontSize:"12px", marginTop:"4px", display:"flex", gap:"10px", alignItems:"center" }}>
                             <span>👁 {reelCounts[`db_${reel.dbId}`]?.views ?? 0}</span>
                             <span>👍 {reelCounts[`db_${reel.dbId}`]?.likes ?? 0}</span>
-                            {/* NEW: Share reel — stopPropagation so the click doesn't
-                                also open the reel viewer */}
                             <button
                               style={shareBtnStyle}
                               aria-label="Share reel"
@@ -1683,6 +1617,8 @@ const Profile = ({ sideNavbar }) => {
                   onReactionChange={handleReactionChange}
                   onAddComment={handleAddComment}
                   onShare={handleShare}
+                  viewCount={postViews[String(post.id)] ?? 0}
+                  onView={handlePostView}
                 />
               ))
             )}
@@ -1690,13 +1626,13 @@ const Profile = ({ sideNavbar }) => {
         )}
 
         </div>
-        {/* ── end swipeable tab content ── */}
+
       </div>
 
       {/* ── Connections Modal ── */}
-      {showConnectionsModal && <ConnectionsModal channelUsername={key} onClose={() => setShowConnectionsModal(false)} />}
+      {showConnectionsModal && <ConnectionsModal channelUsername={user.username} onClose={() => setShowConnectionsModal(false)} />}
 
-      {/* ── Messages Panel — opened via the "💬 Message" button above ── */}
+      {/* ── Messages Panel ── */}
       {messageTarget && (
         <MessagesPanel
           initialUsername={messageTarget}
@@ -1720,7 +1656,6 @@ const Profile = ({ sideNavbar }) => {
             </div>
             <div>
               <p style={{ color:"var(--zx-text3)", fontSize:"13px", margin:"0 0 6px" }}>Or upload a new photo:</p>
-              {/* ── Profile photo upload — now goes to R2 instead of Cloudinary ── */}
               <input type="file" accept="image/*"
                 onChange={async (e) => {
                   const file = e.target.files[0]; if (!file) return;
@@ -1835,7 +1770,6 @@ const Profile = ({ sideNavbar }) => {
               <p style={{ color:"var(--zx-text3)", fontSize:"11px", margin:"-10px 0 0" }}>Images can't be changed here — delete and repost to swap them.</p>
             )}
 
-            {/* ── NEW: video preview + note in edit modal ── */}
             {editPostTarget.video_url && (
               <>
                 <video
@@ -1934,7 +1868,7 @@ const Profile = ({ sideNavbar }) => {
         </div>
       )}
 
-      {/* ── NEW: "Link copied" toast for Share (desktop) ── */}
+      {/* ── "Link copied" toast for Share (desktop) ── */}
       {shareNotice && (
         <div style={{ position:"fixed", bottom:"24px", left:"50%", transform:"translateX(-50%)", background:"#1e1b4b", color:"#fff", padding:"10px 20px", borderRadius:"999px", fontSize:"13px", fontWeight:700, zIndex:999999, boxShadow:"0 4px 20px rgba(0,0,0,0.25)" }}>
           {shareNotice}

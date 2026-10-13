@@ -3040,6 +3040,80 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     );
   };
 
+  // ── NEW: group / broadcast rows, rendered through the same list as 1:1
+  // chats so everything can be sorted together by last activity. ──
+  const renderGroupItem = (g) => (
+    <div
+      key={`g-${g.id}`}
+      className={`mp-convo-item ${activeGroup?.id === g.id ? "active" : ""}`}
+      onClick={() => openGroup(g)}
+    >
+      <div className="mp-convo-avatar">{g.name.slice(0, 2).toUpperCase()}</div>
+      <div className="mp-convo-meta">
+        <div className="mp-convo-name">{g.name} 👥</div>
+        <div className="mp-convo-last">
+          {g.lastMessage
+            ? `${g.lastMessage.sender_username}: ${g.lastMessage.text || "📎 Attachment"}`
+            : "No messages yet"}
+        </div>
+      </div>
+      <div className="mp-convo-right">
+        <div className="mp-convo-time">
+          {timeAgo(g.lastMessage?.created_at)}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderBroadcastItem = (b) => (
+    <div
+      key={`b-${b.id}`}
+      className={`mp-convo-item ${activeBroadcast?.id === b.id ? "active" : ""}`}
+      onClick={() => openBroadcast(b)}
+    >
+      <div
+        className="mp-convo-avatar"
+        style={{ background: "linear-gradient(135deg, #f97316, #eab308)" }}
+      >
+        📢
+      </div>
+      <div className="mp-convo-meta">
+        <div className="mp-convo-name">{b.name}</div>
+        <div className="mp-convo-last">
+          {(b.broadcast_recipients || []).length} recipients
+        </div>
+      </div>
+    </div>
+  );
+
+  // One combined chat list, newest activity first. Groups and broadcast
+  // lists are still hidden while searching, as before. If your tables use
+  // different column names for "last activity", change the `time:` fields.
+  const chatListItems = [
+    ...regularConversations.map((c) => ({
+      kind: "dm",
+      key: `dm-${c.id}`,
+      time: c.last_message_at,
+      data: c,
+    })),
+    ...(!normalizedSearch
+      ? groups.map((g) => ({
+          kind: "group",
+          key: `g-${g.id}`,
+          time: g.lastMessage?.created_at || g.created_at,
+          data: g,
+        }))
+      : []),
+    ...(!normalizedSearch
+      ? broadcastLists.map((b) => ({
+          kind: "broadcast",
+          key: `b-${b.id}`,
+          time: b.last_sent_at || b.created_at,
+          data: b,
+        }))
+      : []),
+  ].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
+
   // ── Minimized mini-bar (mobile only) ──
   // Rendered instead of the full panel tree while `minimized` is true.
   // Deliberately placed AFTER every hook/effect above so all realtime
@@ -3267,50 +3341,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                           <div className="mp-inbox-section-label">Chats</div>
                         )}
 
-                      {regularConversations.map((conv) => renderConvoItem(conv, false))}
-
-                      {!normalizedSearch &&
-                        groups.map((g) => (
-                          <div
-                            key={g.id}
-                            className={`mp-convo-item ${activeGroup?.id === g.id ? "active" : ""}`}
-                            onClick={() => openGroup(g)}
-                          >
-                            <div className="mp-convo-avatar">
-                              {g.name.slice(0, 2).toUpperCase()}
-                            </div>
-                            <div className="mp-convo-meta">
-                              <div className="mp-convo-name">{g.name} 👥</div>
-                              <div className="mp-convo-last">
-                                {g.lastMessage
-                                  ? `${g.lastMessage.sender_username}: ${g.lastMessage.text || "📎 Attachment"}`
-                                  : "No messages yet"}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-
-                      {!normalizedSearch &&
-                        broadcastLists.map((b) => (
-                          <div
-                            key={b.id}
-                            className={`mp-convo-item ${activeBroadcast?.id === b.id ? "active" : ""}`}
-                            onClick={() => openBroadcast(b)}
-                          >
-                            <div
-                              className="mp-convo-avatar"
-                              style={{ background: "linear-gradient(135deg, #f97316, #eab308)" }}
-                            >
-                              📢
-                            </div>
-                            <div className="mp-convo-meta">
-                              <div className="mp-convo-name">{b.name}</div>
-                              <div className="mp-convo-last">
-                                {(b.broadcast_recipients || []).length} recipients
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                      {chatListItems.map((item) =>
+                        item.kind === "dm"
+                          ? renderConvoItem(item.data, false)
+                          : item.kind === "group"
+                            ? renderGroupItem(item.data)
+                            : renderBroadcastItem(item.data),
+                      )}
                     </>
                   )}
 

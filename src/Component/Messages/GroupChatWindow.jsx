@@ -175,7 +175,7 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
 
-  // ── Per-message "⋮" action menu (Reply / Forward / Edit / Report / Delete) ──
+  // ── Per-message "⋮" action menu (Reply / Forward / Edit / Hide / Report / Delete) ──
   const [openMenuFor, setOpenMenuFor] = useState(null);
 
   // ── NEW: multi-select delete ──
@@ -192,6 +192,29 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
     setSelectMode(false);
     setSelectedIds(new Set());
   }, [group.id]);
+
+  // ── NEW: "Hide for me" ──────────────────────────────────────────────
+  // Hides a group message (mine or someone else's) ONLY for the current
+  // user. Stored in the `hidden_messages` table with scope "group".
+  // Everyone else still sees the message — unlike Delete, which removes
+  // it for the whole group.
+  const [hiddenIds, setHiddenIds] = useState(() => new Set());
+
+  useEffect(() => {
+    let active = true;
+    supabase
+      .from("hidden_messages")
+      .select("message_id")
+      .eq("username", currentUser)
+      .eq("scope", "group")
+      .then(({ data, error }) => {
+        if (!active || error) return;
+        setHiddenIds(new Set((data || []).map((r) => String(r.message_id))));
+      });
+    return () => {
+      active = false;
+    };
+  }, [currentUser]);
 
   // ── Reporting ──
   const [reportTarget, setReportTarget] = useState(null);
@@ -915,6 +938,13 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
 
   const jumpToMessage = (targetId) => {
     if (!targetId) return;
+
+    // NEW: the original was hidden by me ("Hide for me").
+    if (hiddenIds.has(String(targetId))) {
+      showJumpNotice("Original message is hidden");
+      return;
+    }
+
     const el = bodyRef.current?.querySelector(`[data-msg-id="${targetId}"]`);
     if (!el) {
       showJumpNotice("Original message is no longer available");
@@ -1094,6 +1124,32 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
       .eq("id", message.id);
   };
 
+  // ── NEW: hide a message for me only ──
+  const hideMessage = async (m) => {
+    const id = String(m.id);
+    if (id.startsWith("temp-")) return;
+
+    // Optimistic: the message disappears immediately.
+    setHiddenIds((prev) => new Set(prev).add(id));
+    setOpenMenuFor(null);
+    if (editingId === m.id) cancelEdit();
+    if (replyTarget?.id === m.id) setReplyTarget(null);
+
+    const { error } = await supabase
+      .from("hidden_messages")
+      .insert({ username: currentUser, message_id: id, scope: "group" });
+
+    // 23505 = unique violation → already hidden, treat as success.
+    if (error && error.code !== "23505") {
+      setHiddenIds((prev) => {
+        const n = new Set(prev);
+        n.delete(id);
+        return n;
+      });
+      alert(`Couldn't hide this message: ${error.message || "please try again."}`);
+    }
+  };
+
   // ── NEW: multi-select delete ──────────────────────────────────────────
   // Only my own, still-existing, fully-sent messages can be selected —
   // delete is "for everyone", and the schema has no per-user hide, so
@@ -1129,8 +1185,12 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   };
 
   // Ticks every selectable message; if they're all ticked already, clears.
+  // (Hidden messages are skipped — they aren't on screen.)
+  const selectableMine = () =>
+    messages.filter((m) => canSelect(m) && !hiddenIds.has(String(m.id)));
+
   const selectAllMine = () => {
-    const all = messages.filter(canSelect).map((m) => m.id);
+    const all = selectableMine().map((m) => m.id);
     setSelectedIds((prev) =>
       prev.size === all.length ? new Set() : new Set(all),
     );
@@ -1228,6 +1288,10 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   const typingLabel = formatTypingLabel(typingUsers);
   const isUploadingAny = pendingAttachments.some((a) => a.status === "uploading");
 
+  // NEW: the list actually rendered — everything except messages this
+  // user has hidden with "Hide for me".
+  const visibleMessages = messages.filter((m) => !hiddenIds.has(String(m.id)));
+
   return (
     <div className={`gcw-window ${selectMode ? "gcw-select-mode" : ""}`}>
       <div className="gcw-header">
@@ -1324,10 +1388,10 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
       <div className="gcw-body" ref={bodyRef}>
         {loading ? (
           <p className="gcw-empty">Loading messages…</p>
-        ) : messages.length === 0 && typingUsers.size === 0 ? (
+        ) : visibleMessages.length === 0 && typingUsers.size === 0 ? (
           <p className="gcw-empty">No messages yet. Say hello!</p>
         ) : (
-          messages.map((m) => {
+          visibleMessages.map((m) => {
             const mine = m.sender_username === currentUser;
             const hasContent = !!(m.text || m.attachment_url || m._uploading);
             // While an attachment is uploading, use the local blob preview
@@ -1411,6 +1475,14 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
                                 ☑ Select
                               </button>
                             )}
+                            {/* NEW: hide this message for me only */}
+                            <button
+                              type="button"
+                              className="gcw-menu-item"
+                              onClick={() => hideMessage(m)}
+                            >
+                              🙈 Hide for me
+                            </button>
                             {!mine && (
                               <button
                                 type="button"
@@ -1595,7 +1667,7 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
             disabled={bulkDeleting}
           >
             {selectedIds.size > 0 &&
-            selectedIds.size === messages.filter(canSelect).length
+            selectedIds.size === selectableMine().length
               ? "Clear"
               : "Select all mine"}
           </button>

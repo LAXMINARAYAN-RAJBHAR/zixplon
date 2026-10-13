@@ -547,7 +547,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
 
-  // ── Per-message "⋮" action menu (Reply / Forward / Edit / Report / Delete) ──
+  // ── Per-message "⋮" action menu (Reply / Forward / Edit / Hide / Report / Delete) ──
   const [openMenuFor, setOpenMenuFor] = useState(null); // message id
 
   // ── NEW: multi-select delete ──
@@ -564,6 +564,60 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     setSelectMode(false);
     setSelectedIds(new Set());
   }, [activeUsername]);
+
+  // ── NEW: "Hide for me" ──────────────────────────────────────────────
+  // Hides a message (mine or someone else's) ONLY for the current user.
+  // Stored in the `hidden_messages` table (username, message_id, scope).
+  // The message itself is untouched for everyone else — unlike "Delete",
+  // which removes it for both sides. hiddenIds holds the string ids of
+  // every 1:1 message this user has hidden; the render filters them out.
+  const [hiddenIds, setHiddenIds] = useState(() => new Set());
+
+  useEffect(() => {
+    if (!currentUser) return;
+    let active = true;
+    supabase
+      .from("hidden_messages")
+      .select("message_id")
+      .eq("username", currentUser)
+      .eq("scope", "dm")
+      .then(({ data, error }) => {
+        if (!active || error) return;
+        setHiddenIds(new Set((data || []).map((r) => String(r.message_id))));
+      });
+    return () => {
+      active = false;
+    };
+  }, [currentUser]);
+
+  const hideMessage = async (m) => {
+    const id = String(m.id);
+    if (id.startsWith("temp-")) return;
+
+    // Optimistic: the message disappears immediately.
+    setHiddenIds((prev) => new Set(prev).add(id));
+    setOpenMenuFor(null);
+    setOpenReactionFor(null);
+    if (editingId === m.id) {
+      setEditingId(null);
+      setEditText("");
+    }
+    if (replyTarget?.id === m.id) setReplyTarget(null);
+
+    const { error } = await supabase
+      .from("hidden_messages")
+      .insert({ username: currentUser, message_id: id, scope: "dm" });
+
+    // 23505 = unique violation → already hidden, treat as success.
+    if (error && error.code !== "23505") {
+      setHiddenIds((prev) => {
+        const n = new Set(prev);
+        n.delete(id);
+        return n;
+      });
+      alert(`Couldn't hide this message: ${error.message || "please try again."}`);
+    }
+  };
 
   // ── Per-conversation "⋮" menu in the inbox list (Block / Delete chat) ──
   const [openConvoMenuFor, setOpenConvoMenuFor] = useState(null); // conversation id
@@ -1738,6 +1792,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const jumpToMessage = async (targetId) => {
     if (!targetId || !activeConvo || jumping) return;
 
+    // NEW: the original was hidden by me ("Hide for me") — don't pull it
+    // back into view by loading older history; just say so.
+    if (hiddenIds.has(String(targetId))) {
+      showJumpNotice("Original message is hidden");
+      return;
+    }
+
     // 1) Already on screen → just scroll.
     if (flashMessage(targetId)) return;
 
@@ -2571,8 +2632,11 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   };
 
   // Ticks every selectable message; if they're all ticked already, clears.
+  // (Hidden messages are skipped — they aren't on screen.)
   const selectAllMine = () => {
-    const all = messages.filter(canSelect).map((m) => m.id);
+    const all = messages
+      .filter((m) => canSelect(m) && !hiddenIds.has(String(m.id)))
+      .map((m) => m.id);
     setSelectedIds((prev) =>
       prev.size === all.length ? new Set() : new Set(all),
     );
@@ -2873,6 +2937,10 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
   const isUploadingAny = pendingAttachments.some((a) => a.status === "uploading");
   const canSend = (text.trim() || pendingAttachments.length > 0) && !sending;
+
+  // NEW: the list actually rendered — everything except messages this
+  // user has hidden with "Hide for me".
+  const visibleMessages = messages.filter((m) => !hiddenIds.has(String(m.id)));
 
   // Shared render for a single conversation row in the inbox list —
   // used for both the "Message Requests" section and the regular list,
@@ -3424,10 +3492,10 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     )}
                     {loadingMessages ? (
                       <p className="mp-empty">Loading messages…</p>
-                    ) : messages.length === 0 && !otherTyping ? (
+                    ) : visibleMessages.length === 0 && !otherTyping ? (
                       <p className="mp-empty">No messages yet. Say hello!</p>
                     ) : (
-                      messages.map((m) => {
+                      visibleMessages.map((m) => {
                         const mine = m.sender_username === currentUser;
 
                         // NEW (voice calling): call history entries render as a
@@ -3556,6 +3624,14 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                             ☑ Select
                                           </button>
                                         )}
+                                        {/* NEW: hide this message for me only */}
+                                        <button
+                                          type="button"
+                                          className="mp-menu-item"
+                                          onClick={() => hideMessage(m)}
+                                        >
+                                          🙈 Hide for me
+                                        </button>
                                         {!mine && (
                                           <button
                                             type="button"
@@ -3893,7 +3969,10 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                         disabled={bulkDeleting}
                       >
                         {selectedIds.size > 0 &&
-                          selectedIds.size === messages.filter(canSelect).length
+                          selectedIds.size ===
+                          messages.filter(
+                            (m) => canSelect(m) && !hiddenIds.has(String(m.id)),
+                          ).length
                           ? "Clear"
                           : "Select all mine"}
                       </button>

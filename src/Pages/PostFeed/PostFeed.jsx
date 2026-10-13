@@ -14,6 +14,8 @@ import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
 import { notifyConnections, notifyUser } from "../../utils/notifications";
 import { extractMentions } from "../../utils/linkify";
 import SuggestedConnections from "../../Component/Messages/SuggestedConnections";
+// NEW (feedback): Interested / Not interested for posts, videos and reels.
+import useContentFeedback, { FeedbackToast } from "../../hooks/useContentFeedback";
 
 // CHANGED: moved out of the component (it's a pure function) so it can be
 // used inside useCallback hooks without a dependency warning.
@@ -74,6 +76,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const [searchExtrasLoading, setSearchExtrasLoading] = useState(false);
 
   const currentUser = currentUserProp || "anonymous";
+
+  // NEW (feedback): one instance serves posts, videos and reels. It's
+  // passed down to PostCard, VideoFeedCard and ReelsStrip.
+  const fb = useContentFeedback();
 
   const [sentinelNode, setSentinelNode] = useState(null);
   const loadingMoreRef = useRef(false);
@@ -1014,6 +1020,14 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     searchReels.length === 0 &&
     searchVideos.length === 0;
 
+  // NEW (feedback): hide anything marked "Not interested". Not applied in
+  // search mode, so people can still find what they search for. Videos are
+  // paired with posts by index, so the video list is filtered separately.
+  const visiblePosts = searchQuery
+    ? posts
+    : posts.filter((p) => !fb.isHidden("post", p.id));
+  const visibleVideos = videos.filter((v) => !fb.isHidden("video", v.id));
+
   if (loading) {
     return (
       <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
@@ -1092,8 +1106,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           ))}
 
         {!searchQuery && <SuggestedConnections variant="feed" />}
-
-        {error && <p className="pf-error">{error}</p>}
 
         {error && <p className="pf-error">{error}</p>}
         {postNotFound && (
@@ -1225,7 +1237,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               🎬 Videos
             </h3>
             {searchVideos.map((v) => (
-              <VideoFeedCard key={v.id} video={v} />
+              <VideoFeedCard key={v.id} video={v} fb={fb} />
             ))}
           </div>
         )}
@@ -1255,7 +1267,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           </div>
         )}
 
-        {posts.map((post, index) => (
+        {visiblePosts.map((post, index) => (
           <React.Fragment key={post.id}>
             <div id={`post-${post.id}`}>
               <PostCard
@@ -1277,16 +1289,17 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
                 onSaveComment={handleSaveComment}
                 viewCount={viewCounts[String(post.id)] ?? 0}
                 onView={incrementView}
+                fb={fb}
               />
             </div>
 
             {/* CHANGED: no interleaved videos/reels while searching */}
-            {!searchQuery && videos[index] && (
-              <VideoFeedCard video={videos[index]} />
+            {!searchQuery && visibleVideos[index] && (
+              <VideoFeedCard video={visibleVideos[index]} fb={fb} />
             )}
 
             {!searchQuery && (
-              <ReelsStrip key={`reels-${index}`} startOffset={index * 10} />
+              <ReelsStrip key={`reels-${index}`} startOffset={index * 10} fb={fb} />
             )}
 
             {!searchQuery && index >= 3 && (index - 3) % 6 === 0 && (
@@ -1311,6 +1324,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           </p>
         )}
       </div>
+
+      {/* NEW (feedback): one toast for the whole feed, so the message and
+          Undo survive the hidden card unmounting. */}
+      <FeedbackToast fb={fb} />
     </>
   );
 };

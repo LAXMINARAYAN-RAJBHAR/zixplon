@@ -92,7 +92,10 @@ const SESSION_RANDOM_BASE = Math.random();
 // visible one) as `autoplay`, and only that card plays a muted looping
 // clip over its thumbnail — so a row of several visible reels never
 // decodes several videos at once. Hovering a card (desktop) hands
-// control to PreviewThumb's own sound-first preview instead. ──
+// control to PreviewThumb's own sound-first preview instead.
+//
+// NEW (feedback): `fb` (from useContentFeedback in PostFeed) adds
+// "Interested" / "Not interested" to the ⋮ menu. ──
 const ReelStripCard = ({
   reel,
   previewId,
@@ -104,6 +107,7 @@ const ReelStripCard = ({
   loggedInUsername,
   onReport,
   onDeleted,
+  fb,
 }) => {
   const isOwner = loggedInUsername && reel.username && reel.username === loggedInUsername;
   const cardRef = useRef(null);
@@ -143,6 +147,9 @@ const ReelStripCard = ({
     else onDeleted(reel.dbId);
   };
 
+  // NEW (feedback): is this reel currently marked "Interested"?
+  const interestedNow = fb?.feedbackOf("reel", reel.dbId) === "interested";
+
   const menuItems = [
     {
       id: "share",
@@ -167,6 +174,30 @@ const ReelStripCard = ({
         navigate("/user/" + (reel.username || "unknown"));
       },
     },
+    // NEW (feedback): Interested / Not interested — not offered on your own reels.
+    ...(fb && !isOwner
+      ? [
+          {
+            id: "interested",
+            icon: <span style={{ fontSize: 15 }}>👍</span>,
+            label: interestedNow ? "Interested ✓" : "Interested",
+            active: interestedNow,
+            onClick: (e) => {
+              e.preventDefault(); e.stopPropagation();
+              fb.toggleInterested("reel", reel.dbId);
+            },
+          },
+          {
+            id: "not-interested",
+            icon: <span style={{ fontSize: 15 }}>🚫</span>,
+            label: "Not interested",
+            onClick: (e) => {
+              e.preventDefault(); e.stopPropagation();
+              fb.markNotInterested("reel", reel.dbId);
+            },
+          },
+        ]
+      : []),
     {
       id: "report",
       icon: <span style={{ fontSize: 15 }}>🚩</span>,
@@ -281,8 +312,12 @@ const ReelStripCard = ({
 // interleaved down the feed each show a different slice), shuffles each
 // page, then keeps loading further pages as the user scrolls it
 // horizontally. Owns its own report modal so a report from any card in
-// this strip has somewhere to render. ──
-const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
+// this strip has somewhere to render.
+//
+// NEW (feedback): optional `fb` prop (from useContentFeedback in
+// PostFeed). Reels marked "Not interested" are filtered out of the
+// strip. ──
+const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
   const navigate = useNavigate();
   const [reels, setReels] = useState([]);
   const [viewCounts, setViewCounts] = useState({});
@@ -448,6 +483,9 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
 
   if (reels.length === 0 && !loading) return null;
 
+  // NEW (feedback): drop reels the user marked "Not interested".
+  const visibleReels = reels.filter((r) => !fb?.isHidden("reel", r.dbId));
+
   return (
     <div className="pf-reels-strip">
       <style>{CARD_SIZE_CSS}</style>
@@ -463,7 +501,7 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
         ref={trackRef}
         onScroll={handleScroll}
       >
-        {reels.map((r, i) => {
+        {visibleReels.map((r, i) => {
           const previewId = `${stripIdRef.current}-${r.id}-${i}`;
           return (
             <ReelStripCard
@@ -478,6 +516,7 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true }) => {
               loggedInUsername={loggedInUsername}
               onReport={setReportTarget}
               onDeleted={handleDeleted}
+              fb={fb}
             />
           );
         })}

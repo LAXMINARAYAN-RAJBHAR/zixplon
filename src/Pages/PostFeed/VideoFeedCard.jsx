@@ -38,8 +38,12 @@ const shortTimeAgo = (dateStr) => {
 // works on top of that (hovering a card that's off-center previews it
 // too). Shows views/likes/posted-time and a three-dots menu (Save to
 // Watch Later, Add to Playlist, Go to Channel, Share, Report, and
-// owner-only Delete) — matching VideoCard on the Home feed. ──
-const VideoFeedCard = ({ video }) => {
+// owner-only Delete) — matching VideoCard on the Home feed.
+//
+// NEW (feedback): `fb` is the object returned by useContentFeedback()
+// in PostFeed. It adds "Interested" / "Not interested" to the ⋮ menu.
+// "Not interested" is filtered out of the feed by PostFeed itself. ──
+const VideoFeedCard = ({ video, fb }) => {
   const navigate = useNavigate();
   // NEW: two independent reasons to play the clip — the pointer is
   // hovering it (desktop), or it's scrolled into view (all devices).
@@ -243,6 +247,9 @@ const VideoFeedCard = ({ video }) => {
   const channelName = video.channel || video.username || "?";
   const initials = channelName.slice(0, 2).toUpperCase();
 
+  // NEW (feedback): is this video currently marked "Interested"?
+  const interestedNow = fb?.feedbackOf("video", video?.id) === "interested";
+
   const menuItems = [
     {
       id: "watch-later",
@@ -275,6 +282,30 @@ const VideoFeedCard = ({ video }) => {
         shareContent({ contentType: "video", contentId: video.short_id || video.id, title: video.title || "Video", text: `Watch "${video.title}" on Zixplon` });
       },
     },
+    // NEW (feedback): Interested / Not interested — not offered on your own videos.
+    ...(fb && !isOwner
+      ? [
+          {
+            id: "interested",
+            icon: <span style={{ fontSize: 15 }}>👍</span>,
+            label: interestedNow ? "Interested ✓" : "Interested",
+            active: interestedNow,
+            onClick: (e) => {
+              e.preventDefault(); e.stopPropagation();
+              fb.toggleInterested("video", video.id);
+            },
+          },
+          {
+            id: "not-interested",
+            icon: <span style={{ fontSize: 15 }}>🚫</span>,
+            label: "Not interested",
+            onClick: (e) => {
+              e.preventDefault(); e.stopPropagation();
+              fb.markNotInterested("video", video.id);
+            },
+          },
+        ]
+      : []),
     {
       id: "report",
       icon: <span style={{ fontSize: 15 }}>🚩</span>,

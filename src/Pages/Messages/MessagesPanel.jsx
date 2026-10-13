@@ -190,6 +190,23 @@ const MAX_ATTACHMENTS = 10;
 // router mounts <Profile /> somewhere else (it reads `:username`).
 const PROFILE_PATH = (username) => `/user/${encodeURIComponent(username)}`;
 
+// ── NEW: table / column names used by "Delete group" and "Delete broadcast
+// list" (inbox ⋮ menu). Adjust these if your schema uses different names.
+// Child rows are deleted first (best effort — if your foreign keys are
+// ON DELETE CASCADE they're simply already gone), then the parent row.
+const GROUPS_TABLE = "groups";
+const GROUP_MEMBERS_TABLE = "group_members";
+const GROUP_MESSAGES_TABLE = "group_messages";
+const GROUP_FK = "group_id";
+// Column on the group row that stores the creator's username. Only that
+// person sees "Delete group". If the column isn't present on the row the
+// option is shown to everyone (RLS should still be the real guard).
+const GROUP_OWNER_COLUMN = "created_by";
+
+const BROADCAST_TABLE = "broadcast_lists";
+const BROADCAST_RECIPIENTS_TABLE = "broadcast_recipients";
+const BROADCAST_FK = "list_id";
+
 // ── Typing indicator tuning ──
 // How long after the last keystroke we broadcast "stopped typing".
 const TYPING_STOP_DELAY_MS = 1500;
@@ -619,8 +636,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     }
   };
 
-  // ── Per-conversation "⋮" menu in the inbox list (Block / Delete chat) ──
-  const [openConvoMenuFor, setOpenConvoMenuFor] = useState(null); // conversation id
+  // ── Per-row "⋮" menu in the inbox list ──
+  // 1:1 chats use the conversation id (View profile / Block / Delete chat).
+  // NEW: groups use the key `g-<id>` and broadcast lists `b-<id>`
+  // (Delete group / Delete broadcast list), so the three kinds of row can
+  // never collide and all share the same click-outside handling.
+  const [openConvoMenuFor, setOpenConvoMenuFor] = useState(null);
+  // Conversation id (1:1) or `g-<id>` / `b-<id>` currently being deleted.
   const [deletingConvoId, setDeletingConvoId] = useState(null);
 
   // ── Reply ──
@@ -1025,7 +1047,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [openMenuFor]);
 
-  // Close the per-conversation "⋮" menu (Block / Delete chat) when clicking outside it
+  // Close the per-row inbox "⋮" menu (1:1 / group / broadcast) when clicking outside it
   useEffect(() => {
     if (!openConvoMenuFor) return;
     const handleClickOutside = (e) => {
@@ -2140,6 +2162,75 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     }
   };
 
+  // ── NEW: Delete group (from the inbox list "⋮" menu) ──────────────────
+  // Removes the group for EVERYONE: its messages, its member rows, then the
+  // group row itself. Child deletes are best-effort (they're a no-op when
+  // your foreign keys cascade); only the final group-row delete decides
+  // success, so a missing/renamed child table doesn't block deletion.
+  const deleteGroup = async (g) => {
+    const key = `g-${g.id}`;
+    if (deletingConvoId === key) return;
+
+    const confirmed = window.confirm(
+      `Delete the group "${g.name}"? This permanently removes the group and all of its messages for every member.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingConvoId(key);
+    setOpenConvoMenuFor(null);
+
+    await supabase.from(GROUP_MESSAGES_TABLE).delete().eq(GROUP_FK, g.id);
+    await supabase.from(GROUP_MEMBERS_TABLE).delete().eq(GROUP_FK, g.id);
+    const { error } = await supabase.from(GROUPS_TABLE).delete().eq("id", g.id);
+
+    setDeletingConvoId(null);
+
+    if (error) {
+      alert(`Couldn't delete this group: ${error.message || "please try again."}`);
+      return;
+    }
+
+    setGroups((prev) => prev.filter((x) => x.id !== g.id));
+    if (activeGroupRef.current?.id === g.id) closeDetail();
+  };
+
+  // ── NEW: Delete broadcast list (from the inbox list "⋮" menu) ─────────
+  // Deletes the list and its recipient rows. Messages already delivered to
+  // recipients' 1:1 chats are NOT touched — only the list itself goes away.
+  const deleteBroadcast = async (b) => {
+    const key = `b-${b.id}`;
+    if (deletingConvoId === key) return;
+
+    const confirmed = window.confirm(
+      `Delete the broadcast list "${b.name}"? Messages already sent stay in your recipients' chats.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingConvoId(key);
+    setOpenConvoMenuFor(null);
+
+    await supabase
+      .from(BROADCAST_RECIPIENTS_TABLE)
+      .delete()
+      .eq(BROADCAST_FK, b.id);
+    const { error } = await supabase
+      .from(BROADCAST_TABLE)
+      .delete()
+      .eq("id", b.id);
+
+    setDeletingConvoId(null);
+
+    if (error) {
+      alert(
+        `Couldn't delete this broadcast list: ${error.message || "please try again."}`,
+      );
+      return;
+    }
+
+    setBroadcastLists((prev) => prev.filter((x) => x.id !== b.id));
+    if (activeBroadcast?.id === b.id) closeDetail();
+  };
+
   // Sends the queued text-only message (no attachments) — the original
   // fast path, unchanged apart from checking pendingAttachments.length.
   const sendTextOnlyMessage = async (trimmed, replyToIdSnapshot, replyToTextSnapshot, replyToSenderSnapshot) => {
@@ -3040,51 +3131,125 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     );
   };
 
-  // ── NEW: group / broadcast rows, rendered through the same list as 1:1
+  // ── Group / broadcast rows, rendered through the same list as 1:1
   // chats so everything can be sorted together by last activity. ──
-  const renderGroupItem = (g) => (
-    <div
-      key={`g-${g.id}`}
-      className={`mp-convo-item ${activeGroup?.id === g.id ? "active" : ""}`}
-      onClick={() => openGroup(g)}
-    >
-      <div className="mp-convo-avatar">{g.name.slice(0, 2).toUpperCase()}</div>
-      <div className="mp-convo-meta">
-        <div className="mp-convo-name">{g.name} 👥</div>
-        <div className="mp-convo-last">
-          {g.lastMessage
-            ? `${g.lastMessage.sender_username}: ${g.lastMessage.text || "📎 Attachment"}`
-            : "No messages yet"}
-        </div>
-      </div>
-      <div className="mp-convo-right">
-        <div className="mp-convo-time">
-          {timeAgo(g.lastMessage?.created_at)}
-        </div>
-      </div>
-    </div>
-  );
+  // NEW: each row now has the same "⋮" menu as 1:1 chats, with a delete
+  // action ("Delete group" / "Delete broadcast list"). Menu keys are
+  // `g-<id>` / `b-<id>` (see openConvoMenuFor above).
+  const renderGroupItem = (g) => {
+    const menuKey = `g-${g.id}`;
+    const isDeleting = deletingConvoId === menuKey;
+    // Only the creator may delete a group (when the row tells us who that is).
+    const canDeleteGroup =
+      !g[GROUP_OWNER_COLUMN] || g[GROUP_OWNER_COLUMN] === currentUser;
 
-  const renderBroadcastItem = (b) => (
-    <div
-      key={`b-${b.id}`}
-      className={`mp-convo-item ${activeBroadcast?.id === b.id ? "active" : ""}`}
-      onClick={() => openBroadcast(b)}
-    >
+    return (
       <div
-        className="mp-convo-avatar"
-        style={{ background: "linear-gradient(135deg, #f97316, #eab308)" }}
+        key={menuKey}
+        className={`mp-convo-item ${activeGroup?.id === g.id ? "active" : ""}`}
+        onClick={() => openGroup(g)}
       >
-        📢
+        <div className="mp-convo-avatar">{g.name.slice(0, 2).toUpperCase()}</div>
+        <div className="mp-convo-meta">
+          <div className="mp-convo-name">{g.name} 👥</div>
+          <div className="mp-convo-last">
+            {g.lastMessage
+              ? `${g.lastMessage.sender_username}: ${g.lastMessage.text || "📎 Attachment"}`
+              : "No messages yet"}
+          </div>
+        </div>
+        <div className="mp-convo-right">
+          <div className="mp-convo-time">
+            {timeAgo(g.lastMessage?.created_at)}
+          </div>
+        </div>
+
+        {canDeleteGroup && (
+          <div className="mp-convo-menu-wrap">
+            <button
+              type="button"
+              className="mp-convo-menu-trigger"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenConvoMenuFor(openConvoMenuFor === menuKey ? null : menuKey);
+              }}
+              aria-label="Group options"
+              title="Group options"
+              disabled={isDeleting}
+            >
+              ⋮
+            </button>
+            {openConvoMenuFor === menuKey && (
+              <div className="mp-convo-menu" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="mp-convo-menu-item danger"
+                  onClick={() => deleteGroup(g)}
+                  disabled={isDeleting}
+                >
+                  🗑 {isDeleting ? "Deleting…" : "Delete group"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      <div className="mp-convo-meta">
-        <div className="mp-convo-name">{b.name}</div>
-        <div className="mp-convo-last">
-          {(b.broadcast_recipients || []).length} recipients
+    );
+  };
+
+  const renderBroadcastItem = (b) => {
+    const menuKey = `b-${b.id}`;
+    const isDeleting = deletingConvoId === menuKey;
+
+    return (
+      <div
+        key={menuKey}
+        className={`mp-convo-item ${activeBroadcast?.id === b.id ? "active" : ""}`}
+        onClick={() => openBroadcast(b)}
+      >
+        <div
+          className="mp-convo-avatar"
+          style={{ background: "linear-gradient(135deg, #f97316, #eab308)" }}
+        >
+          📢
+        </div>
+        <div className="mp-convo-meta">
+          <div className="mp-convo-name">{b.name}</div>
+          <div className="mp-convo-last">
+            {(b.broadcast_recipients || []).length} recipients
+          </div>
+        </div>
+
+        <div className="mp-convo-menu-wrap">
+          <button
+            type="button"
+            className="mp-convo-menu-trigger"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpenConvoMenuFor(openConvoMenuFor === menuKey ? null : menuKey);
+            }}
+            aria-label="Broadcast list options"
+            title="Broadcast list options"
+            disabled={isDeleting}
+          >
+            ⋮
+          </button>
+          {openConvoMenuFor === menuKey && (
+            <div className="mp-convo-menu" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className="mp-convo-menu-item danger"
+                onClick={() => deleteBroadcast(b)}
+                disabled={isDeleting}
+              >
+                🗑 {isDeleting ? "Deleting…" : "Delete broadcast list"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // One combined chat list, newest activity first. Groups and broadcast
   // lists are still hidden while searching, as before. If your tables use

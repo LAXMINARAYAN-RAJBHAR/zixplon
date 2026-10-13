@@ -337,6 +337,8 @@ const AdminPanel = () => {
   const [removeContentMap, setRemoveContentMap] = useState({}); // userId -> bool, "also delete content" checkbox state
   // NEW: lowercase usernames that currently have a fresh site_visits heartbeat.
   const [onlineUsernames, setOnlineUsernames] = useState(new Set());
+  // NEW: total registered users for the header counter (cheap head-count query).
+  const [profilesTotal, setProfilesTotal] = useState(null);
 
   // NEW: IP → location cache shared by the Users and Logins tabs.
   //   ipGeo            — ip -> { city, region, country, cc } | { failed: true }
@@ -854,13 +856,22 @@ const AdminPanel = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // NEW: keep online status fresh (every 20s) while the Users or Logins tab is open.
+  // CHANGED: online status + header total now load as soon as the admin panel
+  // opens and refresh every 20s on EVERY tab (header counter), not only on
+  // Users / Logins.
   useEffect(() => {
-    if (activeTab !== "users" && activeTab !== "logins") return;
+    if (!isAdmin) return;
+    fetchOnlineUsers();
+    supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .then(({ count, error }) => {
+        if (!error && count != null) setProfilesTotal(count);
+      });
     const id = setInterval(fetchOnlineUsers, 20000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+  }, [isAdmin]);
 
   // NEW: look up the location of every not-yet-known IP shown on the Users /
   // Logins tabs (max GEO_CONCURRENCY requests at a time). Already-cached and
@@ -983,6 +994,11 @@ const AdminPanel = () => {
   const isUserOnline = (u) =>
     !!u.username && onlineUsernames.has(u.username.toLowerCase());
   const onlineCount = userRows.filter(isUserOnline).length;
+
+  // NEW: header counter values. Total uses the full user list once the Users
+  // tab has loaded it (so both numbers always agree), otherwise a quick count.
+  const headerOnline = onlineUsernames.size;
+  const headerTotal = usersLoaded ? userRows.length : profilesTotal;
 
   // ── Home Hub tab: fetch / toggle / reorder ──────────────────────────────
   const fetchHubTabs = async () => {
@@ -1464,7 +1480,13 @@ const AdminPanel = () => {
 
       <div className="admin_header">
         <div>
-          <h1 className="admin_title">🛡️ Admin Panel</h1>
+          {/* NEW: live online / total counter next to the title */}
+          <div className="admin_title_row">
+            <h1 className="admin_title">🛡️ Admin Panel</h1>
+            <span className="admin_online_pill" title="Logged-in users active in the last 60 seconds">
+              🟢 {headerOnline} online · {headerTotal ?? "…"} total
+            </span>
+          </div>
           <p className="admin_subtitle">ZIXPLON Content Moderation</p>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>

@@ -6,7 +6,7 @@ import { usePresence } from "../../context/PresenceContext";
 // NEW (voice calling): startCall + "already on a call" flag from CallProvider
 // (mounted once in App.js). See src/context/CallContext.jsx.
 import { useCallContext } from "../../context/CallContext";
-import { fetchUserGroups } from "../../utils/groupChat";
+import { fetchUserGroups, leaveGroup } from "../../utils/groupChat";
 import { fetchUserBroadcastLists } from "../../utils/broadcast";
 import NewGroupOrBroadcastModal from "../../Component/Messages/NewGroupOrBroadcastModal";
 import GroupChatWindow from "../../Component/Messages/GroupChatWindow";
@@ -190,22 +190,11 @@ const MAX_ATTACHMENTS = 10;
 // router mounts <Profile /> somewhere else (it reads `:username`).
 const PROFILE_PATH = (username) => `/user/${encodeURIComponent(username)}`;
 
-// ── NEW: table / column names used by "Delete group" and "Delete broadcast
-// list" (inbox ⋮ menu). Adjust these if your schema uses different names.
-// Child rows are deleted first (best effort — if your foreign keys are
-// ON DELETE CASCADE they're simply already gone), then the parent row.
-const GROUPS_TABLE = "groups";
-const GROUP_MEMBERS_TABLE = "group_members";
-const GROUP_MESSAGES_TABLE = "group_messages";
-const GROUP_FK = "group_id";
-// Column on the group row that stores the creator's username. Only that
-// person sees "Delete group". If the column isn't present on the row the
-// option is shown to everyone (RLS should still be the real guard).
-const GROUP_OWNER_COLUMN = "created_by";
-
+// ── Broadcast-list tables used by "Delete broadcast list" in the inbox ⋮
+// menu. Change these if your schema uses different names. ──
 const BROADCAST_TABLE = "broadcast_lists";
 const BROADCAST_RECIPIENTS_TABLE = "broadcast_recipients";
-const BROADCAST_FK = "list_id";
+const BROADCAST_RECIPIENTS_FK = "list_id"; // column in recipients table -> list id
 
 // ── Typing indicator tuning ──
 // How long after the last keystroke we broadcast "stopped typing".
@@ -636,13 +625,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     }
   };
 
-  // ── Per-row "⋮" menu in the inbox list ──
-  // 1:1 chats use the conversation id (View profile / Block / Delete chat).
-  // NEW: groups use the key `g-<id>` and broadcast lists `b-<id>`
-  // (Delete group / Delete broadcast list), so the three kinds of row can
-  // never collide and all share the same click-outside handling.
-  const [openConvoMenuFor, setOpenConvoMenuFor] = useState(null);
-  // Conversation id (1:1) or `g-<id>` / `b-<id>` currently being deleted.
+  // ── Per-conversation "⋮" menu in the inbox list (Block / Delete chat) ──
+  const [openConvoMenuFor, setOpenConvoMenuFor] = useState(null); // conversation id
   const [deletingConvoId, setDeletingConvoId] = useState(null);
 
   // ── Reply ──
@@ -1047,7 +1031,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [openMenuFor]);
 
-  // Close the per-row inbox "⋮" menu (1:1 / group / broadcast) when clicking outside it
+  // Close the per-conversation "⋮" menu (Block / Delete chat) when clicking outside it
   useEffect(() => {
     if (!openConvoMenuFor) return;
     const handleClickOutside = (e) => {
@@ -2162,73 +2146,116 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     }
   };
 
-  // ── NEW: Delete group (from the inbox list "⋮" menu) ──────────────────
-  // Removes the group for EVERYONE: its messages, its member rows, then the
-  // group row itself. Child deletes are best-effort (they're a no-op when
-  // your foreign keys cascade); only the final group-row delete decides
-  // success, so a missing/renamed child table doesn't block deletion.
-  const deleteGroup = async (g) => {
+  // ── NEW: delete / leave a group, delete a broadcast list (inbox ⋮ menu) ──
+  // Menu keys are prefixed ("g-<id>" / "b-<id>") so they can never clash
+  // with 1:1 conversation ids in openConvoMenuFor / deletingConvoId.
+
+  // Deletes the group for EVERYONE (messages, memberships, group row).
+  // Only admins may do this — checked here before anything is removed.
+  const deleteGroupFromList = async (g) => {
     const key = `g-${g.id}`;
-    if (deletingConvoId === key) return;
-
-    const confirmed = window.confirm(
-      `Delete the group "${g.name}"? This permanently removes the group and all of its messages for every member.`,
-    );
-    if (!confirmed) return;
-
-    setDeletingConvoId(key);
     setOpenConvoMenuFor(null);
 
-    await supabase.from(GROUP_MESSAGES_TABLE).delete().eq(GROUP_FK, g.id);
-    await supabase.from(GROUP_MEMBERS_TABLE).delete().eq(GROUP_FK, g.id);
-    const { error } = await supabase.from(GROUPS_TABLE).delete().eq("id", g.id);
+    const { data: me, error: meErr } = await supabase
+      .from("group_members")
+      .select("is_admin")
+      .eq("group_id", g.id)
+      .eq("username", currentUser)
+      .maybeSingle();
 
-    setDeletingConvoId(null);
-
-    if (error) {
-      alert(`Couldn't delete this group: ${error.message || "please try again."}`);
-      return;
-    }
-
-    setGroups((prev) => prev.filter((x) => x.id !== g.id));
-    if (activeGroupRef.current?.id === g.id) closeDetail();
-  };
-
-  // ── NEW: Delete broadcast list (from the inbox list "⋮" menu) ─────────
-  // Deletes the list and its recipient rows. Messages already delivered to
-  // recipients' 1:1 chats are NOT touched — only the list itself goes away.
-  const deleteBroadcast = async (b) => {
-    const key = `b-${b.id}`;
-    if (deletingConvoId === key) return;
-
-    const confirmed = window.confirm(
-      `Delete the broadcast list "${b.name}"? Messages already sent stay in your recipients' chats.`,
-    );
-    if (!confirmed) return;
-
-    setDeletingConvoId(key);
-    setOpenConvoMenuFor(null);
-
-    await supabase
-      .from(BROADCAST_RECIPIENTS_TABLE)
-      .delete()
-      .eq(BROADCAST_FK, b.id);
-    const { error } = await supabase
-      .from(BROADCAST_TABLE)
-      .delete()
-      .eq("id", b.id);
-
-    setDeletingConvoId(null);
-
-    if (error) {
+    if (meErr || !me?.is_admin) {
       alert(
-        `Couldn't delete this broadcast list: ${error.message || "please try again."}`,
+        'Only group admins can delete this group. You can use "Leave group" instead.',
       );
       return;
     }
 
-    setBroadcastLists((prev) => prev.filter((x) => x.id !== b.id));
-    if (activeBroadcast?.id === b.id) closeDetail();
+    const confirmed = window.confirm(
+      `Delete "${g.name}" for everyone? This permanently removes the group and all its messages. This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingConvoId(key);
+    try {
+      const { error: msgErr } = await supabase
+        .from("group_messages")
+        .delete()
+        .eq("group_id", g.id);
+      if (msgErr) throw msgErr;
+
+      const { error: memberErr } = await supabase
+        .from("group_members")
+        .delete()
+        .eq("group_id", g.id);
+      if (memberErr) throw memberErr;
+
+      const { error: groupErr } = await supabase
+        .from("groups")
+        .delete()
+        .eq("id", g.id);
+      if (groupErr) throw groupErr;
+
+      setGroups((prev) => prev.filter((x) => x.id !== g.id));
+      if (activeGroup?.id === g.id) closeDetail();
+    } catch (err) {
+      alert(`Failed to delete group: ${err?.message || "please try again."}`);
+    } finally {
+      setDeletingConvoId(null);
+    }
+  };
+
+  // Removes only the current user from the group (group stays for others).
+  const leaveGroupFromList = async (g) => {
+    const key = `g-${g.id}`;
+    setOpenConvoMenuFor(null);
+    if (!window.confirm(`Leave "${g.name}"?`)) return;
+
+    setDeletingConvoId(key);
+    try {
+      await leaveGroup(g.id, currentUser);
+      setGroups((prev) => prev.filter((x) => x.id !== g.id));
+      if (activeGroup?.id === g.id) closeDetail();
+    } catch (err) {
+      alert(`Couldn't leave the group: ${err?.message || "please try again."}`);
+    } finally {
+      setDeletingConvoId(null);
+    }
+  };
+
+  // Deletes a broadcast list and its recipients. Recipients are removed
+  // first so it works whether or not the FK has ON DELETE CASCADE.
+  const deleteBroadcastFromList = async (b) => {
+    const key = `b-${b.id}`;
+    setOpenConvoMenuFor(null);
+
+    const confirmed = window.confirm(
+      `Delete the broadcast list "${b.name}"? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingConvoId(key);
+    try {
+      const { error: recErr } = await supabase
+        .from(BROADCAST_RECIPIENTS_TABLE)
+        .delete()
+        .eq(BROADCAST_RECIPIENTS_FK, b.id);
+      if (recErr) throw recErr;
+
+      const { error: listErr } = await supabase
+        .from(BROADCAST_TABLE)
+        .delete()
+        .eq("id", b.id);
+      if (listErr) throw listErr;
+
+      setBroadcastLists((prev) => prev.filter((x) => x.id !== b.id));
+      if (activeBroadcast?.id === b.id) closeDetail();
+    } catch (err) {
+      alert(
+        `Failed to delete broadcast list: ${err?.message || "please try again."}`,
+      );
+    } finally {
+      setDeletingConvoId(null);
+    }
   };
 
   // Sends the queued text-only message (no attachments) — the original
@@ -3131,21 +3158,50 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     );
   };
 
-  // ── Group / broadcast rows, rendered through the same list as 1:1
+  // ── NEW: group / broadcast rows, rendered through the same list as 1:1
   // chats so everything can be sorted together by last activity. ──
-  // NEW: each row now has the same "⋮" menu as 1:1 chats, with a delete
-  // action ("Delete group" / "Delete broadcast list"). Menu keys are
-  // `g-<id>` / `b-<id>` (see openConvoMenuFor above).
-  const renderGroupItem = (g) => {
-    const menuKey = `g-${g.id}`;
-    const isDeleting = deletingConvoId === menuKey;
-    // Only the creator may delete a group (when the row tells us who that is).
-    const canDeleteGroup =
-      !g[GROUP_OWNER_COLUMN] || g[GROUP_OWNER_COLUMN] === currentUser;
+  // Small shared "⋮" menu for group / broadcast rows. Reuses the same
+  // classes as the 1:1 row menu, so styling and outside-click closing
+  // already work.
+  const renderRowMenu = (menuKey, items, busy) => (
+    <div className="mp-convo-menu-wrap">
+      <button
+        type="button"
+        className="mp-convo-menu-trigger"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpenConvoMenuFor(openConvoMenuFor === menuKey ? null : menuKey);
+        }}
+        aria-label="Chat options"
+        title="Chat options"
+        disabled={busy}
+      >
+        ⋮
+      </button>
+      {openConvoMenuFor === menuKey && (
+        <div className="mp-convo-menu" onClick={(e) => e.stopPropagation()}>
+          {items.map((it) => (
+            <button
+              key={it.label}
+              type="button"
+              className={`mp-convo-menu-item ${it.danger ? "danger" : ""}`}
+              onClick={it.onClick}
+              disabled={busy}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
+  const renderGroupItem = (g) => {
+    const key = `g-${g.id}`;
+    const busy = deletingConvoId === key;
     return (
       <div
-        key={menuKey}
+        key={key}
         className={`mp-convo-item ${activeGroup?.id === g.id ? "active" : ""}`}
         onClick={() => openGroup(g)}
       >
@@ -3163,47 +3219,28 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
             {timeAgo(g.lastMessage?.created_at)}
           </div>
         </div>
-
-        {canDeleteGroup && (
-          <div className="mp-convo-menu-wrap">
-            <button
-              type="button"
-              className="mp-convo-menu-trigger"
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpenConvoMenuFor(openConvoMenuFor === menuKey ? null : menuKey);
-              }}
-              aria-label="Group options"
-              title="Group options"
-              disabled={isDeleting}
-            >
-              ⋮
-            </button>
-            {openConvoMenuFor === menuKey && (
-              <div className="mp-convo-menu" onClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  className="mp-convo-menu-item danger"
-                  onClick={() => deleteGroup(g)}
-                  disabled={isDeleting}
-                >
-                  🗑 {isDeleting ? "Deleting…" : "Delete group"}
-                </button>
-              </div>
-            )}
-          </div>
+        {renderRowMenu(
+          key,
+          [
+            { label: "🚪 Leave group", onClick: () => leaveGroupFromList(g) },
+            {
+              label: busy ? "🗑 Deleting…" : "🗑 Delete group",
+              danger: true,
+              onClick: () => deleteGroupFromList(g),
+            },
+          ],
+          busy,
         )}
       </div>
     );
   };
 
   const renderBroadcastItem = (b) => {
-    const menuKey = `b-${b.id}`;
-    const isDeleting = deletingConvoId === menuKey;
-
+    const key = `b-${b.id}`;
+    const busy = deletingConvoId === key;
     return (
       <div
-        key={menuKey}
+        key={key}
         className={`mp-convo-item ${activeBroadcast?.id === b.id ? "active" : ""}`}
         onClick={() => openBroadcast(b)}
       >
@@ -3219,34 +3256,17 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
             {(b.broadcast_recipients || []).length} recipients
           </div>
         </div>
-
-        <div className="mp-convo-menu-wrap">
-          <button
-            type="button"
-            className="mp-convo-menu-trigger"
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpenConvoMenuFor(openConvoMenuFor === menuKey ? null : menuKey);
-            }}
-            aria-label="Broadcast list options"
-            title="Broadcast list options"
-            disabled={isDeleting}
-          >
-            ⋮
-          </button>
-          {openConvoMenuFor === menuKey && (
-            <div className="mp-convo-menu" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                className="mp-convo-menu-item danger"
-                onClick={() => deleteBroadcast(b)}
-                disabled={isDeleting}
-              >
-                🗑 {isDeleting ? "Deleting…" : "Delete broadcast list"}
-              </button>
-            </div>
-          )}
-        </div>
+        {renderRowMenu(
+          key,
+          [
+            {
+              label: busy ? "🗑 Deleting…" : "🗑 Delete broadcast list",
+              danger: true,
+              onClick: () => deleteBroadcastFromList(b),
+            },
+          ],
+          busy,
+        )}
       </div>
     );
   };
@@ -3564,6 +3584,12 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                   onBack={closeDetail}
                   onClose={closePanel}
                   onMinimize={minimizePanel}
+                  onGroupDeleted={() => {
+                    setGroups((prev) =>
+                      prev.filter((x) => x.id !== activeGroup?.id),
+                    );
+                    closeDetail();
+                  }}
                 />
               ) : activeBroadcast ? (
                 <BroadcastComposeWindow

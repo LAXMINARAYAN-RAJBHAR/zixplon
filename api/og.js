@@ -35,28 +35,56 @@ async function fetchWithTimeout(url, options, timeoutMs = FETCH_TIMEOUT_MS) {
 }
 
 const SITE = "https://zixplon.in";
-// CHANGED: "profile" added.
 const ALLOWED_TYPES = ["post", "reel", "video", "profile"];
 
-// NEW: the path of your React profile route, WITHOUT the username.
-// If your route is <Route path="/profile/:username" ...> keep "/profile".
-// If it is "/channel/:username" or "/u/:username", change it here.
+// The path of your React profile route, WITHOUT the username.
 const PROFILE_PATH = "/profile";
 
 // Ideally replace with a real 1200x630 branded image: put it in /public
 // and change this to `${SITE}/og-fallback.jpg`.
 const FALLBACK_OG_IMAGE = `${SITE}/logo192.png`;
 
-// NEW: crawlers require an absolute https image URL.
-function absImage(url) {
-  if (!url || typeof url !== "string") return FALLBACK_OG_IMAGE;
-  if (url.startsWith("//")) return `https:${url}`;
-  if (url.startsWith("/")) return `${SITE}${url}`;
-  if (url.startsWith("http://")) return url.replace("http://", "https://");
-  return url;
+// CHANGED: returns a clean absolute https URL, or null when the value can't be
+// used by a crawler (empty, data:/blob: URLs, or not a valid URL at all).
+// Crawlers (WhatsApp, Facebook, X...) cannot use data: URIs as og:image.
+function cleanImage(url) {
+  if (!url || typeof url !== "string") return null;
+  let u = url.trim();
+  if (!u || u.startsWith("data:") || u.startsWith("blob:")) return null;
+  if (u.startsWith("//")) u = `https:${u}`;
+  else if (u.startsWith("/")) u = `${SITE}${u}`;
+  else if (u.startsWith("http://")) u = u.replace("http://", "https://");
+  try {
+    return new URL(u).href; // also percent-encodes spaces etc.
+  } catch {
+    return null;
+  }
 }
 
-// NEW: escape LIKE wildcards so a username is matched literally by ilike
+// First usable image from a list of candidates, or null.
+function firstImage(candidates) {
+  for (const c of candidates) {
+    const img = cleanImage(c);
+    if (img) return img;
+  }
+  return null;
+}
+
+// image_urls may be a real array, a JSON string, or empty.
+function parseList(v) {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string") {
+    try {
+      const p = JSON.parse(v);
+      return Array.isArray(p) ? p : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+// Escape LIKE wildcards so a username is matched literally by ilike
 // (mirrors escapeLike() in Profile.jsx). "*" is PostgREST's own wildcard.
 function ilikeValue(str = "") {
   return encodeURIComponent(String(str).replace(/\*/g, "").replace(/[\\%_]/g, "\\$&"));
@@ -68,8 +96,6 @@ function ogTypeFor(type) {
   return "video.other";
 }
 
-// CHANGED: `card` param so profiles can use a square "summary" card
-// (profile pictures are square; "summary_large_image" would crop them).
 function renderHtml({ type, title, description, image, url, shareUrl, card = "summary_large_image" }) {
   const safeTitle = escapeHtml(title);
   const safeDescription = escapeHtml(description);
@@ -87,6 +113,7 @@ function renderHtml({ type, title, description, image, url, shareUrl, card = "su
     <meta property="og:title" content="${safeTitle}" />
     <meta property="og:description" content="${safeDescription}" />
     <meta property="og:image" content="${safeImage}" />
+    <meta property="og:image:secure_url" content="${safeImage}" />
     <meta property="og:image:alt" content="${safeTitle}" />
     <meta property="og:url" content="${safeShareUrl}" />
     <meta property="og:site_name" content="ZIXPLON" />
@@ -114,10 +141,33 @@ function fallbackHtml(type, url, shareUrl) {
   });
 }
 
+// NEW: used by ?debug=1 — fetches the chosen image the way a crawler would and
+// reports status / content-type / size, so you can see WHY a thumbnail fails.
+async function probeImage(imageUrl) {
+  try {
+    const res = await fetchWithTimeout(imageUrl, {
+      method: "GET",
+      headers: { "User-Agent": "facebookexternalhit/1.1", Accept: "image/*" },
+    });
+    const info = {
+      status: res.status,
+      contentType: res.headers.get("content-type"),
+      contentLength: res.headers.get("content-length"),
+    };
+    try { await res.body?.cancel(); } catch (_) {}
+    return info;
+  } catch (e) {
+    return { error: String(e?.message || e) };
+  }
+}
+
+const short = (v) => (typeof v === "string" ? (v.length > 220 ? v.slice(0, 220) + "…(" + v.length + " chars)" : v) : v ?? null);
+
 export default async function handler(req) {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type");
   const id = searchParams.get("id");
+  const debug = searchParams.get("debug") === "1";
 
   const SUPABASE_URL = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
   const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
@@ -156,7 +206,8 @@ export default async function handler(req) {
   };
 
   try {
-    let title, description, image, url;
+    let title, description, url;
+    let candidates = [];           // raw image candidates, in priority order
     let card = "summary_large_image";
 
     if (type === "post") {
@@ -169,7 +220,7 @@ export default async function handler(req) {
       const data = await res.json();
       const item = data?.[0];
 
-      // NEW: never leak "friends" / "only_me" posts into a public preview.
+      // Never leak "friends" / "only_me" posts into a public preview.
       if (!item || (item.privacy && item.privacy !== "public")) {
         return new Response(fallbackHtml(type, `${SITE}/feed`, shareUrl), {
           headers: notFoundHeaders,
@@ -178,16 +229,16 @@ export default async function handler(req) {
 
       title = item?.username ? `${item.username} on ZIXPLON` : "Post on ZIXPLON";
       description = item?.text?.slice(0, 200) || "Check out this post on ZIXPLON";
-      image = absImage(
-        item?.image_url ||
-        item?.image_urls?.[0] ||
-        item?.thumbnail_url ||
-        getVideoThumbnailFromCloudinaryUrl(item?.video_url) ||
-        FALLBACK_OG_IMAGE
-      );
+      // CHANGED: also reads image_urls when it is a JSON string, and `thumbnail`.
+      candidates = [
+        item?.image_url,
+        parseList(item?.image_urls)[0],
+        item?.thumbnail_url,
+        item?.thumbnail,
+        getVideoThumbnailFromCloudinaryUrl(item?.video_url),
+      ];
       url = `${SITE}/feed?post=${id}`;
     } else if (type === "profile") {
-      // NEW: profile link preview. `id` is the username from /s/profile/:username.
       const res = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/profiles?username=ilike.${ilikeValue(id)}&select=username,channel_name,about,profile_pic,banner_pic&limit=1`,
         { headers: sbHeaders }
@@ -206,11 +257,11 @@ export default async function handler(req) {
       const name = item.channel_name || item.username;
       title = `${name} (@${item.username})`;
       description = item.about?.slice(0, 200) || `Watch ${name}'s videos, reels and posts on ZIXPLON`;
-      image = absImage(
-        item.profile_pic ||
-        item.banner_pic ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(item.username)}&background=7c3aed&color=fff&size=600`
-      );
+      candidates = [
+        item.profile_pic,
+        item.banner_pic,
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(item.username)}&background=7c3aed&color=fff&size=600`,
+      ];
       url = `${SITE}${PROFILE_PATH}/${encodeURIComponent(item.username)}`;
       card = "summary"; // square avatar
     } else {
@@ -241,12 +292,13 @@ export default async function handler(req) {
 
       title = item?.title || "Watch on ZIXPLON";
       description = item?.description || item?.channel || "Watch videos and reels on ZIXPLON";
-      image = absImage(
-        item?.thumbnail_url ||
-        item?.thumbnail ||
-        getVideoThumbnailFromCloudinaryUrl(item?.video_url) ||
-        FALLBACK_OG_IMAGE
-      );
+      // CHANGED: tries both column names for both tables (videos use
+      // thumbnail_url, reels use thumbnail) and skips unusable values.
+      candidates = [
+        item?.thumbnail_url,
+        item?.thumbnail,
+        getVideoThumbnailFromCloudinaryUrl(item?.video_url),
+      ];
 
       url =
         type === "reel"
@@ -254,12 +306,40 @@ export default async function handler(req) {
           : `${SITE}/video/${item.id}`;
     }
 
+    const picked = firstImage(candidates);
+    const image = picked || FALLBACK_OG_IMAGE;
+
+    // NEW: ?debug=1 → JSON report instead of HTML.
+    if (debug) {
+      return new Response(
+        JSON.stringify(
+          {
+            type,
+            id,
+            usedFallback: !picked,
+            chosenImage: image,
+            imageCheck: await probeImage(image),
+            candidates: candidates.map(short),
+            note: "WhatsApp usually skips images over ~300 KB. data: URLs are never usable.",
+          },
+          null,
+          2
+        ),
+        { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } }
+      );
+    }
+
     const commentId = searchParams.get("comment");
     if (commentId && url && type !== "profile") {
       url += (url.includes("?") ? "&" : "?") + `comment=${encodeURIComponent(commentId)}`;
     }
 
-    return new Response(renderHtml({ type, title, description, image, url, shareUrl, card }), { headers });
+    // CHANGED: when we had to use the fallback logo, cache for only 60s so a
+    // thumbnail added/fixed later isn't hidden behind an hour-long cache.
+    return new Response(
+      renderHtml({ type, title, description, image, url, shareUrl, card }),
+      { headers: picked ? headers : notFoundHeaders }
+    );
   } catch (err) {
     console.error("og handler error:", err);
     return new Response(fallbackHtml(type, genericFallbackUrl, shareUrl), {

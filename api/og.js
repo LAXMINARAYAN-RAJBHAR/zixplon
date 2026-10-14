@@ -35,7 +35,13 @@ async function fetchWithTimeout(url, options, timeoutMs = FETCH_TIMEOUT_MS) {
 }
 
 const SITE = "https://zixplon.in";
-const ALLOWED_TYPES = ["post", "reel", "video"];
+// CHANGED: "profile" added.
+const ALLOWED_TYPES = ["post", "reel", "video", "profile"];
+
+// NEW: the path of your React profile route, WITHOUT the username.
+// If your route is <Route path="/profile/:username" ...> keep "/profile".
+// If it is "/channel/:username" or "/u/:username", change it here.
+const PROFILE_PATH = "/profile";
 
 // Ideally replace with a real 1200x630 branded image: put it in /public
 // and change this to `${SITE}/og-fallback.jpg`.
@@ -50,7 +56,21 @@ function absImage(url) {
   return url;
 }
 
-function renderHtml({ type, title, description, image, url, shareUrl }) {
+// NEW: escape LIKE wildcards so a username is matched literally by ilike
+// (mirrors escapeLike() in Profile.jsx). "*" is PostgREST's own wildcard.
+function ilikeValue(str = "") {
+  return encodeURIComponent(String(str).replace(/\*/g, "").replace(/[\\%_]/g, "\\$&"));
+}
+
+function ogTypeFor(type) {
+  if (type === "post") return "article";
+  if (type === "profile") return "profile";
+  return "video.other";
+}
+
+// CHANGED: `card` param so profiles can use a square "summary" card
+// (profile pictures are square; "summary_large_image" would crop them).
+function renderHtml({ type, title, description, image, url, shareUrl, card = "summary_large_image" }) {
   const safeTitle = escapeHtml(title);
   const safeDescription = escapeHtml(description);
   const safeImage = escapeHtml(image);
@@ -63,14 +83,14 @@ function renderHtml({ type, title, description, image, url, shareUrl }) {
     <meta charset="UTF-8" />
     <title>${safeTitle} — ZIXPLON</title>
     <meta name="description" content="${safeDescription}" />
-    <meta property="og:type" content="${type === "post" ? "article" : "video.other"}" />
+    <meta property="og:type" content="${ogTypeFor(type)}" />
     <meta property="og:title" content="${safeTitle}" />
     <meta property="og:description" content="${safeDescription}" />
     <meta property="og:image" content="${safeImage}" />
     <meta property="og:image:alt" content="${safeTitle}" />
     <meta property="og:url" content="${safeShareUrl}" />
     <meta property="og:site_name" content="ZIXPLON" />
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:card" content="${card}" />
     <meta name="twitter:title" content="${safeTitle}" />
     <meta name="twitter:description" content="${safeDescription}" />
     <meta name="twitter:image" content="${safeImage}" />
@@ -137,6 +157,7 @@ export default async function handler(req) {
 
   try {
     let title, description, image, url;
+    let card = "summary_large_image";
 
     if (type === "post") {
       const res = await fetchWithTimeout(
@@ -165,6 +186,33 @@ export default async function handler(req) {
         FALLBACK_OG_IMAGE
       );
       url = `${SITE}/feed?post=${id}`;
+    } else if (type === "profile") {
+      // NEW: profile link preview. `id` is the username from /s/profile/:username.
+      const res = await fetchWithTimeout(
+        `${SUPABASE_URL}/rest/v1/profiles?username=ilike.${ilikeValue(id)}&select=username,channel_name,about,profile_pic,banner_pic&limit=1`,
+        { headers: sbHeaders }
+      );
+
+      if (!res.ok) throw new Error(`Supabase responded ${res.status}`);
+      const data = await res.json();
+      const item = data?.[0];
+
+      if (!item) {
+        return new Response(fallbackHtml(type, genericFallbackUrl, shareUrl), {
+          headers: notFoundHeaders,
+        });
+      }
+
+      const name = item.channel_name || item.username;
+      title = `${name} (@${item.username})`;
+      description = item.about?.slice(0, 200) || `Watch ${name}'s videos, reels and posts on ZIXPLON`;
+      image = absImage(
+        item.profile_pic ||
+        item.banner_pic ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(item.username)}&background=7c3aed&color=fff&size=600`
+      );
+      url = `${SITE}${PROFILE_PATH}/${encodeURIComponent(item.username)}`;
+      card = "summary"; // square avatar
     } else {
       const table = type === "reel" ? "reels" : "videos";
       const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -207,11 +255,11 @@ export default async function handler(req) {
     }
 
     const commentId = searchParams.get("comment");
-    if (commentId && url) {
+    if (commentId && url && type !== "profile") {
       url += (url.includes("?") ? "&" : "?") + `comment=${encodeURIComponent(commentId)}`;
     }
-    
-    return new Response(renderHtml({ type, title, description, image, url, shareUrl }), { headers });
+
+    return new Response(renderHtml({ type, title, description, image, url, shareUrl, card }), { headers });
   } catch (err) {
     console.error("og handler error:", err);
     return new Response(fallbackHtml(type, genericFallbackUrl, shareUrl), {

@@ -1454,7 +1454,7 @@ const Profile = ({ sideNavbar }) => {
               )}
               {/* NEW: Share Profile — visible to owner and visitors */}
               <button
-                onClick={() => handleShare({ url: profileBaseUrl(), title: `${user.name} (${user.handle}) on ZIXPLON` })}
+                onClick={() => handleShare({ url: `${window.location.origin}/s/profile/${encodeURIComponent(user.username)}`, title: `${user.name} (${user.handle}) on ZIXPLON` })}
                 style={{ background:"#f0f4ff", color:"#1e1b4b", border:"2px solid #e0d4ff", borderRadius:"20px", padding:"8px 20px", fontSize:"14px", fontWeight:"600", cursor:"pointer", display:"flex", alignItems:"center", gap:"6px" }}>
                 <ShareOutlinedIcon style={{ fontSize:"16px" }} /> Share Profile
               </button>

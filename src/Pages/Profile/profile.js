@@ -75,6 +75,8 @@ const timeAgo = (dateStr) => {
   return `${Math.floor(diff / 86400)}d ago`;
 };
 
+// Profile URL without query params (?tab=posts etc.).
+// If you use HashRouter, change this to: window.location.href.split("?")[0]
 const profileBaseUrl = () => `${window.location.origin}${window.location.pathname}`;
 
 const shareLink = async ({ url, title }) => {
@@ -741,6 +743,9 @@ const Profile = ({ sideNavbar }) => {
 
   const [messageTarget, setMessageTarget] = useState(null);
 
+  // NEW: url of the banner / profile picture currently shown fullscreen
+  const [fullImage, setFullImage] = useState(null);
+
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName]   = useState("");
   const [editAbout, setEditAbout] = useState("");
@@ -765,6 +770,7 @@ const Profile = ({ sideNavbar }) => {
   useEffect(() => {
     window.scrollTo(0, 0);
     setActiveTab("videos");
+    setFullImage(null);
   }, [key]);
 
   const [shareNotice, setShareNotice] = useState("");
@@ -1357,9 +1363,11 @@ const Profile = ({ sideNavbar }) => {
       <div className={sideNavbar ? "profile_page" : "profile_page_inactive"}>
 
         {/* ── Banner ── */}
+        {/* CHANGED: tapping the banner opens it fullscreen (for everyone).
+            The owner changes it with the "Change Banner" button instead. */}
         <div
-          style={{ width:"100%", height:"180px", borderRadius:"12px", marginBottom:"20px", position:"relative", overflow:"hidden", background:"#111", cursor: user.isOwner ? "pointer" : "default" }}
-          onClick={() => user.isOwner && document.getElementById("bannerInput").click()}
+          style={{ width:"100%", height:"180px", borderRadius:"12px", marginBottom:"20px", position:"relative", overflow:"hidden", background:"#111", cursor: user.bannerPic ? "zoom-in" : "default" }}
+          onClick={() => user.bannerPic && setFullImage(user.bannerPic)}
         >
           {user.bannerPic ? (
             <img src={user.bannerPic} alt="channel banner" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
@@ -1370,9 +1378,13 @@ const Profile = ({ sideNavbar }) => {
             </>
           )}
           {user.isOwner && (
-            <div style={{ position:"absolute", bottom:"10px", right:"14px", background:"rgba(0,0,0,0.6)", color:"white", fontSize:"12px", padding:"5px 12px", borderRadius:"20px", display:"flex", alignItems:"center", gap:"6px" }}>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); document.getElementById("bannerInput").click(); }}
+              style={{ position:"absolute", bottom:"10px", right:"14px", background:"rgba(0,0,0,0.6)", color:"white", fontSize:"12px", padding:"5px 12px", borderRadius:"20px", display:"flex", alignItems:"center", gap:"6px", border:"none", cursor:"pointer" }}
+            >
               🖼️ {user.bannerPic ? "Change Banner" : "Add Banner"}
-            </div>
+            </button>
           )}
           <input type="file" id="bannerInput" accept="image/*" style={{ display:"none" }}
             onChange={async (e) => {
@@ -1391,7 +1403,10 @@ const Profile = ({ sideNavbar }) => {
         {/* ── Profile Top Section ── */}
         <div className="profile_top_section">
           <div className="profile_top_section_profile">
+            {/* CHANGED: tapping the profile picture opens it fullscreen */}
             <img className="profile_top_section_img" src={user.profilePic} alt={user.name}
+              onClick={() => setFullImage(user.profilePic)}
+              style={{ cursor: "zoom-in" }}
               onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=7c3aed&color=fff&size=120&length=2`; }} />
           </div>
           <div className="profile_top_section_About">
@@ -1437,6 +1452,12 @@ const Profile = ({ sideNavbar }) => {
                   </button>
                 </>
               )}
+              {/* NEW: Share Profile — visible to owner and visitors */}
+              <button
+                onClick={() => handleShare({ url: profileBaseUrl(), title: `${user.name} (${user.handle}) on ZIXPLON` })}
+                style={{ background:"#f0f4ff", color:"#1e1b4b", border:"2px solid #e0d4ff", borderRadius:"20px", padding:"8px 20px", fontSize:"14px", fontWeight:"600", cursor:"pointer", display:"flex", alignItems:"center", gap:"6px" }}>
+                <ShareOutlinedIcon style={{ fontSize:"16px" }} /> Share Profile
+              </button>
             </div>
           </div>
         </div>
@@ -1632,6 +1653,9 @@ const Profile = ({ sideNavbar }) => {
       {/* ── Connections Modal ── */}
       {showConnectionsModal && <ConnectionsModal channelUsername={user.username} onClose={() => setShowConnectionsModal(false)} />}
 
+      {/* ── Fullscreen banner / profile picture ── */}
+      {fullImage && <Lightbox images={[fullImage]} onClose={() => setFullImage(null)} />}
+
       {/* ── Messages Panel ── */}
       {messageTarget && (
         <MessagesPanel
@@ -1662,7 +1686,9 @@ const Profile = ({ sideNavbar }) => {
                   setEditLoading(true);
                   try {
                     const { url } = await uploadToR2(file);
-                    const transformedUrl = buildTransformUrl(url, { width: 150, height: 150, fit: "cover" });
+                    // CHANGED: 600x600 (was 150x150) so the fullscreen view stays sharp.
+                    // CSS still scales it down for the small avatar.
+                    const transformedUrl = buildTransformUrl(url, { width: 600, height: 600, fit: "cover" });
                     setEditPic(transformedUrl);
                   }
                   catch { alert("Upload failed. Try again."); }

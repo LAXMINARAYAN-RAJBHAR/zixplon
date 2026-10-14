@@ -46,6 +46,8 @@ import { onUserInteract } from "../../utils/audioUnlock";
 import { claimSound, releaseSound, soundPrefs } from "../../utils/soundArbiter";
 // NEW: fresh random order for next/prev/suggestions on every load.
 import { shuffleArray } from "../../utils/shuffleArray";
+// NEW (feedback): Interested / Not interested for videos.
+import useContentFeedback, { FeedbackToast } from "../../hooks/useContentFeedback";
 // NOTE: notifyUser() is no longer imported/used anywhere in this file.
 // Like/comment notifications are owned by the notify_on_like /
 // notify_on_comment DB triggers (client-side calls were removed earlier
@@ -356,6 +358,10 @@ const Video = ({ sideNavbar }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // NEW (feedback): Interested / Not interested for this video and for
+  // the suggestions list.
+  const fb = useContentFeedback();
 
   // ── Trending mode: if we arrived here via the homepage "Trending Now"
   //    strip, location.state carries the ID whitelist of trending items.
@@ -1687,7 +1693,11 @@ const Video = ({ sideNavbar }) => {
     );
   }
 
-  const suggestions = allVideos.filter((v) => String(v.id) !== String(id));
+  // CHANGED (feedback): videos marked "Not interested" no longer show up
+  // in the suggestions list.
+  const suggestions = allVideos.filter(
+    (v) => String(v.id) !== String(id) && !fb.isHidden("video", v.id),
+  );
   const formatName = video.src?.split(".").pop().split("?")[0].toUpperCase();
   const uploadedAt = videoMeta?.created_at || video.created_at || null;
   const description = videoMeta?.description || video.description || "";
@@ -2024,6 +2034,38 @@ const Video = ({ sideNavbar }) => {
                     >
                       {fullscreenActionsHidden ? "👁 Show controls" : "🙈 Hide controls"}
                     </div>
+                  )}
+                  {/* NEW (feedback): Interested / Not interested. "Not
+                      interested" hides this video from suggestions and
+                      moves on to the next one. */}
+                  {loggedInUser !== channelUsername && (
+                    <>
+                      <div
+                        className="video_more_dropdown_item"
+                        onClick={() => {
+                          setShowMoreMenu(false);
+                          fb.toggleInterested("video", id);
+                        }}
+                      >
+                        {fb.feedbackOf("video", id) === "interested"
+                          ? "✓ Interested"
+                          : "👍 Interested"}
+                      </div>
+                      <div
+                        className="video_more_dropdown_item"
+                        onClick={() => {
+                          setShowMoreMenu(false);
+                          fb.markNotInterested("video", id);
+                          if (nextVideo && String(nextVideo.id) !== String(video.id)) {
+                            navigate(`/video/${nextVideo.id}`, { state: navState });
+                          } else {
+                            navigate("/");
+                          }
+                        }}
+                      >
+                        🚫 Not interested
+                      </div>
+                    </>
                   )}
                   <div
                     className="video_more_dropdown_item"
@@ -2447,6 +2489,9 @@ const Video = ({ sideNavbar }) => {
           onClose={() => setReportCommentTarget(null)}
         />
       )}
+
+      {/* NEW (feedback): "Interested" / "Not interested" confirmation + Undo. */}
+      <FeedbackToast fb={fb} />
     </div>
   );
 };

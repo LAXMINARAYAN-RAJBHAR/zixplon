@@ -50,6 +50,9 @@ import { onUserInteract } from "../../utils/audioUnlock";
 import { claimSound, releaseSound, soundPrefs } from "../../utils/soundArbiter";
 // NEW: fresh random order for the reel feed on every load.
 import { shuffleArray } from "../../utils/shuffleArray";
+// NEW (feedback): Interested / Not interested for reels. This file sits in
+// src/Component/Reels/, so the hook path is two levels up.
+import useContentFeedback, { FeedbackToast } from "../../hooks/useContentFeedback";
 // NOTE: notifyUser() is no longer imported/used anywhere in this file.
 // Like/comment notifications are owned by the notify_on_like /
 // notify_on_comment DB triggers, and Connect requests/accepts are owned
@@ -271,7 +274,21 @@ const ReelCommentRow = ({
   );
 };
 
-const MoreDropdown = ({ onRemix, onSound, onCollab, onGreenScreen, onCut, onReport, onClose }) => {
+// CHANGED (feedback): two new entries at the top — "Interested" (with a ✓
+// when already marked) and "Not interested". `interested` / `onInterested` /
+// `onNotInterested` come from ReelItem.
+const MoreDropdown = ({
+  onRemix,
+  onSound,
+  onCollab,
+  onGreenScreen,
+  onCut,
+  onReport,
+  onClose,
+  interested,
+  onInterested,
+  onNotInterested,
+}) => {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -283,6 +300,12 @@ const MoreDropdown = ({ onRemix, onSound, onCollab, onGreenScreen, onCut, onRepo
   }, [onClose]);
 
   const items = [
+    ...(onInterested
+      ? [
+          { icon: <span style={{ fontSize: 17 }}>👍</span>, label: interested ? "Interested ✓" : "Interested", color: "#3b82f6", onClick: onInterested },
+          { icon: <span style={{ fontSize: 17 }}>🚫</span>, label: "Not interested", color: "#f43f5e", onClick: onNotInterested },
+        ]
+      : []),
     { icon: <MusicNoteIcon style={{ fontSize: 18 }} />, label: "Remix", color: "#a855f7", onClick: onRemix },
     { icon: <span style={{ fontSize: 17 }}>🎵</span>, label: "Use Sound", color: "#f97316", onClick: onSound },
     { icon: <PeopleAltOutlinedIcon style={{ fontSize: 18 }} />, label: "Collab", color: "#06b6d4", onClick: onCollab },
@@ -319,7 +342,7 @@ const ReelAdSlide = () => (
   </div>
 );
 
-const ReelItem = ({ reel, allReels }) => {
+const ReelItem = ({ reel, allReels, fb }) => {
   const navigate = useNavigate();
   const videoRef = useRef(null);
   const containerRef = useRef(null);
@@ -1068,6 +1091,23 @@ const ReelItem = ({ reel, allReels }) => {
     setShowReportModal(true);
   };
 
+  // NEW (feedback): content ids for reels are stored WITHOUT the "db_"
+  // prefix, so they match the Reels strip on the Home feed (dbId).
+  const reelKey = String(reel.id).replace(/^db_/, "");
+
+  const handleInterested = () => {
+    if (!requireLogin()) return;
+    fb?.toggleInterested("reel", reelKey);
+  };
+
+  const handleNotInterested = () => {
+    if (!requireLogin()) return;
+    fb?.markNotInterested("reel", reelKey);
+    // Move on to the next reel right away. The reel itself stays in the
+    // list until the next load, so the page doesn't jump around.
+    containerRef.current?.nextElementSibling?.scrollIntoView({ behavior: "smooth" });
+  };
+
   const isYouTube = (url) => url && (url.includes("youtube.com") || url.includes("youtu.be"));
   const getEmbedUrl = (url) => {
     if (url.includes("youtube.com/shorts/")) { const id = url.split("/shorts/")[1].split("?")[0]; return `https://www.youtube.com/embed/${id}?autoplay=1&loop=1`; }
@@ -1574,6 +1614,10 @@ const ReelItem = ({ reel, allReels }) => {
                 onCut={handleCut}
                 onReport={handleReport}
                 onClose={() => setShowMoreMenu(false)}
+                // NEW (feedback): not offered on your own reels.
+                interested={fb?.feedbackOf("reel", reelKey) === "interested"}
+                onInterested={fb && loggedInUser !== reel.username ? handleInterested : undefined}
+                onNotInterested={fb && loggedInUser !== reel.username ? handleNotInterested : undefined}
               />
             )}
           </div>
@@ -1792,6 +1836,17 @@ const Reels = () => {
   const [dbReels, setDbReels] = useState([]);
   const [dbLoading, setDbLoading] = useState(true);
 
+  // NEW (feedback): one instance for the whole Reels page.
+  const fb = useContentFeedback();
+
+  // NEW (feedback): reels hidden in earlier sessions are removed when the
+  // page loads. A reel you mark "Not interested" while watching stays in
+  // place (we just scroll past it), so the list doesn't jump under you.
+  const hiddenAtLoadRef = useRef(null);
+  if (fb.loaded && hiddenAtLoadRef.current === null) {
+    hiddenAtLoadRef.current = fb.hiddenIds("reel");
+  }
+
   const handleBack = () => {
     if (window.history.length > 2) navigate(-1);
     else navigate("/");
@@ -1940,6 +1995,19 @@ const Reels = () => {
     return pool;
   }, [baseReels, id, location.state, fromTrending, trendingIds, profileQueue, profileQueueIndex]);
 
+  // NEW (feedback): drop reels hidden in earlier sessions, but never the one
+  // that was explicitly opened via the URL.
+  const visibleReels = React.useMemo(() => {
+    const hidden = hiddenAtLoadRef.current;
+    if (!hidden || hidden.size === 0) return allReels;
+    const wanted = id ? String(id).replace(/^db_/, "") : null;
+    return allReels.filter((r) => {
+      const k = String(r.id).replace(/^db_/, "");
+      return k === wanted || !hidden.has(k);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allReels, id, fb.loaded]);
+
   const requestedReelMissing =
     Boolean(id) &&
     !location.state?.clickedReel &&
@@ -1971,7 +2039,9 @@ const Reels = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  if (dbLoading) {
+  // CHANGED (feedback): also wait for the user's feedback to load so hidden
+  // reels never flash on screen.
+  if (dbLoading || !fb.loaded) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", color: "white", flexDirection: "column", gap: "16px" }}>
         <div style={{ width: "48px", height: "48px", border: "4px solid #333", borderTop: "4px solid #dc2626", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
@@ -2010,7 +2080,7 @@ const Reels = () => {
     );
   }
 
-  if (allReels.length === 0) {
+  if (visibleReels.length === 0) {
     return (
       <>
         <button className="reels_back_btn" onClick={handleBack} aria-label="Go back">
@@ -2041,15 +2111,18 @@ const Reels = () => {
       </button>
 
       <div className="reels_container">
-        {allReels.map((reel, index) => (
+        {visibleReels.map((reel, index) => (
           <React.Fragment key={reel.id}>
-            <ReelItem reel={reel} allReels={allReels} />
-            {(index + 1) % 5 === 0 && index !== allReels.length - 1 && (
+            <ReelItem reel={reel} allReels={visibleReels} fb={fb} />
+            {(index + 1) % 5 === 0 && index !== visibleReels.length - 1 && (
               <ReelAdSlide key={`ad-${index}`} />
             )}
           </React.Fragment>
         ))}
       </div>
+
+      {/* NEW (feedback): confirmation + Undo for Interested / Not interested. */}
+      <FeedbackToast fb={fb} />
     </>
   );
 };

@@ -562,6 +562,7 @@ const PostCard = ({
   onSaveComment, // NEW: (postId, commentId) => void — kebab menu "Save"
   viewCount = 0, // this post's total view count, from PostFeed's viewCounts map
   onView, // (postId) => void — called once per mount when the card scrolls into view
+  fb, // NEW (feedback): useContentFeedback() instance from PostFeed — "Interested" / "Not interested"
 }) => {
   const [commentText, setCommentText] = useState("");
   const [showPicker, setShowPicker] = useState(false);
@@ -1287,6 +1288,34 @@ const PostCard = ({
                     >
                       🗑️ Delete post
                     </button>
+                  )}
+                  {/* NEW (feedback): Interested / Not interested — only on
+                      other people's posts. "Not interested" removes the
+                      post from the feed (PostFeed filters it) and shows an
+                      Undo toast. */}
+                  {post.username !== currentUser && fb && (
+                    <>
+                      <button
+                        className="pf-dropdown-item"
+                        onClick={() => {
+                          fb.toggleInterested("post", post.id);
+                          setShowMenu(false);
+                        }}
+                      >
+                        {fb.feedbackOf("post", post.id) === "interested"
+                          ? "✓ Interested"
+                          : "👍 Interested"}
+                      </button>
+                      <button
+                        className="pf-dropdown-item"
+                        onClick={() => {
+                          fb.markNotInterested("post", post.id);
+                          setShowMenu(false);
+                        }}
+                      >
+                        🚫 Not interested
+                      </button>
+                    </>
                   )}
                   {post.username !== currentUser && (
                     <button

@@ -1,17 +1,16 @@
 // src/Component/Messages/CameraCapture.jsx
-// In-app camera: live preview, photo + video capture, front/back switch.
-// Uses getUserMedia (real camera access + permission prompt) instead of the
-// unreliable <input capture> hint. Needs HTTPS (or localhost).
+// In-app camera: live preview, photo + video (WITH VOICE) capture, front/back switch.
+// Uses getUserMedia (real camera access + permission prompt). Needs HTTPS (or localhost).
 //
-// CHANGES in this version:
-//  - If the microphone is denied/missing in Video mode, we still record
-//    video (without sound) instead of failing the whole camera.
-//  - MediaRecorder errors are caught + shown instead of failing silently.
-//  - MediaRecorder is retried without options if the chosen mime/bitrate is
-//    rejected by the browser.
-//  - onFallback now receives the current mode ("photo" | "video") so the
-//    parent can open an image OR video capture input.
-//  - Better error messages (camera vs microphone).
+// How it works now:
+//  - Camera + microphone are requested together when the camera opens, so
+//    switching Photo <-> Video does NOT restart the camera or re-prompt.
+//  - The mic is muted (track.enabled = false) in Photo mode and enabled in
+//    Video mode, so voice is recorded only while you're recording video.
+//  - If the mic is denied/missing, video still records but a clear
+//    "no sound" warning is shown (and a 🔇 badge appears at the top).
+//  - The recorded-clip preview now plays WITH sound (it was muted before),
+//    so you can actually hear your voice before tapping "Use video".
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./CameraCapture.css";
@@ -50,6 +49,12 @@ const friendlyError = (err) => {
 
 const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
+const AUDIO_CONSTRAINTS = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+};
+
 const CameraCapture = ({ onCapture, onClose, onFallback }) => {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -61,6 +66,7 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
   const [mode, setMode] = useState("photo"); // "photo" | "video"
   const [facing, setFacing] = useState("environment"); // "environment" | "user"
   const [ready, setReady] = useState(false);
+  const [hasAudio, setHasAudio] = useState(true); // false when the mic is unavailable
   const [error, setError] = useState("");
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -74,7 +80,9 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
     streamRef.current = null;
   };
 
-  // (Re)start the camera whenever facing/mode changes; pause while previewing.
+  // (Re)start the camera when the lens changes; pause while previewing.
+  // NOTE: `mode` is intentionally NOT a dependency — the camera and mic
+  // are opened together once, and mode only toggles the mic on/off below.
   useEffect(() => {
     stopStream();
     if (preview) return undefined;
@@ -87,31 +95,26 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
     (async () => {
       try {
         const size = { width: { ideal: 1280 }, height: { ideal: 720 } };
-        const wantAudio = mode === "video"; // mic is only requested for video
 
-        // Opens the camera. If the microphone is the problem (denied or no
-        // mic), retry with video only so recording still works (silent).
+        // Opens camera + microphone together. If the microphone is the
+        // problem (denied / none), retry with video only so the camera
+        // still works, and warn that sound is unavailable.
         const open = async (facingMode) => {
           const video = { ...size, facingMode };
           try {
-            return await navigator.mediaDevices.getUserMedia({
+            const s = await navigator.mediaDevices.getUserMedia({
               video,
-              audio: wantAudio,
+              audio: AUDIO_CONSTRAINTS,
             });
+            return { stream: s, audioOk: s.getAudioTracks().length > 0 };
           } catch (e) {
-            if (
-              wantAudio &&
-              (e?.name === "NotAllowedError" || e?.name === "NotFoundError")
-            ) {
-              console.warn("Microphone unavailable, recording video only:", e);
+            if (e?.name === "NotAllowedError" || e?.name === "NotFoundError") {
+              console.warn("Microphone unavailable, video only:", e);
               const s = await navigator.mediaDevices.getUserMedia({
                 video,
                 audio: false,
               });
-              if (!cancelled) {
-                setNotice("Microphone unavailable. Video will record without sound.");
-              }
-              return s;
+              return { stream: s, audioOk: false };
             }
             throw e;
           }
@@ -119,9 +122,9 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
 
         // Ask for the exact lens first (so "back" really opens the back
         // camera); if the phone can't satisfy that, fall back to "ideal".
-        let stream;
+        let result;
         try {
-          stream = await open({ exact: facing });
+          result = await open({ exact: facing });
         } catch (firstErr) {
           if (
             firstErr?.name === "NotAllowedError" ||
@@ -129,17 +132,26 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
           ) {
             throw firstErr;
           }
-          stream = await open({ ideal: facing });
+          result = await open({ ideal: facing });
         }
 
+        const { stream, audioOk } = result;
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
+
         streamRef.current = stream;
+        setHasAudio(audioOk);
+        if (!audioOk) {
+          setNotice(
+            "Microphone unavailable. Allow microphone access in your browser's site settings to record voice.",
+          );
+        }
+
         const v = videoRef.current;
         if (v) {
-          v.srcObject = stream;
+          v.srcObject = stream; // <video> stays muted so you don't hear feedback
           await v.play().catch(() => {});
         }
         setReady(true);
@@ -152,7 +164,14 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
     return () => {
       cancelled = true;
     };
-  }, [facing, mode, preview]);
+  }, [facing, preview]);
+
+  // Mic is live only in Video mode (muted in Photo mode).
+  useEffect(() => {
+    streamRef.current
+      ?.getAudioTracks()
+      .forEach((t) => (t.enabled = mode === "video"));
+  }, [mode, ready]);
 
   // Release everything on unmount.
   useEffect(
@@ -221,15 +240,20 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
   const startRecording = () => {
     const stream = streamRef.current;
     if (!stream || !canRecord) return;
+
+    // Make sure the mic is live for this recording.
+    stream.getAudioTracks().forEach((t) => (t.enabled = true));
+
     const mime = pickVideoMime();
 
-    // Try with our preferred mime + bitrate; if the browser rejects that
+    // Try our preferred mime + bitrate; if the browser rejects that
     // combination, retry with plain defaults before giving up.
     let rec;
     try {
       rec = new MediaRecorder(stream, {
         ...(mime ? { mimeType: mime } : {}),
-        videoBitsPerSecond: 2500000, // keeps clips small enough to upload quickly
+        videoBitsPerSecond: 2500000,
+        audioBitsPerSecond: 128000,
       });
     } catch (e1) {
       console.warn("MediaRecorder with options failed, retrying plain:", e1);
@@ -242,7 +266,14 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
       }
     }
 
-    setNotice("");
+    console.log(
+      "Recording with",
+      rec.mimeType,
+      "tracks:",
+      stream.getTracks().map((t) => `${t.kind}:${t.enabled ? "on" : "off"}`),
+    );
+
+    setNotice(hasAudio ? "" : "Recording without sound (microphone unavailable).");
     chunksRef.current = [];
 
     rec.ondataavailable = (e) => {
@@ -330,6 +361,11 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
           ✕
         </button>
         {recording && <span className="cam-rec">● {fmt(seconds)}</span>}
+        {!preview && !error && mode === "video" && ready && (
+          <span className="cam-mic-badge" title={hasAudio ? "Microphone on" : "No microphone"}>
+            {hasAudio ? "🎤" : "🔇"}
+          </span>
+        )}
         {!preview && !error && (
           <button
             type="button"
@@ -366,14 +402,14 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
             <img src={preview.url} alt="Captured" className="cam-media" />
           ) : (
             <>
+              {/* NOT muted — so you can hear your recorded voice. If the
+                  browser blocks autoplay-with-sound, tap play on the controls. */}
               <video
                 key={preview.url}
                 src={preview.url}
                 className="cam-media"
                 controls
                 autoPlay
-                loop
-                muted
                 playsInline
               />
               <div className="cam-info">

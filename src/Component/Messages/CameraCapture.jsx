@@ -169,7 +169,7 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
         const v = videoRef.current;
         if (v) {
           v.srcObject = stream; // <video> stays muted so you don't hear feedback
-          await v.play().catch(() => {});
+          await v.play().catch(() => { });
         }
         setReady(true);
       } catch (err) {
@@ -369,6 +369,7 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
   return createPortal(
     <div
       className="cam-overlay"
+      data-keep-playing="true"
       role="dialog"
       aria-label="Camera"
       onClick={(e) => e.stopPropagation()}

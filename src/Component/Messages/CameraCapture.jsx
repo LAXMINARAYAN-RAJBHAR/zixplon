@@ -48,7 +48,8 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
   const [error, setError] = useState("");
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
-  const [preview, setPreview] = useState(null); // { file, url, kind }
+  const [preview, setPreview] = useState(null); // { file, url, kind, seconds, size }
+  const [notice, setNotice] = useState(""); // small non-blocking message
 
   const canRecord = typeof MediaRecorder !== "undefined";
 
@@ -157,7 +158,14 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
   const stopRecording = () => {
     clearInterval(timerRef.current);
     const rec = recorderRef.current;
-    if (rec && rec.state !== "inactive") rec.stop();
+    if (rec && rec.state !== "inactive") {
+      try {
+        rec.requestData(); // flush whatever is buffered before stopping
+      } catch {
+        /* not supported everywhere — stop() still delivers data */
+      }
+      rec.stop();
+    }
     setRecording(false);
   };
 
@@ -168,12 +176,16 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
 
     let rec;
     try {
-      rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      rec = new MediaRecorder(stream, {
+        ...(mime ? { mimeType: mime } : {}),
+        videoBitsPerSecond: 2500000, // keeps clips small enough to upload quickly
+      });
     } catch {
       setError("Video recording isn't supported on this device.");
       return;
     }
 
+    setNotice("");
     chunksRef.current = [];
     rec.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
@@ -181,12 +193,24 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
     rec.onstop = () => {
       const type = (rec.mimeType || mime || "video/webm").split(";")[0];
       const blob = new Blob(chunksRef.current, { type });
+      // A real clip is far bigger than a few KB; anything tiny means the
+      // phone didn't actually deliver video frames.
+      if (blob.size < 2048) {
+        setNotice("Nothing was recorded. Please try again (hold still for a second or two before stopping).");
+        return;
+      }
       const ext = type.includes("mp4") ? "mp4" : "webm";
       const file = new File([blob], `video-${Date.now()}.${ext}`, { type });
-      setPreview({ file, url: URL.createObjectURL(blob), kind: "video" });
+      setPreview({
+        file,
+        url: URL.createObjectURL(blob),
+        kind: "video",
+        seconds: secondsRef.current,
+        size: blob.size,
+      });
     };
 
-    rec.start();
+    rec.start(1000); // deliver data every second instead of only at the end
     recorderRef.current = rec;
     secondsRef.current = 0;
     setSeconds(0);
@@ -266,7 +290,21 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
           preview.kind === "image" ? (
             <img src={preview.url} alt="Captured" className="cam-media" />
           ) : (
-            <video src={preview.url} controls playsInline className="cam-media" />
+            <>
+              <video
+                key={preview.url}
+                src={preview.url}
+                className="cam-media"
+                controls
+                autoPlay
+                loop
+                muted
+                playsInline
+              />
+              <div className="cam-info">
+                🎬 {fmt(preview.seconds || 0)} · {(preview.size / 1048576).toFixed(1)} MB
+              </div>
+            </>
           )
         ) : (
           <video
@@ -278,6 +316,7 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
           />
         )}
         {!preview && !error && !ready && <div className="cam-loading">Opening camera…</div>}
+        {notice && !preview && <div className="cam-notice">{notice}</div>}
       </div>
 
       <div className="cam-bottom">

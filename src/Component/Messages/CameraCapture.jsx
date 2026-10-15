@@ -2,26 +2,30 @@
 // In-app camera: live preview, photo + video (WITH VOICE) capture, front/back switch.
 // Uses getUserMedia (real camera access + permission prompt). Needs HTTPS (or localhost).
 //
-// How it works now:
+// Notes:
 //  - Camera + microphone are requested together when the camera opens, so
 //    switching Photo <-> Video does NOT restart the camera or re-prompt.
 //  - The mic is muted (track.enabled = false) in Photo mode and enabled in
-//    Video mode, so voice is recorded only while you're recording video.
-//  - If the mic is denied/missing, video still records but a clear
-//    "no sound" warning is shown (and a 🔇 badge appears at the top).
-//  - The recorded-clip preview now plays WITH sound (it was muted before),
-//    so you can actually hear your voice before tapping "Use video".
+//    Video mode.
+//  - If the mic is denied/missing, video still records (no sound) with a
+//    warning and a 🔇 badge.
+//  - Performance: 854x480 @ up to 30fps and the VP8 codec are used because
+//    VP9 / 720p software encoding lags on many laptops and phones.
+//  - A small "WxH @ fps" label is shown at the top so you can see the real
+//    frame rate the camera is delivering (low light => low fps).
+//  - The recorded-clip preview plays WITH sound.
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./CameraCapture.css";
 
 const MAX_VIDEO_SECONDS = 60;
 
+// VP8 first: much lighter to encode than VP9, so recording doesn't lag.
 const pickVideoMime = () => {
   if (typeof MediaRecorder === "undefined") return "";
   const candidates = [
-    "video/webm;codecs=vp9,opus",
     "video/webm;codecs=vp8,opus",
+    "video/webm;codecs=vp8",
     "video/webm",
     "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
     "video/mp4",
@@ -72,6 +76,7 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
   const [seconds, setSeconds] = useState(0);
   const [preview, setPreview] = useState(null); // { file, url, kind, seconds, size }
   const [notice, setNotice] = useState(""); // small non-blocking message
+  const [camInfo, setCamInfo] = useState(""); // e.g. "854x480 @ 30fps"
 
   const canRecord = typeof MediaRecorder !== "undefined";
 
@@ -81,8 +86,8 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
   };
 
   // (Re)start the camera when the lens changes; pause while previewing.
-  // NOTE: `mode` is intentionally NOT a dependency — the camera and mic
-  // are opened together once, and mode only toggles the mic on/off below.
+  // `mode` is intentionally NOT a dependency — camera and mic are opened
+  // together once, and mode only toggles the mic on/off below.
   useEffect(() => {
     stopStream();
     if (preview) return undefined;
@@ -91,10 +96,15 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
     setReady(false);
     setError("");
     setNotice("");
+    setCamInfo("");
 
     (async () => {
       try {
-        const size = { width: { ideal: 1280 }, height: { ideal: 720 } };
+        const size = {
+          width: { ideal: 854 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 30, max: 30 },
+        };
 
         // Opens camera + microphone together. If the microphone is the
         // problem (denied / none), retry with video only so the camera
@@ -121,7 +131,7 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
         };
 
         // Ask for the exact lens first (so "back" really opens the back
-        // camera); if the phone can't satisfy that, fall back to "ideal".
+        // camera); if the device can't satisfy that, fall back to "ideal".
         let result;
         try {
           result = await open({ exact: facing });
@@ -143,6 +153,13 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
 
         streamRef.current = stream;
         setHasAudio(audioOk);
+
+        // Show the real resolution / frame rate the camera is delivering.
+        const st = stream.getVideoTracks()[0]?.getSettings?.() || {};
+        setCamInfo(
+          `${st.width || "?"}x${st.height || "?"} @ ${Math.round(st.frameRate || 0)}fps`,
+        );
+
         if (!audioOk) {
           setNotice(
             "Microphone unavailable. Allow microphone access in your browser's site settings to record voice.",
@@ -156,7 +173,6 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
         }
         setReady(true);
       } catch (err) {
-        alert(`Camera error: ${err?.name} - ${err?.message}`);
         console.error("Camera error:", err);
         if (!cancelled) setError(friendlyError(err));
       }
@@ -253,8 +269,8 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
     try {
       rec = new MediaRecorder(stream, {
         ...(mime ? { mimeType: mime } : {}),
-        videoBitsPerSecond: 2500000,
-        audioBitsPerSecond: 128000,
+        videoBitsPerSecond: 1500000,
+        audioBitsPerSecond: 96000,
       });
     } catch (e1) {
       console.warn("MediaRecorder with options failed, retrying plain:", e1);
@@ -289,11 +305,10 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
     };
 
     rec.onstop = () => {
-        alert(`Stopped. size=${chunksRef.current.reduce((n, c) => n + c.size, 0)} bytes, chunks=${chunksRef.current.length}, type=${rec.mimeType}`);
       const type = (rec.mimeType || mime || "video/webm").split(";")[0];
       const blob = new Blob(chunksRef.current, { type });
       // A real clip is far bigger than a few KB; anything tiny means the
-      // phone didn't actually deliver video frames.
+      // device didn't actually deliver video frames.
       if (blob.size < 2048) {
         setNotice(
           "Nothing was recorded. Please try again (hold still for a second or two before stopping).",
@@ -363,6 +378,9 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
           ✕
         </button>
         {recording && <span className="cam-rec">● {fmt(seconds)}</span>}
+        {!preview && !error && camInfo && (
+          <span style={{ fontSize: 11, opacity: 0.8 }}>{camInfo}</span>
+        )}
         {!preview && !error && mode === "video" && ready && (
           <span className="cam-mic-badge" title={hasAudio ? "Microphone on" : "No microphone"}>
             {hasAudio ? "🎤" : "🔇"}

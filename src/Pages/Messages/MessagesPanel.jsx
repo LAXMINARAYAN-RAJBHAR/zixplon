@@ -30,7 +30,9 @@ import {
   isTouchDevice,
   getClipboardFiles,
   distanceMeters,
+  canUseCamera,
 } from "../../utils/deviceFeatures";
+import CameraCapture from "../../Component/Messages/CameraCapture";
 import "./DeviceFeatures.css";
 // NEW: device-side cache (IndexedDB) so chats open instantly and only the
 // newest messages are fetched from Supabase. See utils/chatCache.js.
@@ -564,6 +566,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
   // NEW: the "＋" attach menu (file / camera / location / live location)
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showCamera, setShowCamera] = useState(false); // NEW: in-app camera screen
   const attachMenuRef = useRef();
   const attachBtnRef = useRef();
 
@@ -2832,6 +2835,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     }
   };
 
+  // NEW: opens the in-app camera; falls back to the phone's camera app
+  // (file input with capture) when the camera API isn't available.
+  const openCamera = () => {
+    if (canUseCamera()) setShowCamera(true);
+    else cameraInputRef.current?.click();
+  };
+
   // ── NEW: paste a copied image / screenshot into the composer ──
   const handlePaste = (e) => {
     const files = getClipboardFiles(e);
@@ -4652,7 +4662,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                           ref={cameraInputRef}
                           style={{ display: "none" }}
                           onChange={handleFileSelect}
-                          accept="image/*,video/*"
+                          accept="image/*"
                           capture="environment"
                         />
 
@@ -4709,13 +4719,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                   <span>📎</span> File / Gallery
                                 </button>
 
-                                {isTouchDevice() && (
+                                {(isTouchDevice() || canUseCamera()) && (
                                   <button
                                     type="button"
                                     className="mp-attach-item"
                                     onClick={() => {
                                       setShowAttachMenu(false);
-                                      cameraInputRef.current?.click();
+                                      openCamera();
                                     }}
                                     disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
                                   >
@@ -4813,6 +4823,14 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           </>
         )}
       </div>
+
+      {showCamera && (
+        <CameraCapture
+          onCapture={(file) => queueFiles([file])}
+          onClose={() => setShowCamera(false)}
+          onFallback={() => cameraInputRef.current?.click()}
+        />
+      )}
 
       {showNewModal && (
         <NewGroupOrBroadcastModal

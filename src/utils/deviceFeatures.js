@@ -109,3 +109,10 @@ export const distanceMeters = (lat1, lng1, lat2, lng2) => {
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 };
+
+// True when the in-app camera (getUserMedia) can be used: needs a secure
+// context (https / localhost) and a browser that exposes the camera API.
+export const canUseCamera = () =>
+  typeof navigator !== "undefined" &&
+  !!navigator.mediaDevices?.getUserMedia &&
+  (typeof window === "undefined" || window.isSecureContext !== false);

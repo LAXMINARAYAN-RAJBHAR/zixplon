@@ -20,7 +20,9 @@ import {
   shareContent,
   isTouchDevice,
   getClipboardFiles,
+  canUseCamera,
 } from "../../utils/deviceFeatures";
+import CameraCapture from "./CameraCapture";
 
 // ── Typing indicator tuning (mirrors MessagesPanel's 1:1 chat) ──
 const TYPING_STOP_DELAY_MS = 1500;
@@ -244,7 +246,8 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   const autoClearTimersRef = useRef({});
 
   const fileInputRef = useRef();
-  const cameraInputRef = useRef(); // NEW: opens the device camera directly
+  const cameraInputRef = useRef(); // fallback: phone camera app
+  const [showCamera, setShowCamera] = useState(false); // NEW: in-app camera screen
   const bottomRef = useRef();
   const inputRef = useRef();
   const membersPanelRef = useRef();
@@ -875,6 +878,12 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
     } finally {
       setSending(false);
     }
+  };
+
+  // NEW: opens the in-app camera; falls back to the phone's camera app.
+  const openCamera = () => {
+    if (canUseCamera()) setShowCamera(true);
+    else cameraInputRef.current?.click();
   };
 
   // NEW: paste a copied image / screenshot into the composer.
@@ -1805,7 +1814,7 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
           ref={cameraInputRef}
           style={{ display: "none" }}
           onChange={handleFileSelect}
-          accept="image/*,video/*"
+          accept="image/*"
           capture="environment"
         />
         <button
@@ -1817,11 +1826,11 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
         </button>
 
         {/* NEW: camera (touch devices only) */}
-        {isTouchDevice() && (
+        {(isTouchDevice() || canUseCamera()) && (
           <button
             type="button"
             className="gcw-icon-btn"
-            onClick={() => cameraInputRef.current?.click()}
+            onClick={openCamera}
             aria-label="Take a photo or video"
             title="Camera"
             disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
@@ -1871,6 +1880,14 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
           ➤
         </button>
       </div>
+
+      {showCamera && (
+        <CameraCapture
+          onCapture={(file) => queueFiles([file])}
+          onClose={() => setShowCamera(false)}
+          onFallback={() => cameraInputRef.current?.click()}
+        />
+      )}
 
       {forwardTarget && (
         <div className="gcw-overlay" onClick={closeForward}>

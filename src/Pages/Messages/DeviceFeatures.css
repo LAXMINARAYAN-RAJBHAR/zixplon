@@ -119,14 +119,11 @@
   cursor: not-allowed;
 }
 
-/* Fill the whole screen, including mobile browsers with a collapsing address bar */
 .cam-overlay {
   width: 100vw;
   height: 100vh;
   height: 100dvh;
 }
-
-/* Live preview fills the screen instead of leaving black bars */
 .cam-media.cam-media-fill {
   object-fit: cover;
 }

@@ -66,6 +66,7 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
   const secondsRef = useRef(0);
+  const overlayRef = useRef(null);
 
   const [mode, setMode] = useState("photo"); // "photo" | "video"
   const [facing, setFacing] = useState("environment"); // "environment" | "user"
@@ -169,7 +170,7 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
         const v = videoRef.current;
         if (v) {
           v.srcObject = stream; // <video> stays muted so you don't hear feedback
-          await v.play().catch(() => { });
+          await v.play().catch(() => {});
         }
         setReady(true);
       } catch (err) {
@@ -189,6 +190,34 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
       ?.getAudioTracks()
       .forEach((t) => (t.enabled = mode === "video"));
   }, [mode, ready]);
+
+  // Go truly full screen (hides the browser UI) when the camera opens, and
+  // leave full screen when it closes. Works on desktop browsers and Android
+  // Chrome; iOS Safari doesn't allow this, so there the overlay simply fills
+  // the whole screen (see the CSS).
+  useEffect(() => {
+    const el = overlayRef.current;
+    const request = el?.requestFullscreen || el?.webkitRequestFullscreen;
+    if (request) {
+      try {
+        const p = request.call(el);
+        if (p && p.catch) p.catch(() => {}); // blocked? the overlay still fills the page
+      } catch {
+        /* no-op */
+      }
+    }
+    return () => {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if ((document.fullscreenElement || document.webkitFullscreenElement) && exit) {
+        try {
+          const p = exit.call(document);
+          if (p && p.catch) p.catch(() => {});
+        } catch {
+          /* no-op */
+        }
+      }
+    };
+  }, []);
 
   // Release everything on unmount.
   useEffect(
@@ -368,6 +397,7 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
 
   return createPortal(
     <div
+      ref={overlayRef}
       className="cam-overlay"
       data-keep-playing="true"
       role="dialog"
@@ -441,7 +471,7 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
         ) : (
           <video
             ref={videoRef}
-            className={`cam-media ${facing === "user" ? "mirror" : ""}`}
+            className={`cam-media cam-media-fill ${facing === "user" ? "mirror" : ""}`}
             autoPlay
             muted
             playsInline

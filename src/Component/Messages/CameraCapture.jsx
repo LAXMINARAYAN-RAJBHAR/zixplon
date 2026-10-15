@@ -156,6 +156,7 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
         }
         setReady(true);
       } catch (err) {
+        alert(`Camera error: ${err?.name} - ${err?.message}`);
         console.error("Camera error:", err);
         if (!cancelled) setError(friendlyError(err));
       }
@@ -288,6 +289,7 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
     };
 
     rec.onstop = () => {
+        alert(`Stopped. size=${chunksRef.current.reduce((n, c) => n + c.size, 0)} bytes, chunks=${chunksRef.current.length}, type=${rec.mimeType}`);
       const type = (rec.mimeType || mime || "video/webm").split(";")[0];
       const blob = new Blob(chunksRef.current, { type });
       // A real clip is far bigger than a few KB; anything tiny means the

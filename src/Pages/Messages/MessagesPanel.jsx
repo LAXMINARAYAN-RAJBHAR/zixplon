@@ -19,6 +19,19 @@ import { extractFirstUrl } from "../../utils/linkPreview";
 import LinkPreviewCard from "../../Component/Messages/LinkPreviewCard";
 import { usePauseMediaWhileOpen } from "../../hooks/usePauseMediaWhileOpen";
 import { uploadAttachmentToR2 } from "../../utils/mediaUpload";
+// NEW: device features (camera, wake lock, vibration, share, contacts, paste, live location)
+import {
+  useWakeLock,
+  vibrate,
+  canShare,
+  shareContent,
+  canPickContacts,
+  pickContacts,
+  isTouchDevice,
+  getClipboardFiles,
+  distanceMeters,
+} from "../../utils/deviceFeatures";
+import "./DeviceFeatures.css";
 // NEW: device-side cache (IndexedDB) so chats open instantly and only the
 // newest messages are fetched from Supabase. See utils/chatCache.js.
 import {
@@ -180,6 +193,14 @@ const LOCATION_TIMEOUT_MS = 15000;
 // huge upload. Auto-stops and hands off to the preview stage.
 const MAX_VOICE_SECONDS = 180;
 
+// ── Live location sharing ──
+// A live location is a normal "location" message whose attachment_size
+// holds the share's EXPIRY time (unix seconds). While expiry > now the
+// card shows "Live"; stopping/expiring sets it to 1 (in the past).
+const LIVE_SHARE_MS = 15 * 60 * 1000; // share for 15 minutes
+const LIVE_MIN_INTERVAL_MS = 10000; // push at most every 10 s…
+const LIVE_MIN_MOVE_M = 10; // …and only after moving 10 m
+
 // Hard cap on how many files can be queued in one send — mirrors the
 // WhatsApp/Telegram-style "pick a batch, send it as a batch" flow
 // instead of an unbounded multi-select that could hammer the upload
@@ -320,6 +341,7 @@ const LocationCard = ({ message, mine }) => {
   }
 
   const { lat, lng } = coords;
+  const live = Number(message.attachment_size) > Math.floor(Date.now() / 1000);
   const d = 0.004;
   const bbox = [lng - d, lat - d, lng + d, lat + d].join("%2C");
   const embedSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat}%2C${lng}`;
@@ -342,7 +364,9 @@ const LocationCard = ({ message, mine }) => {
         />
       </div>
       <div className="mp-location-info">
-        <span className="mp-location-title">📍 Shared location</span>
+        <span className={`mp-location-title ${live ? "live" : ""}`}>
+          {live ? "🔴 Live location" : "📍 Shared location"}
+        </span>
         <span className="mp-location-sub">
           {lat.toFixed(5)}, {lng.toFixed(5)} · Tap to open
         </span>
@@ -464,6 +488,14 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   // NEW (location sharing): true while we wait for the browser's GPS fix.
   const [locating, setLocating] = useState(false);
 
+  // NEW (live location): the share currently running from this device, if any.
+  //   { id: <message id>, convoId, expiresAt (unix s) }
+  const [liveShare, setLiveShare] = useState(null);
+  const liveShareRef = useRef(null);
+  const liveWatchIdRef = useRef(null);
+  const liveTimerRef = useRef(null);
+  const liveLastRef = useRef(null);
+
   // ── NEW: typing state for ALL conversations ──
   // Previously only the open chat had a typing channel. Now every
   // conversation in the inbox gets one (named `typing:<convId>`, same as
@@ -531,6 +563,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const emojiBtnRef = useRef();
 
   const fileInputRef = useRef();
+  const cameraInputRef = useRef(); // NEW: opens the device camera directly
   // Queue of not-yet-sent attachments (images/videos/files picked
   // together, plus an optional voice note). Each item tracks its own
   // upload `progress` (0-100) and `status` ("pending" | "uploading" |
@@ -547,6 +580,10 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const recordingTimerRef = useRef(null);
   const recordingSecondsRef = useRef(0);
   const streamRef = useRef(null);
+
+  // NEW: keep the screen on while recording a voice note, during a voice
+  // call, or while sharing live location.
+  useWakeLock(recording || !!callActive || !!liveShare);
 
   // ── Reactions / inline editing ──
   const [openReactionFor, setOpenReactionFor] = useState(null); // message id
@@ -1241,6 +1278,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       // NEW: no chime / notification for anyone blocked in either direction.
       if (blockedByMeRef.current.has(other) || blockedMeRef.current.has(other)) return;
       if (other === activeUsernameRef.current) return;
+      vibrate([80, 40, 80]);
       playNotificationSound();
       showChatNotification(other, convRow.last_message || "New message");
     };
@@ -1309,6 +1347,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           const group = groupsRef.current.find((g) => g.id === msg.group_id);
           if (!group) return; // not a group this user belongs to
 
+          vibrate([80, 40, 80]);
           playNotificationSound();
           showChatNotification(
             group.name,
@@ -1539,6 +1578,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
             incoming.sender_username !== currentUser &&
             !blockedByMeRef.current.has(incoming.sender_username)
           ) {
+            vibrate(60);
             playReceiveSound();
           }
         },
@@ -1875,6 +1915,11 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = "";
+    queueFiles(files);
+  };
+
+  // NEW: shared by the file picker, the camera button and paste.
+  const queueFiles = (files) => {
     if (!files.length) return;
 
     const room = MAX_ATTACHMENTS - pendingAttachments.length;
@@ -2491,7 +2536,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   // stickers there's nothing to upload — the coordinates live in the
   // message row itself (attachment_name = "lat,lng", attachment_url = a
   // Google Maps link), so it sends instantly once we have a GPS fix.
-  const sendLocationMessage = async (lat, lng) => {
+  const sendLocationMessage = async (lat, lng, opts = {}) => {
     if (!activeConvo || sending || isIncomingRequest || isChatBlocked) return;
     setSending(true);
 
@@ -2521,7 +2566,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
         attachment_url: buildLocationUrl(latStr, lngStr),
         attachment_type: "location",
         attachment_name: `${latStr},${lngStr}`,
-        attachment_size: null,
+        attachment_size: opts.liveUntil || null, // live-share expiry (unix s)
         reply_to_id,
         reply_to_text,
         reply_to_sender,
@@ -2555,6 +2600,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       .eq("id", activeConvo.id);
 
     setSending(false);
+    return inserted;
   };
 
   // Asks the browser for the device's position (this triggers the
@@ -2604,6 +2650,169 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
         maximumAge: 30000,
       },
     );
+  };
+
+  // ── NEW: live location sharing ──────────────────────────────────────
+  const alertLocationError = (err) => {
+    if (err.code === 1) {
+      alert(
+        "Location permission was denied. Please allow location access for this site in your browser settings and try again.",
+      );
+    } else if (err.code === 3) {
+      alert("Getting your location timed out. Please try again.");
+    } else {
+      alert("Couldn't get your location. Please try again.");
+    }
+  };
+
+  // Stops watching, and marks the shared card as ended for both people.
+  const stopLiveShare = async () => {
+    if (liveWatchIdRef.current != null) {
+      navigator.geolocation.clearWatch(liveWatchIdRef.current);
+      liveWatchIdRef.current = null;
+    }
+    clearTimeout(liveTimerRef.current);
+    const cur = liveShareRef.current;
+    liveShareRef.current = null;
+    setLiveShare(null);
+    if (!cur) return;
+
+    setMessages((prev) =>
+      prev.map((m) => (m.id === cur.id ? { ...m, attachment_size: 1 } : m)),
+    );
+    await supabase
+      .from("direct_messages")
+      .update({ attachment_size: 1 })
+      .eq("id", cur.id);
+  };
+
+  const beginLiveWatch = (msgId, convoId, expiresAt, lat0, lng0) => {
+    const state = { id: msgId, convoId, expiresAt };
+    liveShareRef.current = state;
+    setLiveShare(state);
+    liveLastRef.current = { lat: lat0, lng: lng0, t: Date.now() };
+
+    liveWatchIdRef.current = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        const last = liveLastRef.current;
+        if (!last) return;
+        if (Date.now() - last.t < LIVE_MIN_INTERVAL_MS) return;
+        if (distanceMeters(last.lat, last.lng, lat, lng) < LIVE_MIN_MOVE_M) return;
+
+        liveLastRef.current = { lat, lng, t: Date.now() };
+        const latStr = lat.toFixed(6);
+        const lngStr = lng.toFixed(6);
+        const patch = {
+          attachment_url: buildLocationUrl(latStr, lngStr),
+          attachment_name: `${latStr},${lngStr}`,
+        };
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, ...patch } : m)),
+        );
+        await supabase.from("direct_messages").update(patch).eq("id", msgId);
+      },
+      (err) => {
+        // Only permission loss ends the share; timeouts just skip an update.
+        if (err.code === 1) stopLiveShare();
+      },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 },
+    );
+
+    clearTimeout(liveTimerRef.current);
+    liveTimerRef.current = setTimeout(
+      () => stopLiveShare(),
+      Math.max(0, expiresAt * 1000 - Date.now()),
+    );
+  };
+
+  const handleShareLiveLocation = () => {
+    if (
+      !activeConvo ||
+      locating ||
+      sending ||
+      isIncomingRequest ||
+      isChatBlocked ||
+      liveShareRef.current
+    )
+      return;
+
+    if (!navigator.geolocation) {
+      alert("Location sharing isn't supported in this browser.");
+      return;
+    }
+
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setLocating(false);
+        const confirmed = window.confirm(
+          `Share your LIVE location with ${activeUsername} for 15 minutes? Keep this chat open while sharing.`,
+        );
+        if (!confirmed) return;
+
+        const { latitude, longitude } = pos.coords;
+        const expiresAt = Math.floor((Date.now() + LIVE_SHARE_MS) / 1000);
+        const row = await sendLocationMessage(latitude, longitude, {
+          liveUntil: expiresAt,
+        });
+        if (!row) return;
+        beginLiveWatch(row.id, activeConvo.id, expiresAt, latitude, longitude);
+      },
+      (err) => {
+        setLocating(false);
+        alertLocationError(err);
+      },
+      { enableHighAccuracy: true, timeout: LOCATION_TIMEOUT_MS, maximumAge: 0 },
+    );
+  };
+
+  // A live share belongs to one chat — leaving that chat ends it.
+  useEffect(() => {
+    const cur = liveShareRef.current;
+    if (cur && cur.convoId !== activeConvo?.id) stopLiveShare();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConvo?.id]);
+
+  // Unmount: stop watching (and mark the card ended, best-effort).
+  useEffect(
+    () => () => {
+      if (liveWatchIdRef.current != null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(liveWatchIdRef.current);
+      }
+      clearTimeout(liveTimerRef.current);
+      const cur = liveShareRef.current;
+      if (cur) {
+        supabase
+          .from("direct_messages")
+          .update({ attachment_size: 1 })
+          .eq("id", cur.id)
+          .then(() => {});
+      }
+    },
+    [],
+  );
+
+  // ── NEW: invite friends from the phone's contacts (Android Chrome) ──
+  const inviteFromContacts = async () => {
+    const picked = await pickContacts();
+    if (!picked.length) return;
+    const msg = `Join me on Zixplon! ${window.location.origin}`;
+    const numbers = picked.flatMap((c) => c.tel || []).filter(Boolean);
+    if (numbers.length) {
+      window.location.href = `sms:${numbers.join(",")}?&body=${encodeURIComponent(msg)}`;
+    } else {
+      await shareContent({ text: msg });
+    }
+  };
+
+  // ── NEW: paste a copied image / screenshot into the composer ──
+  const handlePaste = (e) => {
+    const files = getClipboardFiles(e);
+    if (files.length) {
+      e.preventDefault();
+      queueFiles(files);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -3420,6 +3629,16 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                       >
                         📢 New Broadcast List
                       </div>
+                      {canPickContacts() && (
+                        <div
+                          onClick={() => {
+                            setShowNewMenu(false);
+                            inviteFromContacts();
+                          }}
+                        >
+                          📇 Invite from contacts
+                        </div>
+                      )}
                     </div>
                   )}
                   <button
@@ -3840,6 +4059,27 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                             }}
                                           >
                                             ✎ Edit
+                                          </button>
+                                        )}
+                                        {/* NEW: native share sheet */}
+                                        {hasContent && canShare() && (
+                                          <button
+                                            type="button"
+                                            className="mp-menu-item"
+                                            onClick={() => {
+                                              shareContent({
+                                                title: "Zixplon",
+                                                text: m.text || undefined,
+                                                url:
+                                                  m.attachment_url &&
+                                                  m.attachment_type !== "call"
+                                                    ? m.attachment_url
+                                                    : undefined,
+                                              });
+                                              setOpenMenuFor(null);
+                                            }}
+                                          >
+                                            📤 Share
                                           </button>
                                         )}
                                         {/* NEW: enter multi-select delete mode */}
@@ -4357,6 +4597,20 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                         </div>
                       )}
 
+                      {liveShare && liveShare.convoId === activeConvo?.id && (
+                        <div className="mp-live-banner">
+                          <span className="mp-live-dot" />
+                          <span>Sharing your live location…</span>
+                          <button
+                            type="button"
+                            className="mp-live-stop"
+                            onClick={stopLiveShare}
+                          >
+                            Stop
+                          </button>
+                        </div>
+                      )}
+
                       <div className="mp-chat-input-row">
                         <input
                           type="file"
@@ -4365,6 +4619,15 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                           onChange={handleFileSelect}
                           multiple
                           accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.csv"
+                        />
+                        {/* NEW: opens the camera directly on phones/tablets */}
+                        <input
+                          type="file"
+                          ref={cameraInputRef}
+                          style={{ display: "none" }}
+                          onChange={handleFileSelect}
+                          accept="image/*,video/*"
+                          capture="environment"
                         />
 
                         {recording ? (
@@ -4402,6 +4665,20 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               📎
                             </button>
 
+                            {/* NEW: camera (touch devices only) */}
+                            {isTouchDevice() && (
+                              <button
+                                type="button"
+                                className="mp-icon-btn"
+                                onClick={() => cameraInputRef.current?.click()}
+                                aria-label="Take a photo or video"
+                                title="Camera"
+                                disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
+                              >
+                                📷
+                              </button>
+                            )}
+
                             {/* NEW (location sharing): send current location */}
                             <button
                               type="button"
@@ -4412,6 +4689,22 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               disabled={locating || sending}
                             >
                               {locating ? "⏳" : "📍"}
+                            </button>
+
+                            {/* NEW: share live location for 15 minutes */}
+                            <button
+                              type="button"
+                              className={`mp-icon-btn mp-live-btn ${liveShare ? "locating" : ""}`}
+                              onClick={handleShareLiveLocation}
+                              aria-label="Share live location"
+                              title={
+                                liveShare
+                                  ? "Already sharing live location"
+                                  : "Share live location (15 min)"
+                              }
+                              disabled={locating || sending || !!liveShare}
+                            >
+                              📡
                             </button>
 
                             <button
@@ -4445,6 +4738,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                 handleTypingInput();
                               }}
                               onKeyDown={handleKeyDown}
+                              onPaste={handlePaste}
                             />
 
                             {text.trim() || pendingAttachments.length > 0 ? (

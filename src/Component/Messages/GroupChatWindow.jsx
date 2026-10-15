@@ -13,6 +13,14 @@ import EmojiGifStickerPicker from "./EmojiGifStickerPicker";
 import "./GroupChatWindow.css";
 import { playSendSound, playReceiveSound } from "../../utils/soundEffects";
 import { uploadAttachmentToR2 } from "../../utils/mediaUpload";
+// NEW: device features (camera, vibration, share, paste)
+import {
+  vibrate,
+  canShare,
+  shareContent,
+  isTouchDevice,
+  getClipboardFiles,
+} from "../../utils/deviceFeatures";
 
 // ── Typing indicator tuning (mirrors MessagesPanel's 1:1 chat) ──
 const TYPING_STOP_DELAY_MS = 1500;
@@ -236,6 +244,7 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   const autoClearTimersRef = useRef({});
 
   const fileInputRef = useRef();
+  const cameraInputRef = useRef(); // NEW: opens the device camera directly
   const bottomRef = useRef();
   const inputRef = useRef();
   const membersPanelRef = useRef();
@@ -307,6 +316,7 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
             return [...prev, incoming];
           });
           if (wasAppended && incoming.sender_username !== currentUser) {
+            vibrate(60);
             playReceiveSound();
           }
         },
@@ -511,6 +521,11 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = "";
+    queueFiles(files);
+  };
+
+  // NEW: shared by the file picker, the camera button and paste.
+  const queueFiles = (files) => {
     if (!files.length) return;
 
     const room = MAX_ATTACHMENTS - pendingAttachments.length;
@@ -859,6 +874,15 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
       alert(`Failed to send: ${err?.message || "please try again."}`);
     } finally {
       setSending(false);
+    }
+  };
+
+  // NEW: paste a copied image / screenshot into the composer.
+  const handlePaste = (e) => {
+    const files = getClipboardFiles(e);
+    if (files.length) {
+      e.preventDefault();
+      queueFiles(files);
     }
   };
 
@@ -1465,6 +1489,23 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
                                 ✎ Edit
                               </button>
                             )}
+                            {/* NEW: native share sheet */}
+                            {canShare() && (
+                              <button
+                                type="button"
+                                className="gcw-menu-item"
+                                onClick={() => {
+                                  shareContent({
+                                    title: group.name,
+                                    text: m.text || undefined,
+                                    url: m.attachment_url || undefined,
+                                  });
+                                  setOpenMenuFor(null);
+                                }}
+                              >
+                                📤 Share
+                              </button>
+                            )}
                             {/* NEW: enter multi-select delete mode */}
                             {canSelect(m) && (
                               <button
@@ -1758,6 +1799,15 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
 
       <div className="gcw-input-row">
         <input type="file" ref={fileInputRef} style={{ display: "none" }} onChange={handleFileSelect} multiple />
+        {/* NEW: opens the camera directly on phones/tablets */}
+        <input
+          type="file"
+          ref={cameraInputRef}
+          style={{ display: "none" }}
+          onChange={handleFileSelect}
+          accept="image/*,video/*"
+          capture="environment"
+        />
         <button
           className="gcw-icon-btn"
           onClick={() => fileInputRef.current?.click()}
@@ -1765,6 +1815,20 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
         >
           📎
         </button>
+
+        {/* NEW: camera (touch devices only) */}
+        {isTouchDevice() && (
+          <button
+            type="button"
+            className="gcw-icon-btn"
+            onClick={() => cameraInputRef.current?.click()}
+            aria-label="Take a photo or video"
+            title="Camera"
+            disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
+          >
+            📷
+          </button>
+        )}
 
         <button
           type="button"
@@ -1797,6 +1861,7 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
             handleTypingInput();
           }}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
         />
         <button
           className="gcw-send-btn"

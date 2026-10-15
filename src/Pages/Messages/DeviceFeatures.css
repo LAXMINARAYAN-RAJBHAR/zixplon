@@ -1,0 +1,58 @@
+/* ══════════════════════════════════════════════════════════════════════
+   Device features (camera, live location, …) — imported by MessagesPanel.
+   Reuses the @keyframes mp-pulse already defined in MessagesPanel.css.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* "Sharing live location… [Stop]" strip above the composer */
+.mp-live-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-top: 2px solid var(--zx-border);
+  background: var(--zx-surface2);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--zx-text2);
+}
+.mp-live-banner span:not(.mp-live-dot) {
+  flex: 1;
+  min-width: 0;
+}
+.mp-live-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--zx-primary);
+  flex-shrink: 0;
+  animation: mp-pulse 1s ease-in-out infinite;
+}
+.mp-live-stop {
+  background: var(--zx-primary);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 5px 12px;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.mp-live-stop:hover {
+  background: var(--zx-accent1);
+}
+
+/* Live badge on a location card */
+.mp-location-title.live {
+  color: var(--zx-primary);
+}
+.mp-location-card.mine .mp-location-title.live {
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .mp-live-banner {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+}

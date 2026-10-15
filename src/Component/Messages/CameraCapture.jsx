@@ -68,14 +68,25 @@ const CameraCapture = ({ onCapture, onClose, onFallback }) => {
 
     (async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: facing },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-          audio: mode === "video", // mic is only requested for video
-        });
+        // Ask for the exact lens first (so "back" really opens the back
+        // camera); if the phone can't satisfy that, fall back to "ideal".
+        const size = { width: { ideal: 1280 }, height: { ideal: 720 } };
+        const audio = mode === "video"; // mic is only requested for video
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { ...size, facingMode: { exact: facing } },
+            audio,
+          });
+        } catch (firstErr) {
+          if (firstErr?.name === "NotAllowedError" || firstErr?.name === "SecurityError") {
+            throw firstErr;
+          }
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { ...size, facingMode: { ideal: facing } },
+            audio,
+          });
+        }
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;

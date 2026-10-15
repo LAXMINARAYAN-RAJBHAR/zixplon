@@ -562,6 +562,11 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const emojiPickerRef = useRef();
   const emojiBtnRef = useRef();
 
+  // NEW: the "＋" attach menu (file / camera / location / live location)
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const attachMenuRef = useRef();
+  const attachBtnRef = useRef();
+
   const fileInputRef = useRef();
   const cameraInputRef = useRef(); // NEW: opens the device camera directly
   // Queue of not-yet-sent attachments (images/videos/files picked
@@ -1099,6 +1104,27 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showNewMenu]);
+
+  // Close the "＋" attach menu when clicking outside it
+  useEffect(() => {
+    if (!showAttachMenu) return;
+    const handleClickOutside = (e) => {
+      if (
+        attachMenuRef.current &&
+        !attachMenuRef.current.contains(e.target) &&
+        attachBtnRef.current &&
+        !attachBtnRef.current.contains(e.target)
+      ) {
+        setShowAttachMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [showAttachMenu]);
 
   // Safety net: if the panel unmounts (or the user navigates away) while
   // a recording is in progress, make sure the mic is released.
@@ -4655,57 +4681,74 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                           </div>
                         ) : (
                           <>
+                            {/* NEW: one "＋" button instead of four icons, so the
+                                message box keeps its width on phones. */}
                             <button
                               type="button"
-                              className="mp-icon-btn"
-                              onClick={() => fileInputRef.current?.click()}
-                              aria-label="Attach files"
-                              disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
+                              ref={attachBtnRef}
+                              className={`mp-icon-btn mp-attach-btn ${showAttachMenu ? "open" : ""} ${liveShare || locating ? "locating" : ""}`}
+                              onClick={() => setShowAttachMenu((v) => !v)}
+                              aria-label="Attach, camera or location"
+                              aria-expanded={showAttachMenu}
+                              title="Attach"
                             >
-                              📎
+                              {locating ? "⏳" : "＋"}
                             </button>
 
-                            {/* NEW: camera (touch devices only) */}
-                            {isTouchDevice() && (
-                              <button
-                                type="button"
-                                className="mp-icon-btn"
-                                onClick={() => cameraInputRef.current?.click()}
-                                aria-label="Take a photo or video"
-                                title="Camera"
-                                disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
-                              >
-                                📷
-                              </button>
+                            {showAttachMenu && (
+                              <div className="mp-attach-menu" ref={attachMenuRef}>
+                                <button
+                                  type="button"
+                                  className="mp-attach-item"
+                                  onClick={() => {
+                                    setShowAttachMenu(false);
+                                    fileInputRef.current?.click();
+                                  }}
+                                  disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
+                                >
+                                  <span>📎</span> File / Gallery
+                                </button>
+
+                                {isTouchDevice() && (
+                                  <button
+                                    type="button"
+                                    className="mp-attach-item"
+                                    onClick={() => {
+                                      setShowAttachMenu(false);
+                                      cameraInputRef.current?.click();
+                                    }}
+                                    disabled={pendingAttachments.length >= MAX_ATTACHMENTS}
+                                  >
+                                    <span>📷</span> Camera
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  className="mp-attach-item"
+                                  onClick={() => {
+                                    setShowAttachMenu(false);
+                                    handleShareLocation();
+                                  }}
+                                  disabled={locating || sending}
+                                >
+                                  <span>📍</span> Location
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="mp-attach-item"
+                                  onClick={() => {
+                                    setShowAttachMenu(false);
+                                    handleShareLiveLocation();
+                                  }}
+                                  disabled={locating || sending || !!liveShare}
+                                >
+                                  <span>📡</span>{" "}
+                                  {liveShare ? "Sharing live location…" : "Live location (15 min)"}
+                                </button>
+                              </div>
                             )}
-
-                            {/* NEW (location sharing): send current location */}
-                            <button
-                              type="button"
-                              className={`mp-icon-btn mp-location-btn ${locating ? "locating" : ""}`}
-                              onClick={handleShareLocation}
-                              aria-label="Share my location"
-                              title={locating ? "Getting your location…" : "Share my location"}
-                              disabled={locating || sending}
-                            >
-                              {locating ? "⏳" : "📍"}
-                            </button>
-
-                            {/* NEW: share live location for 15 minutes */}
-                            <button
-                              type="button"
-                              className={`mp-icon-btn mp-live-btn ${liveShare ? "locating" : ""}`}
-                              onClick={handleShareLiveLocation}
-                              aria-label="Share live location"
-                              title={
-                                liveShare
-                                  ? "Already sharing live location"
-                                  : "Share live location (15 min)"
-                              }
-                              disabled={locating || sending || !!liveShare}
-                            >
-                              📡
-                            </button>
 
                             <button
                               type="button"

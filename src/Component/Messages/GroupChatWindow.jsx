@@ -1651,7 +1651,7 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
                               />
                             )}
                             {m.attachment_url && m.attachment_type === "video" && (
-                              <video src={m.attachment_url} controls className="gcw-bubble-video" />
+                              <video src={m.attachment_url} controls playsInline preload="metadata" className="gcw-bubble-video" />
                             )}
                             {m.attachment_url && m.attachment_type === "gif" && (
                               <img src={m.attachment_url} alt="GIF" className="gcw-bubble-gif" />
@@ -1771,7 +1771,27 @@ const GroupChatWindow = ({ group, currentUser, onBack, onClose, onGroupDeleted }
                 }`}
               >
                 {att.type === "image" && <img src={att.previewUrl} alt="preview" />}
-                {att.type === "video" && <video src={att.previewUrl} muted />}
+                {att.type === "video" && (
+                  <>
+                    <video src={att.previewUrl} muted playsInline />
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        top: 4,
+                        left: 4,
+                        background: "rgba(0,0,0,0.6)",
+                        color: "#fff",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        borderRadius: 8,
+                        padding: "1px 6px",
+                      }}
+                    >
+                      ▶ Video
+                    </span>
+                  </>
+                )}
                 {att.type === "file" &&
                   (() => (
                     <div className="gcw-pending-file-chip">

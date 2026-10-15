@@ -4291,6 +4291,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                         <video
                                           src={m.attachment_url}
                                           controls
+                                          playsInline
+                                          preload="metadata"
                                           className="mp-bubble-video"
                                         />
                                       )}
@@ -4578,7 +4580,25 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                   <img src={att.previewUrl} alt="preview" />
                                 )}
                                 {att.type === "video" && (
-                                  <video src={att.previewUrl} muted />
+                                  <>
+                                    <video src={att.previewUrl} muted playsInline />
+                                    <span
+                                      aria-hidden="true"
+                                      style={{
+                                        position: "absolute",
+                                        top: 4,
+                                        left: 4,
+                                        background: "rgba(0,0,0,0.6)",
+                                        color: "#fff",
+                                        fontSize: 10,
+                                        fontWeight: 800,
+                                        borderRadius: 8,
+                                        padding: "1px 6px",
+                                      }}
+                                    >
+                                      ▶ Video
+                                    </span>
+                                  </>
                                 )}
                                 {att.type === "voice" && (
                                   <div className="mp-pending-voice-chip">

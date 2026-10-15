@@ -1012,17 +1012,22 @@
   position: relative;
 }
 
+/* Keep the ⋮ dropdown inside the player: open upward, to the left of the button */
 .video_more_dropdown {
-  position: absolute;
-  top: 110%;
-  right: 0;
-  background: #1e1b4b;
-  border: 1px solid rgba(124, 58, 237, 0.4);
-  border-radius: 10px;
-  min-width: 140px;
-  overflow: hidden;
+  top: auto !important;
+  bottom: 0 !important;
+  left: auto !important;
+  right: calc(100% + 8px) !important;
+  margin: 0 !important;
+  min-width: 170px;
+  max-height: 60vh;
+  overflow-y: auto;
   z-index: 50;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* The wrapper must be the positioning anchor */
+.video_frame_more_wrap {
+  position: relative;
 }
 
 .video_more_dropdown_item {

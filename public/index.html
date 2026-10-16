@@ -16,7 +16,82 @@
     }
   })();
 </script>
+
+  <!-- ── NEW: build-file recovery ──
+       If one of OUR OWN build files (/static/...css or .js) fails to load —
+       e.g. a flaky mobile connection, or a stale cached page pointing at files
+       from an older deploy — the page used to show up with no styling. Now it
+       reloads once; if that fails too, it clears the cached files and reloads
+       once more. It never touches the service worker registration, so push
+       subscriptions are kept. Must stay ABOVE the build's own <link>/<script>
+       tags (which CRA adds at the end of <head>) so it can see their errors. -->
+  <script>
+    (function () {
+      var KEY = 'zixplon_asset_recover';
+
+      function isOurBuildFile(url) {
+        try {
+          var u = new URL(url, window.location.href);
+          return u.origin === window.location.origin && u.pathname.indexOf('/static/') === 0;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      window.addEventListener('error', function (e) {
+        var t = e.target;
+        if (!t || t === window || !t.tagName) return;
+
+        var isCss = t.tagName === 'LINK' && t.rel === 'stylesheet';
+        var isJs = t.tagName === 'SCRIPT' && !!t.src;
+        if (!isCss && !isJs) return;
+        if (!isOurBuildFile(t.href || t.src)) return;
+
+        var tries = 0;
+        try { tries = parseInt(sessionStorage.getItem(KEY) || '0', 10); } catch (err) {}
+        if (tries >= 2) return; // never loop forever
+        try { sessionStorage.setItem(KEY, String(tries + 1)); } catch (err) {}
+
+        function reload() { window.location.reload(); }
+
+        if (tries >= 1 && window.caches && caches.keys) {
+          // Second failure: drop the cached files too, then reload.
+          caches.keys()
+            .then(function (keys) {
+              return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+            })
+            .then(reload, reload);
+        } else {
+          reload();
+        }
+      }, true); // capture phase: resource errors don't bubble
+
+      // Once the page has been up for a while, forget past failures.
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          try { sessionStorage.removeItem(KEY); } catch (err) {}
+        }, 10000);
+      });
+    })();
+  </script>
+
   <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+
+  <!-- ── NEW: fonts (moved out of MessagesPanel.css's @import) ──
+       Loaded here so a slow Google Fonts request can't hold up your main
+       stylesheet. display=swap shows text immediately in a fallback font, and
+       the media="print" trick keeps the font stylesheet from blocking the first
+       paint. After deploying, delete the @import line at the top of
+       MessagesPanel.css. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Outfit:wght@400;500;600;700&display=swap"
+    media="print" onload="this.media='all'">
+  <noscript>
+    <link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Outfit:wght@400;500;600;700&display=swap">
+  </noscript>
 
   <!-- ── Viewport: default for mobile, overridden for TV by script below ── -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />

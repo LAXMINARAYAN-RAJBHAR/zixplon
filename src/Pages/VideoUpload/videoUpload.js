@@ -42,6 +42,257 @@ const imageLoads = (url, timeoutMs = 8000) =>
     img.src = url;
   });
 
+// ─────────────────────────────────────────────────────────────────────────
+// AUTOMATIC THUMBNAIL — rewritten so a thumbnail is ALWAYS produced.
+//
+// Previously captureThumbnail() tried a single moment in the video, could
+// return a solid-black frame (frame not decoded yet) or time out on some
+// files, and handleSubmit() then refused to save until the user picked an
+// image by hand.
+//
+// Now there are three layers, tried in order:
+//   1. captureBestThumbnail(): grabs frames at several points in the video
+//      (10% / 25% / 50% / 75%), checks each one for "black or blank"
+//      (brightness + contrast), and keeps the best. It stops early as soon
+//      as it finds a good frame.
+//   2. generatePlaceholderThumbnail(): if nothing usable could be captured
+//      (unsupported codec, a genuinely black video, a stalled file), a
+//      branded cover image with the title is drawn on a canvas instead.
+//   3. handleSubmit() re-runs steps 1-2 if, for any reason, no thumbnail
+//      exists yet — so saving is never blocked on a missing thumbnail.
+// ─────────────────────────────────────────────────────────────────────────
+
+const THUMB_MAX_SIDE = 640; // longest side of the captured image, in px
+
+const canvasToBlob = (canvas, type = "image/jpeg", quality = 0.85) =>
+  new Promise((resolve) => canvas.toBlob((b) => resolve(b), type, quality));
+
+// Average brightness + contrast of the video's current frame, measured on a
+// tiny 32x18 sample. A black / undecoded frame has both near zero.
+const frameStats = (video) => {
+  const c = document.createElement("canvas");
+  c.width = 32;
+  c.height = 18;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(video, 0, 0, 32, 18);
+  const { data } = ctx.getImageData(0, 0, 32, 18);
+  let sum = 0;
+  let sumSq = 0;
+  const n = data.length / 4;
+  for (let i = 0; i < data.length; i += 4) {
+    const luma = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+    sum += luma;
+    sumSq += luma * luma;
+  }
+  const mean = sum / n;
+  const std = Math.sqrt(Math.max(0, sumSq / n - mean * mean));
+  return { mean, std };
+};
+
+// Resolves once the browser has actually presented a frame (or after a short
+// safety timeout), so drawImage() never reads a stale/black buffer.
+const waitForFrame = (video, timeoutMs = 700) =>
+  new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (!done) { done = true; resolve(); }
+    };
+    if ("requestVideoFrameCallback" in video) video.requestVideoFrameCallback(finish);
+    else requestAnimationFrame(() => requestAnimationFrame(finish));
+    setTimeout(finish, timeoutMs);
+  });
+
+const seekVideo = (video, time, timeoutMs = 4000) =>
+  new Promise((resolve) => {
+    if (Math.abs(video.currentTime - time) < 0.01) { resolve(); return; }
+    let done = false;
+    let timer;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      video.removeEventListener("seeked", finish);
+      resolve();
+    };
+    timer = setTimeout(finish, timeoutMs);
+    video.addEventListener("seeked", finish);
+    try {
+      video.currentTime = time;
+    } catch (_) {
+      finish();
+    }
+  });
+
+// Briefly plays then pauses, which forces the browser to really decode and
+// present the frame at the current position (a plain seek on an off-screen
+// video often leaves a black buffer).
+const decodeCurrentFrame = async (video) => {
+  try {
+    await Promise.race([
+      video.play(),
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ]);
+  } catch (_) { /* autoplay refused - grab whatever is there */ }
+  await waitForFrame(video);
+  try { video.pause(); } catch (_) {}
+};
+
+// Resolves { blob, portrait } for the best frame found, or null if nothing
+// usable could be captured. Never rejects.
+const captureBestThumbnail = (file) =>
+  new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.setAttribute("aria-hidden", "true");
+    // Attached to the DOM (off-screen, not display:none) - detached or
+    // hidden videos often skip decoding and give black frames.
+    Object.assign(video.style, {
+      position: "fixed",
+      left: "-9999px",
+      top: "0",
+      width: "160px",
+      height: "90px",
+      opacity: "0",
+      pointerEvents: "none",
+    });
+    document.body.appendChild(video);
+
+    const url = URL.createObjectURL(file);
+    let best = null;
+    let finished = false;
+    let hardTimer;
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(hardTimer);
+      try { video.pause(); } catch (_) {}
+      video.removeAttribute("src");
+      try { video.load(); } catch (_) {}
+      URL.revokeObjectURL(url);
+      if (video.parentNode) video.parentNode.removeChild(video);
+      // A frame scoring this low is effectively black/blank - treat it as a
+      // failed capture so the generated cover is used instead.
+      resolve(best && best.score > 6 ? { blob: best.blob, portrait: best.portrait } : null);
+    };
+
+    hardTimer = setTimeout(finish, 25000);
+
+    (async () => {
+      try {
+        // Wait for the first decodable frame.
+        await new Promise((res) => {
+          const t = setTimeout(res, 10000);
+          const done = () => { clearTimeout(t); res(); };
+          video.addEventListener("loadeddata", done, { once: true });
+          video.addEventListener("error", done, { once: true });
+          video.src = url;
+          video.load();
+        });
+
+        if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+          finish();
+          return;
+        }
+
+        const dur = video.duration;
+        const times =
+          isFinite(dur) && dur > 0
+            ? [dur * 0.1, dur * 0.25, dur * 0.5, dur * 0.75]
+                .map((t) => Math.min(Math.max(t, 0.1), Math.max(dur - 0.1, 0.1)))
+                .filter((t, i, arr) => arr.indexOf(t) === i)
+            : [0.1, 1];
+
+        for (const t of times) {
+          if (finished) return;
+          await seekVideo(video, t);
+          await decodeCurrentFrame(video);
+
+          const w = video.videoWidth;
+          const h = video.videoHeight;
+          if (!w || !h) continue;
+
+          const { mean, std } = frameStats(video);
+          const score = mean + std;
+
+          if (!best || score > best.score) {
+            const scale = Math.min(1, THUMB_MAX_SIDE / Math.max(w, h));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(w * scale);
+            canvas.height = Math.round(h * scale);
+            canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+            const blob = await canvasToBlob(canvas);
+            if (blob) best = { blob, score, portrait: h > w };
+          }
+
+          // Good enough (not dark, not flat) - stop looking.
+          if (mean > 25 && std > 10) break;
+        }
+      } catch (err) {
+        console.warn("Thumbnail capture error:", err && err.message);
+      }
+      finish();
+    })();
+  });
+
+// Last-resort cover image drawn on a canvas, so there is ALWAYS a thumbnail.
+const generatePlaceholderThumbnail = async (title, portrait) => {
+  const W = portrait ? 360 : 640;
+  const H = portrait ? 640 : 360;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  const gradient = ctx.createLinearGradient(0, 0, W, H);
+  gradient.addColorStop(0, "#b91c1c");
+  gradient.addColorStop(1, "#f97316");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, W, H);
+
+  // Play button
+  const r = Math.min(W, H) * 0.14;
+  const cx = W / 2;
+  const cy = H * 0.42;
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#b91c1c";
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.3, cy - r * 0.45);
+  ctx.lineTo(cx - r * 0.3, cy + r * 0.45);
+  ctx.lineTo(cx + r * 0.5, cy);
+  ctx.closePath();
+  ctx.fill();
+
+  // Title (one line, trimmed)
+  const text = (title || "").trim();
+  if (text) {
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+    ctx.font = `bold ${Math.round(W * 0.05)}px sans-serif`;
+    let shown = text;
+    while (shown.length > 3 && ctx.measureText(shown).width > W * 0.86) {
+      shown = shown.slice(0, -2);
+    }
+    if (shown !== text) shown = shown.trimEnd() + "…";
+    ctx.fillText(shown, cx, H * 0.72);
+  }
+
+  // Brand mark
+  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  ctx.textAlign = "center";
+  ctx.font = `800 ${Math.round(W * 0.04)}px sans-serif`;
+  ctx.fillText("ZIXPLON", cx, H * 0.92);
+
+  const blob = await canvasToBlob(canvas);
+  if (!blob) throw new Error("Couldn't generate a cover image.");
+  return { blob, portrait };
+};
+
 const resolveFeature = (state) => {
   if (!state) return { mode: null, data: null };
   if (state.remixData)       return { mode: "remix",       data: state.remixData };
@@ -106,6 +357,8 @@ const VideoUpload = () => {
   const [submitted,       setSubmitted]       = useState(false);
   const [error,           setError]           = useState("");
   const [saving,          setSaving]          = useState(false);
+  // "auto" (captured from the video) | "generated" (cover drawn by us)
+  // | "manual" (picked by the user) | ""
   const [thumbSource,     setThumbSource]     = useState("");
   const [uploadProgress,  setUploadProgress]  = useState(0);
   const [uploadSpeed,     setUploadSpeed]     = useState(0);
@@ -143,6 +396,11 @@ const VideoUpload = () => {
   const durationRef      = useRef("00:00");
   const wakeLockRef      = useRef(null);
   const localPreviewRef  = useRef(""); // mirrors localPreviewUrl for safe cleanup
+  // NEW: the picked video file (kept so handleSubmit can still produce a
+  // thumbnail if the one made during upload is somehow missing) and its
+  // orientation (used to size reel thumbnails portrait instead of 16:9).
+  const fileRef          = useRef(null);
+  const portraitRef      = useRef(null);
 
   const requestWakeLock = async () => {
     try {
@@ -195,6 +453,8 @@ const VideoUpload = () => {
     uploadStartTime.current  = null;
     uploadedBytesRef.current = 0;
     durationRef.current      = "00:00";
+    fileRef.current          = null;
+    portraitRef.current      = null;
     clearLocalPreview();
   };
 
@@ -214,12 +474,23 @@ const VideoUpload = () => {
     else                       setTimeRemaining(`~${Math.ceil(remainSecs)} sec remaining`);
   };
 
+  // CHANGED: also records the video's orientation, and always resolves
+  // (error / stalled metadata) so the upload can never hang waiting on it.
   const getVideoDuration = (file) => new Promise((resolve) => {
     const videoEl = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
     videoEl.preload = "metadata";
+
+    const timer = setTimeout(() => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(durationRef.current);
+    }, 10000);
+
     videoEl.onloadedmetadata = () => {
-      window.URL.revokeObjectURL(videoEl.src);
-      const totalSec = Math.floor(videoEl.duration);
+      clearTimeout(timer);
+      URL.revokeObjectURL(objectUrl);
+      portraitRef.current = videoEl.videoHeight > videoEl.videoWidth;
+      const totalSec = Math.floor(videoEl.duration) || 0;
       const hrs  = Math.floor(totalSec / 3600);
       const mins = Math.floor((totalSec % 3600) / 60);
       const secs = totalSec % 60;
@@ -228,237 +499,60 @@ const VideoUpload = () => {
         : `${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`;
       resolve(durationRef.current);
     };
-    videoEl.src = URL.createObjectURL(file);
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // captureThumbnail — FIXED VERSION (v2: seeked-timeout fallback)
-  //
-  // ROOT CAUSE OF THE ORIGINAL BLACK THUMBNAIL BUG (v1 fix, kept):
-  // The video element was created with document.createElement("video") but
-  // NEVER attached to the DOM. In Chrome (and most browsers), an off-DOM
-  // video element can fire `seeked` and report a "successful" seek without
-  // actually having decoded a real frame at that position yet — so
-  // ctx.drawImage(video, ...) captures whatever was last in the decode
-  // buffer, which is usually just black.
-  //
-  // THE v1 FIX (kept):
-  //  1. Attach the video element to the DOM (positioned off-screen, NOT
-  //     display:none — some browsers pause/skip decoding for display:none
-  //     elements too).
-  //  2. Briefly call video.play() then immediately pause() after seeking —
-  //     this forces the browser to actually decode and render the frame,
-  //     which a pure seek() sometimes won't guarantee off-screen.
-  //  3. Always remove the element from the DOM in cleanup, whether it
-  //     succeeds or fails, so nothing leaks.
-  //
-  // ROOT CAUSE OF THE "Thumbnail capture timed out." BUG (v2 fix, NEW):
-  // Confirmed in production via console log: "Client-side thumbnail
-  // capture failed: Thumbnail capture timed out." on a recently-uploaded,
-  // longer-form video ("The Fox and the Bird" short film). That error can
-  // only fire once a seek was actually attempted (video.currentTime was
-  // set) — meaning duration resolved fine and trySeek() ran, but the
-  // browser's `seeked` event never arrived within the full 10s window.
-  // This matches MP4 files where the moov atom (metadata index) is stored
-  // at the END of the file rather than the beginning ("not fast-start"
-  // encoded) — common on longer/re-exported files, less common on quick
-  // phone recordings. The browser has to fetch/parse a large chunk of the
-  // Blob just to resolve ANY seek target, and for a large enough file that
-  // can stall past the old fallback windows entirely, since the only
-  // earlier fallback (3s) explicitly skips when a seek WAS attempted.
-  //
-  // THE v2 FIX (NEW):
-  //  1. Seek closer to the very start of the file (min(0.5, dur/2) instead
-  //     of up to 1s in) — doesn't fix the underlying index-parsing cost,
-  //     but keeps the target itself cheap once that index is available.
-  //  2. NEW 5s fallback: if a seek WAS attempted but `seeked` never fired,
-  //     grab whatever frame is currently in the decode buffer instead of
-  //     waiting out the full 10s timeout and losing the thumbnail
-  //     entirely. This is a deliberate trade-off — the grabbed frame may
-  //     not be exactly at the intended seek offset, but a slightly-off
-  //     real frame beats no thumbnail (site logo) at all.
-  //
-  // Everything else (multi-event seek retry via loadedmetadata /
-  // durationchange / loadeddata, 3s "seek never attempted" safety net,
-  // 10s absolute final timeout) is unchanged from v1.
-  // ─────────────────────────────────────────────────────────────────────────
-  const captureThumbnail = (file) => new Promise((resolve, reject) => {
-    const video  = document.createElement("video");
-    const canvas = document.createElement("canvas");
-    video.preload    = "auto";
-    video.muted      = true;
-    video.playsInline = true;
-
-    // ── v1 FIX #1: attach off-screen instead of leaving detached ──
-    video.style.position = "fixed";
-    video.style.top = "-9999px";
-    video.style.left = "-9999px";
-    video.style.width = "1px";
-    video.style.height = "1px";
-    video.setAttribute("aria-hidden", "true");
-    document.body.appendChild(video);
-
-    let settled = false;
-    let seekAttempted = false;
-
-    const cleanup = () => {
-      URL.revokeObjectURL(video.src);
-      // v1 FIX #3: always remove from DOM
-      if (video.parentNode) video.parentNode.removeChild(video);
+    videoEl.onerror = () => {
+      clearTimeout(timer);
+      URL.revokeObjectURL(objectUrl);
+      resolve(durationRef.current);
     };
-    const finish  = (result, err) => {
-      if (settled) return;
-      settled = true; cleanup();
-      if (err) reject(err); else resolve(result);
-    };
-
-    const grabFrame = () => {
-      try {
-        canvas.width  = video.videoWidth  || 320;
-        canvas.height = video.videoHeight || 180;
-        if (canvas.width === 0 || canvas.height === 0) {
-          finish(null, new Error("Video has no dimensions yet."));
-          return;
-        }
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => {
-          if (!blob) { finish(null, new Error("Thumbnail capture failed.")); return; }
-          finish(blob, null);
-        }, "image/jpeg", 0.85);
-      } catch (err) { finish(null, err); }
-    };
-
-    // Try to seek once we actually have a usable duration. Some codecs
-    // (common on phone-recorded reels) report duration as NaN or
-    // Infinity right when `loadedmetadata` first fires — in that case
-    // we wait for `durationchange`/`loadeddata` instead of giving up,
-    // rather than silently failing the whole capture.
-    const trySeek = () => {
-      if (seekAttempted || settled) return;
-      const dur = video.duration;
-      if (!isFinite(dur) || dur <= 0) return; // not ready yet — wait for next event
-      seekAttempted = true;
-      // v2 CHANGE: seek closer to the start (was: dur > 2 ? 1 : dur / 2).
-      // For MP4s with the moov atom at the end of the file, the browser
-      // needs to fetch/parse a large chunk of the file just to resolve
-      // ANY seek target at all — keeping the target itself modest avoids
-      // also over-requesting once that index is available.
-      const seekTo = Math.min(0.5, dur / 2);
-      try {
-        video.currentTime = seekTo || 0.1;
-      } catch (_) {
-        grabFrame();
-      }
-    };
-
-    video.onloadedmetadata = trySeek;
-    // Fires when the browser updates its knowledge of duration — covers
-    // the case where it was NaN/Infinity at loadedmetadata time.
-    video.ondurationchange = trySeek;
-    // Extra safety net: some browsers only reliably expose a valid
-    // duration once actual frame data is available.
-    video.onloadeddata = trySeek;
-
-    // ── v1 FIX #2 (shared): force a decode by briefly playing, then
-    // pause, before grabbing. A seek alone — or, as of v3, a stalled
-    // seek we're grabbing from anyway — can leave an off-screen video's
-    // decode pipeline "behind": play() forces the browser to actually
-    // push a decoded frame to the compositor before we grab it. Without
-    // this step, grabFrame() reads whatever's stale in the decode
-    // buffer, which is usually solid black.
-    //
-    // v3 FIX: this used to live ONLY inside onseeked — the 5s stalled-
-    // seek fallback (added in v2) called grabFrame() directly, skipping
-    // this decode-forcing step entirely. Confirmed in production: the
-    // fallback correctly fired ("seeked event never fired — grabbing
-    // current frame as fallback") but produced a solid BLACK thumbnail,
-    // because it grabbed a raw undecoded frame. Extracting this into a
-    // shared function used by BOTH onseeked and the stalled-seek
-    // fallback fixes that — every code path that grabs a frame now goes
-    // through the same play→pause→grab sequence.
-    const grabWithDecodeForce = () => {
-      const grabAfterDecode = () => {
-        if ("requestVideoFrameCallback" in video) {
-          video.requestVideoFrameCallback(() => grabFrame());
-        } else {
-          setTimeout(grabFrame, 200);
-        }
-      };
-
-      const playAttempt = video.play();
-      if (playAttempt && typeof playAttempt.then === "function") {
-        playAttempt
-          .then(() => {
-            // Give it a tick to actually render, then pause + grab.
-            setTimeout(() => {
-              try { video.pause(); } catch (_) {}
-              grabAfterDecode();
-            }, 50);
-          })
-          .catch(() => {
-            // Autoplay blocked or similar — fall back to grabbing
-            // whatever frame is available anyway.
-            grabAfterDecode();
-          });
-      } else {
-        grabAfterDecode();
-      }
-    };
-
-    video.onseeked = () => {
-      grabWithDecodeForce();
-    };
-
-    video.onerror = () => finish(null, new Error("Failed to load video for thumbnail."));
-
-    // If duration never resolves and no seek ever happens, force a grab
-    // from whatever frame is currently loaded rather than failing outright.
-    // v3: also routed through grabWithDecodeForce now, for the same
-    // black-frame reason as the stalled-seek fallback below.
-    setTimeout(() => {
-      if (!settled && !seekAttempted && video.readyState >= 2) grabWithDecodeForce();
-    }, 3000);
-
-    // v2 NEW / v3 FIXED: a seek WAS attempted (currentTime was set) but
-    // the `seeked` event never fired — this is the "moov atom at the
-    // end" / large-file stall case that produced "Thumbnail capture
-    // timed out." in production. Rather than waiting the full 10s and
-    // giving up entirely, force-decode and grab whatever frame is
-    // currently loaded once readyState allows it. v3: now goes through
-    // grabWithDecodeForce (was a raw grabFrame() call in v2, which
-    // produced black thumbnails).
-    setTimeout(() => {
-      if (!settled && seekAttempted && video.readyState >= 2) {
-        console.warn("seeked event never fired — grabbing current frame as fallback");
-        grabWithDecodeForce();
-      }
-    }, 5000);
-
-    // Final fallback if nothing above worked.
-    setTimeout(() => { if (!settled) finish(null, new Error("Thumbnail capture timed out.")); }, 10000);
-
-    video.src = URL.createObjectURL(file);
-    video.load();
+    videoEl.src = objectUrl;
   });
 
   // ── Thumbnail upload — goes through R2 (small file, fine for /api/upload) ──
   //
-  // CHANGED: the transformed URL is now verified to actually load as an
-  // image before it is returned. If it doesn't (transform step failing,
-  // blocked, etc.), we fall back to the raw JPEG that was just uploaded —
-  // already a JPEG, so it still works as an og:image — instead of saving
-  // a dead URL as thumbnail_url.
-  const uploadThumbnail = async (blob) => {
+  // CHANGED: the transformed URL is verified to actually load as an image
+  // before it is returned; if it doesn't, the raw uploaded JPEG is used
+  // instead of saving a dead URL. NEW: reels get a portrait (360x640)
+  // thumbnail instead of being cropped to 16:9.
+  const uploadThumbnail = async (blob, portrait = false) => {
     const file = new File([blob], "thumbnail.jpg", { type: "image/jpeg" });
     const { url } = await uploadToR2(file);
     // format: "jpeg" is required here (not the default "webp") because this
     // thumbnail becomes the og:image for shared video/reel links, and
     // WhatsApp's link-preview crawler does not render webp images.
-    const transformedUrl = buildTransformUrl(url, { width: 640, height: 360, fit: "cover", format: "jpeg" });
+    const transformedUrl = buildTransformUrl(url, {
+      width:  portrait ? 360 : 640,
+      height: portrait ? 640 : 360,
+      fit: "cover",
+      format: "jpeg",
+    });
     if (await imageLoads(transformedUrl)) return transformedUrl;
     console.warn("Transformed thumbnail didn't load; using the raw uploaded JPEG instead.");
     return url;
+  };
+
+  // NEW: turns a captured frame (or null) into an uploaded thumbnail URL,
+  // falling back to a generated cover image. Never throws; returns
+  // { url: "", source: "" } only if even the fallback upload failed.
+  const buildAndUploadThumbnail = async (captured, titleForCover) => {
+    const portrait =
+      uploadMode === "reel" && !!(captured?.portrait ?? portraitRef.current);
+
+    if (captured?.blob) {
+      try {
+        return { url: await uploadThumbnail(captured.blob, portrait), source: "auto" };
+      } catch (err) {
+        console.warn("Captured thumbnail upload failed:", err && err.message);
+      }
+    }
+
+    try {
+      const generated = await generatePlaceholderThumbnail(titleForCover, portrait);
+      return { url: await uploadThumbnail(generated.blob, portrait), source: "generated" };
+    } catch (err) {
+      console.warn("Generated thumbnail failed:", err && err.message);
+    }
+
+    return { url: "", source: "" };
   };
 
   const handleOnChangeInput = (event, name) => {
@@ -476,8 +570,11 @@ const VideoUpload = () => {
     const file = files[0];
     if (file.size > 4 * 1024 * 1024 * 1024) { setError("File too large. Maximum size is 4GB."); setLoader(false); return; }
 
+    fileRef.current = file;
+    portraitRef.current = null;
+
     // Show a confirmation preview immediately from the local file — this
-    // does not depend on captureThumbnail() or any network call, so it
+    // does not depend on thumbnail capture or any network call, so it
     // always shows up the moment the upload finishes.
     clearLocalPreview();
     const localUrl = URL.createObjectURL(file);
@@ -485,40 +582,35 @@ const VideoUpload = () => {
     setLocalPreviewUrl(localUrl);
 
     try {
-      // CHANGED: duration + thumbnail capture now run IN PARALLEL WITH
-      // the upload instead of before it, so a slow or stalled capture
-      // (up to 10s) no longer delays the upload from starting.
+      // Duration + thumbnail capture run IN PARALLEL WITH the upload, so
+      // neither delays it.
       const durationPromise = getVideoDuration(file);
-      const thumbPromise = captureThumbnail(file).catch((err) => {
-        console.warn("Client-side thumbnail capture failed:", err.message);
-        return null;
-      });
+      const thumbPromise = captureBestThumbnail(file);
 
       const { url: videoUrl } = await uploadVideoToR2(file, (pct) => {
         setUploadProgress(pct);
         updateSpeedAndETA((pct / 100) * file.size, file.size);
       });
 
-      const [, thumbnailBlob] = await Promise.all([durationPromise, thumbPromise]);
+      // Video is uploaded - now finish the thumbnail (usually already done).
+      setThumbLoader(true);
+      await durationPromise;
 
-      let thumbnailUrl = inputField.thumbnail;
+      // CHANGED: only keep an existing thumbnail if it was picked by hand;
+      // an earlier AUTO thumbnail belongs to the previous video and must
+      // not be reused for this one.
+      let thumbnailUrl = imageUploaded ? inputField.thumbnail : "";
       if (!imageUploaded) {
-        if (thumbnailBlob) {
-          thumbnailUrl = await uploadThumbnail(thumbnailBlob);
-          setThumbSource("auto");
-        } else {
-          // Auto thumbnail capture failed (no Cloudinary fallback since
-          // the move to R2). We still have localPreviewUrl to show the
-          // user their video, so the confirmation preview isn't lost —
-          // it just won't be the DB thumbnail_url yet.
-          console.warn("Auto thumbnail capture failed; showing local preview instead.");
-        }
+        const captured = await thumbPromise;
+        const result = await buildAndUploadThumbnail(captured, inputField.title);
+        thumbnailUrl = result.url;
+        setThumbSource(result.source);
       }
 
       setInputField((prev) => ({ ...prev, videoLink: videoUrl, thumbnail: thumbnailUrl }));
-      setVideoUploaded(true); setUploadProgress(100); setLoader(false); releaseWakeLock();
+      setVideoUploaded(true); setUploadProgress(100); setLoader(false); setThumbLoader(false); releaseWakeLock();
     } catch (err) {
-      setLoader(false); setUploadProgress(0); setTimeRemaining("");
+      setLoader(false); setThumbLoader(false); setUploadProgress(0); setTimeRemaining("");
       setError(err.message || "Upload failed. Please try again.");
       console.error("Upload error:", err); releaseWakeLock();
     }
@@ -531,11 +623,17 @@ const VideoUpload = () => {
     if (!files || files.length === 0) { setThumbLoader(false); return; }
     try {
       const { url } = await uploadToR2(files[0]);
+      const portrait = uploadMode === "reel" && !!portraitRef.current;
       // format: "jpeg" — same reasoning as uploadThumbnail() above, this
       // also ends up as the shared-link og:image.
-      const transformedUrl = buildTransformUrl(url, { width: 640, height: 360, fit: "cover", format: "jpeg" });
-      // CHANGED: only use the transformed URL if it actually loads;
-      // otherwise keep the raw uploaded image.
+      const transformedUrl = buildTransformUrl(url, {
+        width:  portrait ? 360 : 640,
+        height: portrait ? 640 : 360,
+        fit: "cover",
+        format: "jpeg",
+      });
+      // Only use the transformed URL if it actually loads; otherwise keep
+      // the raw uploaded image.
       const finalUrl = (await imageLoads(transformedUrl)) ? transformedUrl : url;
       setInputField((prev) => ({ ...prev, thumbnail: finalUrl }));
       setImageUploaded(true); setThumbSource("manual"); setThumbLoader(false);
@@ -594,16 +692,32 @@ const VideoUpload = () => {
     if (!inputField.title)       return setError("Please enter a title.");
     if (!inputField.description) return setError("Please enter a description.");
     if (!inputField.videoLink)   return setError("Please upload a video first.");
-    // NEW: don't save a video/reel without a thumbnail — a missing
-    // thumbnail_url is what produces broken cards and empty shared-link
-    // previews. Auto capture can fail on some files, so ask for a manual one.
-    if (!inputField.thumbnail)
-      return setError("Auto thumbnail couldn't be captured. Please choose a thumbnail image.");
     if (uploadMode === "video" && !isFeatureMode && !inputField.videoType)
       return setError("Please enter a category.");
 
     setSaving(true);
     setError("");
+
+    // CHANGED: a missing thumbnail no longer blocks saving. If none exists
+    // yet (e.g. the upload-time one failed to upload), capture one from the
+    // picked file now, and fall back to a generated cover - so every saved
+    // video/reel has a thumbnail_url.
+    let thumbnailUrl = inputField.thumbnail;
+    if (!thumbnailUrl) {
+      const captured = fileRef.current
+        ? await captureBestThumbnail(fileRef.current)
+        : null;
+      const result = await buildAndUploadThumbnail(captured, inputField.title);
+      thumbnailUrl = result.url;
+      if (thumbnailUrl) {
+        setInputField((prev) => ({ ...prev, thumbnail: thumbnailUrl }));
+        setThumbSource(result.source);
+      }
+    }
+    if (!thumbnailUrl) {
+      setSaving(false);
+      return setError("Couldn't create a thumbnail automatically. Please check your connection or choose a thumbnail image.");
+    }
 
     try {
       const { isClean, violatingWord } = await checkContent(
@@ -628,7 +742,7 @@ const VideoUpload = () => {
           title:         inputField.title,
           description:   inputField.description,
           video_url:     inputField.videoLink,
-          thumbnail_url: inputField.thumbnail,
+          thumbnail_url: thumbnailUrl,
           category:      inputField.videoType,
           channel:       localStorage.getItem("username") || "Anonymous",
           username:      uploaderUsername,
@@ -664,7 +778,7 @@ const VideoUpload = () => {
           title:       inputField.title,
           description: inputField.description,
           video_url:   inputField.videoLink,
-          thumbnail:   inputField.thumbnail,
+          thumbnail:   thumbnailUrl,
           uploaded_by: localStorage.getItem("username") || "Anonymous",
           username:    uploaderUsername.toLowerCase().replace(/\s+/g, ""),
           duration:    durationRef.current,
@@ -721,9 +835,11 @@ const VideoUpload = () => {
     ? "Saving..."
     : loader
       ? `Uploading... ${uploadProgress}%`
-      : isFeatureMode
-        ? `Post ${banner?.emoji}`
-        : `Upload ${uploadMode === "reel" ? "Reel" : "Video"}`;
+      : thumbLoader
+        ? "Creating thumbnail..."
+        : isFeatureMode
+          ? `Post ${banner?.emoji}`
+          : `Upload ${uploadMode === "reel" ? "Reel" : "Video"}`;
 
   // The server-generated thumbnail is a real IMAGE and can go through
   // an <img> tag. localPreviewUrl is a blob URL of the VIDEO FILE itself
@@ -1036,7 +1152,7 @@ const VideoUpload = () => {
           <div className="upload_file_row">
             <span className="upload_file_label">
               Thumbnail
-              <span style={{ color:"#888", fontSize:"0.75rem", marginLeft:"6px" }}>(optional)</span>
+              <span style={{ color:"#888", fontSize:"0.75rem", marginLeft:"6px" }}>(created automatically — optional)</span>
             </span>
             <input type="file" accept="image/*" onChange={uploadManualThumbnail} style={{ display:"none" }} id="thumbnailInput" />
             <span className="upload_file_btn" onClick={() => document.getElementById("thumbnailInput").click()}>
@@ -1061,9 +1177,13 @@ const VideoUpload = () => {
               <span style={{ color:"#888", fontSize:"0.78rem", marginTop:"4px" }}>
                 {thumbSource === "manual"
                   ? "✏️ Custom thumbnail"
-                  : hasServerThumb
-                    ? "🎞️ Auto-captured from video"
-                    : "📼 Preview (auto thumbnail pending/unavailable)"}
+                  : thumbSource === "generated"
+                    ? "🖼️ Auto-generated cover (a frame couldn't be captured)"
+                    : hasServerThumb
+                      ? "🎞️ Auto-captured from video"
+                      : thumbLoader
+                        ? "⏳ Creating thumbnail…"
+                        : "📼 Preview (thumbnail will be created when you post)"}
               </span>
             </div>
           )}

@@ -2,7 +2,7 @@
 // Voice + video call screen. Voice calls look exactly as before; video
 // calls show the other person full-screen with your own camera as a small
 // picture-in-picture, plus camera on/off and flip-camera buttons.
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./CallOverlay.css";
 import "./CallOverlayVideo.css";
 import { isTouchDevice } from "../../utils/deviceFeatures";
@@ -54,6 +54,48 @@ export default function CallOverlay({
   const remoteRef = useRef(null);
   const localRef = useRef(null);
 
+  // While an outgoing VIDEO call is ringing, show my own camera full screen
+  // (like WhatsApp). It's released as soon as the call starts connecting, so
+  // the call library can take over the camera.
+  const previewRef = useRef(null);
+  const [previewOn, setPreviewOn] = useState(false);
+  const wantPreview =
+    !!call && call.role === "caller" && call.status === "ringing" && !!call.video;
+
+  useEffect(() => {
+    if (!wantPreview) return undefined;
+    let stream = null;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user" },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        const el = previewRef.current;
+        if (el) {
+          el.srcObject = stream;
+          el.play().catch(() => {});
+        }
+        setPreviewOn(true);
+      } catch (_) {
+        /* no preview (permission/busy) - the call itself still works */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      if (previewRef.current) previewRef.current.srcObject = null;
+      setPreviewOn(false);
+    };
+  }, [wantPreview]);
+
   const showRemote = !!call && !!remoteVideo && !remoteCamOff;
   const showLocal = !!call && !!localVideo && !!cameraOn;
 
@@ -103,11 +145,20 @@ export default function CallOverlay({
     <>
       {toast}
       <div
-        className={`zx-call${isVideo ? " zx-call--video" : ""}${showRemote ? " has-remote" : ""}`}
+        className={`zx-call${isVideo ? " zx-call--video" : ""}${showRemote ? " has-remote" : ""}${wantPreview && previewOn ? " has-preview" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={`${isVideo ? "Video" : "Voice"} call with ${name}`}
       >
+        {wantPreview && (
+          <video
+            ref={previewRef}
+            className="zx-call__preview"
+            autoPlay
+            muted
+            playsInline
+          />
+        )}
         {showRemote && <video ref={remoteRef} className="zx-call__remote" autoPlay playsInline />}
         {showLocal && (
           <video
@@ -179,14 +230,14 @@ export default function CallOverlay({
             {/* Camera on/off. On a voice call this upgrades it to video. */}
             <button
               type="button"
-              className={`zx-call__btn is-mute${isVideo && !cameraOn ? " is-on" : ""}`}
+              className={`zx-call__btn is-mute${connected && !cameraOn ? " is-on" : ""}`}
               onClick={onToggleCamera}
               disabled={!connected}
-              aria-pressed={isVideo && !cameraOn}
+              aria-pressed={connected && !cameraOn}
               aria-label={cameraOn ? "Turn camera off" : "Turn camera on"}
             >
-              <Icon d={cameraOn ? PATH_VIDEO : PATH_VIDEO_OFF} />
-              <span>{cameraOn ? "Camera" : "Camera off"}</span>
+              <Icon d={cameraOn || !connected ? PATH_VIDEO : PATH_VIDEO_OFF} />
+              <span>{!connected || cameraOn ? "Camera" : "Camera off"}</span>
             </button>
 
             {cameraOn && isTouchDevice() && (

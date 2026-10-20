@@ -105,6 +105,10 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       const duration = c.connectedAt
         ? Math.round((Date.now() - c.connectedAt) / 1000)
         : 0;
+      // The other person's device gave up while we were still connecting.
+      if (opts.fromRemote && outcome === "ended" && c.status === "connecting") {
+        setError("The other person's call couldn't connect. Please try again.");
+      }
       setBoth(null);
       teardown();
       if (!opts.fromRemote) {
@@ -433,6 +437,10 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       try {
         await connect(c);
       } catch (e) {
+        // The call was already ended (e.g. the other side hung up first):
+        // the "disconnect" error is just fallout, so don't show it.
+        if (!callRef.current || callRef.current.id !== c.id) return;
+        console.error("Call connect failed:", e);
         setError(e.message);
         finish("ended");
       }
@@ -601,6 +609,8 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         clearTimeout(ringTimer.current);
         setBoth({ ...c, status: "connecting" });
         connect(c).catch((e) => {
+          if (!callRef.current || callRef.current.id !== c.id) return;
+          console.error("Call connect failed:", e);
           setError(e.message);
           finish("ended");
         });

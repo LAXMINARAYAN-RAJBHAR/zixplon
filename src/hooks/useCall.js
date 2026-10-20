@@ -21,6 +21,24 @@ const timeoutAfter = (ms, label) =>
     setTimeout(() => reject(new Error(`${label} timed out`)), ms),
   );
 
+// Turns a camera failure into a message that says what to do about it.
+const describeCameraError = (e) => {
+  const msg = String((e && e.message) || "");
+  if (e && (e.name === "NotAllowedError" || e.name === "SecurityError")) {
+    return "Camera access is blocked. Allow the camera for this site in your browser settings, then turn it on again.";
+  }
+  if (e && e.name === "NotReadableError") {
+    return "Your camera is being used by another app. Close it, then turn the camera on again.";
+  }
+  if (e && (e.name === "NotFoundError" || e.name === "OverconstrainedError")) {
+    return "No camera was found on this device.";
+  }
+  if (/timed out/i.test(msg)) {
+    return "The camera started but couldn't be sent to the other person (timed out). The call server may not be allowing video.";
+  }
+  return `Couldn't start your camera${msg ? `: ${msg}` : "."}`;
+};
+
 // A call is only allowed between two people who have an accepted chat and
 // haven't blocked each other (same rules as sending a message).
 const canCall = async (me, other) => {
@@ -243,6 +261,9 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
             setCameraOn(false);
           }
         })
+        .on(RoomEvent.MediaDevicesError, (e) =>
+          console.error("Media devices error:", e),
+        )
         .on(RoomEvent.ParticipantDisconnected, () => finish("ended"))
         .on(RoomEvent.Disconnected, () => finish("ended"))
         .on(RoomEvent.AudioPlaybackStatusChanged, () =>
@@ -269,14 +290,35 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       ]);
 
       // Video call: switch the camera on. If it fails, carry on as a voice call.
+      // (Phones sometimes keep the camera busy for a moment after the
+      // permission check, so try up to 3 times before giving up.)
       if (c.video) {
-        try {
-          await Promise.race([
-            room.localParticipant.setCameraEnabled(true),
-            timeoutAfter(10000, "Camera"),
-          ]);
-        } catch (_) {
-          setError("Couldn't start your camera, so this call continues as voice only.");
+        let camErr = null;
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+          try {
+            await Promise.race([
+              room.localParticipant.setCameraEnabled(true),
+              timeoutAfter(10000, "Camera"),
+            ]);
+            camErr = null;
+            break;
+          } catch (e) {
+            camErr = e;
+            console.error(`Camera start failed (attempt ${attempt}):`, e);
+            // Retrying can't fix a blocked permission or a server timeout.
+            if (
+              e &&
+              (e.name === "NotAllowedError" ||
+                e.name === "SecurityError" ||
+                /timed out/i.test(String(e.message || "")))
+            ) {
+              break;
+            }
+            await new Promise((r) => setTimeout(r, 700));
+          }
+        }
+        if (camErr) {
+          setError(`${describeCameraError(camErr)} The call continues as voice only.`);
         }
       }
 
@@ -473,11 +515,8 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       await room.localParticipant.setCameraEnabled(next);
       setCameraOn(next);
     } catch (e) {
-      setError(
-        next
-          ? "Couldn't turn on your camera. Check that camera access is allowed."
-          : "Couldn't turn off your camera.",
-      );
+      console.error("Camera toggle failed:", e);
+      setError(next ? describeCameraError(e) : "Couldn't turn off your camera.");
     }
   }, [cameraOn]);
 

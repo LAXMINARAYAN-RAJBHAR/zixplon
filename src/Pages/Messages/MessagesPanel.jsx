@@ -154,17 +154,25 @@ const formatDuration = (totalSeconds) => {
 // CallProvider on the caller's side when a call ends):
 //   attachment_name = completed | missed | cancelled | declined | busy | ended
 //   attachment_size = call length in seconds (completed calls)
+// Video calls are stored with a "video:" prefix, e.g. "video:completed".
+const parseCall = (m) => {
+  const raw = m.attachment_name || "";
+  const video = raw.startsWith("video:");
+  return { video, outcome: video ? raw.slice(6) : raw };
+};
 const callLogLabel = (m, mine) => {
-  const outcome = m.attachment_name;
-  if (outcome === "completed") return `Voice call · ${formatDuration(m.attachment_size)}`;
-  if (outcome === "missed") return mine ? "No answer" : "Missed voice call";
-  if (outcome === "cancelled") return mine ? "Call cancelled" : "Missed voice call";
+  const { video, outcome } = parseCall(m);
+  const noun = video ? "video call" : "voice call";
+  const Noun = video ? "Video call" : "Voice call";
+  if (outcome === "completed") return `${Noun} · ${formatDuration(m.attachment_size)}`;
+  if (outcome === "missed") return mine ? "No answer" : `Missed ${noun}`;
+  if (outcome === "cancelled") return mine ? "Call cancelled" : `Missed ${noun}`;
   if (outcome === "declined") return mine ? "Call declined" : "You declined the call";
-  if (outcome === "busy") return mine ? "Line busy" : "Missed voice call";
-  return "Voice call ended";
+  if (outcome === "busy") return mine ? "Line busy" : `Missed ${noun}`;
+  return `${Noun} ended`;
 };
 const isMissedCallLog = (m, mine) =>
-  !mine && ["missed", "cancelled", "busy"].includes(m.attachment_name);
+  !mine && ["missed", "cancelled", "busy"].includes(parseCall(m).outcome);
 
 // ── NEW (location sharing) ──
 // A shared location is stored as a normal direct_messages row — no DB
@@ -3919,6 +3927,20 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                       </button>
                     )}
 
+                    {/* NEW: 1:1 video call button (same rules as voice calls) */}
+                    {canVoiceCall && canUseCamera() && (
+                      <button
+                        type="button"
+                        className="mp-call-btn"
+                        onClick={() => startCall(activeUsername, { video: true })}
+                        disabled={callActive}
+                        aria-label="Video call"
+                        title={callActive ? "You're already on a call" : "Video call"}
+                      >
+                        📹
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       className="mp-minimize-btn"
@@ -3990,7 +4012,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                               <span
                                 className={`mp-call-log ${isMissedCallLog(m, mine) ? "missed" : ""}`}
                               >
-                                📞 {callLogLabel(m, mine)} · {timeShort(m.created_at)}
+                                {parseCall(m).video ? "📹" : "📞"} {callLogLabel(m, mine)} · {timeShort(m.created_at)}
                               </span>
                             </div>
                           );

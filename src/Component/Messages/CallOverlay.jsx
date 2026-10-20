@@ -1,6 +1,11 @@
 // src/Component/Messages/CallOverlay.jsx
-import React from "react";
+// Voice + video call screen. Voice calls look exactly as before; video
+// calls show the other person full-screen with your own camera as a small
+// picture-in-picture, plus camera on/off and flip-camera buttons.
+import React, { useEffect, useRef } from "react";
 import "./CallOverlay.css";
+import "./CallOverlayVideo.css";
+import { isTouchDevice } from "../../utils/deviceFeatures";
 
 const Icon = ({ d }) => (
   <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor" aria-hidden="true">
@@ -16,6 +21,12 @@ const PATH_MIC =
   "M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z";
 const PATH_MIC_OFF =
   "M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z";
+const PATH_VIDEO =
+  "M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z";
+const PATH_VIDEO_OFF =
+  "M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z";
+const PATH_FLIP =
+  "M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 11.5V13H9v2.5L5.5 12 9 8.5V11h6V8.5l3.5 3.5-3.5 3.5z";
 
 const fmt = (s) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
@@ -26,12 +37,45 @@ export default function CallOverlay({
   seconds,
   error,
   audioBlocked,
+  // video
+  cameraOn,
+  facing,
+  localVideo,
+  remoteVideo,
+  remoteCamOff,
   onAccept,
   onHangUp,
   onToggleMute,
+  onToggleCamera,
+  onSwitchCamera,
   onEnableAudio,
   onDismissError,
 }) {
+  const remoteRef = useRef(null);
+  const localRef = useRef(null);
+
+  const showRemote = !!call && !!remoteVideo && !remoteCamOff;
+  const showLocal = !!call && !!localVideo && !!cameraOn;
+
+  // Attach LiveKit video tracks to the <video> elements.
+  useEffect(() => {
+    const el = remoteRef.current;
+    if (!el || !remoteVideo || !showRemote) return undefined;
+    remoteVideo.attach(el);
+    return () => {
+      remoteVideo.detach(el);
+    };
+  }, [remoteVideo, showRemote]);
+
+  useEffect(() => {
+    const el = localRef.current;
+    if (!el || !localVideo || !showLocal) return undefined;
+    localVideo.attach(el);
+    return () => {
+      localVideo.detach(el);
+    };
+  }, [localVideo, showLocal]);
+
   const toast = error ? (
     <div className="zx-call-toast" role="alert">
       <span>{error}</span>
@@ -43,19 +87,38 @@ export default function CallOverlay({
 
   if (!call) return toast;
 
+  const isVideo = !!call.video || !!cameraOn || !!remoteVideo;
+  const kind = isVideo ? "video" : "voice";
   const name = call.peer || "Zixplon user";
   const status = {
-    incoming: "Incoming voice call",
+    incoming: `Incoming ${kind} call`,
     ringing: "Ringing…",
     connecting: "Connecting…",
-    connected: fmt(seconds),
+    connected: remoteVideo && remoteCamOff ? `${fmt(seconds)} · camera off` : fmt(seconds),
   }[call.status];
   const pulsing = call.status === "incoming" || call.status === "ringing";
+  const connected = call.status === "connected";
 
   return (
     <>
       {toast}
-      <div className="zx-call" role="dialog" aria-modal="true" aria-label={`Voice call with ${name}`}>
+      <div
+        className={`zx-call${isVideo ? " zx-call--video" : ""}${showRemote ? " has-remote" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${isVideo ? "Video" : "Voice"} call with ${name}`}
+      >
+        {showRemote && <video ref={remoteRef} className="zx-call__remote" autoPlay playsInline />}
+        {showLocal && (
+          <video
+            ref={localRef}
+            className={`zx-call__local${facing === "user" ? " is-mirror" : ""}`}
+            autoPlay
+            muted
+            playsInline
+          />
+        )}
+
         <div className="zx-call__body">
           <div className={`zx-call__avatar${pulsing ? " is-pulsing" : ""}`}>
             <span>{name.slice(0, 2).toUpperCase()}</span>
@@ -64,7 +127,7 @@ export default function CallOverlay({
           <p className="zx-call__status" aria-live="polite">
             {status}
           </p>
-          {audioBlocked && call.status === "connected" && (
+          {audioBlocked && connected && (
             <button type="button" className="zx-call__audio" onClick={onEnableAudio}>
               Tap to turn on call audio
             </button>
@@ -77,14 +140,25 @@ export default function CallOverlay({
               <Icon d={PATH_END} />
               <span>Decline</span>
             </button>
+            {call.video && (
+              <button
+                type="button"
+                className="zx-call__btn is-mute"
+                onClick={() => onAccept({ video: false })}
+                aria-label="Answer with voice only"
+              >
+                <Icon d={PATH_CALL} />
+                <span>Voice only</span>
+              </button>
+            )}
             <button
               type="button"
               className="zx-call__btn is-accept"
-              onClick={onAccept}
-              aria-label="Accept call"
+              onClick={() => onAccept()}
+              aria-label={call.video ? "Accept video call" : "Accept call"}
               autoFocus
             >
-              <Icon d={PATH_CALL} />
+              <Icon d={call.video ? PATH_VIDEO : PATH_CALL} />
               <span>Accept</span>
             </button>
           </div>
@@ -94,13 +168,39 @@ export default function CallOverlay({
               type="button"
               className={`zx-call__btn is-mute${muted ? " is-on" : ""}`}
               onClick={onToggleMute}
-              disabled={call.status !== "connected"}
+              disabled={!connected}
               aria-pressed={muted}
               aria-label={muted ? "Unmute microphone" : "Mute microphone"}
             >
               <Icon d={muted ? PATH_MIC_OFF : PATH_MIC} />
               <span>{muted ? "Unmute" : "Mute"}</span>
             </button>
+
+            {/* Camera on/off. On a voice call this upgrades it to video. */}
+            <button
+              type="button"
+              className={`zx-call__btn is-mute${isVideo && !cameraOn ? " is-on" : ""}`}
+              onClick={onToggleCamera}
+              disabled={!connected}
+              aria-pressed={isVideo && !cameraOn}
+              aria-label={cameraOn ? "Turn camera off" : "Turn camera on"}
+            >
+              <Icon d={cameraOn ? PATH_VIDEO : PATH_VIDEO_OFF} />
+              <span>{cameraOn ? "Camera" : "Camera off"}</span>
+            </button>
+
+            {cameraOn && isTouchDevice() && (
+              <button
+                type="button"
+                className="zx-call__btn is-mute"
+                onClick={onSwitchCamera}
+                aria-label="Switch camera"
+              >
+                <Icon d={PATH_FLIP} />
+                <span>Flip</span>
+              </button>
+            )}
+
             <button
               type="button"
               className="zx-call__btn is-decline"

@@ -1,15 +1,19 @@
 // src/hooks/useCall.js
 // npm i livekit-client
+// Voice AND video calls. A call is "video" when its room_name starts with
+// "vcall_" (no database change needed). A voice call can be upgraded to
+// video at any time with toggleCamera().
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../config/supabase";
 import { useRingtone } from "./useRingtone"; // loud looping ringtone for the receiver
-import { Room, RoomEvent, Track } from "livekit-client";
+import { Room, RoomEvent, Track, VideoPresets } from "livekit-client";
 
 // Fallback only. The server URL normally comes back from /api/call-token.
 const LIVEKIT_URL = process.env.REACT_APP_LIVEKIT_URL;
 const RING_TIMEOUT_MS = 40000; // caller gives up after this
 const STALE_RING_MS = 45000; // callee ignores rings older than this
 const FINAL = ["declined", "missed", "ended", "busy", "cancelled"];
+const VIDEO_ROOM_PREFIX = "vcall_";
 
 // Rejects after `ms` so a stuck step shows an error instead of "Connecting..." forever.
 const timeoutAfter = (ms, label) =>
@@ -45,13 +49,20 @@ const canCall = async (me, other) => {
 };
 
 export default function useCall(currentUser, { onCallEnded } = {}) {
-  // call: { id, role: 'caller'|'callee', peer (username), status, roomName, connectedAt }
+  // call: { id, role: 'caller'|'callee', peer (username), status, roomName, connectedAt, video }
   // status: incoming | ringing | connecting | connected
   const [call, setCall] = useState(null);
   const [muted, setMuted] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
+
+  // ---- video state ----
+  const [cameraOn, setCameraOn] = useState(false); // my camera is publishing
+  const [facing, setFacing] = useState("user"); // "user" (front) | "environment" (back)
+  const [localVideo, setLocalVideo] = useState(null); // my LocalVideoTrack
+  const [remoteVideo, setRemoteVideo] = useState(null); // their RemoteVideoTrack
+  const [remoteCamOff, setRemoteCamOff] = useState(false); // they paused their camera
 
   // Ring loudly (and vibrate) on the RECEIVER's device while an incoming call
   // is waiting to be answered. Stops automatically when call.status changes.
@@ -75,10 +86,15 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
     audioEls.current = [];
     const room = roomRef.current;
     roomRef.current = null;
-    if (room) room.disconnect();
+    if (room) room.disconnect(); // also stops my camera + mic tracks
     setMuted(false);
     setSeconds(0);
     setAudioBlocked(false);
+    setCameraOn(false);
+    setFacing("user");
+    setLocalVideo(null);
+    setRemoteVideo(null);
+    setRemoteCamOff(false);
   }, []);
 
   // Single exit point. outcome: declined | missed | ended | busy | cancelled
@@ -160,10 +176,17 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       let stage = "no signal";
 
       const room = new Room({
+        // Send only the video quality the receiver can use; saves mobile data.
+        adaptiveStream: true,
+        dynacast: true,
         audioCaptureDefaults: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+        },
+        videoCaptureDefaults: {
+          facingMode: "user",
+          resolution: VideoPresets.h540.resolution,
         },
       });
       roomRef.current = room;
@@ -171,7 +194,12 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         .on(RoomEvent.SignalConnected, () => {
           stage = "signal ok";
         })
-        .on(RoomEvent.TrackSubscribed, (track) => {
+        .on(RoomEvent.TrackSubscribed, (track, publication) => {
+          if (track.kind === Track.Kind.Video) {
+            setRemoteVideo(track);
+            setRemoteCamOff(!!(publication && publication.isMuted));
+            return;
+          }
           if (track.kind !== Track.Kind.Audio) return;
           const el = track.attach();
           el.style.display = "none";
@@ -180,6 +208,36 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           el.dataset.keepPlaying = "1";
           document.body.appendChild(el);
           audioEls.current.push(el);
+        })
+        .on(RoomEvent.TrackUnsubscribed, (track) => {
+          if (track.kind === Track.Kind.Video) {
+            setRemoteVideo(null);
+            setRemoteCamOff(false);
+          }
+        })
+        // The other person paused / resumed their camera.
+        .on(RoomEvent.TrackMuted, (publication, participant) => {
+          if (publication.kind === Track.Kind.Video && participant !== room.localParticipant) {
+            setRemoteCamOff(true);
+          }
+        })
+        .on(RoomEvent.TrackUnmuted, (publication, participant) => {
+          if (publication.kind === Track.Kind.Video && participant !== room.localParticipant) {
+            setRemoteCamOff(false);
+          }
+        })
+        // My own camera started publishing (also covers upgrading a voice call).
+        .on(RoomEvent.LocalTrackPublished, (publication) => {
+          if (publication.kind === Track.Kind.Video && publication.track) {
+            setLocalVideo(publication.track);
+            setCameraOn(true);
+          }
+        })
+        .on(RoomEvent.LocalTrackUnpublished, (publication) => {
+          if (publication.kind === Track.Kind.Video) {
+            setLocalVideo(null);
+            setCameraOn(false);
+          }
         })
         .on(RoomEvent.ParticipantDisconnected, () => finish("ended"))
         .on(RoomEvent.Disconnected, () => finish("ended"))
@@ -205,6 +263,18 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         room.localParticipant.setMicrophoneEnabled(true),
         timeoutAfter(10000, "Microphone"),
       ]);
+
+      // Video call: switch the camera on. If it fails, carry on as a voice call.
+      if (c.video) {
+        try {
+          await Promise.race([
+            room.localParticipant.setCameraEnabled(true),
+            timeoutAfter(10000, "Camera"),
+          ]);
+        } catch (_) {
+          setError("Couldn't start your camera, so this call continues as voice only.");
+        }
+      }
 
       if (!callRef.current || callRef.current.id !== c.id) {
         room.disconnect();
@@ -250,6 +320,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         peer: row.caller_username,
         status: "incoming",
         roomName: row.room_name,
+        video: String(row.room_name || "").startsWith(VIDEO_ROOM_PREFIX),
       });
       // Fallback if the caller vanished without marking the call missed.
       ringTimer.current = setTimeout(
@@ -262,9 +333,12 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
 
   // ---- Public actions ----
 
+  // startCall(peer)                  -> voice call
+  // startCall(peer, { video: true }) -> video call
   const startCall = useCallback(
-    async (peer) => {
+    async (peer, opts = {}) => {
       if (!currentUser || !peer || callRef.current || peer === currentUser) return;
+      const wantVideo = !!(opts && opts.video === true);
       setError(null);
 
       const check = await canCall(currentUser, peer);
@@ -277,12 +351,16 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         return;
       }
 
-      // Ask for the mic on the tap, so the permission prompt appears right away.
+      // Ask for the mic (and camera) on the tap, so the permission prompt appears right away.
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: wantVideo });
         s.getTracks().forEach((t) => t.stop());
       } catch (e) {
-        setError("Microphone access is blocked. Allow it in your browser settings to make calls.");
+        setError(
+          wantVideo
+            ? "Camera or microphone access is blocked. Allow both in your browser settings to make video calls."
+            : "Microphone access is blocked. Allow it in your browser settings to make calls.",
+        );
         return;
       }
 
@@ -291,7 +369,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         .insert({
           caller_username: currentUser,
           callee_username: peer,
-          room_name: `call_${crypto.randomUUID()}`,
+          room_name: `${wantVideo ? VIDEO_ROOM_PREFIX : "call_"}${crypto.randomUUID()}`,
         })
         .select()
         .single();
@@ -300,48 +378,67 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         return;
       }
 
-      setBoth({ id: data.id, role: "caller", peer, status: "ringing", roomName: data.room_name });
+      setBoth({
+        id: data.id,
+        role: "caller",
+        peer,
+        status: "ringing",
+        roomName: data.room_name,
+        video: wantVideo,
+      });
       ringTimer.current = setTimeout(() => finish("missed"), RING_TIMEOUT_MS);
     },
     [currentUser, finish, setBoth],
   );
 
-  const accept = useCallback(async () => {
-    const c = callRef.current;
-    if (!c || c.role !== "callee" || c.status !== "incoming") return;
-    clearTimeout(ringTimer.current);
+  // accept()                -> answer the call as it was placed
+  // accept({ video:false }) -> answer a video call with voice only
+  const accept = useCallback(
+    async (opts) => {
+      const c0 = callRef.current;
+      if (!c0 || c0.role !== "callee" || c0.status !== "incoming") return;
+      clearTimeout(ringTimer.current);
 
-    // Ask for the mic on the Accept tap, so the permission prompt appears
-    // right away instead of stalling the connection later.
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-      s.getTracks().forEach((t) => t.stop());
-    } catch (e) {
-      setError("Microphone access is blocked. Allow it in your browser settings to answer calls.");
-      finish("declined");
-      return;
-    }
+      const wantVideo = !!c0.video && !(opts && opts.video === false);
+      const c = { ...c0, video: wantVideo };
 
-    setBoth({ ...c, status: "connecting" });
+      // Ask for the mic (and camera) on the Accept tap, so the permission prompt appears
+      // right away instead of stalling the connection later.
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: wantVideo });
+        s.getTracks().forEach((t) => t.stop());
+      } catch (e) {
+        setError(
+          wantVideo
+            ? "Camera or microphone access is blocked. Allow both in your browser settings to answer video calls."
+            : "Microphone access is blocked. Allow it in your browser settings to answer calls.",
+        );
+        finish("declined");
+        return;
+      }
 
-    const { data, error: err } = await supabase
-      .from("calls")
-      .update({ status: "accepted", started_at: new Date().toISOString() })
-      .eq("id", c.id)
-      .eq("status", "ringing")
-      .select();
-    if (err || !data || !data.length) {
-      setError("This call has already ended.");
-      finish("ended", { fromRemote: true });
-      return;
-    }
-    try {
-      await connect(c);
-    } catch (e) {
-      setError(e.message);
-      finish("ended");
-    }
-  }, [connect, finish, setBoth]);
+      setBoth({ ...c, status: "connecting" });
+
+      const { data, error: err } = await supabase
+        .from("calls")
+        .update({ status: "accepted", started_at: new Date().toISOString() })
+        .eq("id", c.id)
+        .eq("status", "ringing")
+        .select();
+      if (err || !data || !data.length) {
+        setError("This call has already ended.");
+        finish("ended", { fromRemote: true });
+        return;
+      }
+      try {
+        await connect(c);
+      } catch (e) {
+        setError(e.message);
+        finish("ended");
+      }
+    },
+    [connect, finish, setBoth],
+  );
 
   const hangUp = useCallback(() => {
     const c = callRef.current;
@@ -358,6 +455,35 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
     await room.localParticipant.setMicrophoneEnabled(!next);
     setMuted(next);
   }, [muted]);
+
+  // Camera on/off. Turning it on during a voice call upgrades it to video.
+  const toggleCamera = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return;
+    const next = !cameraOn;
+    try {
+      await room.localParticipant.setCameraEnabled(next);
+      setCameraOn(next);
+    } catch (e) {
+      setError(
+        next
+          ? "Couldn't turn on your camera. Check that camera access is allowed."
+          : "Couldn't turn off your camera.",
+      );
+    }
+  }, [cameraOn]);
+
+  // Front <-> back camera.
+  const switchCamera = useCallback(async () => {
+    if (!localVideo) return;
+    const next = facing === "user" ? "environment" : "user";
+    try {
+      await localVideo.restartTrack({ facingMode: next });
+      setFacing(next);
+    } catch (e) {
+      setError("Couldn't switch cameras on this device.");
+    }
+  }, [localVideo, facing]);
 
   const enableAudio = useCallback(async () => {
     if (roomRef.current) {
@@ -408,6 +534,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
   // every call is wrapped in try/catch and simply skipped if unsupported.
   const callConnected = !!call && call.status === "connected";
   const peerName = call ? call.peer : "";
+  const callIsVideo = !!call && (!!call.video || cameraOn || !!remoteVideo);
   useEffect(() => {
     if (!callConnected || !("mediaSession" in navigator)) return undefined;
     const ms = navigator.mediaSession;
@@ -415,7 +542,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
     try {
       if (typeof window.MediaMetadata !== "undefined") {
         ms.metadata = new window.MediaMetadata({
-          title: "Voice call",
+          title: callIsVideo ? "Video call" : "Voice call",
           artist: peerName,
           album: "Zixplon",
           artwork: [
@@ -436,16 +563,18 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
     };
     setHandler("hangup", () => hangUp());
     setHandler("togglemicrophone", () => toggleMute());
+    setHandler("togglecamera", () => toggleCamera());
 
     return () => {
       setHandler("hangup", null);
       setHandler("togglemicrophone", null);
+      setHandler("togglecamera", null);
       try {
         ms.metadata = null;
         ms.playbackState = "none";
       } catch (_) {}
     };
-  }, [callConnected, peerName, hangUp, toggleMute]);
+  }, [callConnected, callIsVideo, peerName, hangUp, toggleMute, toggleCamera]);
 
   // Keep the lock-screen microphone indicator in sync with mute (Chrome 93+).
   useEffect(() => {
@@ -454,8 +583,11 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       if (typeof navigator.mediaSession.setMicrophoneActive === "function") {
         navigator.mediaSession.setMicrophoneActive(!muted);
       }
+      if (typeof navigator.mediaSession.setCameraActive === "function") {
+        navigator.mediaSession.setCameraActive(cameraOn);
+      }
     } catch (_) {}
-  }, [callConnected, muted]);
+  }, [callConnected, muted, cameraOn]);
 
   // ---- Realtime signaling ----
   useEffect(() => {
@@ -536,10 +668,18 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
     seconds,
     error,
     audioBlocked,
+    // video
+    cameraOn,
+    facing,
+    localVideo,
+    remoteVideo,
+    remoteCamOff,
     startCall,
     accept,
     hangUp,
     toggleMute,
+    toggleCamera,
+    switchCamera,
     enableAudio,
     dismissError: () => setError(null),
   };

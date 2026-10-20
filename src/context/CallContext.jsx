@@ -7,6 +7,8 @@ import CallOverlay from "../Component/Messages/CallOverlay";
 import { supabase } from "../config/supabase";
 import { showChatNotification } from "../utils/chatNotifications";
 
+// startCall(peer)                  -> voice call
+// startCall(peer, { video: true }) -> video call
 const CallContext = createContext({ startCall: () => {}, callActive: false });
 export const useCallContext = () => useContext(CallContext);
 
@@ -53,11 +55,13 @@ export function CallProvider({ children, currentUser: currentUserProp }) {
   // Writes the call into the chat thread (caller side only; see useCall.finish).
   // Stored as a direct_messages row with attachment_type = "call":
   //   attachment_name = completed | missed | cancelled | declined | busy | ended
+  //                     (prefixed "video:" for video calls, e.g. "video:completed")
   //   attachment_size = call length in seconds (completed calls)
   const logCallToChat = useCallback(
     async ({ call, outcome, duration }) => {
       const me = currentUser;
       const other = call.peer;
+      const isVideo = !!call.video;
       const [user_a, user_b] = [me, other].sort();
       const { data: convo } = await supabase
         .from("conversations")
@@ -68,13 +72,14 @@ export function CallProvider({ children, currentUser: currentUserProp }) {
       if (!convo) return;
 
       const answered = outcome === "ended" && duration > 0;
+      const name = answered ? "completed" : outcome;
       await supabase.from("direct_messages").insert({
         conversation_id: convo.id,
         sender_username: me,
         text: null,
         attachment_url: null,
         attachment_type: "call",
-        attachment_name: answered ? "completed" : outcome,
+        attachment_name: isVideo ? `video:${name}` : name,
         attachment_size: answered ? duration : null,
       });
 
@@ -85,7 +90,7 @@ export function CallProvider({ children, currentUser: currentUserProp }) {
         await supabase
           .from("conversations")
           .update({
-            last_message: "📞 Missed voice call",
+            last_message: isVideo ? "📹 Missed video call" : "📞 Missed voice call",
             last_message_at: new Date().toISOString(),
             last_message_sender: me,
           })
@@ -103,11 +108,15 @@ export function CallProvider({ children, currentUser: currentUserProp }) {
   // Browser notification if the tab is in the background when a call comes in.
   const incomingId = call && call.status === "incoming" ? call.id : null;
   const incomingPeer = call && call.status === "incoming" ? call.peer : null;
+  const incomingVideo = !!(call && call.status === "incoming" && call.video);
   useEffect(() => {
     if (incomingId && document.hidden) {
-      showChatNotification(incomingPeer, "Incoming voice call");
+      showChatNotification(
+        incomingPeer,
+        incomingVideo ? "Incoming video call" : "Incoming voice call",
+      );
     }
-  }, [incomingId, incomingPeer]);
+  }, [incomingId, incomingPeer, incomingVideo]);
 
   return (
     <CallContext.Provider value={{ startCall: api.startCall, callActive: !!call }}>
@@ -118,9 +127,16 @@ export function CallProvider({ children, currentUser: currentUserProp }) {
         seconds={api.seconds}
         error={api.error}
         audioBlocked={api.audioBlocked}
+        cameraOn={api.cameraOn}
+        facing={api.facing}
+        localVideo={api.localVideo}
+        remoteVideo={api.remoteVideo}
+        remoteCamOff={api.remoteCamOff}
         onAccept={api.accept}
         onHangUp={api.hangUp}
         onToggleMute={api.toggleMute}
+        onToggleCamera={api.toggleCamera}
+        onSwitchCamera={api.switchCamera}
         onEnableAudio={api.enableAudio}
         onDismissError={api.dismissError}
       />

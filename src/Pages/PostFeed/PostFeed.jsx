@@ -17,6 +17,7 @@ import { extractMentions } from "../../utils/linkify";
 import SuggestedConnections from "../../Component/Messages/SuggestedConnections";
 // NEW (feedback): Interested / Not interested for posts, videos and reels.
 import useContentFeedback, { FeedbackToast } from "../../hooks/useContentFeedback";
+import StoriesStrip from "./StoriesStrip";
 
 // CHANGED: moved out of the component (it's a pure function) so it can be
 // used inside useCallback hooks without a dependency warning.
@@ -1194,6 +1195,9 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
             </span>
           </div>
         )}
+
+        {/* right before the {!searchQuery && (isLoggedIn ? ( <button className="pf-compose-trigger" ... block */}
+{!searchQuery && <StoriesStrip currentUser={currentUser} />}
 
         {/* CHANGED: the inline composer is replaced by a compact trigger
             that opens the composer popup (same popup as Home Hub's

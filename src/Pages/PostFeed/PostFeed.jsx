@@ -1196,9 +1196,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           </div>
         )}
 
-        {/* right before the {!searchQuery && (isLoggedIn ? ( <button className="pf-compose-trigger" ... block */}
-{!searchQuery && <StoriesStrip currentUser={currentUser} />}
-
         {/* CHANGED: the inline composer is replaced by a compact trigger
             that opens the composer popup (same popup as Home Hub's
             Upload -> Post). Hidden while searching. */}
@@ -1252,6 +1249,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               </button>
             </div>
           ))}
+
+        {!searchQuery && <StoriesStrip currentUser={currentUser} />}
 
         {!searchQuery && <SuggestedConnections variant="feed" />}
 

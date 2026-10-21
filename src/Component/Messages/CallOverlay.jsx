@@ -44,6 +44,7 @@ export default function CallOverlay({
   localVideo,
   remoteVideo,
   remoteCamOff,
+  remoteHasVideoPub, // true once the other person has published a video track
   onAccept,
   onHangUp,
   onToggleMute,
@@ -140,7 +141,9 @@ export default function CallOverlay({
     connected:
       remoteVideo && remoteCamOff
         ? `${fmt(seconds)} · their camera is off`
-        : call.video && !remoteVideo
+        : // Only "waiting" while their video is really on its way. If they
+          // answered with voice only, they never publish video, so just show the timer.
+          call.video && remoteHasVideoPub && !remoteVideo
           ? `${fmt(seconds)} · waiting for their video…`
           : fmt(seconds),
   }[call.status];

@@ -140,6 +140,9 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
   const [localVideo, setLocalVideo] = useState(null); // my LocalVideoTrack
   const [remoteVideo, setRemoteVideo] = useState(null); // their RemoteVideoTrack
   const [remoteCamOff, setRemoteCamOff] = useState(false); // they paused their camera
+  // The other person has published a video track (so "waiting for their video"
+  // is only shown when video is really on its way; a "Voice only" answer never sends one).
+  const [remoteHasVideoPub, setRemoteHasVideoPub] = useState(false);
 
   // Ring loudly (and vibrate) on the RECEIVER's device while an incoming call
   // is waiting to be answered. Stops automatically when call.status changes.
@@ -180,6 +183,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
     setLocalVideo(null);
     setRemoteVideo(null);
     setRemoteCamOff(false);
+    setRemoteHasVideoPub(false);
   }, []);
 
   // Single exit point.
@@ -302,9 +306,25 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         .on(RoomEvent.SignalConnected, () => {
           stage = "signal ok";
         })
+        // Is the other person actually sending video?
+        .on(RoomEvent.TrackPublished, (pub, p) => {
+          console.log("peer published:", pub.kind, pub.source, p && p.identity);
+          if (pub.kind === Track.Kind.Video) setRemoteHasVideoPub(true);
+        })
+        .on(RoomEvent.TrackUnpublished, (pub) => {
+          if (pub.kind === Track.Kind.Video) setRemoteHasVideoPub(false);
+        })
+        .on(RoomEvent.ParticipantConnected, (p) =>
+          console.log("peer joined:", p && p.identity),
+        )
+        .on(RoomEvent.TrackSubscriptionFailed, (sid, p) =>
+          console.warn("subscription FAILED:", sid, p && p.identity),
+        )
         .on(RoomEvent.TrackSubscribed, (track, publication) => {
           if (track.kind === Track.Kind.Video) {
+            console.log("subscribed: video");
             setRemoteVideo(track);
+            setRemoteHasVideoPub(true);
             setRemoteCamOff(!!(publication && publication.isMuted));
             return;
           }
@@ -412,6 +432,16 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         throw err;
       }
       console.log("LiveKit permissions for this call:", room.localParticipant.permissions);
+
+      // The other person may have published video before we joined.
+      room.remoteParticipants.forEach((p) => {
+        const pubs = p.trackPublications || p.tracks; // livekit-client v2 / v1
+        if (pubs && typeof pubs.forEach === "function") {
+          pubs.forEach((pub) => {
+            if (pub.kind === Track.Kind.Video) setRemoteHasVideoPub(true);
+          });
+        }
+      });
 
       // Voice call: just the microphone. Video call: camera + microphone are
       // started TOGETHER (one negotiation with the call server) and both must
@@ -910,6 +940,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
     localVideo,
     remoteVideo,
     remoteCamOff,
+    remoteHasVideoPub,
     startCall,
     accept,
     hangUp,

@@ -13,20 +13,38 @@ import {
   VideoPresets,
   LocalAudioTrack,
   LocalVideoTrack,
+  setLogLevel,
 } from "livekit-client";
 
 // Fallback only. The server URL normally comes back from /api/call-token.
 const LIVEKIT_URL = process.env.REACT_APP_LIVEKIT_URL;
 const RING_TIMEOUT_MS = 40000; // caller gives up after this
 const STALE_RING_MS = 45000; // callee ignores rings older than this
-const FINAL = ["declined", "missed", "ended", "busy", "cancelled"];
+// "failed" = the call could not connect (network / call server problem).
+// NOTE: the `calls.status` column must allow "failed" (see the SQL in the notes).
+const FINAL = ["declined", "missed", "ended", "busy", "cancelled", "failed"];
 const VIDEO_ROOM_PREFIX = "vcall_";
+const WS_TIMEOUT_MS = 15000; // give up on the signalling WebSocket after this
+const PC_TIMEOUT_MS = 30000; // give up on the media (WebRTC) connection after this
+
+// Set REACT_APP_LK_DEBUG=1 in your env to get verbose LiveKit logs in the console.
+if (process.env.REACT_APP_LK_DEBUG === "1") {
+  setLogLevel("debug");
+}
 
 // Rejects after `ms` so a stuck step shows an error instead of "Connecting..." forever.
 const timeoutAfter = (ms, label) =>
   new Promise((_, reject) =>
     setTimeout(() => reject(new Error(`${label} timed out`)), ms),
   );
+
+// Makes sure the LiveKit URL has a protocol and no spaces / trailing slash.
+const normalizeServerUrl = (raw) => {
+  let u = String(raw || "").trim().replace(/\/+$/, "");
+  if (!u) return "";
+  if (!/^(wss?|https?):\/\//i.test(u)) u = `wss://${u}`;
+  return u;
+};
 
 // Constraints for the permission check that happens on the tap. For a VIDEO
 // call this stream is KEPT and handed to the call (see preStreamRef), so the
@@ -61,6 +79,20 @@ const describeCameraError = (e) => {
     return "The camera timed out. Please try again.";
   }
   return `Couldn't start your camera${msg ? `: ${msg}` : "."}`;
+};
+
+// Turns a connection failure into a message that says what to do about it.
+// The technical text (host + stage) is kept at the end so it is still useful for debugging.
+const describeConnectError = (e) => {
+  const msg = String((e && e.message) || "");
+  // Our own errors (login expired, camera problems, URL missing...) are already clear.
+  if (/no signal/i.test(msg) || /websocket/i.test(msg) || /could not establish signal/i.test(msg)) {
+    return `Couldn't reach the call server. Your network, VPN, firewall or antivirus may be blocking it. Try another network (e.g. mobile data) or turn the VPN off. (${msg})`;
+  }
+  if (/signal ok/i.test(msg) || /peer ?connection/i.test(msg) || /ice/i.test(msg)) {
+    return `Reached the call server but couldn't set up the audio/video connection. A strict firewall or network may be blocking it. Try another network. (${msg})`;
+  }
+  return msg || "The call couldn't connect. Please try again.";
 };
 
 // A call is only allowed between two people who have an accepted chat and
@@ -150,7 +182,8 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
     setRemoteCamOff(false);
   }, []);
 
-  // Single exit point. outcome: declined | missed | ended | busy | cancelled
+  // Single exit point.
+  // outcome: declined | missed | ended | busy | cancelled | failed
   const finish = useCallback(
     async (outcome, opts = {}) => {
       const c = callRef.current;
@@ -158,8 +191,13 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       const duration = c.connectedAt
         ? Math.round((Date.now() - c.connectedAt) / 1000)
         : 0;
-      // The other person's device gave up while we were still connecting.
-      if (opts.fromRemote && outcome === "ended" && c.status === "connecting") {
+      if (opts.fromRemote && outcome === "failed") {
+        // The other person's device could not connect to the call server.
+        setError(
+          "The other person's device couldn't connect to the call. This is usually their network or a firewall. Please try again.",
+        );
+      } else if (opts.fromRemote && outcome === "ended" && c.status === "connecting") {
+        // The other person's device gave up while we were still connecting.
         setError("The other person's call couldn't connect. Please try again.");
       } else if (opts.fromRemote && outcome === "ended" && c.video && duration < 20) {
         setError(
@@ -178,8 +216,14 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           .in("status", outcome === "missed" ? ["ringing"] : ["ringing", "accepted"]);
       }
       // Only the caller writes the chat history entry, so it isn't duplicated.
+      // The chat history only knows the normal outcomes, so a failed call is
+      // recorded as an "ended" call (with 0 seconds).
       if (c.role === "caller" && onEndedRef.current) {
-        onEndedRef.current({ call: c, outcome, duration });
+        onEndedRef.current({
+          call: c,
+          outcome: outcome === "failed" ? "ended" : outcome,
+          duration,
+        });
       }
     },
     [setBoth, teardown],
@@ -228,8 +272,8 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         );
       }
       const { token, url } = await res.json();
-      // .trim() removes any stray space/newline pasted into the env var.
-      const serverUrl = (url || LIVEKIT_URL || "").trim();
+      // Adds wss:// if missing and removes stray spaces / trailing slashes.
+      const serverUrl = normalizeServerUrl(url || LIVEKIT_URL);
       if (!serverUrl) throw new Error("Call server URL is not configured.");
 
       // For the error message only: which server we tried, and how far we got.
@@ -308,9 +352,14 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         )
         .on(RoomEvent.ParticipantDisconnected, () => finish("ended"))
         .on(RoomEvent.Disconnected, (reason) => {
-          // Only when the call was still active: i.e. NOT caused by us hanging up.
-          const stillActive = callRef.current && callRef.current.id === c.id;
-          if (stillActive && reason !== 1) {
+          const cur = callRef.current;
+          // Ignore it when the call isn't ours any more (we hung up ourselves).
+          if (!cur || cur.id !== c.id) return;
+          // While still connecting, the code that awaits room.connect() reports
+          // the real error and ends the call as "failed". Handling it here too
+          // would hide that message behind a generic "ended".
+          if (cur.status !== "connected") return;
+          if (reason !== 1) {
             const why = {
               2: "this account joined the call from another tab or device",
               3: "the call server restarted",
@@ -333,18 +382,35 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           console.log("LiveKit state:", s),
         );
 
-      // peerConnectionTimeout (30s) is the library's own limit; the outer
-      // timeout (35s) is slightly longer so the library's error wins.
+      // websocketTimeout makes a blocked/unreachable server fail fast (15s)
+      // instead of hanging. peerConnectionTimeout is the media connection
+      // limit. The outer timeout is slightly longer so the library's own
+      // (more detailed) error wins.
       setConnectStage("Joining the call server…");
-      await Promise.race([
-        room.connect(serverUrl, token, { peerConnectionTimeout: 30000 }),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`Call server timed out [${host}] [${stage}]`)),
-            35000,
+      console.log(`Connecting to LiveKit: ${host}`);
+      try {
+        await Promise.race([
+          room.connect(serverUrl, token, {
+            websocketTimeout: WS_TIMEOUT_MS,
+            peerConnectionTimeout: PC_TIMEOUT_MS,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error(`Call server timed out [${host}] [${stage}]`)),
+              WS_TIMEOUT_MS + PC_TIMEOUT_MS + 5000,
+            ),
           ),
-        ),
-      ]);
+        ]);
+      } catch (e) {
+        console.error(`room.connect failed [${host}] [${stage}]:`, e);
+        // Always include host + stage so the message says how far we got.
+        const raw = String((e && e.message) || "");
+        const tagged = raw.includes(`[${host}]`) ? raw : `${raw} [${host}] [${stage}]`;
+        const err = new Error(tagged);
+        err.name = (e && e.name) || "Error";
+        err.isConnectError = true;
+        throw err;
+      }
       console.log("LiveKit permissions for this call:", room.localParticipant.permissions);
 
       // Voice call: just the microphone. Video call: camera + microphone are
@@ -422,6 +488,20 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       setBoth({ ...callRef.current, status: "connected", connectedAt: Date.now() });
     },
     [finish, setBoth],
+  );
+
+  // Shared handler for "connect() threw": shows a clear message and ends the
+  // call as "failed" so the OTHER person's device is told it failed too.
+  const handleConnectFailure = useCallback(
+    (c, e) => {
+      // The call was already ended (e.g. the other side hung up first):
+      // the "disconnect" error is just fallout, so don't show it.
+      if (!callRef.current || callRef.current.id !== c.id) return;
+      console.error("Call connect failed:", e);
+      setError(e && e.isConnectError ? describeConnectError(e) : (e && e.message) || "The call couldn't connect.");
+      finish("failed");
+    },
+    [finish],
   );
 
   const showIncoming = useCallback(
@@ -586,15 +666,10 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       try {
         await connect(c);
       } catch (e) {
-        // The call was already ended (e.g. the other side hung up first):
-        // the "disconnect" error is just fallout, so don't show it.
-        if (!callRef.current || callRef.current.id !== c.id) return;
-        console.error("Call connect failed:", e);
-        setError(e.message);
-        finish("ended");
+        handleConnectFailure(c, e);
       }
     },
-    [connect, finish, setBoth],
+    [connect, finish, handleConnectFailure, setBoth],
   );
 
   const hangUp = useCallback(() => {
@@ -754,12 +829,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       if (row.status === "accepted" && c.role === "caller" && c.status === "ringing") {
         clearTimeout(ringTimer.current);
         setBoth({ ...c, status: "connecting" });
-        connect(c).catch((e) => {
-          if (!callRef.current || callRef.current.id !== c.id) return;
-          console.error("Call connect failed:", e);
-          setError(e.message);
-          finish("ended");
-        });
+        connect(c).catch((e) => handleConnectFailure(c, e));
       } else if (
         row.status === "accepted" &&
         c.role === "callee" &&
@@ -812,7 +882,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentUser, connect, finish, showIncoming, setBoth]);
+  }, [currentUser, connect, finish, showIncoming, setBoth, teardown, handleConnectFailure]);
 
   // Call timer
   useEffect(() => {

@@ -6,7 +6,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../config/supabase";
 import { useRingtone } from "./useRingtone"; // loud looping ringtone for the receiver
-import { Room, RoomEvent, Track, VideoPresets } from "livekit-client";
+import {
+  Room,
+  RoomEvent,
+  Track,
+  VideoPresets,
+  LocalAudioTrack,
+  LocalVideoTrack,
+} from "livekit-client";
 
 // Fallback only. The server URL normally comes back from /api/call-token.
 const LIVEKIT_URL = process.env.REACT_APP_LIVEKIT_URL;
@@ -20,6 +27,14 @@ const timeoutAfter = (ms, label) =>
   new Promise((_, reject) =>
     setTimeout(() => reject(new Error(`${label} timed out`)), ms),
   );
+
+// Constraints for the permission check that happens on the tap. For a VIDEO
+// call this stream is KEPT and handed to the call (see preStreamRef), so the
+// camera is opened only once.
+const callMediaConstraints = (video) => ({
+  audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+  video: video ? { facingMode: "user", width: { ideal: 960 }, height: { ideal: 540 } } : false,
+});
 
 // Turns a camera failure into a message that says what to do about it.
 const describeCameraError = (e) => {
@@ -99,6 +114,9 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
   useRingtone(!!call && call.role === "callee" && call.status === "incoming");
 
   const callRef = useRef(null);
+  // Camera+mic stream opened on the Call/Accept tap (video calls only). It is
+  // handed to the call so the camera is not opened a second time.
+  const preStreamRef = useRef(null);
   const roomRef = useRef(null);
   const audioEls = useRef([]);
   const ringTimer = useRef(null);
@@ -112,6 +130,10 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
 
   const teardown = useCallback(() => {
     clearTimeout(ringTimer.current);
+    if (preStreamRef.current) {
+      preStreamRef.current.getTracks().forEach((t) => t.stop());
+      preStreamRef.current = null;
+    }
     audioEls.current.forEach((el) => el.remove());
     audioEls.current = [];
     const room = roomRef.current;
@@ -139,6 +161,10 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       // The other person's device gave up while we were still connecting.
       if (opts.fromRemote && outcome === "ended" && c.status === "connecting") {
         setError("The other person's call couldn't connect. Please try again.");
+      } else if (opts.fromRemote && outcome === "ended" && c.video && duration < 20) {
+        setError(
+          "The other person's device ended the video call after a few seconds. If it ended unexpectedly, check that device for an error message (camera or connection problem).",
+        );
       }
       setBoth(null);
       teardown();
@@ -334,6 +360,23 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         setConnectStage("Starting camera and microphone…");
         const lp = room.localParticipant;
         const startMedia = async () => {
+          // Preferred: publish the camera + mic that are ALREADY open.
+          const pre = preStreamRef.current;
+          const live =
+            pre && pre.getTracks().length > 0 && pre.getTracks().every((t) => t.readyState === "live");
+          if (live) {
+            preStreamRef.current = null; // the call owns these tracks now
+            const at = pre.getAudioTracks()[0];
+            const vt = pre.getVideoTracks()[0];
+            if (at) {
+              await lp.publishTrack(new LocalAudioTrack(at), { source: Track.Source.Microphone });
+            }
+            if (vt) {
+              await lp.publishTrack(new LocalVideoTrack(vt), { source: Track.Source.Camera });
+            }
+            return;
+          }
+          // Fallback: open them now.
           if (typeof lp.enableCameraAndMicrophone === "function") {
             await lp.enableCameraAndMicrophone();
           } else {
@@ -449,8 +492,13 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
 
       // Ask for the mic (and camera) on the tap, so the permission prompt appears right away.
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: wantVideo });
-        s.getTracks().forEach((t) => t.stop());
+        const s = await navigator.mediaDevices.getUserMedia(callMediaConstraints(wantVideo));
+        if (wantVideo) {
+          if (preStreamRef.current) preStreamRef.current.getTracks().forEach((t) => t.stop());
+          preStreamRef.current = s; // kept: handed to the call, not opened twice
+        } else {
+          s.getTracks().forEach((t) => t.stop());
+        }
       } catch (e) {
         setError(
           wantVideo
@@ -470,6 +518,10 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         .select()
         .single();
       if (err || !data) {
+        if (preStreamRef.current) {
+          preStreamRef.current.getTracks().forEach((t) => t.stop());
+          preStreamRef.current = null;
+        }
         setError("Could not start the call. Try again.");
         return;
       }
@@ -501,8 +553,13 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       // Ask for the mic (and camera) on the Accept tap, so the permission prompt appears
       // right away instead of stalling the connection later.
       try {
-        const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: wantVideo });
-        s.getTracks().forEach((t) => t.stop());
+        const s = await navigator.mediaDevices.getUserMedia(callMediaConstraints(wantVideo));
+        if (wantVideo) {
+          if (preStreamRef.current) preStreamRef.current.getTracks().forEach((t) => t.stop());
+          preStreamRef.current = s; // kept: handed to the call, not opened twice
+        } else {
+          s.getTracks().forEach((t) => t.stop());
+        }
       } catch (e) {
         setError(
           wantVideo

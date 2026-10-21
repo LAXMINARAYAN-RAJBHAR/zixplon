@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Hls from "hls.js";
+import { supabase } from "../../config/supabase";
 import { getInitials } from "../../utils/initials";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -13,7 +14,8 @@ import { getInitials } from "../../utils/initials";
 //   • ← / → / Esc on a keyboard; ‹ › buttons on desktop.
 //   • Reaching the end of one person's stories continues into the next
 //     person's, and closes after the last one.
-//   • Your own stories get a delete button.
+//   • Your own stories get a delete button and a "Seen by" count + list
+//     (reads the `story_views` table).
 //
 // `groups` is a snapshot taken when the viewer opened:
 //   [{ username, stories: [{ id, media_url, media_type, caption, created_at }] }]
@@ -37,7 +39,7 @@ const StoryViewer = ({
   startGroup = 0,
   startStory = 0,
   currentUser,
-  onViewed,
+  onViewed, // (story) => void
   onDelete, // async (story) => boolean
   onClose,
 }) => {
@@ -47,6 +49,10 @@ const StoryViewer = ({
   const [progress, setProgress] = useState(0);
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
+
+  // "Seen by" (own stories only)
+  const [viewers, setViewers] = useState([]);
+  const [showViewers, setShowViewers] = useState(false);
 
   const videoRef = useRef(null);
   const elapsedRef = useRef(0);
@@ -92,9 +98,9 @@ const StoryViewer = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 
-  // ── Mark as viewed ──
+  // ── Mark as viewed (also saves the view for the owner's "Seen by") ──
   useEffect(() => {
-    if (story) onViewed?.(story.id);
+    if (story) onViewed?.(story);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 
@@ -167,7 +173,7 @@ const StoryViewer = ({
       attempt.catch(() => {
         vid.muted = true;
         setMuted(true);
-        vid.play().catch(() => {});
+        vid.play().catch(() => { });
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -176,6 +182,36 @@ const StoryViewer = ({
   useEffect(() => {
     if (videoRef.current) videoRef.current.muted = muted;
   }, [muted]);
+
+  // ── Seen by: load the viewer list for the current story (own only) ──
+  useEffect(() => {
+    setShowViewers(false);
+    setViewers([]);
+    if (!isOwn || !story) return;
+
+    let cancelled = false;
+    supabase
+      .from("story_views")
+      .select("viewer_username, viewed_at")
+      .eq("story_id", story.id)
+      .order("viewed_at", { ascending: false })
+      .then(({ data: rows, error }) => {
+        if (!cancelled && !error && rows) setViewers(rows);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [story?.id, isOwn]);
+
+  const openViewers = () => {
+    setPaused(true);
+    setShowViewers(true);
+  };
+  const closeViewers = () => {
+    setShowViewers(false);
+    setPaused(false);
+  };
 
   // ── Keyboard + scroll lock ──
   useEffect(() => {
@@ -361,6 +397,40 @@ const StoryViewer = ({
           onPointerCancel={handlePointerCancel}
           onContextMenu={(e) => e.preventDefault()}
         />
+
+        {/* Seen-by button + sheet — INSIDE the stage so they're positioned
+            against the story, not the whole screen. */}
+        {isOwn && (
+          <button type="button" className="pf-story-seen-btn" onClick={openViewers}>
+            👁 {viewers.length}
+          </button>
+        )}
+
+        {showViewers && (
+          <div className="pf-story-seen-sheet">
+            <div className="pf-story-seen-head">
+              <b>Seen by {viewers.length}</b>
+              <button type="button" onClick={closeViewers} aria-label="Close">
+                ✕
+              </button>
+            </div>
+            {viewers.length === 0 ? (
+              <p className="pf-story-seen-empty">No views yet.</p>
+            ) : (
+              <ul className="pf-story-seen-list">
+                {viewers.map((v) => (
+                  <li key={v.viewer_username}>
+                    <span className="pf-avatar pf-avatar-sm">
+                      {getInitials(v.viewer_username)}
+                    </span>
+                    <span className="pf-story-seen-name">{v.viewer_username}</span>
+                    <small>{timeAgo(v.viewed_at)}</small>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       <button

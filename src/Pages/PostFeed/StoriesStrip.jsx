@@ -1,20 +1,21 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "../../config/supabase";
+import { getInitials } from "../../utils/initials";
 import StoryCreator from "./StoryCreator";
 import StoryViewer from "./StoryViewer";
-import { getInitials } from "../../utils/initials";
 
 // ─────────────────────────────────────────────────────────────────────────
-// StoriesStrip — the horizontal "Create story" + stories row at the top of
-// the Posts feed.
+// StoriesStrip — the horizontal "Create story" + stories row in the Posts
+// feed.
 //
 //   • First card: "Create story" (opens StoryCreator).
 //   • Then one card per person with a live (< 24h) story: your own first,
 //     then people with stories you haven't seen, then the rest. Cards with
 //     unseen stories get a coloured ring.
 //   • Tapping a card opens StoryViewer at that person's first unseen story.
-//   • "Seen" is remembered per browser (localStorage) — it isn't synced
-//     across devices.
+//   • "Seen" (the ring colour) is remembered per browser (localStorage).
+//     Separately, each view by a logged-in person is saved to the
+//     `story_views` table so the owner can see who viewed their story.
 //
 // Data comes from the `stories` table (see stories_migration.sql) and is
 // kept fresh through a realtime subscription.
@@ -39,8 +40,6 @@ const writeViewed = (set) => {
 };
 
 const isHlsSource = (src) => !!src && /\.m3u8(\?.*)?$/i.test(src);
-
-const initialsOf = getInitials;   // replaces: (name) => (name || "?").slice(0, 2).toUpperCase()
 
 /* One person's card in the strip. */
 const StoryTile = ({ group, isOwn, onOpen }) => {
@@ -70,7 +69,7 @@ const StoryTile = ({ group, isOwn, onOpen }) => {
       </div>
 
       <span className={`pf-story-ring${group.hasUnviewed ? " unviewed" : ""}`}>
-        <span className="pf-story-ring-avatar">{initialsOf(group.username)}</span>
+        <span className="pf-story-ring-avatar">{getInitials(group.username)}</span>
       </span>
 
       <span className="pf-story-card-name">
@@ -179,15 +178,33 @@ const StoriesStrip = ({ currentUser }) => {
     });
   };
 
-  const markViewed = useCallback((id) => {
-    setViewed((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.add(id);
-      writeViewed(next);
-      return next;
-    });
-  }, []);
+  // Called by StoryViewer with the whole story each time one is shown.
+  //  1) remembers it locally (ring colour), and
+  //  2) saves the view so the story's owner can see who watched it.
+  const markViewed = useCallback(
+    (story) => {
+      setViewed((prev) => {
+        if (prev.has(story.id)) return prev;
+        const next = new Set(prev);
+        next.add(story.id);
+        writeViewed(next);
+        return next;
+      });
+
+      if (isLoggedIn && story.username !== currentUser) {
+        supabase
+          .from("story_views")
+          .upsert(
+            { story_id: story.id, viewer_username: currentUser },
+            { onConflict: "story_id,viewer_username", ignoreDuplicates: true }
+          )
+          .then(({ error }) => {
+            if (error) console.error("Save story view failed:", error);
+          });
+      }
+    },
+    [isLoggedIn, currentUser]
+  );
 
   const deleteStory = useCallback(
     async (story) => {
@@ -228,7 +245,7 @@ const StoriesStrip = ({ currentUser }) => {
           >
             <div className="pf-story-create-top">
               <span className="pf-story-create-avatar">
-                {isLoggedIn ? initialsOf(currentUser) : "👤"}
+                {isLoggedIn ? getInitials(currentUser) : "👤"}
               </span>
             </div>
             <div className="pf-story-create-bottom">

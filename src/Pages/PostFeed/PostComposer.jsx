@@ -5,6 +5,7 @@ import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
 import MusicPicker from "../../Component/Shared/MusicPicker";
 import LocationPicker from "../../Component/Shared/LocationPicker";
 import { uploadToR2, buildTransformUrl, uploadVideoToR2 } from "../../utils/mediaUpload";
+import { getInitials } from "../../utils/initials";
 
 // NOTE: no cap on image count anymore — ImageGrid/HomeImageGrid already
 // render any number of images fine (4 visible tiles + a "+N" overlay for
@@ -145,7 +146,7 @@ const captureThumbnail = (file) => new Promise((resolve, reject) => {
       playAttempt
         .then(() => {
           setTimeout(() => {
-            try { video.pause(); } catch (_) {}
+            try { video.pause(); } catch (_) { }
             grabAfterDecode();
           }, 50);
         })
@@ -241,7 +242,7 @@ const PostComposer = ({ currentUser, onPost }) => {
     };
   }, []);
 
-  const initials = currentUser.slice(0, 2).toUpperCase();
+  const initials = getInitials(currentUser);
   const canPost =
     text.trim() || imageFiles.length > 0 || videoFile || linkUrl || gifStickerAttachment;
 
@@ -298,11 +299,11 @@ const PostComposer = ({ currentUser, onPost }) => {
     }
 
     const sizeMB = file.size / (1024 * 1024);
-if (sizeMB > MAX_VIDEO_MB) {
-  setError(`Video is too large. Max size is ${MAX_VIDEO_MB / 1024}GB.`);
-  if (videoRef.current) videoRef.current.value = "";
-  return;
-}
+    if (sizeMB > MAX_VIDEO_MB) {
+      setError(`Video is too large. Max size is ${MAX_VIDEO_MB / 1024}GB.`);
+      if (videoRef.current) videoRef.current.value = "";
+      return;
+    }
 
     setVideoFile({ file, preview: URL.createObjectURL(file) });
     if (videoRef.current) videoRef.current.value = "";

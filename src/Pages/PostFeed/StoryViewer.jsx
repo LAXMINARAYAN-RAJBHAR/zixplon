@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Hls from "hls.js";
+import { getInitials } from "../../utils/initials";
 
 // ─────────────────────────────────────────────────────────────────────────
 // StoryViewer — full-screen, Instagram/Facebook-style story player.
@@ -297,7 +298,7 @@ const StoryViewer = ({
         {/* Header */}
         <div className="pf-story-head">
           <span className="pf-avatar pf-avatar-sm pf-avatar-green">
-            {(group.username || "?").slice(0, 2).toUpperCase()}
+            {getInitials(group.username)}
           </span>
           <span className="pf-story-user">{group.username}</span>
           <span className="pf-story-time">{timeAgo(story.created_at)}</span>

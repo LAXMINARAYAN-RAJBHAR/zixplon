@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { supabase } from "../../config/supabase";
 import StoryCreator from "./StoryCreator";
 import StoryViewer from "./StoryViewer";
+import { getInitials } from "../../utils/initials";
 
 // ─────────────────────────────────────────────────────────────────────────
 // StoriesStrip — the horizontal "Create story" + stories row at the top of
@@ -39,7 +40,7 @@ const writeViewed = (set) => {
 
 const isHlsSource = (src) => !!src && /\.m3u8(\?.*)?$/i.test(src);
 
-const initialsOf = (name) => (name || "?").slice(0, 2).toUpperCase();
+const initialsOf = getInitials;   // replaces: (name) => (name || "?").slice(0, 2).toUpperCase()
 
 /* One person's card in the strip. */
 const StoryTile = ({ group, isOwn, onOpen }) => {

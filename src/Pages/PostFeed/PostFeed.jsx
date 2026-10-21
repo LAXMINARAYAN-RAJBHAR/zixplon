@@ -18,6 +18,7 @@ import SuggestedConnections from "../../Component/Messages/SuggestedConnections"
 // NEW (feedback): Interested / Not interested for posts, videos and reels.
 import useContentFeedback, { FeedbackToast } from "../../hooks/useContentFeedback";
 import StoriesStrip from "./StoriesStrip";
+import { getInitials } from "../../utils/initials";
 
 // CHANGED: moved out of the component (it's a pure function) so it can be
 // used inside useCallback hooks without a dependency warning.
@@ -1207,7 +1208,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               onClick={openComposer}
             >
               <span className="pf-avatar">
-                {currentUser.slice(0, 2).toUpperCase()}
+                {getInitials(currentUser)}
               </span>
               <span className="pf-compose-trigger-text">
                 What's on your mind, {currentUser}?

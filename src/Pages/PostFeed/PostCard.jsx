@@ -38,6 +38,7 @@ import Hls from "hls.js";
 // gesture, so this lets PostVideo (and SongAttachmentCard) retry
 // sound the instant that happens, rather than only on their own click.
 import { onUserInteract } from "../../utils/audioUnlock";
+import { getInitials } from "../../utils/initials";
 
 const REACTIONS = [
   { key: "like", emoji: "👍", label: "Like", color: "#1877f2" },
@@ -877,7 +878,7 @@ const PostCard = ({
 
   const navigate = useNavigate();
 
-  const initials = (post.username || "?").slice(0, 2).toUpperCase();
+  const initials = getInitials(currentUser);
   // NEW: full date/time — shown inline on desktop, tooltip-only on phones.
   const fullDate = new Date(post.created_at).toLocaleString("en-IN", {
     day: "numeric",

@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../config/supabase";
 import { useRingtone } from "./useRingtone"; // loud looping ringtone for the receiver
-import { Room, RoomEvent, Track, VideoPresets, createLocalVideoTrack } from "livekit-client";
+import { Room, RoomEvent, Track, VideoPresets } from "livekit-client";
 
 // Fallback only. The server URL normally comes back from /api/call-token.
 const LIVEKIT_URL = process.env.REACT_APP_LIVEKIT_URL;
@@ -32,6 +32,9 @@ const describeCameraError = (e) => {
   }
   if (e && (e.name === "NotFoundError" || e.name === "OverconstrainedError")) {
     return "No camera was found on this device.";
+  }
+  if (/starting camera and microphone/i.test(msg)) {
+    return "Video couldn't be started (timed out). Either the camera didn't respond or its video couldn't reach the call server. Check your network, close other apps using the camera, and try again.";
   }
   if (/opening the camera/i.test(msg)) {
     return "Your camera didn't respond (timed out while opening it). Close other apps or tabs that use the camera, then turn it on again.";
@@ -144,7 +147,9 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           .from("calls")
           .update({ status: outcome, ended_at: new Date().toISOString() })
           .eq("id", c.id)
-          .in("status", ["ringing", "accepted"]); // never overwrite a final state
+          // A "missed" timer may only close a call that is still ringing; it
+          // must never overwrite one that has already been answered.
+          .in("status", outcome === "missed" ? ["ringing"] : ["ringing", "accepted"]);
       }
       // Only the caller writes the chat history entry, so it isn't duplicated.
       if (c.role === "caller" && onEndedRef.current) {
@@ -276,7 +281,25 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           console.error("Media devices error:", e),
         )
         .on(RoomEvent.ParticipantDisconnected, () => finish("ended"))
-        .on(RoomEvent.Disconnected, () => finish("ended"))
+        .on(RoomEvent.Disconnected, (reason) => {
+          // Only when the call was still active: i.e. NOT caused by us hanging up.
+          const stillActive = callRef.current && callRef.current.id === c.id;
+          if (stillActive && reason !== 1) {
+            const why = {
+              2: "this account joined the call from another tab or device",
+              3: "the call server restarted",
+              4: "you were removed from the call",
+              5: "the call room was closed",
+              6: "the connection got out of sync",
+              7: "joining the call failed",
+              9: "the network connection was lost",
+              10: "the call room was closed",
+            }[reason];
+            console.warn("LiveKit disconnected, reason code:", reason);
+            setError(`The call was disconnected${why ? `: ${why}` : "."}`);
+          }
+          finish("ended");
+        })
         .on(RoomEvent.AudioPlaybackStatusChanged, () =>
           setAudioBlocked(!room.canPlaybackAudio),
         )
@@ -296,64 +319,42 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           ),
         ),
       ]);
-      setConnectStage("Starting microphone…");
-      await Promise.race([
-        room.localParticipant.setMicrophoneEnabled(true),
-        timeoutAfter(10000, "Microphone"),
-      ]);
+      console.log("LiveKit permissions for this call:", room.localParticipant.permissions);
 
-      // Video call: switch the camera on AFTER the call is live, so a slow or
-      // stuck camera can never keep the call from connecting. If it fails, the
-      // call simply carries on as a voice call.
-      // (Phones sometimes keep the camera busy for a moment after the
-      // permission check, so try up to 3 times before giving up.)
-      const startCamera = async () => {
-        if (roomRef.current !== room) return;
-        let camErr = null;
-
-        // Ask the call server what this token allows. If the camera isn't
-        // permitted, say so now instead of waiting for a timeout.
-        const perms = room.localParticipant.permissions;
-        console.log("LiveKit permissions for this call:", perms);
-        const allowedSources = (perms && perms.canPublishSources) || [];
-        const CAMERA_SOURCE = 1; // TrackSource.CAMERA
-        const videoBlocked =
-          !!perms &&
-          (perms.canPublish === false ||
-            (allowedSources.length > 0 && !allowedSources.includes(CAMERA_SOURCE)));
-        if (videoBlocked) {
-          setError(
-            "The call server isn't allowing video: this call's access token doesn't include the camera permission. The call continues as voice only.",
-          );
-        }
-        const maxAttempts = videoBlocked ? 0 : 3;
-
-        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      // Voice call: just the microphone. Video call: camera + microphone are
+      // started TOGETHER (one negotiation with the call server) and both must
+      // work, so a video call never quietly turns into a voice call.
+      if (!c.video) {
+        setConnectStage("Starting microphone…");
+        await Promise.race([
+          room.localParticipant.setMicrophoneEnabled(true),
+          timeoutAfter(10000, "Microphone"),
+        ]);
+      } else {
+        setConnectStage("Starting camera and microphone…");
+        const lp = room.localParticipant;
+        const startMedia = async () => {
+          if (typeof lp.enableCameraAndMicrophone === "function") {
+            await lp.enableCameraAndMicrophone();
+          } else {
+            await lp.setMicrophoneEnabled(true);
+            await lp.setCameraEnabled(true);
+          }
+        };
+        let mediaErr = null;
+        for (let attempt = 1; attempt <= 2; attempt += 1) {
           try {
-            // Step 1: open the camera.
-            const camTrack = await Promise.race([
-              createLocalVideoTrack({
-                facingMode: "user",
-                resolution: VideoPresets.h540.resolution,
-              }),
-              timeoutAfter(12000, "Opening the camera"),
+            await Promise.race([
+              startMedia(),
+              timeoutAfter(25000, "Starting camera and microphone"),
             ]);
-            // Step 2: send it to the call server.
-            try {
-              await Promise.race([
-                room.localParticipant.publishTrack(camTrack),
-                timeoutAfter(15000, "Sending the camera"),
-              ]);
-            } catch (pubErr) {
-              camTrack.stop();
-              throw pubErr;
-            }
-            camErr = null;
+            mediaErr = null;
             break;
           } catch (e) {
-            camErr = e;
-            console.error(`Camera start failed (attempt ${attempt}):`, e);
-            // Retrying can't fix a blocked permission or a server timeout.
+            mediaErr = e;
+            console.error(`Video start failed (attempt ${attempt}):`, e);
+            // Retrying can't fix a blocked permission, and a second attempt
+            // while the first is still hanging could double-publish.
             if (
               e &&
               (e.name === "NotAllowedError" ||
@@ -365,10 +366,10 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
             await new Promise((r) => setTimeout(r, 700));
           }
         }
-        if (camErr) {
-          setError(`${describeCameraError(camErr)} The call continues as voice only.`);
+        if (mediaErr) {
+          throw new Error(`${describeCameraError(mediaErr)} The video call was ended.`);
         }
-      };
+      }
 
       if (!callRef.current || callRef.current.id !== c.id) {
         room.disconnect();
@@ -376,7 +377,6 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       }
       setConnectStage("");
       setBoth({ ...callRef.current, status: "connected", connectedAt: Date.now() });
-      if (c.video) startCamera(); // runs in the background; the call is already live
     },
     [finish, setBoth],
   );
@@ -703,6 +703,15 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           setError(e.message);
           finish("ended");
         });
+      } else if (
+        row.status === "accepted" &&
+        c.role === "callee" &&
+        c.status === "incoming"
+      ) {
+        // Answered on another tab/device of mine: just stop ringing here.
+        clearTimeout(ringTimer.current);
+        setBoth(null);
+        teardown();
       } else if (FINAL.includes(row.status)) {
         finish(row.status, { fromRemote: true });
       }

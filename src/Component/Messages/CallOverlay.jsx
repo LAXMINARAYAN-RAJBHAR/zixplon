@@ -137,7 +137,12 @@ export default function CallOverlay({
     incoming: `Incoming ${kind} call`,
     ringing: "Ringing…",
     connecting: "Connecting…",
-    connected: remoteVideo && remoteCamOff ? `${fmt(seconds)} · camera off` : fmt(seconds),
+    connected:
+      remoteVideo && remoteCamOff
+        ? `${fmt(seconds)} · their camera is off`
+        : call.video && !remoteVideo
+          ? `${fmt(seconds)} · waiting for their video…`
+          : fmt(seconds),
   }[call.status];
   const pulsing = call.status === "incoming" || call.status === "ringing";
   const connected = call.status === "connected";

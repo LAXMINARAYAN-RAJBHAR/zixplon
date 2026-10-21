@@ -34,7 +34,7 @@ const describeCameraError = (e) => {
     return "No camera was found on this device.";
   }
   if (/timed out/i.test(msg)) {
-    return "The camera started but couldn't be sent to the other person (timed out). The call server may not be allowing video.";
+    return "Your camera couldn't be sent to the other person (timed out). The call server may not be allowing video.";
   }
   return `Couldn't start your camera${msg ? `: ${msg}` : "."}`;
 };
@@ -302,11 +302,29 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       if (c.video) {
         setConnectStage("Starting camera…");
         let camErr = null;
-        for (let attempt = 1; attempt <= 3; attempt += 1) {
+
+        // Ask the call server what this token allows. If the camera isn't
+        // permitted, say so now instead of waiting for a timeout.
+        const perms = room.localParticipant.permissions;
+        console.log("LiveKit permissions for this call:", perms);
+        const allowedSources = (perms && perms.canPublishSources) || [];
+        const CAMERA_SOURCE = 1; // TrackSource.CAMERA
+        const videoBlocked =
+          !!perms &&
+          (perms.canPublish === false ||
+            (allowedSources.length > 0 && !allowedSources.includes(CAMERA_SOURCE)));
+        if (videoBlocked) {
+          setError(
+            "The call server isn't allowing video: this call's access token doesn't include the camera permission. The call continues as voice only.",
+          );
+        }
+        const maxAttempts = videoBlocked ? 0 : 3;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
             await Promise.race([
               room.localParticipant.setCameraEnabled(true),
-              timeoutAfter(10000, "Camera"),
+              timeoutAfter(15000, "Camera"),
             ]);
             camErr = null;
             break;

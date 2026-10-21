@@ -2906,3 +2906,72 @@
   }
   .pf-feed > .pf-composer { max-width: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   POST VIDEO — PROGRESS BAR
+   APPEND this block to the very bottom of PostFeed.css (after all the
+   existing blocks). Nothing else in PostFeed.css needs to change.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-vp-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22px;              /* generous hit area, esp. for touch */
+  z-index: 3;
+  cursor: pointer;
+  touch-action: none;        /* stops the page scrolling while dragging */
+  display: flex;
+  align-items: flex-end;
+  outline: none;
+}
+
+.pf-vp-track {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.28);
+  transition: height 0.15s ease;
+}
+.pf-vp-bar:hover .pf-vp-track,
+.pf-vp-bar:focus-visible .pf-vp-track,
+.pf-vp-bar--scrubbing .pf-vp-track {
+  height: 6px;
+}
+
+.pf-vp-buffered,
+.pf-vp-played {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+}
+.pf-vp-buffered { background: rgba(255, 255, 255, 0.4); }
+.pf-vp-played {
+  background: var(--zx-primary2);
+  transition: width 0.25s linear;   /* smooths the ~4Hz timeupdate steps */
+}
+.pf-vp-bar--scrubbing .pf-vp-played { transition: none; }
+
+.pf-vp-time {
+  position: absolute;
+  left: 10px;
+  bottom: 12px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-family: 'Nunito', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+/* Lift the mute / fullscreen buttons so they don't sit on the bar.
+   The existing fullscreen-mode rules (bottom: 24px) are more specific,
+   so they still win while the video is fullscreen. */
+.pf-card-video-mute-btn,
+.pf-card-video-fs-btn {
+  bottom: 18px;
+}

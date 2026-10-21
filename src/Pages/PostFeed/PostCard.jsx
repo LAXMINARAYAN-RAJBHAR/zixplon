@@ -81,6 +81,14 @@ const formatCount = (n) => {
   return String(n);
 };
 
+// NEW: m:ss formatter for the video progress bar's scrub label.
+const formatTime = (s) => {
+  if (!isFinite(s) || s < 0) return "0:00";
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, "0")}`;
+};
+
 // NEW: HLS manifests are served as .m3u8. Everything else (mp4/webm/etc)
 // keeps using a plain <video src> exactly as before.
 const isHlsSource = (src) => !!src && /\.m3u8(\?.*)?$/i.test(src);
@@ -121,10 +129,14 @@ const stubTranslateToHindi = (text) => {
        playback (muted state carries over — no re-prompt).
      • Tapping the video, or the speaker icon, toggles sound on/off at
        any time.
-     • NEW: a full screen button sits next to the speaker icon. It
+     • A full screen button sits next to the speaker icon. It
        fullscreens the wrapper (so the mute button keeps working), and
        falls back to the video element's native fullscreen on iOS
        Safari, which can't fullscreen a <div>.
+     • NEW: a progress bar runs along the bottom edge. It shows played
+       and buffered progress, supports click / drag (mouse + touch) to
+       seek, and Left/Right arrow keys (±5s) when focused. It only
+       reads the <video> element's events, so it works for HLS too.
 
    HLS support — if `src` is an .m3u8 manifest, playback routes through
    hls.js (or native HLS on Safari) instead of setting the <video>'s
@@ -150,6 +162,13 @@ const PostVideo = ({ src, inView }) => {
   // enters view — afterwards we just respect whatever mute state is
   // already in effect (the user's own choice, or the earlier fallback).
   const attemptedUnmutedRef = useRef(false);
+
+  // NEW: progress bar state.
+  const trackRef = useRef(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [bufferedEnd, setBufferedEnd] = useState(0);
+  const [scrubbing, setScrubbing] = useState(false);
 
   // ── Scroll-driven autoplay/pause ──
   useEffect(() => {
@@ -226,6 +245,47 @@ const PostVideo = ({ src, inView }) => {
     };
   }, []);
 
+  // NEW: keep progress state in sync with the <video> element.
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+
+    const syncDuration = () =>
+      setDuration(isFinite(vid.duration) ? vid.duration : 0);
+    const syncTime = () => setCurrentTime(vid.currentTime || 0);
+    const syncBuffered = () => {
+      const b = vid.buffered;
+      if (!b || b.length === 0) return;
+      // Use the buffered range that contains the playhead.
+      for (let i = 0; i < b.length; i++) {
+        if (
+          vid.currentTime >= b.start(i) &&
+          vid.currentTime <= b.end(i) + 0.5
+        ) {
+          setBufferedEnd(b.end(i));
+          return;
+        }
+      }
+      setBufferedEnd(b.end(b.length - 1));
+    };
+
+    vid.addEventListener("loadedmetadata", syncDuration);
+    vid.addEventListener("durationchange", syncDuration);
+    vid.addEventListener("timeupdate", syncTime);
+    vid.addEventListener("progress", syncBuffered);
+    vid.addEventListener("timeupdate", syncBuffered);
+    syncDuration();
+    syncTime();
+
+    return () => {
+      vid.removeEventListener("loadedmetadata", syncDuration);
+      vid.removeEventListener("durationchange", syncDuration);
+      vid.removeEventListener("timeupdate", syncTime);
+      vid.removeEventListener("progress", syncBuffered);
+      vid.removeEventListener("timeupdate", syncBuffered);
+    };
+  }, [src]);
+
   const toggleMute = (e) => {
     e.stopPropagation();
     setMuted((m) => {
@@ -267,6 +327,42 @@ const PostVideo = ({ src, inView }) => {
       });
     } else if (vid.webkitEnterFullscreen) {
       vid.webkitEnterFullscreen();
+    }
+  };
+
+  // ── NEW: progress bar seeking ──
+  const seekToClientX = (clientX) => {
+    const vid = videoRef.current;
+    const track = trackRef.current;
+    if (!vid || !track || !duration) return;
+    const rect = track.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    vid.currentTime = ratio * duration;
+    setCurrentTime(ratio * duration);
+  };
+
+  const onBarPointerDown = (e) => {
+    e.stopPropagation(); // don't trigger the wrapper's mute toggle
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setScrubbing(true);
+    seekToClientX(e.clientX);
+  };
+  const onBarPointerMove = (e) => {
+    if (scrubbing) seekToClientX(e.clientX);
+  };
+  const onBarPointerUp = (e) => {
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    setScrubbing(false);
+  };
+  const onBarKeyDown = (e) => {
+    const vid = videoRef.current;
+    if (!vid || !duration) return;
+    if (e.key === "ArrowRight") {
+      vid.currentTime = Math.min(duration, vid.currentTime + 5);
+      e.preventDefault();
+    } else if (e.key === "ArrowLeft") {
+      vid.currentTime = Math.max(0, vid.currentTime - 5);
+      e.preventDefault();
     }
   };
 
@@ -376,6 +472,41 @@ const PostVideo = ({ src, inView }) => {
       >
         {muted ? "🔇" : "🔊"}
       </button>
+
+      {/* NEW: progress bar — only rendered once the duration is known. */}
+      {duration > 0 && (
+        <div
+          className={`pf-vp-bar${scrubbing ? " pf-vp-bar--scrubbing" : ""}`}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={onBarPointerDown}
+          onPointerMove={onBarPointerMove}
+          onPointerUp={onBarPointerUp}
+          onPointerCancel={onBarPointerUp}
+          onKeyDown={onBarKeyDown}
+          role="slider"
+          tabIndex={0}
+          aria-label="Seek video"
+          aria-valuemin={0}
+          aria-valuemax={Math.round(duration)}
+          aria-valuenow={Math.round(currentTime)}
+        >
+          {scrubbing && (
+            <span className="pf-vp-time">
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
+          )}
+          <div className="pf-vp-track" ref={trackRef}>
+            <div
+              className="pf-vp-buffered"
+              style={{ width: `${(bufferedEnd / duration) * 100}%` }}
+            />
+            <div
+              className="pf-vp-played"
+              style={{ width: `${(currentTime / duration) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

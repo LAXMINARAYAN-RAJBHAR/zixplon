@@ -37,6 +37,7 @@ export default function CallOverlay({
   seconds,
   error,
   audioBlocked,
+  stageText,
   // video
   cameraOn,
   facing,
@@ -178,6 +179,9 @@ export default function CallOverlay({
           <p className="zx-call__status" aria-live="polite">
             {status}
           </p>
+          {call.status === "connecting" && stageText && (
+            <p className="zx-call__stage">{stageText}</p>
+          )}
           {audioBlocked && connected && (
             <button type="button" className="zx-call__audio" onClick={onEnableAudio}>
               Tap to turn on call audio

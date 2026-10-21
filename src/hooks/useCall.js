@@ -74,6 +74,9 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
+  // Which connection step is running ("Joining the call server…" etc.) —
+  // shown under "Connecting…" so a stuck call shows WHERE it is stuck.
+  const [connectStage, setConnectStage] = useState("");
 
   // ---- video state ----
   const [cameraOn, setCameraOn] = useState(false); // my camera is publishing
@@ -108,6 +111,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
     setMuted(false);
     setSeconds(0);
     setAudioBlocked(false);
+    setConnectStage("");
     setCameraOn(false);
     setFacing("user");
     setLocalVideo(null);
@@ -146,6 +150,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
 
   const connect = useCallback(
     async (c) => {
+      setConnectStage("Securing the call…");
       const requestToken = (accessToken) =>
         fetch("/api/call-token", {
           method: "POST",
@@ -275,6 +280,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
 
       // peerConnectionTimeout (30s) is the library's own limit; the outer
       // timeout (35s) is slightly longer so the library's error wins.
+      setConnectStage("Joining the call server…");
       await Promise.race([
         room.connect(serverUrl, token, { peerConnectionTimeout: 30000 }),
         new Promise((_, reject) =>
@@ -284,6 +290,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
           ),
         ),
       ]);
+      setConnectStage("Starting microphone…");
       await Promise.race([
         room.localParticipant.setMicrophoneEnabled(true),
         timeoutAfter(10000, "Microphone"),
@@ -293,6 +300,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       // (Phones sometimes keep the camera busy for a moment after the
       // permission check, so try up to 3 times before giving up.)
       if (c.video) {
+        setConnectStage("Starting camera…");
         let camErr = null;
         for (let attempt = 1; attempt <= 3; attempt += 1) {
           try {
@@ -326,6 +334,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         room.disconnect();
         return;
       }
+      setConnectStage("");
       setBoth({ ...callRef.current, status: "connected", connectedAt: Date.now() });
     },
     [finish, setBoth],
@@ -717,6 +726,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
     seconds,
     error,
     audioBlocked,
+    connectStage,
     // video
     cameraOn,
     facing,

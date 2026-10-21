@@ -127,6 +127,7 @@ export function CallProvider({ children, currentUser: currentUserProp }) {
         seconds={api.seconds}
         error={api.error}
         audioBlocked={api.audioBlocked}
+        stageText={api.connectStage}
         cameraOn={api.cameraOn}
         facing={api.facing}
         localVideo={api.localVideo}

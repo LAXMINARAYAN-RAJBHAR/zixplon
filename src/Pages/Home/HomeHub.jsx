@@ -23,6 +23,17 @@ const UPLOAD_ROUTES = {
   video: "/videoUpload",
 };
 
+// NEW: Upload -> Post opens the Post Composer as a popup, owned by
+// PostFeed (so the new post still goes through PostFeed's handleNewPost:
+// feed insert + notifications + mentions). These two names must match
+// the ones at the top of PostFeed.jsx.
+//   • OPEN_COMPOSER_EVENT — used when the Posts tab is already showing.
+//   • OPEN_COMPOSER_FLAG  — a timestamp in sessionStorage, used when we
+//     have to switch to the Posts tab first (PostFeed isn't mounted yet
+//     to hear an event, so it checks the flag as it mounts).
+const OPEN_COMPOSER_EVENT = "zx:open-composer";
+const OPEN_COMPOSER_FLAG = "zx:open-composer";
+
 // ── Tab registry ─────────────────────────────────────────────────────────
 // The single source of truth for each tab's icon and the component it
 // renders. The `home_hub_tabs` Supabase table (managed from
@@ -278,23 +289,22 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
     return true;
   };
 
+  // CHANGED: Upload -> Post now pops the Post Composer open as a popup
+  // (owned by PostFeed) instead of scrolling an inline composer into
+  // view. From the Posts tab it fires an event; from any other tab it
+  // leaves a short-lived flag and switches to Posts, whose PostFeed
+  // opens the popup as soon as it mounts.
   const handleUploadPost = () => {
     if (!requireLogin()) return;
     setShowUploadMenu(false);
 
-    const focusComposer = () => window.dispatchEvent(new CustomEvent("zx:focus-composer"));
-
     if (activeTab === "posts") {
-      // Already there — PostComposer is already mounted, focus it now.
-      focusComposer();
+      window.dispatchEvent(new CustomEvent(OPEN_COMPOSER_EVENT));
     } else {
-      // Switching tabs (or deep-linking into Posts even if an admin has
-      // hidden it from the tab bar — hidden just means "not advertised
-      // in the nav", the route/composer itself still works) unmounts
-      // the current tab and mounts PostFeed fresh — give it a tick to
-      // actually render before trying to focus something inside it.
+      try {
+        sessionStorage.setItem(OPEN_COMPOSER_FLAG, String(Date.now()));
+      } catch (_) { }
       setTab("posts");
-      requestAnimationFrame(() => setTimeout(focusComposer, 60));
     }
   };
 

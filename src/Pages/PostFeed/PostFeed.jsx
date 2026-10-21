@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, Link } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import "./PostFeed.css";
@@ -31,6 +32,16 @@ const shuffleArray = (arr) => {
 // NEW: how many videos are fetched (then shuffled) per refill of the
 // video pool. Bigger = more variety in what shows up between posts.
 const VIDEO_POOL_SIZE = 30;
+
+// NEW: HomeHub's Upload -> Post item opens the composer popup. When the
+// Posts tab is already showing it fires OPEN_COMPOSER_EVENT; when it has
+// to switch tabs first it leaves a timestamp in sessionStorage under
+// OPEN_COMPOSER_FLAG (this component isn't mounted yet to hear an event),
+// which is picked up on mount. The timestamp keeps a stale flag from
+// popping the composer open much later.
+const OPEN_COMPOSER_EVENT = "zx:open-composer";
+const OPEN_COMPOSER_FLAG = "zx:open-composer";
+const OPEN_COMPOSER_FLAG_MAX_AGE_MS = 5000;
 
 const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const location = useLocation();
@@ -76,6 +87,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const [searchExtrasLoading, setSearchExtrasLoading] = useState(false);
 
   const currentUser = currentUserProp || "anonymous";
+  const isLoggedIn = !!currentUser && currentUser !== "anonymous";
 
   // NEW (feedback): one instance serves posts, videos and reels. It's
   // passed down to PostCard, VideoFeedCard and ReelsStrip.
@@ -88,6 +100,69 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
   useEffect(() => { loadingMoreRef.current = loadingMore; }, [loadingMore]);
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
+
+  // ────────────── NEW: POST COMPOSER POPUP ──────────────
+  //  - composerMounted: becomes true the first time the popup opens and
+  //    stays true, so PostComposer is never unmounted by closing. Closing
+  //    only hides it (CSS), which keeps a half-written draft and any
+  //    in-flight upload alive.
+  //  - composerOpen: drives the pop-in / pop-out animation.
+  const [composerMounted, setComposerMounted] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
+
+  const openComposer = useCallback(() => {
+    setComposerMounted(true);
+    setComposerOpen(true);
+  }, []);
+
+  const closeComposer = useCallback(() => setComposerOpen(false), []);
+
+  // Open on HomeHub's "Upload -> Post" (event, or flag if we just mounted).
+  useEffect(() => {
+    const handleOpen = () => {
+      if (!isLoggedIn) {
+        window.dispatchEvent(new CustomEvent("openLogin"));
+        return;
+      }
+      openComposer();
+    };
+
+    window.addEventListener(OPEN_COMPOSER_EVENT, handleOpen);
+
+    try {
+      const stamp = parseInt(sessionStorage.getItem(OPEN_COMPOSER_FLAG) || "0", 10);
+      sessionStorage.removeItem(OPEN_COMPOSER_FLAG);
+      if (stamp && Date.now() - stamp < OPEN_COMPOSER_FLAG_MAX_AGE_MS) {
+        handleOpen();
+      }
+    } catch (_) { }
+
+    return () => window.removeEventListener(OPEN_COMPOSER_EVENT, handleOpen);
+  }, [isLoggedIn, openComposer]);
+
+  // While open: lock page scroll, close on Esc, and focus the text box.
+  useEffect(() => {
+    if (!composerOpen) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKey = (e) => {
+      if (e.key === "Escape") setComposerOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+
+    const focusTimer = setTimeout(
+      () => window.dispatchEvent(new CustomEvent("zx:focus-composer")),
+      90
+    );
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+      clearTimeout(focusTimer);
+    };
+  }, [composerOpen]);
 
   const POST_COMMENTS_SELECT =
     "id, text, username, created_at, liked_by, disliked_by, saved_by, parent_comment_id, attachment_url, attachment_type";
@@ -651,6 +726,13 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     });
   };
 
+  // NEW: the popup's onPost — pop the composer out first, then run the
+  // normal new-post handling (feed insert + notifications).
+  const handlePostFromComposer = async (post) => {
+    closeComposer();
+    await handleNewPost(post);
+  };
+
   const handleReaction = async (postId, reactionType) => {
     if (!currentUser || currentUser === "anonymous") {
       window.dispatchEvent(new CustomEvent("openLogin"));
@@ -1028,20 +1110,66 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     : posts.filter((p) => !fb.isHidden("post", p.id));
   const visibleVideos = videos.filter((v) => !fb.isHidden("video", v.id));
 
+  // NEW: the Post Composer popup. Rendered through a portal into <body>
+  // so it sits above the navbar/sidebar and escapes the feed's overflow
+  // and the `.pf-feed > *` / `.pf-feed .pf-composer` layout rules. It is
+  // included in both the loading and the loaded return below, so opening
+  // it from Home (which mounts this feed fresh) pops in immediately
+  // instead of waiting for the skeleton to finish.
+  const composerModal =
+    composerMounted && isLoggedIn
+      ? createPortal(
+        <div
+          className={`pf-modal-overlay${composerOpen ? " open" : ""}`}
+          aria-hidden={!composerOpen}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeComposer();
+          }}
+        >
+          <div
+            className="pf-modal-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Create post"
+          >
+            <div className="pf-modal-header">
+              <span className="pf-modal-title">Create post</span>
+              <button
+                type="button"
+                className="pf-modal-close"
+                onClick={closeComposer}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <PostComposer
+              currentUser={currentUser}
+              onPost={handlePostFromComposer}
+            />
+          </div>
+        </div>,
+        document.body
+      )
+      : null;
+
   if (loading) {
     return (
-      <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
-        {[1, 2, 3].map((i) => (
-          <div className="pf-skeleton" key={i}>
-            <div className="pf-skeleton-avatar" />
-            <div className="pf-skeleton-lines">
-              <div className="pf-skeleton-line" style={{ width: "40%" }} />
-              <div className="pf-skeleton-line" style={{ width: "70%" }} />
-              <div className="pf-skeleton-line" style={{ width: "55%" }} />
+      <>
+        <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
+          {[1, 2, 3].map((i) => (
+            <div className="pf-skeleton" key={i}>
+              <div className="pf-skeleton-avatar" />
+              <div className="pf-skeleton-lines">
+                <div className="pf-skeleton-line" style={{ width: "40%" }} />
+                <div className="pf-skeleton-line" style={{ width: "70%" }} />
+                <div className="pf-skeleton-line" style={{ width: "55%" }} />
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+        {composerModal}
+      </>
     );
   }
 
@@ -1067,10 +1195,26 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           </div>
         )}
 
-        {/* Composer is hidden while searching */}
+        {/* CHANGED: the inline composer is replaced by a compact trigger
+            that opens the composer popup (same popup as Home Hub's
+            Upload -> Post). Hidden while searching. */}
         {!searchQuery &&
-          (currentUser && currentUser !== "anonymous" ? (
-            <PostComposer currentUser={currentUser} onPost={handleNewPost} />
+          (isLoggedIn ? (
+            <button
+              type="button"
+              className="pf-compose-trigger"
+              onClick={openComposer}
+            >
+              <span className="pf-avatar">
+                {currentUser.slice(0, 2).toUpperCase()}
+              </span>
+              <span className="pf-compose-trigger-text">
+                What's on your mind, {currentUser}?
+              </span>
+              <span className="pf-compose-trigger-icons" aria-hidden="true">
+                📷 🎥
+              </span>
+            </button>
           ) : (
             <div
               style={{
@@ -1328,6 +1472,9 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       {/* NEW (feedback): one toast for the whole feed, so the message and
           Undo survive the hidden card unmounting. */}
       <FeedbackToast fb={fb} />
+
+      {/* NEW: Post Composer popup (portal into <body>). */}
+      {composerModal}
     </>
   );
 };

@@ -2975,3 +2975,190 @@
 .pf-card-video-fs-btn {
   bottom: 18px;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   POST COMPOSER POPUP + "WHAT'S ON YOUR MIND" TRIGGER
+   APPEND this block to the very bottom of PostFeed.css.
+
+   The popup is rendered by PostFeed.jsx through a portal into <body>,
+   so none of the `.pf-feed ...` rules apply to it. It is never
+   unmounted once opened — closing just removes `.open`, which fades it
+   out and hides it (visibility), so a half-written draft survives.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Overlay ── */
+.pf-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  padding: 16px;
+  box-sizing: border-box;
+  overflow-y: auto;            /* tall composer / open pickers scroll the overlay */
+  overscroll-behavior: contain;
+
+  background: rgba(30, 19, 21, 0);
+  visibility: hidden;
+  pointer-events: none;
+  /* Pop-OUT: fade the backdrop, then flip visibility once it's done. */
+  transition: background 0.2s ease, visibility 0s linear 0.2s;
+}
+
+.pf-modal-overlay.open {
+  background: rgba(30, 19, 21, 0.55);
+  visibility: visible;
+  pointer-events: auto;
+  /* Pop-IN: visible immediately so the panel can animate. */
+  transition: background 0.2s ease, visibility 0s;
+}
+
+/* ── Panel ── */
+.pf-modal-panel {
+  margin: auto;                /* centers, and stays reachable when taller than the screen */
+  width: 100%;
+  max-width: 560px;
+  background: var(--zx-surface);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(30, 19, 21, 0.35);
+  font-family: 'Outfit', sans-serif;
+  color: var(--zx-text);
+
+  opacity: 0;
+  transform: translateY(18px) scale(0.96);
+  /* Pop-OUT: quick, no overshoot. */
+  transition: transform 0.16s ease-in, opacity 0.14s ease-in;
+}
+
+.pf-modal-overlay.open .pf-modal-panel {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  /* Pop-IN: springy. */
+  transition: transform 0.26s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.18s ease-out;
+}
+
+.pf-modal-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 52px;
+  border-bottom: 1px solid var(--zx-border);
+}
+
+.pf-modal-title {
+  font-family: 'Nunito', sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--zx-text);
+}
+
+.pf-modal-close {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: var(--zx-surface2);
+  color: var(--zx-text3);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.pf-modal-close:hover {
+  background: var(--zx-border);
+  color: var(--zx-primary);
+}
+
+/* The composer inside the popup: drop its own card chrome (the panel is
+   the card now). Two-class selector beats the plain `.pf-composer` rules. */
+.pf-modal-panel .pf-composer {
+  margin: 0;
+  border: none;
+  border-radius: 0 0 14px 14px;
+  box-shadow: none;
+  padding: 14px 16px 16px;
+}
+
+@media (max-width: 768px) {
+  .pf-modal-overlay { padding: 10px; }
+  .pf-modal-panel { max-width: 100%; }
+  .pf-modal-panel .pf-composer { padding: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-modal-overlay,
+  .pf-modal-panel,
+  .pf-modal-overlay.open .pf-modal-panel {
+    transition: none !important;
+  }
+}
+
+/* ── "What's on your mind" trigger row (replaces the inline composer) ── */
+.pf-compose-trigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  background: var(--zx-surface);
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(26, 20, 20, 0.12);
+  cursor: pointer;
+  text-align: left;
+  font-family: 'Outfit', sans-serif;
+  transition: box-shadow 0.2s;
+}
+.pf-compose-trigger:hover {
+  box-shadow: 0 2px 8px rgba(26, 20, 20, 0.16);
+}
+
+.pf-compose-trigger-text {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 16px;
+  border-radius: 20px;
+  background: rgba(26, 20, 20, 0.05);
+  color: var(--zx-text3);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s;
+}
+.pf-compose-trigger:hover .pf-compose-trigger-text {
+  background: rgba(26, 20, 20, 0.08);
+}
+
+.pf-compose-trigger-icons {
+  flex-shrink: 0;
+  font-size: 18px;
+  letter-spacing: 2px;
+}
+
+@media (max-width: 768px) {
+  /* Edge to edge, like the posts around it (see the other mobile
+     blocks: the feed's 10px side padding is cancelled with negative
+     margins, and `.pf-feed > *` caps direct children, hence max-width). */
+  .pf-feed .pf-compose-trigger {
+    margin-left: -10px;
+    margin-right: -10px;
+    width: calc(100% + 20px);
+    margin-top: 0;
+    margin-bottom: 8px;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 10px 12px;
+  }
+  .pf-feed > .pf-compose-trigger { max-width: none; }
+  .pf-compose-trigger-icons { display: none; }
+}

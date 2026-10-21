@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../config/supabase";
 import { useRingtone } from "./useRingtone"; // loud looping ringtone for the receiver
-import { Room, RoomEvent, Track, VideoPresets } from "livekit-client";
+import { Room, RoomEvent, Track, VideoPresets, createLocalVideoTrack } from "livekit-client";
 
 // Fallback only. The server URL normally comes back from /api/call-token.
 const LIVEKIT_URL = process.env.REACT_APP_LIVEKIT_URL;
@@ -33,8 +33,14 @@ const describeCameraError = (e) => {
   if (e && (e.name === "NotFoundError" || e.name === "OverconstrainedError")) {
     return "No camera was found on this device.";
   }
+  if (/opening the camera/i.test(msg)) {
+    return "Your camera didn't respond (timed out while opening it). Close other apps or tabs that use the camera, then turn it on again.";
+  }
+  if (/sending the camera/i.test(msg)) {
+    return "Your camera works, but its video couldn't be sent to the call server (timed out). This looks like a network or call-server problem, not a permission one.";
+  }
   if (/timed out/i.test(msg)) {
-    return "Your camera couldn't be sent to the other person (timed out). The call server may not be allowing video.";
+    return "The camera timed out. Please try again.";
   }
   return `Couldn't start your camera${msg ? `: ${msg}` : "."}`;
 };
@@ -296,11 +302,13 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         timeoutAfter(10000, "Microphone"),
       ]);
 
-      // Video call: switch the camera on. If it fails, carry on as a voice call.
+      // Video call: switch the camera on AFTER the call is live, so a slow or
+      // stuck camera can never keep the call from connecting. If it fails, the
+      // call simply carries on as a voice call.
       // (Phones sometimes keep the camera busy for a moment after the
       // permission check, so try up to 3 times before giving up.)
-      if (c.video) {
-        setConnectStage("Starting camera…");
+      const startCamera = async () => {
+        if (roomRef.current !== room) return;
         let camErr = null;
 
         // Ask the call server what this token allows. If the camera isn't
@@ -322,10 +330,24 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
 
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
           try {
-            await Promise.race([
-              room.localParticipant.setCameraEnabled(true),
-              timeoutAfter(15000, "Camera"),
+            // Step 1: open the camera.
+            const camTrack = await Promise.race([
+              createLocalVideoTrack({
+                facingMode: "user",
+                resolution: VideoPresets.h540.resolution,
+              }),
+              timeoutAfter(12000, "Opening the camera"),
             ]);
+            // Step 2: send it to the call server.
+            try {
+              await Promise.race([
+                room.localParticipant.publishTrack(camTrack),
+                timeoutAfter(15000, "Sending the camera"),
+              ]);
+            } catch (pubErr) {
+              camTrack.stop();
+              throw pubErr;
+            }
             camErr = null;
             break;
           } catch (e) {
@@ -346,7 +368,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
         if (camErr) {
           setError(`${describeCameraError(camErr)} The call continues as voice only.`);
         }
-      }
+      };
 
       if (!callRef.current || callRef.current.id !== c.id) {
         room.disconnect();
@@ -354,6 +376,7 @@ export default function useCall(currentUser, { onCallEnded } = {}) {
       }
       setConnectStage("");
       setBoth({ ...callRef.current, status: "connected", connectedAt: Date.now() });
+      if (c.video) startCamera(); // runs in the background; the call is already live
     },
     [finish, setBoth],
   );

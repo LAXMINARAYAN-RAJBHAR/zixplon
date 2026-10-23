@@ -4,6 +4,7 @@ import Hls from "hls.js";
 import { supabase } from "../../config/supabase";
 import { getInitials } from "../../utils/initials";
 import { claimSound, releaseSound } from "../../utils/soundArbiter";
+import { notifyUser } from "../../utils/notifications";
 import ReportModal from "../../Component/Moderation/ReportModal";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -559,6 +560,28 @@ const StoryViewer = ({
       console.error("Story reaction failed:", error);
       setReaction(prev);
       showToast(error.message || "Couldn't save your reaction");
+      return;
+    }
+
+    if (!next) {
+      showToast("Reaction removed");
+      return;
+    }
+
+    // Visible confirmation for the person reacting.
+    showToast(`${EMOJI_BY_TYPE[next]} Reaction sent`);
+
+    // Tell the story's owner (first reaction only, so switching between
+    // ❤️ / 👍 / 😂 doesn't spam them).
+    if (!prev && story.username && story.username !== currentUser) {
+      notifyUser({
+        recipientUsername: story.username,
+        senderUsername: currentUser,
+        type: "like",
+        message: `${currentUser} reacted ${EMOJI_BY_TYPE[next]} to your story`,
+        contentId: story.id,
+        contentType: "story",
+      });
     }
   };
 
@@ -591,6 +614,17 @@ const StoryViewer = ({
     }
     showToast("Reply sent");
     inputRef.current?.blur();
+
+    if (story.username && story.username !== currentUser) {
+      notifyUser({
+        recipientUsername: story.username,
+        senderUsername: currentUser,
+        type: "comment",
+        message: `${currentUser} replied to your story: "${text.slice(0, 60)}"`,
+        contentId: story.id,
+        contentType: "story",
+      });
+    }
   };
 
   // ── Connect sticker (same flow as the Connect button on post cards) ──

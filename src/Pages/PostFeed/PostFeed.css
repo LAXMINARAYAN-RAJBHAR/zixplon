@@ -4084,3 +4084,25 @@
   .pf-story-burst { animation: none; }
   .pf-story-burst { display: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   STORY REPLY FORM + TOAST FIX
+   APPEND this block to the very bottom of PostFeed.css (after the
+   story-extras block). It overrides the earlier .pf-story-toast rule.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* The reply input + Send / reaction buttons are now inside a <form>.
+   `display: contents` keeps the bar's flex layout exactly as before. */
+.pf-story-reply-form {
+  display: contents;
+}
+
+/* Toast sits just above the reply bar (next to where you typed), and
+   wraps if a database error message is long. */
+.pf-story-toast {
+  top: auto;
+  bottom: 76px;
+  max-width: calc(100% - 32px);
+  white-space: normal;
+  text-align: center;
+}

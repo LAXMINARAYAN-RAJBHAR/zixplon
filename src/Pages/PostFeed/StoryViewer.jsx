@@ -31,7 +31,7 @@ import ReportModal from "../../Component/Moderation/ReportModal";
 
 const IMAGE_DURATION_MS = 5000;
 const HOLD_MS = 200;
-const TOAST_MS = 1800;
+const TOAST_MS = 2200;
 
 const REACTIONS = [
   { type: "love", emoji: "❤️", label: "Love" },
@@ -101,6 +101,8 @@ const StoryViewer = ({
   const holdTimerRef = useRef(null);
   const heldRef = useRef(false);
   const toastTimerRef = useRef(null);
+  // Guards against a reply being sent twice by a double tap / double event.
+  const sendingRef = useRef(false);
   const [songSoundId] = useState(() => Symbol("story-song"));
 
   const group = data[gIdx];
@@ -556,29 +558,37 @@ const StoryViewer = ({
     if (error) {
       console.error("Story reaction failed:", error);
       setReaction(prev);
-      showToast("Couldn't save your reaction");
+      showToast(error.message || "Couldn't save your reaction");
     }
   };
 
   // ── Reply ("Send message…") ──
+  // Cleared immediately and guarded by sendingRef, so a double tap can't
+  // insert the same reply twice; on failure the text is put back.
   const handleSendReply = async () => {
     const text = replyText.trim();
-    if (!text) return;
+    if (!text || sendingRef.current) return;
     if (!isLoggedIn) {
       window.dispatchEvent(new CustomEvent("openLogin"));
       return;
     }
+
+    sendingRef.current = true;
+    setReplyText("");
+
     const { error } = await supabase.from("story_replies").insert({
       story_id: story.id,
       from_username: currentUser,
       text,
     });
+    sendingRef.current = false;
+
     if (error) {
       console.error("Story reply failed:", error);
-      showToast("Couldn't send your reply");
+      setReplyText(text);
+      showToast(error.message || "Couldn't send your reply");
       return;
     }
-    setReplyText("");
     showToast("Reply sent");
     inputRef.current?.blur();
   };
@@ -790,48 +800,52 @@ const StoryViewer = ({
               </svg>
             </button>
 
-            <input
-              ref={inputRef}
-              className="pf-story-reply-input"
-              type="text"
-              placeholder="Send message…"
-              maxLength={500}
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleSendReply();
-                }
+            {/* A <form> so the phone keyboard's Send/Enter key and the Send
+                button share one reliable submit path. */}
+            <form
+              className="pf-story-reply-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendReply();
               }}
-              onFocus={() => setPaused(true)}
-              onBlur={() => setPaused(false)}
-            />
+            >
+              <input
+                ref={inputRef}
+                className="pf-story-reply-input"
+                type="text"
+                enterKeyHint="send"
+                placeholder="Send message…"
+                maxLength={500}
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                onFocus={() => setPaused(true)}
+                onBlur={() => setPaused(false)}
+              />
 
-            {replyText.trim() ? (
-              <button
-                type="button"
-                className="pf-story-send-btn"
-                // mousedown keeps the input focused long enough to send
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={handleSendReply}
-              >
-                Send
-              </button>
-            ) : (
-              REACTIONS.map((r) => (
+              {replyText.trim() ? (
                 <button
-                  key={r.type}
-                  type="button"
-                  className={`pf-story-react-btn${reaction === r.type ? " active" : ""}`}
-                  onClick={() => handleReact(r.type)}
-                  aria-label={r.label}
-                  aria-pressed={reaction === r.type}
+                  type="submit"
+                  className="pf-story-send-btn"
+                  // keeps the input focused so the tap isn't swallowed by a blur
+                  onMouseDown={(e) => e.preventDefault()}
                 >
-                  {r.emoji}
+                  Send
                 </button>
-              ))
-            )}
+              ) : (
+                REACTIONS.map((r) => (
+                  <button
+                    key={r.type}
+                    type="button"
+                    className={`pf-story-react-btn${reaction === r.type ? " active" : ""}`}
+                    onClick={() => handleReact(r.type)}
+                    aria-label={r.label}
+                    aria-pressed={reaction === r.type}
+                  >
+                    {r.emoji}
+                  </button>
+                ))
+              )}
+            </form>
           </div>
         )}
 

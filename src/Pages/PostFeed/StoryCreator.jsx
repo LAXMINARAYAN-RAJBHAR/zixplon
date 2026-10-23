@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../../config/supabase";
+import MusicPicker from "../../Component/Shared/MusicPicker";
 import {
   uploadToR2,
   buildTransformUrl,
@@ -9,12 +10,12 @@ import {
 
 // ─────────────────────────────────────────────────────────────────────────
 // StoryCreator — popup for sharing a new story (one photo OR one video
-// plus an optional caption). Reuses the `.pf-modal-*` popup styles from
-// PostFeed.composer-popup.css, so it pops in / out the same way the Post
-// Composer does.
+// plus an optional caption, music, and an "AI-generated" label). Reuses
+// the `.pf-modal-*` popup styles from PostFeed.composer-popup.css, so it
+// pops in / out the same way the Post Composer does.
 //
 // Uploads go through the same R2 helpers as PostComposer. The finished
-// row is inserted into the `stories` table (see stories_migration.sql);
+// row is inserted into the `stories` table (see the story SQL files);
 // the strip refreshes itself through onCreated + realtime.
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,9 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
   const [open, setOpen] = useState(false); // drives pop-in / pop-out
   const [media, setMedia] = useState(null); // { file, preview, type, duration }
   const [caption, setCaption] = useState("");
+  const [song, setSong] = useState(null); // { title, artist, cover, url }
+  const [aiGenerated, setAiGenerated] = useState(false);
+  const [showMusicPicker, setShowMusicPicker] = useState(false);
   const [posting, setPosting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
@@ -157,6 +161,9 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
           media_type: media.type,
           caption: caption.trim() || null,
           duration_seconds: media.duration,
+          // Needs story_extras_migration.sql
+          song: song || null,
+          ai_generated: aiGenerated,
         })
         .select()
         .single();
@@ -239,15 +246,67 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
           )}
 
           {media && (
-            <input
-              type="text"
-              className="pf-story-caption-input"
-              placeholder="Add a caption (optional)…"
-              maxLength={CAPTION_MAX}
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              disabled={posting}
-            />
+            <>
+              <input
+                type="text"
+                className="pf-story-caption-input"
+                placeholder="Add a caption (optional)…"
+                maxLength={CAPTION_MAX}
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                disabled={posting}
+              />
+
+              {/* Music + AI label */}
+              <div className="pf-story-addons">
+                <div className="pf-story-addon-wrap">
+                  <button
+                    type="button"
+                    className="pf-story-addon-btn"
+                    onClick={() => setShowMusicPicker((v) => !v)}
+                    disabled={posting}
+                  >
+                    🎵 {song ? "Change music" : "Add music"}
+                  </button>
+                  {showMusicPicker && (
+                    <MusicPicker
+                      anchor="left"
+                      position="bottom"
+                      onSelect={(s) => setSong(s)}
+                      onClose={() => setShowMusicPicker(false)}
+                    />
+                  )}
+                </div>
+
+                {song && (
+                  <span className="pf-story-song-chip">
+                    🎵 {song.title}
+                    {song.artist ? ` · ${song.artist}` : ""}
+                    <button
+                      type="button"
+                      onClick={() => setSong(null)}
+                      aria-label="Remove music"
+                      disabled={posting}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+              </div>
+
+              <label className="pf-story-ai-toggle">
+                <input
+                  type="checkbox"
+                  checked={aiGenerated}
+                  onChange={(e) => setAiGenerated(e.target.checked)}
+                  disabled={posting}
+                />
+                <span>
+                  <b>This contains AI-generated content</b>
+                  <small>Viewers will see an "AI-generated" label on your story.</small>
+                </span>
+              </label>
+            </>
           )}
 
           {posting && progress > 0 && (

@@ -16,9 +16,13 @@ import StoryViewer from "./StoryViewer";
 //   • "Seen" (the ring colour) is remembered per browser (localStorage).
 //     Separately, each view by a logged-in person is saved to the
 //     `story_views` table so the owner can see who viewed their story.
+//   • A shared link like /?tab=posts&story=<id> opens that story directly
+//     (if it hasn't expired or been deleted).
+//   • Usernames in the `verified_users` table get the verified badge in
+//     the viewer.
 //
-// Data comes from the `stories` table (see stories_migration.sql) and is
-// kept fresh through a realtime subscription.
+// Data comes from the `stories` table and is kept fresh through a
+// realtime subscription.
 // ─────────────────────────────────────────────────────────────────────────
 
 const VIEWED_KEY = "zx_viewed_stories";
@@ -84,6 +88,7 @@ const StoriesStrip = ({ currentUser }) => {
 
   const [stories, setStories] = useState([]);
   const [viewed, setViewed] = useState(readViewed);
+  const [verified, setVerified] = useState(() => new Set());
   const [now, setNow] = useState(() => Date.now());
   const [showCreator, setShowCreator] = useState(false);
   // { groups, groupIndex, storyIndex } — a snapshot, so realtime updates
@@ -93,11 +98,14 @@ const StoriesStrip = ({ currentUser }) => {
   // Unique per mount — Supabase reuses a channel object when the same
   // name is requested twice (same issue handled in PostCard/PostFeed).
   const instanceIdRef = useRef(Math.random().toString(36).slice(2));
+  const deepLinkHandledRef = useRef(false);
 
   const fetchStories = useCallback(async () => {
     const { data, error } = await supabase
       .from("stories")
-      .select("id, username, media_url, media_type, caption, created_at, expires_at")
+      .select(
+        "id, username, media_url, media_type, caption, song, ai_generated, created_at, expires_at"
+      )
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: true })
       .limit(300);
@@ -118,6 +126,21 @@ const StoriesStrip = ({ currentUser }) => {
 
     return () => supabase.removeChannel(channel);
   }, [fetchStories]);
+
+  // Who gets the verified badge (small table; missing table = no badges).
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("verified_users")
+      .select("username")
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        setVerified(new Set(data.map((r) => r.username)));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Drop stories from the strip the minute they expire, without a refetch.
   useEffect(() => {
@@ -177,6 +200,26 @@ const StoriesStrip = ({ currentUser }) => {
       storyIndex: groups[groupIndex].startIndex,
     });
   };
+
+  // Shared link: /?tab=posts&story=<id> opens that story once, as soon as
+  // the stories have loaded. If it has expired or been deleted, nothing
+  // happens. The param is removed from the address bar either way.
+  useEffect(() => {
+    if (deepLinkHandledRef.current || stories.length === 0) return;
+    deepLinkHandledRef.current = true;
+
+    const url = new URL(window.location.href);
+    const id = url.searchParams.get("story");
+    if (!id) return;
+
+    url.searchParams.delete("story");
+    window.history.replaceState(window.history.state, "", url);
+
+    const gi = groups.findIndex((g) => g.stories.some((s) => s.id === id));
+    if (gi === -1) return;
+    const si = groups[gi].stories.findIndex((s) => s.id === id);
+    setViewer({ groups, groupIndex: gi, storyIndex: si });
+  }, [stories, groups]);
 
   // Called by StoryViewer with the whole story each time one is shown.
   //  1) remembers it locally (ring colour), and
@@ -279,6 +322,7 @@ const StoriesStrip = ({ currentUser }) => {
           startGroup={viewer.groupIndex}
           startStory={viewer.storyIndex}
           currentUser={currentUser}
+          verified={verified}
           onViewed={markViewed}
           onDelete={deleteStory}
           onClose={() => setViewer(null)}

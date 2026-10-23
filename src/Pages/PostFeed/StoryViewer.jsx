@@ -3,30 +3,47 @@ import { createPortal } from "react-dom";
 import Hls from "hls.js";
 import { supabase } from "../../config/supabase";
 import { getInitials } from "../../utils/initials";
+import { claimSound, releaseSound } from "../../utils/soundArbiter";
+import ReportModal from "../../Component/Moderation/ReportModal";
 
 // ─────────────────────────────────────────────────────────────────────────
 // StoryViewer — full-screen, Instagram/Facebook-style story player.
 //
-//   • Progress segments across the top, one per story of the current person.
-//   • Photos last 5 seconds; videos play to the end.
-//   • Tap the left side to go back, anywhere else to go forward.
-//   • Press and hold to pause; release to resume.
-//   • ← / → / Esc on a keyboard; ‹ › buttons on desktop.
-//   • Reaching the end of one person's stories continues into the next
-//     person's, and closes after the last one.
-//   • Your own stories get a delete button and a "Seen by" count + list
-//     (reads the `story_views` table).
+//   Header      avatar, name + verified badge, time, ⋯ menu, ✕ close
+//               (plus 🔊 for videos / stories with music)
+//   Chips       "AI-generated" label and a 🎵 music tag (title truncated)
+//   Playback    progress segments across the top; photos last 5s, videos
+//               play to the end; tap left/right, hold to pause; ← → Esc;
+//               ‹ › buttons on desktop; continues into the next person
+//   Music       a story's song plays under photo stories (videos keep
+//               their own sound; the tag still shows)
+//   Connect     a "Connect with …" sticker on other people's stories
+//   Bottom bar  (other people's stories) share, "Send message…" reply,
+//               and quick reactions ❤️ 👍 😂
+//   Own story   👁 count + "Seen by" sheet (views, reactions, replies)
+//   ⋯ menu      own: Delete / Copy link · others: Report / Copy link
 //
 // `groups` is a snapshot taken when the viewer opened:
-//   [{ username, stories: [{ id, media_url, media_type, caption, created_at }] }]
+//   [{ username, stories: [{ id, username, media_url, media_type, caption,
+//                            created_at, song, ai_generated }] }]
+// `verified` is an optional Set of usernames that get the badge.
 // ─────────────────────────────────────────────────────────────────────────
 
 const IMAGE_DURATION_MS = 5000;
 const HOLD_MS = 200;
+const TOAST_MS = 1800;
+
+const REACTIONS = [
+  { type: "love", emoji: "❤️", label: "Love" },
+  { type: "like", emoji: "👍", label: "Like" },
+  { type: "haha", emoji: "😂", label: "Haha" },
+];
+const EMOJI_BY_TYPE = Object.fromEntries(REACTIONS.map((r) => [r.type, r.emoji]));
 
 const isHlsSource = (src) => !!src && /\.m3u8(\?.*)?$/i.test(src);
 
 const timeAgo = (dateStr) => {
+  if (!dateStr) return "";
   const diff = (Date.now() - new Date(dateStr)) / 1000;
   if (diff < 60) return "Just now";
   if (diff < 3600) return `${Math.floor(diff / 60)}m`;
@@ -34,15 +51,27 @@ const timeAgo = (dateStr) => {
   return `${Math.floor(diff / 86400)}d`;
 };
 
+const VerifiedBadge = () => (
+  <span className="pf-verified" title="Verified" aria-label="Verified">
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  </span>
+);
+
 const StoryViewer = ({
   groups,
   startGroup = 0,
   startStory = 0,
   currentUser,
+  verified,
   onViewed, // (story) => void
   onDelete, // async (story) => boolean
   onClose,
 }) => {
+  const isLoggedIn = !!currentUser && currentUser !== "anonymous";
+
   const [data, setData] = useState(groups);
   const [gIdx, setGIdx] = useState(startGroup);
   const [sIdx, setSIdx] = useState(startStory);
@@ -50,19 +79,44 @@ const StoryViewer = ({
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
 
-  // "Seen by" (own stories only)
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [toast, setToast] = useState("");
+
+  // Own story: who saw / reacted / replied
   const [viewers, setViewers] = useState([]);
   const [showViewers, setShowViewers] = useState(false);
 
+  // Other people's stories: my reaction, reply draft, connect state
+  const [reaction, setReaction] = useState(null);
+  const [burst, setBurst] = useState(null); // { emoji, key }
+  const [replyText, setReplyText] = useState("");
+  const [connStatus, setConnStatus] = useState(undefined); // undefined = loading
+  const [connLoading, setConnLoading] = useState(false);
+
   const videoRef = useRef(null);
+  const audioRef = useRef(null);
+  const inputRef = useRef(null);
   const elapsedRef = useRef(0);
   const holdTimerRef = useRef(null);
   const heldRef = useRef(false);
+  const toastTimerRef = useRef(null);
+  const [songSoundId] = useState(() => Symbol("story-song"));
 
   const group = data[gIdx];
   const story = group?.stories[sIdx];
   const isVideo = story?.media_type === "video";
   const isOwn = !!story && story.username === currentUser;
+  const song = story?.song && story.song.url ? story.song : null;
+  // Music plays under photos only; videos keep their own sound.
+  const canPlayMusic = !!song && !isVideo;
+  const hasSound = isVideo || canPlayMusic;
+
+  const showToast = (msg) => {
+    setToast(msg);
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(""), TOAST_MS);
+  };
 
   // ── Navigation ──
   const goNext = () => {
@@ -90,11 +144,13 @@ const StoryViewer = ({
     }
   };
 
-  // ── Reset timing whenever the story changes ──
+  // ── Reset per-story state whenever the story changes ──
   useEffect(() => {
     elapsedRef.current = 0;
     setProgress(0);
     setPaused(false);
+    setMenuOpen(false);
+    setReplyText("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 
@@ -179,43 +235,153 @@ const StoryViewer = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paused, story?.id]);
 
+  // ── Music: plays under photo stories while not paused. Claims the
+  // shared sound arbiter so a post's song in the feed goes quiet. ──
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !canPlayMusic) return;
+    if (paused) {
+      el.pause();
+      return;
+    }
+    el.muted = muted;
+    const attempt = el.play();
+    if (attempt && typeof attempt.then === "function") {
+      attempt
+        .then(() => claimSound(songSoundId, () => el.pause()))
+        .catch(() => { });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paused, story?.id]);
+
+  useEffect(() => () => releaseSound(songSoundId), [songSoundId]);
+
+  // ── Mute applies to both the video and the music ──
   useEffect(() => {
     if (videoRef.current) videoRef.current.muted = muted;
+    if (audioRef.current) audioRef.current.muted = muted;
   }, [muted]);
 
-  // ── Seen by: load the viewer list for the current story (own only) ──
+  // ── Own story: load who saw it, reacted, and replied ──
   useEffect(() => {
     setShowViewers(false);
     setViewers([]);
     if (!isOwn || !story) return;
 
     let cancelled = false;
-    supabase
-      .from("story_views")
-      .select("viewer_username, viewed_at")
-      .eq("story_id", story.id)
-      .order("viewed_at", { ascending: false })
-      .then(({ data: rows, error }) => {
-        if (!cancelled && !error && rows) setViewers(rows);
+    (async () => {
+      const [views, reacts, replies] = await Promise.all([
+        supabase
+          .from("story_views")
+          .select("viewer_username, viewed_at")
+          .eq("story_id", story.id),
+        supabase
+          .from("story_reactions")
+          .select("username, type, created_at")
+          .eq("story_id", story.id),
+        supabase
+          .from("story_replies")
+          .select("from_username, text, created_at")
+          .eq("story_id", story.id)
+          .order("created_at", { ascending: true }),
+      ]);
+      if (cancelled) return;
+
+      const byUser = new Map();
+      const entry = (name) => {
+        if (!byUser.has(name)) {
+          byUser.set(name, { username: name, at: null, reaction: null, replies: [] });
+        }
+        return byUser.get(name);
+      };
+      (views.data || []).forEach((v) => {
+        const e = entry(v.viewer_username);
+        e.at = v.viewed_at;
       });
+      (reacts.data || []).forEach((r) => {
+        const e = entry(r.username);
+        e.reaction = r.type;
+        e.at = e.at || r.created_at;
+      });
+      (replies.data || []).forEach((r) => {
+        const e = entry(r.from_username);
+        e.replies.push(r.text);
+        e.at = e.at || r.created_at;
+      });
+
+      setViewers(
+        [...byUser.values()].sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0))
+      );
+    })();
 
     return () => {
       cancelled = true;
     };
   }, [story?.id, isOwn]);
 
-  const openViewers = () => {
-    setPaused(true);
-    setShowViewers(true);
-  };
-  const closeViewers = () => {
-    setShowViewers(false);
-    setPaused(false);
-  };
+  // ── Other people's stories: my current reaction ──
+  useEffect(() => {
+    setReaction(null);
+    if (!story || isOwn || !isLoggedIn) return;
+    let cancelled = false;
+    supabase
+      .from("story_reactions")
+      .select("type")
+      .match({ story_id: story.id, username: currentUser })
+      .maybeSingle()
+      .then(({ data: row }) => {
+        if (!cancelled) setReaction(row?.type || null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [story?.id, isOwn, isLoggedIn, currentUser]);
+
+  // ── Other people's stories: connection status for the sticker ──
+  useEffect(() => {
+    setConnStatus(undefined);
+    if (!group || isOwn) return;
+    if (!isLoggedIn) {
+      setConnStatus(null);
+      return;
+    }
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+      setConnStatus(null);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("connections")
+      .select("status")
+      .match({ connector_id: userId, connected_to: group.username })
+      .maybeSingle()
+      .then(({ data: row }) => {
+        if (!cancelled) setConnStatus(row?.status || null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [group?.username, isOwn, isLoggedIn]);
+
+  // ── Floating reaction emoji clears itself ──
+  useEffect(() => {
+    if (!burst) return;
+    const t = setTimeout(() => setBurst(null), 950);
+    return () => clearTimeout(t);
+  }, [burst]);
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   // ── Keyboard + scroll lock ──
   useEffect(() => {
     const onKey = (e) => {
+      const tag = e.target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") {
+        if (e.key === "Escape") e.target.blur();
+        return; // typing a reply — don't navigate
+      }
       if (e.key === "Escape") onClose();
       else if (e.key === "ArrowRight") goNext();
       else if (e.key === "ArrowLeft") goPrev();
@@ -262,9 +428,61 @@ const StoryViewer = ({
     }
   };
 
+  // ── ⋯ menu ──
+  const openMenu = () => {
+    setPaused(true);
+    setMenuOpen(true);
+  };
+  const closeMenu = () => {
+    setMenuOpen(false);
+    setPaused(false);
+  };
+
+  // ── Share / copy link ──
+  const handleShare = async () => {
+    const url = `${window.location.origin}/?tab=posts&story=${story.id}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${group.username}'s story`, url });
+        return;
+      }
+    } catch (err) {
+      if (err?.name === "AbortError") return; // person closed the share sheet
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("Link copied");
+    } catch {
+      showToast("Couldn't copy the link");
+    }
+  };
+
+  const handleCopyLink = async () => {
+    const url = `${window.location.origin}/?tab=posts&story=${story.id}`;
+    setMenuOpen(false);
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("Link copied");
+    } catch {
+      showToast("Couldn't copy the link");
+    }
+    setPaused(false);
+  };
+
+  // ── Report (other people's stories) ──
+  const handleReportClick = () => {
+    if (!isLoggedIn) {
+      window.dispatchEvent(new CustomEvent("openLogin"));
+      return;
+    }
+    setMenuOpen(false);
+    setReportOpen(true); // stays paused until the modal closes
+  };
+
   // ── Delete (own stories only) ──
   const handleDelete = async () => {
     if (!isOwn || !onDelete) return;
+    setMenuOpen(false);
     setPaused(true);
     if (!window.confirm("Delete this story?")) {
       setPaused(false);
@@ -302,7 +520,113 @@ const StoryViewer = ({
     setPaused(false);
   };
 
+  // ── Seen by sheet ──
+  const openViewers = () => {
+    setPaused(true);
+    setShowViewers(true);
+  };
+  const closeViewers = () => {
+    setShowViewers(false);
+    setPaused(false);
+  };
+
+  // ── Reactions ──
+  const handleReact = async (type) => {
+    if (!isLoggedIn) {
+      window.dispatchEvent(new CustomEvent("openLogin"));
+      return;
+    }
+    const prev = reaction;
+    const next = prev === type ? null : type;
+    setReaction(next);
+    if (next) setBurst({ emoji: EMOJI_BY_TYPE[next], key: Date.now() });
+
+    const { error } = next
+      ? await supabase
+        .from("story_reactions")
+        .upsert(
+          { story_id: story.id, username: currentUser, type: next },
+          { onConflict: "story_id,username" }
+        )
+      : await supabase
+        .from("story_reactions")
+        .delete()
+        .match({ story_id: story.id, username: currentUser });
+
+    if (error) {
+      console.error("Story reaction failed:", error);
+      setReaction(prev);
+      showToast("Couldn't save your reaction");
+    }
+  };
+
+  // ── Reply ("Send message…") ──
+  const handleSendReply = async () => {
+    const text = replyText.trim();
+    if (!text) return;
+    if (!isLoggedIn) {
+      window.dispatchEvent(new CustomEvent("openLogin"));
+      return;
+    }
+    const { error } = await supabase.from("story_replies").insert({
+      story_id: story.id,
+      from_username: currentUser,
+      text,
+    });
+    if (error) {
+      console.error("Story reply failed:", error);
+      showToast("Couldn't send your reply");
+      return;
+    }
+    setReplyText("");
+    showToast("Reply sent");
+    inputRef.current?.blur();
+  };
+
+  // ── Connect sticker (same flow as the Connect button on post cards) ──
+  const handleConnect = async () => {
+    if (!isLoggedIn) {
+      window.dispatchEvent(new CustomEvent("openLogin"));
+      return;
+    }
+    const userId = localStorage.getItem("userId");
+    if (!userId || connLoading) return;
+
+    const was = connStatus; // null | "pending" | "accepted"
+    setConnLoading(true);
+    try {
+      if (was) {
+        setConnStatus(null);
+        const { error } = await supabase
+          .from("connections")
+          .delete()
+          .match({ connector_id: userId, connected_to: group.username });
+        if (error) {
+          console.error("Story connect delete error:", error);
+          setConnStatus(was);
+        }
+      } else {
+        setConnStatus("pending");
+        const { error } = await supabase.from("connections").insert({
+          connector_id: userId,
+          connector_username: currentUser,
+          connected_to: group.username,
+          status: "pending",
+        });
+        if (error) {
+          console.error("Story connect insert error:", error);
+          setConnStatus(null);
+        }
+      }
+    } finally {
+      setConnLoading(false);
+    }
+  };
+
   if (!group || !story) return null;
+
+  const showConnectSticker =
+    !isOwn && connStatus !== undefined && connStatus !== "accepted";
 
   return createPortal(
     <div className="pf-story-viewer" role="dialog" aria-modal="true" aria-label="Story viewer">
@@ -336,10 +660,15 @@ const StoryViewer = ({
           <span className="pf-avatar pf-avatar-sm pf-avatar-green">
             {getInitials(group.username)}
           </span>
-          <span className="pf-story-user">{group.username}</span>
-          <span className="pf-story-time">{timeAgo(story.created_at)}</span>
+          <div className="pf-story-meta">
+            <div className="pf-story-nameline">
+              <span className="pf-story-user">{group.username}</span>
+              {verified?.has(group.username) && <VerifiedBadge />}
+            </div>
+            <span className="pf-story-time">{timeAgo(story.created_at)}</span>
+          </div>
           <span className="pf-story-spacer" />
-          {isVideo && (
+          {hasSound && (
             <button
               type="button"
               className="pf-story-head-btn"
@@ -349,17 +678,16 @@ const StoryViewer = ({
               {muted ? "🔇" : "🔊"}
             </button>
           )}
-          {isOwn && (
-            <button
-              type="button"
-              className="pf-story-head-btn"
-              onClick={handleDelete}
-              aria-label="Delete story"
-              title="Delete story"
-            >
-              🗑
-            </button>
-          )}
+          <button
+            type="button"
+            className="pf-story-head-btn"
+            onClick={menuOpen ? closeMenu : openMenu}
+            aria-label="More options"
+            aria-haspopup="true"
+            aria-expanded={menuOpen}
+          >
+            ⋯
+          </button>
           <button
             type="button"
             className="pf-story-head-btn"
@@ -369,6 +697,25 @@ const StoryViewer = ({
             ✕
           </button>
         </div>
+
+        {/* AI label + music tag */}
+        {(story.ai_generated || song) && (
+          <div className="pf-story-chips">
+            {story.ai_generated && (
+              <span className="pf-story-chip pf-story-chip--ai" title="This story may contain AI-generated content">
+                ✦ AI-generated
+              </span>
+            )}
+            {song && (
+              <span
+                className="pf-story-chip"
+                title={`${song.title}${song.artist ? " · " + song.artist : ""}`}
+              >
+                🎵 <span className="pf-story-chip-text">{song.title}</span>
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Media — keyed by story id so each story mounts a fresh element */}
         <div className="pf-story-media">
@@ -386,7 +733,15 @@ const StoryViewer = ({
           )}
         </div>
 
-        {story.caption && <div className="pf-story-caption">{story.caption}</div>}
+        {canPlayMusic && (
+          <audio key={`a-${story.id}`} ref={audioRef} src={song.url} loop preload="auto" />
+        )}
+
+        {story.caption && (
+          <div className={`pf-story-caption${!isOwn ? " pf-story-caption--lifted" : ""}`}>
+            {story.caption}
+          </div>
+        )}
 
         {/* Invisible tap / hold layer */}
         <div
@@ -398,8 +753,118 @@ const StoryViewer = ({
           onContextMenu={(e) => e.preventDefault()}
         />
 
-        {/* Seen-by button + sheet — INSIDE the stage so they're positioned
-            against the story, not the whole screen. */}
+        {/* Connect sticker (other people's stories) */}
+        {showConnectSticker && (
+          <div className="pf-story-connect">
+            <span className="pf-avatar pf-avatar-sm pf-avatar-green">
+              {getInitials(group.username)}
+            </span>
+            <div className="pf-story-connect-text">
+              <small>CONNECT WITH</small>
+              <b>{group.username}</b>
+            </div>
+            <button
+              type="button"
+              className={`pf-story-connect-btn${connStatus === "pending" ? " pending" : ""}`}
+              onClick={handleConnect}
+              disabled={connLoading}
+            >
+              {connStatus === "pending" ? "Requested" : "Connect"}
+            </button>
+          </div>
+        )}
+
+        {/* Bottom bar: share, reply, reactions (other people's stories) */}
+        {!isOwn && (
+          <div className="pf-story-reply-bar">
+            <button
+              type="button"
+              className="pf-story-share-icon"
+              onClick={handleShare}
+              aria-label="Share story"
+              title="Share"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+              </svg>
+            </button>
+
+            <input
+              ref={inputRef}
+              className="pf-story-reply-input"
+              type="text"
+              placeholder="Send message…"
+              maxLength={500}
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSendReply();
+                }
+              }}
+              onFocus={() => setPaused(true)}
+              onBlur={() => setPaused(false)}
+            />
+
+            {replyText.trim() ? (
+              <button
+                type="button"
+                className="pf-story-send-btn"
+                // mousedown keeps the input focused long enough to send
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={handleSendReply}
+              >
+                Send
+              </button>
+            ) : (
+              REACTIONS.map((r) => (
+                <button
+                  key={r.type}
+                  type="button"
+                  className={`pf-story-react-btn${reaction === r.type ? " active" : ""}`}
+                  onClick={() => handleReact(r.type)}
+                  aria-label={r.label}
+                  aria-pressed={reaction === r.type}
+                >
+                  {r.emoji}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+
+        {burst && (
+          <span className="pf-story-burst" key={burst.key} aria-hidden="true">
+            {burst.emoji}
+          </span>
+        )}
+
+        {toast && <div className="pf-story-toast">{toast}</div>}
+
+        {/* ⋯ menu */}
+        {menuOpen && (
+          <>
+            <div className="pf-story-menu-backdrop" onClick={closeMenu} />
+            <div className="pf-story-menu" role="menu">
+              {isOwn ? (
+                <button type="button" role="menuitem" onClick={handleDelete}>
+                  🗑 Delete story
+                </button>
+              ) : (
+                <button type="button" role="menuitem" onClick={handleReportClick}>
+                  🚩 Report story
+                </button>
+              )}
+              <button type="button" role="menuitem" onClick={handleCopyLink}>
+                🔗 Copy link
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Own story: 👁 count + Seen-by sheet */}
         {isOwn && (
           <button type="button" className="pf-story-seen-btn" onClick={openViewers}>
             👁 {viewers.length}
@@ -419,12 +884,22 @@ const StoryViewer = ({
             ) : (
               <ul className="pf-story-seen-list">
                 {viewers.map((v) => (
-                  <li key={v.viewer_username}>
+                  <li key={v.username}>
                     <span className="pf-avatar pf-avatar-sm">
-                      {getInitials(v.viewer_username)}
+                      {getInitials(v.username)}
                     </span>
-                    <span className="pf-story-seen-name">{v.viewer_username}</span>
-                    <small>{timeAgo(v.viewed_at)}</small>
+                    <div className="pf-story-seen-main">
+                      <span className="pf-story-seen-name">{v.username}</span>
+                      {v.replies.map((text, i) => (
+                        <p className="pf-story-seen-reply" key={i}>
+                          “{text}”
+                        </p>
+                      ))}
+                    </div>
+                    {v.reaction && (
+                      <span className="pf-story-seen-react">{EMOJI_BY_TYPE[v.reaction]}</span>
+                    )}
+                    <small>{timeAgo(v.at)}</small>
                   </li>
                 ))}
               </ul>
@@ -441,6 +916,20 @@ const StoryViewer = ({
       >
         ›
       </button>
+
+      {/* Report modal — rendered inside the viewer so it stacks above it */}
+      {reportOpen && (
+        <ReportModal
+          contentType="story"
+          contentId={story.id}
+          contentTitle={story.caption?.slice(0, 80) || "Story"}
+          contentOwner={story.username}
+          onClose={() => {
+            setReportOpen(false);
+            setPaused(false);
+          }}
+        />
+      )}
     </div>,
     document.body
   );

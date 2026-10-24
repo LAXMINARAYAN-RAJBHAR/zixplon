@@ -38,7 +38,6 @@ import Hls from "hls.js";
 // gesture, so this lets PostVideo (and SongAttachmentCard) retry
 // sound the instant that happens, rather than only on their own click.
 import { onUserInteract } from "../../utils/audioUnlock";
-import { getInitials } from "../../utils/initials";
 
 const REACTIONS = [
   { key: "like", emoji: "👍", label: "Like", color: "#1877f2" },
@@ -694,7 +693,6 @@ const PostCard = ({
   onSaveComment, // NEW: (postId, commentId) => void — kebab menu "Save"
   viewCount = 0, // this post's total view count, from PostFeed's viewCounts map
   onView, // (postId) => void — called once per mount when the card scrolls into view
-  fb, // NEW (feedback): useContentFeedback() instance from PostFeed — "Interested" / "Not interested"
 }) => {
   const [commentText, setCommentText] = useState("");
   const [showPicker, setShowPicker] = useState(false);
@@ -878,7 +876,7 @@ const PostCard = ({
 
   const navigate = useNavigate();
 
-  const initials = getInitials(currentUser);
+  const initials = (post.username || "?").slice(0, 2).toUpperCase();
   // NEW: full date/time — shown inline on desktop, tooltip-only on phones.
   const fullDate = new Date(post.created_at).toLocaleString("en-IN", {
     day: "numeric",
@@ -1420,34 +1418,6 @@ const PostCard = ({
                     >
                       🗑️ Delete post
                     </button>
-                  )}
-                  {/* NEW (feedback): Interested / Not interested — only on
-                      other people's posts. "Not interested" removes the
-                      post from the feed (PostFeed filters it) and shows an
-                      Undo toast. */}
-                  {post.username !== currentUser && fb && (
-                    <>
-                      <button
-                        className="pf-dropdown-item"
-                        onClick={() => {
-                          fb.toggleInterested("post", post.id);
-                          setShowMenu(false);
-                        }}
-                      >
-                        {fb.feedbackOf("post", post.id) === "interested"
-                          ? "✓ Interested"
-                          : "👍 Interested"}
-                      </button>
-                      <button
-                        className="pf-dropdown-item"
-                        onClick={() => {
-                          fb.markNotInterested("post", post.id);
-                          setShowMenu(false);
-                        }}
-                      >
-                        🚫 Not interested
-                      </button>
-                    </>
                   )}
                   {post.username !== currentUser && (
                     <button

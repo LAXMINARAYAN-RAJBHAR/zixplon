@@ -17,8 +17,10 @@ import { extractMentions } from "../../utils/linkify";
 import SuggestedConnections from "../../Component/Messages/SuggestedConnections";
 // NEW (feedback): Interested / Not interested for posts, videos and reels.
 import useContentFeedback, { FeedbackToast } from "../../hooks/useContentFeedback";
-import StoriesStrip from "./StoriesStrip";
-import { getInitials } from "../../utils/initials";
+// NEW: profile-level "Interested / Not interested" popup (replaces the
+// per-post items that used to live in each post's ⋯ menu).
+import useProfileFeedback from "../../hooks/useProfileFeedback";
+import ProfilePrompt, { ProfileFeedbackToast } from "./ProfilePrompt";
 
 // CHANGED: moved out of the component (it's a pure function) so it can be
 // used inside useCallback hooks without a dependency warning.
@@ -44,6 +46,10 @@ const VIDEO_POOL_SIZE = 30;
 const OPEN_COMPOSER_EVENT = "zx:open-composer";
 const OPEN_COMPOSER_FLAG = "zx:open-composer";
 const OPEN_COMPOSER_FLAG_MAX_AGE_MS = 5000;
+
+// NEW: minimum time between two "Interested in <profile>?" popups, so
+// scrolling through many new profiles doesn't nag.
+const PROFILE_PROMPT_GAP_MS = 25000;
 
 const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const location = useLocation();
@@ -94,6 +100,70 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   // NEW (feedback): one instance serves posts, videos and reels. It's
   // passed down to PostCard, VideoFeedCard and ReelsStrip.
   const fb = useContentFeedback();
+
+  // ────────────── NEW: PROFILE "INTERESTED?" POPUP ──────────────
+  // The first time a post from a profile you haven't connected with (and
+  // haven't answered for) is on screen, a small popup asks ONCE about that
+  // PROFILE. "Not interested" hides that profile's posts and videos from
+  // the feed (with Undo), "Interested" is remembered, ✕ snoozes it for 7
+  // days. Own posts, connected people, and search results never prompt.
+  const pfb = useProfileFeedback(currentUser);
+  const [connectedUsers, setConnectedUsers] = useState(() => new Set());
+  const [connectionsLoaded, setConnectionsLoaded] = useState(false);
+  const [promptUser, setPromptUser] = useState(null);
+  const [profileToast, setProfileToast] = useState(null);
+  const postsRef = useRef([]);
+  const liveRef = useRef({});
+  const promptOpenRef = useRef(false);
+  const lastPromptAtRef = useRef(0);
+
+  useEffect(() => { postsRef.current = posts; }, [posts]);
+  // Latest values for handlePostView, which must keep a stable identity
+  // (PostCard re-arms its view tracking whenever onView changes).
+  liveRef.current = {
+    isLoggedIn,
+    currentUser,
+    searchQuery,
+    connectedUsers,
+    connectionsLoaded,
+    pfb,
+  };
+
+  // Everyone you already have a connection (pending or accepted) with, in
+  // either direction — they're not "new" profiles.
+  useEffect(() => {
+    setConnectionsLoaded(false);
+    if (!isLoggedIn) {
+      setConnectedUsers(new Set());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const known = new Set();
+      const userId = localStorage.getItem("userId");
+      if (userId) {
+        const { data } = await supabase
+          .from("connections")
+          .select("connected_to")
+          .eq("connector_id", userId);
+        (data || []).forEach((r) => r.connected_to && known.add(r.connected_to));
+      }
+      const { data: incoming } = await supabase
+        .from("connections")
+        .select("connector_username")
+        .eq("connected_to", currentUser);
+      (incoming || []).forEach(
+        (r) => r.connector_username && known.add(r.connector_username)
+      );
+      if (!cancelled) {
+        setConnectedUsers(known);
+        setConnectionsLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, currentUser]);
 
   const [sentinelNode, setSentinelNode] = useState(null);
   const loadingMoreRef = useRef(false);
@@ -234,6 +304,54 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       );
     } catch (_) { }
   }, []);
+
+  // NEW: PostCard calls this once per card when it is ~60% on screen. It
+  // still counts the view, and additionally decides whether to ask
+  // "Interested in <profile>?" for that post's author.
+  const handlePostView = useCallback(
+    (postId) => {
+      incrementView(postId);
+
+      const live = liveRef.current;
+      if (!live.isLoggedIn || live.searchQuery || !live.connectionsLoaded) return;
+
+      const post = postsRef.current.find((p) => p.id === postId);
+      const author = post?.username;
+      if (!author || author === live.currentUser) return;
+      if (live.connectedUsers.has(author)) return;
+      if (!live.pfb.shouldAsk(author)) return;
+      if (promptOpenRef.current) return;
+      if (Date.now() - lastPromptAtRef.current < PROFILE_PROMPT_GAP_MS) return;
+
+      lastPromptAtRef.current = Date.now();
+      promptOpenRef.current = true;
+      setPromptUser(author);
+    },
+    [incrementView]
+  );
+
+  const closePrompt = () => {
+    promptOpenRef.current = false;
+    setPromptUser(null);
+  };
+
+  const answerPrompt = (value) => {
+    const username = promptUser;
+    if (!username) return;
+    pfb.set(username, value);
+    closePrompt();
+    setProfileToast({ username, value, key: Date.now() });
+  };
+
+  const dismissPrompt = () => {
+    if (promptUser) pfb.snooze(promptUser);
+    closePrompt();
+  };
+
+  const undoProfileFeedback = () => {
+    if (profileToast) pfb.clear(profileToast.username);
+    setProfileToast(null);
+  };
 
   // CHANGED: videos are now SHUFFLED. Instead of reading the next
   // newest-first page by offset (which always produced the same order),
@@ -1107,10 +1225,15 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   // NEW (feedback): hide anything marked "Not interested". Not applied in
   // search mode, so people can still find what they search for. Videos are
   // paired with posts by index, so the video list is filtered separately.
+  // NEW: profiles answered "Not interested" are hidden too (posts + videos).
   const visiblePosts = searchQuery
     ? posts
-    : posts.filter((p) => !fb.isHidden("post", p.id));
-  const visibleVideos = videos.filter((v) => !fb.isHidden("video", v.id));
+    : posts.filter(
+      (p) => !fb.isHidden("post", p.id) && !pfb.isHidden(p.username)
+    );
+  const visibleVideos = videos.filter(
+    (v) => !fb.isHidden("video", v.id) && !pfb.isHidden(v.username)
+  );
 
   // NEW: the Post Composer popup. Rendered through a portal into <body>
   // so it sits above the navbar/sidebar and escapes the feed's overflow
@@ -1208,7 +1331,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               onClick={openComposer}
             >
               <span className="pf-avatar">
-                {getInitials(currentUser)}
+                {currentUser.slice(0, 2).toUpperCase()}
               </span>
               <span className="pf-compose-trigger-text">
                 What's on your mind, {currentUser}?
@@ -1250,8 +1373,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               </button>
             </div>
           ))}
-
-        {!searchQuery && <StoriesStrip currentUser={currentUser} />}
 
         {!searchQuery && <SuggestedConnections variant="feed" />}
 
@@ -1436,7 +1557,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
                 }
                 onSaveComment={handleSaveComment}
                 viewCount={viewCounts[String(post.id)] ?? 0}
-                onView={incrementView}
+                onView={handlePostView}
                 fb={fb}
               />
             </div>
@@ -1476,6 +1597,21 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       {/* NEW (feedback): one toast for the whole feed, so the message and
           Undo survive the hidden card unmounting. */}
       <FeedbackToast fb={fb} />
+
+      {/* NEW: "Interested in <profile>?" popup + its confirmation / Undo. */}
+      {promptUser && (
+        <ProfilePrompt
+          username={promptUser}
+          onInterested={() => answerPrompt("interested")}
+          onNotInterested={() => answerPrompt("not_interested")}
+          onDismiss={dismissPrompt}
+        />
+      )}
+      <ProfileFeedbackToast
+        toast={profileToast}
+        onUndo={undoProfileFeedback}
+        onClose={() => setProfileToast(null)}
+      />
 
       {/* NEW: Post Composer popup (portal into <body>). */}
       {composerModal}

@@ -1323,11 +1323,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           </div>
         )}
 
-        {/* NEW: Stories strip — "Create story" card + one card per person
-            with a live (<24h) story. Hidden while searching. Logged-out
-            visitors can still watch stories; "Create story" prompts login. */}
-        {!searchQuery && <StoriesStrip currentUser={currentUser} />}
-
         {/* CHANGED: the inline composer is replaced by a compact trigger
             that opens the composer popup (same popup as Home Hub's
             Upload -> Post). Hidden while searching. */}
@@ -1381,6 +1376,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               </button>
             </div>
           ))}
+
+        {/* NEW: Stories strip — sits directly below the composer trigger.
+            "Create story" card + one card per person with a live (<24h)
+            story. Hidden while searching. Logged-out visitors can still
+            watch stories; "Create story" prompts login. */}
+        {!searchQuery && <StoriesStrip currentUser={currentUser} />}
 
         {!searchQuery && <SuggestedConnections variant="feed" />}
 

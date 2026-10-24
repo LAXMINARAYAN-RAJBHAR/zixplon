@@ -2724,7 +2724,7 @@
 .pf-video-card-thumb-wrap { position: relative; }
 
 /* Song line (same rule as the post card — harmless if already added) */
-.pf-card-song {
+/* .pf-card-song {
   display: inline-block;
   max-width: 220px;
   overflow: hidden;
@@ -2733,7 +2733,7 @@
   vertical-align: bottom;
   color: var(--zx-primary2);
   font-weight: 700;
-}
+} */
 
 /* Grey action pills */
 .pf-video-card-actions {

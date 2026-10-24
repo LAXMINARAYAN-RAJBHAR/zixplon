@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import EmojiPicker from "./EmojiPicker";
 import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
@@ -526,26 +527,98 @@ const PostVideo = ({ src, inView }) => {
    starting at that tile's actual index in the full image_urls array —
    so tapping the "+N" tile still lands you on photo #4, and swiping
    from there reveals the rest, exactly like Facebook. ── */
-const ImageGrid = ({ images, onOpenViewer }) => {
+const ImageGrid = ({ images, onOpenViewer, onFullscreen }) => {
   const count = images.length;
   const displayCount = Math.min(count, 4);
   const remaining = count - displayCount;
 
+  // Per-photo ⋯ menu. Rendered through a portal with fixed positioning
+  // because the tiles clip their contents (overflow: hidden) — an inline
+  // dropdown would be cut off. { index, top, right } | null
+  const [menu, setMenu] = useState(null);
+
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const onKey = (e) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
+
+  const toggleMenu = (e, index) => {
+    e.stopPropagation(); // don't also open the viewer
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenu((prev) =>
+      prev && prev.index === index
+        ? null
+        : {
+          index,
+          top: rect.bottom + 6,
+          right: Math.max(8, window.innerWidth - rect.right),
+        }
+    );
+  };
+
   return (
-    <div className={`pf-img-grid pf-img-grid-${displayCount}`}>
-      {images.slice(0, displayCount).map((url, i) => (
-        <div
-          className="pf-img-grid-item"
-          key={i}
-          onClick={() => onOpenViewer(i)}
-        >
-          <img src={url} alt={`Image ${i + 1}`} loading="lazy" />
-          {i === displayCount - 1 && remaining > 0 && (
-            <div className="pf-img-grid-more">+{remaining}</div>
-          )}
-        </div>
-      ))}
-    </div>
+    <>
+      <div className={`pf-img-grid pf-img-grid-${displayCount}`}>
+        {images.slice(0, displayCount).map((url, i) => (
+          <div
+            className="pf-img-grid-item"
+            key={i}
+            onClick={() => onOpenViewer(i)}
+          >
+            <img src={url} alt={`Image ${i + 1}`} loading="lazy" />
+            {i === displayCount - 1 && remaining > 0 && (
+              <div className="pf-img-grid-more">+{remaining}</div>
+            )}
+            <button
+              type="button"
+              className="pf-img-tile-menu-btn"
+              onClick={(e) => toggleMenu(e, i)}
+              aria-label="Photo options"
+              aria-haspopup="true"
+              aria-expanded={menu?.index === i}
+            >
+              ⋯
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {menu &&
+        createPortal(
+          <>
+            <div className="pf-img-menu-backdrop" onClick={() => setMenu(null)} />
+            <div
+              className="pf-img-menu"
+              style={{ top: menu.top, right: menu.right }}
+              role="menu"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const index = menu.index;
+                  setMenu(null);
+                  onFullscreen(index);
+                }}
+              >
+                ⛶ Full screen
+              </button>
+            </div>
+          </>,
+          document.body
+        )}
+    </>
   );
 };
 
@@ -875,6 +948,48 @@ const PostCard = ({
   );
 
   const navigate = useNavigate();
+
+  // ── Photo full screen ──
+  // "Full screen" = the swipeable PhotoViewer PLUS the browser's own
+  // fullscreen mode (address bar / tabs hidden). It must be called straight
+  // from a click so the browser allows it. Where the browser has no page
+  // fullscreen (iPhone Safari) the PhotoViewer still opens full-window.
+  // Exit: the viewer's close button, or Esc.
+  const fsEnteredRef = useRef(false);
+
+  const openPhotosFullscreen = (images, startIndex = 0) => {
+    if (!images || images.length === 0) return;
+    try {
+      const el = document.documentElement;
+      const alreadyFs =
+        document.fullscreenElement || document.webkitFullscreenElement;
+      const request = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (request && !alreadyFs) {
+        fsEnteredRef.current = true;
+        Promise.resolve(request.call(el)).catch(() => {
+          fsEnteredRef.current = false;
+        });
+      }
+    } catch (_) {
+      fsEnteredRef.current = false;
+    }
+    setPhotoViewerData({ images, startIndex });
+    setShowMenu(false);
+  };
+
+  const closePhotoViewer = () => {
+    setPhotoViewerData(null);
+    if (fsEnteredRef.current) {
+      fsEnteredRef.current = false;
+      try {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+          (document.exitFullscreen || document.webkitExitFullscreen)?.call(
+            document,
+          );
+        }
+      } catch (_) { }
+    }
+  };
 
   const initials = (post.username || "?").slice(0, 2).toUpperCase();
   // NEW: full date/time — shown inline on desktop, tooltip-only on phones.
@@ -1262,7 +1377,7 @@ const PostCard = ({
           postId={post.id}
           postUsername={post.username}
           currentUser={currentUser}
-          onClose={() => setPhotoViewerData(null)}
+          onClose={closePhotoViewer}
         />
       )}
 
@@ -1379,6 +1494,22 @@ const PostCard = ({
               </button>
               {showMenu && (
                 <div className="pf-dropdown">
+                  {/* NEW: full-screen view for any post with photos. */}
+                  {(post.image_urls?.length > 0 || post.image_url) && (
+                    <button
+                      className="pf-dropdown-item"
+                      onClick={() =>
+                        openPhotosFullscreen(
+                          post.image_urls?.length > 0
+                            ? post.image_urls
+                            : [post.image_url],
+                          0,
+                        )
+                      }
+                    >
+                      ⛶ View photos full screen
+                    </button>
+                  )}
                   {/* CHANGED: the Message action now only shows once the
                       connection is actually accepted — messaging an
                       unconnected or still-pending user isn't offered
@@ -1560,6 +1691,9 @@ const PostCard = ({
                 images={post.image_urls}
                 onOpenViewer={(startIndex) =>
                   setPhotoViewerData({ images: post.image_urls, startIndex })
+                }
+                onFullscreen={(startIndex) =>
+                  openPhotosFullscreen(post.image_urls, startIndex)
                 }
               />
             ) : post.image_url ? (

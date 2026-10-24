@@ -2723,18 +2723,6 @@
 /* Badge + duration are positioned against the thumbnail wrapper now */
 .pf-video-card-thumb-wrap { position: relative; }
 
-/* Song line (same rule as the post card — harmless if already added) */
-/* .pf-card-song {
-  display: inline-block;
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: bottom;
-  color: var(--zx-primary2);
-  font-weight: 700;
-} */
-
 /* Grey action pills */
 .pf-video-card-actions {
   display: flex;

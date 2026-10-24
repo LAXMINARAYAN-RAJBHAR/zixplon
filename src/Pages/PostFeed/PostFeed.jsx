@@ -7,6 +7,9 @@ import PostComposer from "./PostComposer";
 import PostCard from "./PostCard";
 import ReelsStrip from "./ReelsStrip";
 import VideoFeedCard from "./VideoFeedCard";
+// NEW: Stories strip (Create story + people's stories) shown above the
+// composer trigger at the top of the Posts feed.
+import StoriesStrip from "./StoriesStrip";
 import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 import AdUnit from "../../Component/Ads/AdUnit";
 // NEW: shared preloading, buffer-hiding video — used for search-result
@@ -1319,6 +1322,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
             </span>
           </div>
         )}
+
+        {/* NEW: Stories strip — "Create story" card + one card per person
+            with a live (<24h) story. Hidden while searching. Logged-out
+            visitors can still watch stories; "Create story" prompts login. */}
+        {!searchQuery && <StoriesStrip currentUser={currentUser} />}
 
         {/* CHANGED: the inline composer is replaced by a compact trigger
             that opens the composer popup (same popup as Home Hub's

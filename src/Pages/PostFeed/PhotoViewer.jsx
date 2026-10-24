@@ -31,7 +31,7 @@ const SWIPE_THRESHOLD = 50;
  * here so each block is independent — commenting on photo 3 doesn't
  * re-render or reset photo 1's picker/input state.
  *
- * NEW: the image itself now also supports horizontal swipe (touch),
+ * The image itself also supports horizontal swipe (touch),
  * click-and-drag (mouse), and left/right chevron buttons to jump
  * directly to the next/previous photo — on top of (not instead of) the
  * existing vertical scroll between blocks. onNavigate(direction) is
@@ -407,14 +407,20 @@ const PhotoBlock = ({
  * between photos), and the view auto-scrolls to the tapped photo's
  * position on open.
  *
- * NEW: each photo's image also supports jumping directly to the next/
+ * Each photo's image also supports jumping directly to the next/
  * previous photo via touch swipe, mouse drag, on-screen ‹ › buttons, or
  * the ArrowLeft/ArrowRight keys — all of these funnel through
  * scrollToIndex() below, which just smooth-scrolls the vertical stack
- * to that photo's block. This is additive: the vertical scroll-through-
- * all-photos behavior is unchanged, horizontal navigation is just a
- * faster way to get to a specific adjacent photo without scrolling
- * past its whole panel.
+ * to that photo's block.
+ *
+ * NEW: a ⋯ menu next to the ✕ button with a "Full screen" option. It
+ * fullscreens the viewer overlay itself (not the whole page), so the
+ * close button, ‹ › buttons, likes and comments all keep working while
+ * fullscreen. The label flips to "Exit full screen" while active and
+ * stays in sync if the person exits with Esc / browser controls, or if
+ * the viewer was opened already-fullscreen from the feed tile's own
+ * "Full screen" menu item. Hidden on browsers with no page fullscreen
+ * support (iPhone Safari) — the viewer is already full-window there.
  *
  * Each photo gets its OWN like/comment/share, independent of the
  * post-level reactions shown on the feed card. Per-photo reactions/
@@ -445,6 +451,20 @@ const PhotoViewer = ({
   const [loading, setLoading] = useState(true);
   const blockRefs = useRef([]);
   const scrolledRef = useRef(false);
+
+  // NEW: full screen state + ⋯ menu state.
+  const overlayRef = useRef(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // iPhone Safari can't fullscreen a <div>; the viewer is already
+  // full-window there, so the menu is hidden.
+  const canFullscreen =
+    typeof document !== "undefined" &&
+    !!(
+      document.documentElement.requestFullscreen ||
+      document.documentElement.webkitRequestFullscreen
+    );
 
   const loadAllImageData = useCallback(async () => {
     setLoading(true);
@@ -493,7 +513,7 @@ const PhotoViewer = ({
     }
   });
 
-  // NEW: smooth-scrolls the stack so the given photo index's block is
+  // Smooth-scrolls the stack so the given photo index's block is
   // at the top of the view. Used by swipe/drag/button/keyboard nav —
   // all of them just compute a target index and call this.
   const scrollToIndex = useCallback((index) => {
@@ -501,7 +521,7 @@ const PhotoViewer = ({
     if (el) el.scrollIntoView({ block: "start", behavior: "smooth" });
   }, []);
 
-  // NEW: figures out which photo is currently most in view (used as
+  // Figures out which photo is currently most in view (used as
   // the "current" position for relative navigation — swiping left on
   // whichever photo you're looking at should go to the NEXT photo
   // relative to that one, not relative to startIndex forever).
@@ -534,11 +554,47 @@ const PhotoViewer = ({
     [getCurrentIndex, scrollToIndex, images.length],
   );
 
+  // NEW: keep isFullscreen in sync, including when the person exits
+  // with Esc / the browser's own controls, or when the viewer was
+  // opened already-fullscreen from the feed tile's "Full screen" item.
+  useEffect(() => {
+    const sync = () =>
+      setIsFullscreen(
+        !!(document.fullscreenElement || document.webkitFullscreenElement),
+      );
+    sync();
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync);
+    };
+  }, []);
+
+  // NEW: enter / exit fullscreen from the ⋯ menu. Fullscreens the
+  // overlay element (not the page) so every control inside it keeps
+  // working. Must be called straight from a click.
+  const toggleFullscreen = () => {
+    setMenuOpen(false);
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fsEl) {
+      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+      return;
+    }
+    const el = overlayRef.current;
+    if (!el) return;
+    const request = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (request) Promise.resolve(request.call(el)).catch(() => {});
+  };
+
   useEffect(() => {
     document.body.style.overflow = "hidden";
     const handleKey = (e) => {
-      if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowLeft") navigate(-1);
+      if (e.key === "Escape") {
+        // CHANGED: Esc closes the ⋯ menu first, then the viewer.
+        if (menuOpen) setMenuOpen(false);
+        else onClose();
+      } else if (e.key === "ArrowLeft") navigate(-1);
       else if (e.key === "ArrowRight") navigate(1);
     };
     document.addEventListener("keydown", handleKey);
@@ -546,13 +602,42 @@ const PhotoViewer = ({
       document.body.style.overflow = "";
       document.removeEventListener("keydown", handleKey);
     };
-  }, [onClose, navigate]);
+  }, [onClose, navigate, menuOpen]);
 
   return (
-    <div className="pv-overlay">
+    <div className="pv-overlay" ref={overlayRef}>
       <button className="pv-close" onClick={onClose} aria-label="Close">
         ✕
       </button>
+
+      {/* NEW: ⋯ menu with Full screen / Exit full screen. */}
+      {canFullscreen && (
+        <>
+          <button
+            type="button"
+            className="pv-menu-btn"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="Photo options"
+            aria-haspopup="true"
+            aria-expanded={menuOpen}
+          >
+            ⋯
+          </button>
+          {menuOpen && (
+            <>
+              <div
+                className="pv-menu-backdrop"
+                onClick={() => setMenuOpen(false)}
+              />
+              <div className="pv-menu" role="menu">
+                <button type="button" role="menuitem" onClick={toggleFullscreen}>
+                  {isFullscreen ? "⛶ Exit full screen" : "⛶ Full screen"}
+                </button>
+              </div>
+            </>
+          )}
+        </>
+      )}
 
       <div className="pv-scroll-stack" onClick={(e) => e.stopPropagation()}>
         {images.map((src, i) => (

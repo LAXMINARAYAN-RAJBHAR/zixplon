@@ -244,6 +244,10 @@ const JUMP_NOTICE_MS = 2500;
 // and the oldest message currently loaded.
 const JUMP_GAP_LIMIT = 1000;
 
+// ── NEW: online-now list — max rows rendered in the inbox's "online on
+// Zixplon" list, so a very busy site doesn't render hundreds of rows. ──
+const ONLINE_LIST_MAX = 50;
+
 // ── Quick-reaction emoji set for message/attachment reactions ──
 const REACTION_EMOJIS = ["❤️", "😂", "👍", "😮", "😢", "🙏"];
 
@@ -488,6 +492,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const [inboxSearch, setInboxSearch] = useState("");
   const [profileResults, setProfileResults] = useState([]);
   const [searchingProfiles, setSearchingProfiles] = useState(false);
+
+  // NEW: whether the "N people online on Zixplon" list in the inbox is expanded.
+  const [showOnlineList, setShowOnlineList] = useState(false);
 
   const [activeConvo, setActiveConvo] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -3261,6 +3268,19 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     (c) => !(c.status === "pending" && c.initiated_by !== currentUser),
   );
 
+  // NEW: everyone currently online on Zixplon, except me and anyone
+  // blocked in either direction. Drives the "N people online" bar + list
+  // at the top of the inbox.
+  const onlineOthers = Array.from(onlineUsers)
+    .filter(
+      (u) =>
+        u &&
+        u !== currentUser &&
+        !blockedByMe.has(u) &&
+        !blockedMe.has(u),
+    )
+    .sort((a, b) => a.localeCompare(b));
+
   const existingUsernames = new Set(conversations.map((c) => getOtherUser(c)));
   const newProfileResults = profileResults.filter(
     (p) => !existingUsernames.has(p.username),
@@ -3747,6 +3767,60 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                   </button>
                 )}
               </div>
+
+              {/* NEW: "N people online on Zixplon" bar. Tap to expand a list
+                  of everyone online; tapping a name opens a chat with them.
+                  Hidden while searching the inbox. */}
+              {!normalizedSearch && (
+                <div className="mp-online-wrap">
+                  <button
+                    type="button"
+                    className="mp-online-bar"
+                    onClick={() => setShowOnlineList((v) => !v)}
+                    aria-expanded={showOnlineList}
+                  >
+                    <span className="mp-online-pulse" />
+                    <span className="mp-online-text">
+                      <b>{onlineOthers.length}</b>{" "}
+                      {onlineOthers.length === 1 ? "person" : "people"} online on Zixplon
+                    </span>
+                    <span className="mp-online-caret">
+                      {showOnlineList ? "▲" : "▼"}
+                    </span>
+                  </button>
+
+                  {showOnlineList && (
+                    <div className="mp-online-list">
+                      {onlineOthers.length === 0 ? (
+                        <p className="mp-empty mp-empty-small">
+                          No one else is online right now.
+                        </p>
+                      ) : (
+                        <>
+                          {onlineOthers.slice(0, ONLINE_LIST_MAX).map((u) => (
+                            <div
+                              key={u}
+                              className="mp-online-item"
+                              onClick={() => openConversation(u)}
+                            >
+                              <div className="mp-convo-avatar mp-online-avatar">
+                                {u.slice(0, 2).toUpperCase()}
+                                <span className="mp-status-dot online" />
+                              </div>
+                              <span className="mp-online-name">{u}</span>
+                            </div>
+                          ))}
+                          {onlineOthers.length > ONLINE_LIST_MAX && (
+                            <p className="mp-empty mp-empty-small">
+                              +{onlineOthers.length - ONLINE_LIST_MAX} more online
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {!normalizedSearch && (
                 <SuggestedConnections

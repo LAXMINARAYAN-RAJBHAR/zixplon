@@ -29,6 +29,14 @@ import React, { useRef, useState, useEffect } from "react";
 // Always muted (browsers block unmuted autoplay). Parent should render
 // this inside a position:relative wrapper; it fills it absolutely and
 // ignores pointer events so taps still hit the card underneath.
+//
+// NEW (auto-advance): optional `onEnded` prop. When it is provided the
+// clip does NOT loop; when the clip ends, `onEnded()` is called:
+//   - return true  -> the parent handled it (e.g. scrolled to the next
+//                     item); nothing else happens here.
+//   - return false -> nothing to advance to, so the clip replays.
+// When `onEnded` is NOT provided, behaviour is exactly as before (the
+// clip loops), so other users of this component are unaffected.
 // ─────────────────────────────────────────────────────────────────────
 
 const NEAR_MARGIN = "400px";
@@ -42,6 +50,8 @@ const AutoPlayVideo = ({
   // pure still-frame thumbnails (e.g. the Video page suggestions) so a
   // long list of them doesn't download real video data.
   preloadMode = "auto",
+  // NEW (auto-advance): see the note at the top of the file.
+  onEnded,
   className = "",
   style,
 }) => {
@@ -91,6 +101,21 @@ const AutoPlayVideo = ({
     }
   }, [active, near]);
 
+  // NEW (auto-advance): the clip reached its end (only fires when `loop`
+  // is off, i.e. when an `onEnded` handler was supplied).
+  const handleEnded = () => {
+    const handled = onEnded ? onEnded() : false;
+    if (handled === false) {
+      const v = videoRef.current;
+      if (!v) return;
+      try {
+        v.currentTime = 0;
+        const p = v.play();
+        if (p && p.catch) p.catch(() => {});
+      } catch (_) {}
+    }
+  };
+
   const saveData =
     typeof navigator !== "undefined" && navigator.connection?.saveData;
   const preload = near ? (saveData ? "metadata" : preloadMode) : "none";
@@ -102,12 +127,13 @@ const AutoPlayVideo = ({
       ref={videoRef}
       src={near ? src : undefined}
       muted
-      loop
+      loop={!onEnded}
       playsInline
       preload={preload}
       className={className}
       aria-hidden="true"
       onPlaying={() => setPlaying(true)}
+      onEnded={onEnded ? handleEnded : undefined}
       style={{
         position: "absolute",
         inset: 0,

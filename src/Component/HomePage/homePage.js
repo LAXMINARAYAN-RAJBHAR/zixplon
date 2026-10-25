@@ -13,7 +13,6 @@ import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import { createPortal } from "react-dom";
 import LiveBrowser from "../Live/LiveViewer";
-import AdUnit from "../../Component/Ads/AdUnit";
 // NEW: shared notification helper — see src/utils/notifications.js
 import { notifyUser } from "../../utils/notifications";
 import { linkifyText } from "../../utils/linkify";
@@ -4848,61 +4847,49 @@ const HomePage = ({ sideNavbar }) => {
                   </p>
                 </div>
               ) : (
-                (() => {
-                  let videoRowCount = 0;
-                  return contentRows.map((row) => {
-                    if (row.type === "suggest") {
-                      return <SuggestedConnections key={row.key} variant="feed" slot={row.slot} />;
-                    }
-                    if (row.type === "post") {
-                      return (
-                        <PostsRow
-                          key={row.key}
-                          data={row.items}
-                          title="Posts"
-                          isMobile={isMobile}
-                          onReport={openReport}
-                          loggedInUsername={loggedInUsername}
-                          onDeletePost={handleDeletePost}
-                          incrementView={incrementView}
-                          viewCounts={viewCounts}
-                        />
-                      );
-                    }
-                    if (row.type === "reel") {
-                      return (
-                        <ShortsRow
-                          key={row.key}
-                          data={row.items}
-                          title="Shorts"
-                          {...shortCardProps}
-                        />
-                      );
-                    }
-                    // video row
-                    videoRowCount += 1;
+                contentRows.map((row) => {
+                  if (row.type === "suggest") {
+                    return <SuggestedConnections key={row.key} variant="feed" slot={row.slot} />;
+                  }
+                  if (row.type === "post") {
                     return (
-                      <React.Fragment key={row.key}>
-                        <div className="youtube_VideoGrid">
-                          {row.items.map((v) => (
-                            <VideoCard
-                              key={v.id}
-                              video={v}
-                              isUploaded={v.isUploaded || false}
-                              {...videoCardProps}
-                            />
-                          ))}
-                        </div>
-                        {/* Google AdSense — one banner unit every other
-                            video row (skipped on the very first so the
-                            page doesn't open with an ad above the fold) */}
-                        {videoRowCount > 1 && videoRowCount % 2 === 0 && (
-                          <AdUnit slot="3820561974" />
-                        )}
-                      </React.Fragment>
+                      <PostsRow
+                        key={row.key}
+                        data={row.items}
+                        title="Posts"
+                        isMobile={isMobile}
+                        onReport={openReport}
+                        loggedInUsername={loggedInUsername}
+                        onDeletePost={handleDeletePost}
+                        incrementView={incrementView}
+                        viewCounts={viewCounts}
+                      />
                     );
-                  });
-                })()
+                  }
+                  if (row.type === "reel") {
+                    return (
+                      <ShortsRow
+                        key={row.key}
+                        data={row.items}
+                        title="Shorts"
+                        {...shortCardProps}
+                      />
+                    );
+                  }
+                  // video row
+                  return (
+                    <div key={row.key} className="youtube_VideoGrid">
+                      {row.items.map((v) => (
+                        <VideoCard
+                          key={v.id}
+                          video={v}
+                          isUploaded={v.isUploaded || false}
+                          {...videoCardProps}
+                        />
+                      ))}
+                    </div>
+                  );
+                })
               )}
             </>
           ) : (

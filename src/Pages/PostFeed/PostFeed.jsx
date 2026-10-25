@@ -11,7 +11,6 @@ import VideoFeedCard from "./VideoFeedCard";
 // composer trigger at the top of the Posts feed.
 import StoriesStrip from "./StoriesStrip";
 import SideNavbar from "../../Component/SideNavbar/sideNavbar";
-import AdUnit from "../../Component/Ads/AdUnit";
 // NEW: shared preloading, buffer-hiding video — used for search-result
 // reels that have no thumbnail, so they only load once near the screen.
 import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
@@ -1582,10 +1581,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
             {!searchQuery && index >= 3 && (index - 3) % 6 === 0 && (
               <SuggestedConnections variant="feed" slot={1 + (index - 3) / 6} />
-            )}
-
-            {(index + 1) % 5 === 0 && (
-              <AdUnit slot="7412839650" format="fluid" layout="in-feed" />
             )}
           </React.Fragment>
         ))}

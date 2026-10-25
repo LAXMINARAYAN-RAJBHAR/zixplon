@@ -248,11 +248,6 @@ const JUMP_GAP_LIMIT = 1000;
 // Zixplon" list, so a very busy site doesn't render hundreds of rows. ──
 const ONLINE_LIST_MAX = 50;
 
-// NEW: compact count for the online badge next to the "Messages" title
-// (1234 -> "1.2K").
-const formatOnlineCount = (n) =>
-  n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n);
-
 // ── Quick-reaction emoji set for message/attachment reactions ──
 const REACTION_EMOJIS = ["❤️", "😂", "👍", "😮", "😢", "🙏"];
 
@@ -3275,8 +3270,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
   // NEW: everyone currently online on Zixplon, except me and anyone
   // blocked in either direction. Drives the "N people online" bar + list
-  // at the top of the inbox, AND the count badge beside the "Messages"
-  // title in the inbox header (so the two numbers always match).
+  // at the top of the inbox.
   const onlineOthers = Array.from(onlineUsers)
     .filter(
       (u) =>
@@ -3671,20 +3665,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                 onMouseDown={handleDragStart}
                 onTouchStart={handleDragStart}
               >
-                {/* CHANGED: the title now carries a live "online on Zixplon"
-                    count badge. It uses onlineOthers (same list as the
-                    "N people online" bar below), so both numbers match. */}
-                <span className="mp-inbox-title">
-                  Messages
-                  <span
-                    className={`mp-online-count ${onlineOthers.length === 0 ? "zero" : ""}`}
-                    title={`${onlineOthers.length} online on Zixplon`}
-                    aria-label={`${onlineOthers.length} people online on Zixplon`}
-                  >
-                    <span className="mp-online-count-dot" />
-                    {formatOnlineCount(onlineOthers.length)}
-                  </span>
-                </span>
+                <span>Messages</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 2, position: "relative" }}>
                   <button
                     ref={newMenuBtnRef}

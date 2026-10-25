@@ -14,7 +14,6 @@ import useNetworkQuality from "../../hooks/useNetworkQuality";
 import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
 import ReportModal from "../../Component/Moderation/ReportModal";
 import ExpandableText from "../../Component/ExpandableText/ExpandableText";
-import AdSlot from "../../Component/Ads/AdSlot";
 import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
 import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
 // NEW: attached-song mini player — shown when a video carries `song`
@@ -2254,11 +2253,6 @@ const Video = ({ sideNavbar }) => {
               </div>
             </div>
           ) : null}
-
-          {/* ── Google AdSense — display banner ──
-                Placed below the description/about block, above the comment
-                section. Deliberately not touching the player or its controls. */}
-          <AdSlot slot="5967522405" variant="banner" />
 
           <div className="youtubeCommentSection">
             <div className="youtubeCommentSectionTitle">

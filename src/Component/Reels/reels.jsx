@@ -22,7 +22,6 @@ import ReportModal from "../Moderation/ReportModal";
 import useNetworkQuality from "../../hooks/useNetworkQuality";
 import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
 import ExpandableText from "../ExpandableText/ExpandableText";
-import AdUnit from "../../Component/Ads/AdUnit";
 import CommentMediaPicker from "../Shared/CommentMediaPicker";
 // CHANGED: SongAttachmentCard import removed — the song now shows only
 // as the compact ticker in the top-left stack (see .reel_top_meta), the
@@ -330,17 +329,6 @@ const MoreDropdown = ({
     </div>
   );
 };
-
-const ReelAdSlide = () => (
-  <div className="reel_item" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a" }}>
-    <div style={{ width: "100%", maxWidth: "420px", padding: "0 16px" }}>
-      <div style={{ color: "#8b84c4", fontSize: "12px", fontWeight: "700", textAlign: "center", marginBottom: "10px", letterSpacing: "0.5px" }}>
-        SPONSORED
-      </div>
-      <AdUnit slot="9284710365" style={{ display: "block", minHeight: "250px" }} />
-    </div>
-  </div>
-);
 
 const ReelItem = ({ reel, allReels, fb }) => {
   const navigate = useNavigate();
@@ -1249,9 +1237,7 @@ const ReelItem = ({ reel, allReels, fb }) => {
   // `loop`, so "ended" actually fires). Scroll to the next reel — the
   // IntersectionObserver above then starts it with the visitor's saved
   // mute preference and the muted fallback. If there is no next reel,
-  // or the next slot is a sponsored slide (the chain pauses there until
-  // the visitor scrolls past it), or this reel is no longer the active
-  // one, replay this reel instead.
+  // or this reel is no longer the active one, replay this reel instead.
   const handleReelEnded = () => {
     const video = videoRef.current;
     setIsPlaying(false); // also pauses + resets the attached song
@@ -2138,13 +2124,8 @@ const Reels = () => {
       </button>
 
       <div className="reels_container">
-        {visibleReels.map((reel, index) => (
-          <React.Fragment key={reel.id}>
-            <ReelItem reel={reel} allReels={visibleReels} fb={fb} />
-            {(index + 1) % 5 === 0 && index !== visibleReels.length - 1 && (
-              <ReelAdSlide key={`ad-${index}`} />
-            )}
-          </React.Fragment>
+        {visibleReels.map((reel) => (
+          <ReelItem key={reel.id} reel={reel} allReels={visibleReels} fb={fb} />
         ))}
       </div>
 

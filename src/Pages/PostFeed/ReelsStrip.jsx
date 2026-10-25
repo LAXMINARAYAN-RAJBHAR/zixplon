@@ -8,9 +8,18 @@ import { ThreeDotMenu, ReportModal, shareContent } from "../../Component/Shared/
 import PreviewThumb from "../../Component/Shared/PreviewThumb";
 // NEW: shared always-mounted, preloading, buffer-hiding preview video.
 import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
+// NEW: once the strip has auto-advanced far enough, hand off to the next
+// video / post video below it in the feed.
+import { advanceToNextFeedMedia } from "../../utils/autoAdvance";
 
 const PAGE_SIZE = 10;
 const LOAD_MORE_THRESHOLD_PX = 300;
+
+// NEW: how many cards the strip plays through on its own (each time a clip
+// ends) before handing off to the next item in the feed. The strip wraps
+// around forever, so without a cap it would never let go. Touching the
+// strip resets the counter.
+const MAX_AUTO_ADVANCE = 4;
 
 // NEW: card width in px. Change this one number to resize the cards.
 // (Previously ~140px in the stylesheet; now 170px.)
@@ -94,6 +103,10 @@ const SESSION_RANDOM_BASE = Math.random();
 // decodes several videos at once. Hovering a card (desktop) hands
 // control to PreviewThumb's own sound-first preview instead.
 //
+// NEW (auto-advance): when the autoplaying clip ends, `onEnded` asks the
+// strip to move on (next card, or the next feed item). If it returns
+// false, AutoPlayVideo replays the clip.
+//
 // NEW (feedback): `fb` (from useContentFeedback in PostFeed) adds
 // "Interested" / "Not interested" to the ⋮ menu. ──
 const ReelStripCard = ({
@@ -102,6 +115,7 @@ const ReelStripCard = ({
   index,
   autoplay,
   onVisibilityChange,
+  onEnded,
   viewCount,
   navigate,
   loggedInUsername,
@@ -222,6 +236,10 @@ const ReelStripCard = ({
   // one AND the pointer isn't on it (hover has its own preview).
   const showAutoplay = autoplay && !hovered && !!reel.src;
 
+  // NEW (auto-advance): only the autoplaying card may move the strip on.
+  // Returning false makes AutoPlayVideo replay the clip.
+  const handleEnded = () => (showAutoplay ? onEnded(cardRef.current) : false);
+
   // NEW: text for the 🎵 line.
   const songLabel =
     typeof reel.song === "string"
@@ -272,6 +290,7 @@ const ReelStripCard = ({
             poster={reel.thumbnail}
             active={showAutoplay}
             className="pf-reel-thumb"
+            onEnded={handleEnded}
           />
         ) : (
           !reel.thumbnail && (
@@ -326,6 +345,11 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
   const offsetRef = useRef(startOffset);
   const loadingRef = useRef(false);
   const trackRef = useRef(null);
+  // NEW (auto-advance): root element of the strip (used as the anchor when
+  // handing off to the next feed item) and how many cards we've advanced
+  // on our own since the user last touched the strip.
+  const stripRef = useRef(null);
+  const autoAdvancedRef = useRef(0);
   // NEW: total reel count, fetched once so we can pick a random offset.
   const totalRef = useRef(null);
   const loggedInUsername = localStorage.getItem("username") || "";
@@ -354,6 +378,35 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
       }
     });
     setActiveKey(bestKey);
+  }, []);
+
+  // NEW (auto-advance): a clip in the strip ended. Scroll the strip so the
+  // next card becomes the leftmost visible one (which makes it the
+  // autoplaying card). After MAX_AUTO_ADVANCE cards, or at the end of the
+  // loaded cards, hand off to the next video / post video in the feed.
+  // Returns true if it moved on, false if the clip should just replay.
+  const handleCardEnded = useCallback((cardEl) => {
+    const track = trackRef.current;
+    const next = cardEl?.nextElementSibling;
+
+    if (
+      track &&
+      next &&
+      !next.classList.contains("pf-reel-card-loading") &&
+      autoAdvancedRef.current < MAX_AUTO_ADVANCE
+    ) {
+      autoAdvancedRef.current += 1;
+      track.scrollBy({
+        left:
+          next.getBoundingClientRect().left -
+          track.getBoundingClientRect().left,
+        behavior: "smooth",
+      });
+      return true;
+    }
+
+    autoAdvancedRef.current = 0;
+    return advanceToNextFeedMedia(stripRef.current);
   }, []);
 
   const [reportTarget, setReportTarget] = useState(null);
@@ -487,7 +540,7 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
   const visibleReels = reels.filter((r) => !fb?.isHidden("reel", r.dbId));
 
   return (
-    <div className="pf-reels-strip">
+    <div className="pf-reels-strip" ref={stripRef}>
       <style>{CARD_SIZE_CSS}</style>
       <div className="pf-reels-strip-header">
         <span className="pf-reels-strip-zbadge">Z</span>
@@ -500,6 +553,11 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
         className="pf-reels-strip-track"
         ref={trackRef}
         onScroll={handleScroll}
+        // NEW (auto-advance): the user is driving the strip themselves —
+        // give them a fresh run of auto-advanced cards.
+        onPointerDown={() => {
+          autoAdvancedRef.current = 0;
+        }}
       >
         {visibleReels.map((r, i) => {
           const previewId = `${stripIdRef.current}-${r.id}-${i}`;
@@ -511,6 +569,7 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
               index={i}
               autoplay={activeKey === previewId}
               onVisibilityChange={handleVisibilityChange}
+              onEnded={handleCardEnded}
               viewCount={viewCounts[r.id] ?? 0}
               navigate={navigate}
               loggedInUsername={loggedInUsername}

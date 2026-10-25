@@ -9,6 +9,8 @@ import {
 } from "../../Component/Shared/ContentMenu";
 // NEW: shared always-mounted, preloading, buffer-hiding preview video.
 import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
+// NEW: when this clip ends, scroll to the next video / post video in the feed.
+import { advanceToNextFeedMedia } from "../../utils/autoAdvance";
 
 const HOVER_PREVIEW_DELAY = 400; // ms
 
@@ -39,6 +41,11 @@ const shortTimeAgo = (dateStr) => {
 // too). Shows views/likes/posted-time and a three-dots menu (Save to
 // Watch Later, Add to Playlist, Go to Channel, Share, Report, and
 // owner-only Delete) — matching VideoCard on the Home feed.
+//
+// NEW (auto-advance): when the clip finishes, the feed scrolls to the next
+// video / post video below it (see utils/autoAdvance.js). If there is
+// nothing after it — or the card isn't actually on screen — the clip
+// replays instead.
 //
 // NEW (feedback): `fb` is the object returned by useContentFeedback()
 // in PostFeed. It adds "Interested" / "Not interested" to the ⋮ menu.
@@ -80,6 +87,16 @@ const VideoFeedCard = ({ video, fb }) => {
 
   // Clear any pending hover timer on unmount.
   useEffect(() => () => clearTimeout(timeoutRef.current), []);
+
+  // NEW (auto-advance): called by AutoPlayVideo when the clip ends.
+  // Return true  -> we handled it (scrolled to the next item).
+  // Return false -> AutoPlayVideo replays the clip.
+  // Only advances when this card is really on screen, so a hover preview
+  // of an off-screen card never yanks the page away.
+  const handleVideoEnded = () => {
+    if (!inView) return false;
+    return advanceToNextFeedMedia(cardRef.current);
+  };
 
   // ── Views ──
   const [viewCount, setViewCount] = useState(0);
@@ -387,6 +404,7 @@ const VideoFeedCard = ({ video, fb }) => {
             poster={video.thumbnail}
             active={previewing}
             className="pf-video-card-thumb"
+            onEnded={handleVideoEnded}
           />
         ) : (
           !video.thumbnail && (

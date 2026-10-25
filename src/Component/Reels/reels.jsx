@@ -1245,6 +1245,31 @@ const ReelItem = ({ reel, allReels, fb }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quality]);
 
+  // NEW (auto-advance): the reel reached its end (it no longer has
+  // `loop`, so "ended" actually fires). Scroll to the next reel — the
+  // IntersectionObserver above then starts it with the visitor's saved
+  // mute preference and the muted fallback. If there is no next reel,
+  // or the next slot is a sponsored slide (the chain pauses there until
+  // the visitor scrolls past it), or this reel is no longer the active
+  // one, replay this reel instead.
+  const handleReelEnded = () => {
+    const video = videoRef.current;
+    setIsPlaying(false); // also pauses + resets the attached song
+
+    const next = containerRef.current?.nextElementSibling;
+    const nextIsReel = next && /^reel-/.test(next.id || "");
+
+    if (isActiveRef.current && nextIsReel) {
+      next.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+
+    if (isActiveRef.current && video) {
+      video.currentTime = 0;
+      video.play().then(() => setIsPlaying(true)).catch(() => { });
+    }
+  };
+
   const flashIcon = () => {
     setShowIcon(true);
     clearTimeout(iconTimeoutRef.current);
@@ -1440,7 +1465,9 @@ const ReelItem = ({ reel, allReels, fb }) => {
         {isYouTube(reel.src) ? (
           <iframe className="reel_video" src={getEmbedUrl(reel.src)} frameBorder="0" allow="autoplay; fullscreen" allowFullScreen title={reel.title} />
         ) : (
-          <video ref={videoRef} className="reel_video" loop muted={muted} playsInline poster={reel.thumbnail} preload={videoPreload} controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} onClick={handleVideoClick}>
+          // CHANGED: `loop` removed so "ended" fires — handleReelEnded
+          // moves on to the next reel (or replays if there isn't one).
+          <video ref={videoRef} className="reel_video" muted={muted} playsInline poster={reel.thumbnail} preload={videoPreload} controlsList="nodownload" onContextMenu={(e) => e.preventDefault()} onClick={handleVideoClick} onEnded={handleReelEnded}>
             {/* CHANGED: for HLS sources the effect above sets the
                 video's source via hls.js (or vid.src on Safari)
                 directly, so the <source> child is skipped to avoid the

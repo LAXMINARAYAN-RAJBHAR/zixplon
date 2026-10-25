@@ -39,6 +39,9 @@ import Hls from "hls.js";
 // gesture, so this lets PostVideo (and SongAttachmentCard) retry
 // sound the instant that happens, rather than only on their own click.
 import { onUserInteract } from "../../utils/audioUnlock";
+// NEW: when a post video ends, scroll to the next video / post video in
+// the feed (its own autoplay-on-scroll then starts it).
+import { advanceToNextFeedMedia } from "../../utils/autoAdvance";
 
 const REACTIONS = [
   { key: "like", emoji: "👍", label: "Like", color: "#1877f2" },
@@ -125,7 +128,7 @@ const stubTranslateToHindi = (text) => {
        sound — some browsers allow this once the page has enough
        "media engagement", and this is the one moment that's worth
        trying. If the browser blocks it (the common case), it falls
-       back to a muted, looping autoplay instead.
+       back to a muted autoplay instead.
      • Leaving the viewport pauses it; scrolling back in resumes
        playback (muted state carries over — no re-prompt).
      • Tapping the video, or the speaker icon, toggles sound on/off at
@@ -134,16 +137,20 @@ const stubTranslateToHindi = (text) => {
        fullscreens the wrapper (so the mute button keeps working), and
        falls back to the video element's native fullscreen on iOS
        Safari, which can't fullscreen a <div>.
-     • NEW: a progress bar runs along the bottom edge. It shows played
+     • A progress bar runs along the bottom edge. It shows played
        and buffered progress, supports click / drag (mouse + touch) to
        seek, and Left/Right arrow keys (±5s) when focused. It only
        reads the <video> element's events, so it works for HLS too.
+     • NEW (auto-advance): the video no longer loops. When it ends,
+       `onEnded` is called; if that returns true the feed has scrolled
+       to the next video, otherwise (no next item / off-screen /
+       fullscreen) the video replays from the start.
 
    HLS support — if `src` is an .m3u8 manifest, playback routes through
    hls.js (or native HLS on Safari) instead of setting the <video>'s
    src attribute directly. Plain mp4/webm sources are unaffected.
 ───────────────────────────────────────── */
-const PostVideo = ({ src, inView }) => {
+const PostVideo = ({ src, inView, onEnded }) => {
   const videoRef = useRef(null);
   // NEW: wrapper ref — this is the element that actually goes fullscreen.
   const wrapRef = useRef(null);
@@ -193,7 +200,7 @@ const PostVideo = ({ src, inView }) => {
         .then(() => setMuted(false))
         .catch(() => {
           // Autoplay-with-sound was blocked — fall back to a muted
-          // loop; the speaker icon lets the user turn sound on. Also
+          // autoplay; the speaker icon lets the user turn sound on. Also
           // register a one-time retry: the moment the visitor
           // interacts with the page ANYWHERE (not necessarily this
           // video), browsers lift the restriction, so try again then.
@@ -331,6 +338,19 @@ const PostVideo = ({ src, inView }) => {
     }
   };
 
+  // NEW (auto-advance): the video reached its end. Ask the card to move
+  // on to the next video; if it can't (nothing after it, the post is off
+  // screen, or the person is watching fullscreen) replay from the start —
+  // which is what `loop` used to do.
+  const handleEnded = () => {
+    const vid = videoRef.current;
+    const advanced = inView && !isFullscreen && onEnded ? onEnded() : false;
+    if (!advanced && vid) {
+      vid.currentTime = 0;
+      vid.play().catch(() => {});
+    }
+  };
+
   // ── NEW: progress bar seeking ──
   const seekToClientX = (clientX) => {
     const vid = videoRef.current;
@@ -418,7 +438,9 @@ const PostVideo = ({ src, inView }) => {
         // to fetch the raw .m3u8 as a video file.
         src={usingHls ? undefined : src}
         muted={muted}
-        loop
+        // CHANGED: `loop` removed so the "ended" event fires — handleEnded
+        // replays the video itself when there is no next item.
+        onEnded={handleEnded}
         playsInline
         preload="metadata"
         className="pf-card-video"
@@ -1712,8 +1734,14 @@ const PostCard = ({
               // so it autoplays the moment the post is on-screen and
               // pauses the moment it isn't, instead of only playing on
               // desktop hover / after an explicit click.
+              // NEW (auto-advance): `onEnded` scrolls the feed to the
+              // next video / post video once this one finishes.
               post.video_url && (
-                <PostVideo src={post.video_url} inView={mediaInView} />
+                <PostVideo
+                  src={post.video_url}
+                  inView={mediaInView}
+                  onEnded={() => advanceToNextFeedMedia(cardRef.current)}
+                />
               )
             )}
 

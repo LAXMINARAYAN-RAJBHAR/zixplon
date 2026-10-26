@@ -1,8 +1,32 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../../config/supabase";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import "./LoginOptionsModal.css";
+
+// Google OAuth Client ID (the same one already configured in Supabase's
+// Google provider). Add to .env as REACT_APP_GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+const GSI_SRC = "https://accounts.google.com/gsi/client";
+
+// Loads Google Identity Services once (safe to call repeatedly). Doing it
+// here means index.html does not need a <script> tag.
+const loadGoogleScript = () =>
+  new Promise((resolve, reject) => {
+    if (window.google?.accounts?.id) return resolve();
+    let script = document.querySelector(`script[src="${GSI_SRC}"]`);
+    if (!script) {
+      script = document.createElement("script");
+      script.src = GSI_SRC;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+    script.addEventListener("load", () => resolve());
+    script.addEventListener("error", () =>
+      reject(new Error("Could not load Google sign-in. Check your connection."))
+    );
+  });
 
 export default function LoginOptionsModal({ onDismiss }) {
   const [mode, setMode] = useState("options"); // 'options' | 'email'
@@ -11,15 +35,68 @@ export default function LoginOptionsModal({ onDismiss }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const googleBtnRef = useRef(null);
 
-  const handleGoogleLogin = async () => {
+  // CHANGED: Google sign-in no longer redirects through
+  // <project>.supabase.co. Google's own button returns an ID token to this
+  // page, which is handed to Supabase. The account chooser therefore shows
+  // this site instead of the Supabase address.
+  const handleGoogleCredential = async ({ credential }) => {
     setError("");
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error: idTokenError } = await supabase.auth.signInWithIdToken({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      token: credential,
     });
-    if (error) setError(error.message);
+    if (idTokenError) setError(idTokenError.message);
+    // On success, App.js's onAuthStateChange listener updates currentUser
+    // and closes this modal automatically.
   };
+
+  // Render Google's button whenever the "options" view is showing.
+  useEffect(() => {
+    if (mode !== "options") return;
+
+    if (!GOOGLE_CLIENT_ID) {
+      setError("Google sign-in is not configured (missing REACT_APP_GOOGLE_CLIENT_ID).");
+      return;
+    }
+
+    let cancelled = false;
+
+    loadGoogleScript()
+      .then(() => {
+        if (cancelled || !googleBtnRef.current) return;
+
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleCredential,
+          ux_mode: "popup",
+        });
+
+        // Google's button accepts a pixel width between 200 and 400.
+        const slotWidth = googleBtnRef.current.offsetWidth || 280;
+        const width = Math.min(400, Math.max(200, Math.floor(slotWidth)));
+
+        googleBtnRef.current.innerHTML = "";
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          text: "continue_with",
+          shape: "pill",
+          logo_alignment: "left",
+          width,
+        });
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
@@ -44,9 +121,17 @@ export default function LoginOptionsModal({ onDismiss }) {
             <h2>Sign in to ZIXPLON</h2>
             <p className="login-modal-subtitle">Pick a way to continue</p>
 
-            <button className="login-option-btn google" onClick={handleGoogleLogin}>
-              <GoogleIcon /> Continue with Google
-            </button>
+            {/* Google renders its official "Continue with Google" button here. */}
+            <div
+              ref={googleBtnRef}
+              style={{
+                width: "100%",
+                minHeight: "44px",
+                display: "flex",
+                justifyContent: "center",
+                marginBottom: "10px",
+              }}
+            />
 
             <button className="login-option-btn email" onClick={() => setMode("email")}>
               Continue with Email
@@ -104,16 +189,5 @@ export default function LoginOptionsModal({ onDismiss }) {
         )}
       </div>
     </div>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 48 48">
-      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.9 32.9 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.1 29.5 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z"/>
-      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.5 5.1 29.5 3 24 3c-7.7 0-14.3 4.4-17.7 10.7z"/>
-      <path fill="#4CAF50" d="M24 45c5.4 0 10.3-1.8 14.1-5l-6.5-5.5C29.6 36 26.9 37 24 37c-5.3 0-9.8-3.1-11.4-7.6l-6.6 5.1C9.6 40.6 16.2 45 24 45z"/>
-      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1 2.8-2.9 5.1-5.4 6.5l6.5 5.5C39.9 37.5 43 31.7 43 24c0-1.4-.1-2.7-.4-3.5z"/>
-    </svg>
   );
 }

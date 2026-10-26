@@ -88,6 +88,10 @@ import SignInPage from "./Pages/SignIn/SignInPage";
 // registers the `beforeinstallprompt` listener early so the event isn't
 // missed while the loading screen is showing.
 import InstallPage from "./Pages/Install/InstallPage";
+// NEW: "A new version is available — Refresh" banner. Compares this
+// bundle's BUILD_ID (src/buildInfo.js) with /version.json on the server;
+// both are written by scripts/generate-version.cjs on every build.
+import UpdateNotifier from "./Component/Shared/UpdateNotifier";
 
 // ── FeedRedirect ──────────────────────────────────────────────────────────
 // FIX: old links to /feed?post=<id> — from the navbar's post-notification
@@ -752,6 +756,11 @@ const hideFooter =
 
         {/* Mobile exit toast */}
         <ExitToast visible={showExitToast} />
+
+        {/* NEW: "New version available — Refresh" banner. Checks
+            /version.json on load, every 5 minutes, and whenever the tab
+            regains focus; only appears after a new deploy. */}
+        <UpdateNotifier />
 
         {/* Auto login detect: Google One Tap tries first (silent, no click
             needed); if it can't be shown, this modal is the fallback */}

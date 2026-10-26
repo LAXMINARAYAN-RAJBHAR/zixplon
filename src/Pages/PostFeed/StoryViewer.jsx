@@ -5,6 +5,8 @@ import { supabase } from "../../config/supabase";
 import { getInitials } from "../../utils/initials";
 import { claimSound, releaseSound } from "../../utils/soundArbiter";
 import { notifyUser } from "../../utils/notifications";
+// NEW: re-checks the story's link before it becomes clickable
+import { normalizeLinkUrl, linkDisplayHost } from "../../utils/safeUrl";
 import ReportModal from "../../Component/Moderation/ReportModal";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -18,6 +20,7 @@ import ReportModal from "../../Component/Moderation/ReportModal";
 //               ‹ › buttons on desktop; continues into the next person
 //   Music       a story's song plays under photo stories (videos keep
 //               their own sound; the tag still shows)
+//   Link        NEW: a tappable "🔗 label" button when the story has a link
 //   Connect     a "Connect with …" sticker on other people's stories
 //   Bottom bar  (other people's stories) share, "Send message…" reply,
 //               and quick reactions ❤️ 👍 😂
@@ -26,7 +29,8 @@ import ReportModal from "../../Component/Moderation/ReportModal";
 //
 // `groups` is a snapshot taken when the viewer opened:
 //   [{ username, stories: [{ id, username, media_url, media_type, caption,
-//                            created_at, song, ai_generated }] }]
+//                            created_at, song, ai_generated,
+//                            link_url, link_label }] }]
 // `verified` is an optional Set of usernames that get the badge.
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -114,6 +118,8 @@ const StoryViewer = ({
   // Music plays under photos only; videos keep their own sound.
   const canPlayMusic = !!song && !isVideo;
   const hasSound = isVideo || canPlayMusic;
+  // NEW: only ever a clean http(s) address, or null.
+  const storyLink = story ? normalizeLinkUrl(story.link_url) : null;
 
   const showToast = (msg) => {
     setToast(msg);
@@ -796,6 +802,25 @@ const StoryViewer = ({
           onPointerCancel={handlePointerCancel}
           onContextMenu={(e) => e.preventDefault()}
         />
+
+        {/* NEW: link button — sits above the tap layer so it is clickable.
+            Opens in a new tab; rel keeps the opened page from controlling
+            this one. */}
+        {storyLink && (
+          <a
+            className={`pf-story-link${isOwn ? " pf-story-link--own" : ""}`}
+            href={storyLink}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            onClick={(e) => e.stopPropagation()}
+            title={storyLink}
+          >
+            <span aria-hidden="true">🔗</span>
+            <span className="pf-story-link-text">
+              {story.link_label || linkDisplayHost(storyLink)}
+            </span>
+          </a>
+        )}
 
         {/* Connect sticker (other people's stories) */}
         {showConnectSticker && (

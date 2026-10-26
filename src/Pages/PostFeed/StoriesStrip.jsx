@@ -101,10 +101,12 @@ const StoriesStrip = ({ currentUser }) => {
   const deepLinkHandledRef = useRef(false);
 
   const fetchStories = useCallback(async () => {
+    // CHANGED: also reads link_url / link_label (needs
+    // story_link_migration.sql) so the viewer can show the story's link.
     const { data, error } = await supabase
       .from("stories")
       .select(
-        "id, username, media_url, media_type, caption, song, ai_generated, created_at, expires_at"
+        "id, username, media_url, media_type, caption, song, ai_generated, link_url, link_label, created_at, expires_at"
       )
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: true })

@@ -3,7 +3,7 @@
 // ── Zixplon service worker (cache lifecycle + push notifications) ──
 
 // Bump this whenever you change this file. Old caches are deleted on activate.
-const CACHE_VERSION = "v6";
+const CACHE_VERSION = "v7";
 const PAGE_CACHE = `zixplon-pages-${CACHE_VERSION}`;
 const ASSET_CACHE = `zixplon-assets-${CACHE_VERSION}`;
 const APP_SHELL = ["/", "/index.html"];
@@ -58,6 +58,8 @@ self.addEventListener("activate", (event) => {
 //    host answers with index.html is never stored.
 //  • Cross-origin requests (Supabase, fonts, R2, Giphy) and non-GET requests
 //    are left completely alone.
+//  • /version.json (the "new version available" check) is never touched by
+//    this worker, so it always comes straight from the network.
 
 // Is this response safe to cache for the kind of file that was requested?
 function isCacheable(request, response) {
@@ -118,6 +120,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return; // fonts, R2, Giphy, ...
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/s/")) return; // OG / share endpoints
+  if (url.pathname === "/version.json") return; // update check: always straight from the network
   if (request.headers.has("range")) return; // let the browser stream video/audio itself
 
   if (request.mode === "navigate") {

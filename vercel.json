@@ -4,6 +4,14 @@
       "includeFiles": "node_modules/livekit-server-sdk/**"
     }
   },
+  "headers": [
+    {
+      "source": "/version.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    }
+  ],
   "rewrites": [
     { "source": "/api/manage-admin", "destination": "/api/admin?action=manage-admin" },
     { "source": "/api/moderate-user", "destination": "/api/admin?action=moderate-user" },
@@ -14,7 +22,7 @@
     { "source": "/api/process-recharge", "destination": "/api/payments?action=process-recharge" },
     { "source": "/s/:type/:id", "destination": "/api/og?type=:type&id=:id" },
     {
-      "source": "/((?!api/).*)",
+      "source": "/((?!api/|version\\.json).*)",
       "destination": "/index.html"
     }
   ]

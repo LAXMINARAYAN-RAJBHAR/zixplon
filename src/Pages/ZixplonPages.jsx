@@ -255,7 +255,7 @@ export const PrivacyPolicyPage = () => {
     { title: "11. Contact", jsx: (
       <p style={para}>
         For privacy questions or data deletion requests, email{" "}
-        <a href="mailto:support@zixplon.com" style={linkStyle}>support@zixplon.com</a>{" "}
+        <a href="mailto:support@zixplon.in" style={linkStyle}>support@zixplon.in</a>{" "}
         or use our <Link to="/contact" style={linkStyle}>Contact Support</Link> page.
       </p>
     )},

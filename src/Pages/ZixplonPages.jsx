@@ -141,9 +141,12 @@ export const AboutPage = () => {
         <h1 style={headingStyle}>About Zixplon</h1>
         <div style={accentBar} />
         <p style={para}>
-          Zixplon is an Indian video-sharing platform built for creators and
-          viewers who want a free, open, and community-driven space to share
-          stories, skills, entertainment, and ideas — without barriers.
+          Zixplon (zixplon.in) is an Indian video-sharing and social platform
+          built for creators and viewers who want a free, open, and
+          community-driven space to share stories, skills, entertainment, and
+          ideas — without barriers. You can browse content without an account,
+          and sign in with your email or your Google account to upload, comment,
+          follow creators, and message other people.
         </p>
 
         {[
@@ -151,10 +154,13 @@ export const AboutPage = () => {
             body: "To give every creator — big or small — a powerful platform to upload, share, and grow their audience, while giving viewers a rich library of content from across India and the world." },
           { emoji: "🚀", title: "What We Offer", color: T.accent2, list: [
             "Upload and stream videos & reels (Shorts)",
+            "Share posts and photo or video stories that disappear after 24 hours",
             "Subscribe to your favourite creators",
             "Like, comment, and share content",
+            "Direct messages and voice calls between users",
             "Voice search and smart suggestions",
             "Notifications for new uploads and interactions",
+            "Sign in with your email or your Google account",
             "Local video player for offline files",
           ]},
           { emoji: "🇮🇳", title: "Made in India", color: T.accent4,
@@ -178,6 +184,21 @@ export const AboutPage = () => {
             }
           </div>
         ))}
+
+        {/* Legal & Policies — visible links to the policy pages */}
+        <div style={{ ...card, borderLeft: `4px solid ${T.primary2}` }}>
+          <div style={{ fontSize: "28px", marginBottom: "8px" }}>📜</div>
+          <div style={{ ...sectionTitle, marginTop: 0, color: T.primary2 }}>Legal & Policies</div>
+          <p style={{ ...para, marginBottom: "10px" }}>
+            Please read how we handle your data and the rules for using Zixplon:
+          </p>
+          <ul style={{ ...para, paddingLeft: "20px", marginBottom: 0 }}>
+            <li><Link to="/privacy-policy" style={linkStyle}>Privacy Policy</Link></li>
+            <li><Link to="/terms-and-conditions" style={linkStyle}>Terms & Conditions</Link></li>
+            <li><Link to="/community-guidelines" style={linkStyle}>Community Guidelines</Link></li>
+            <li><Link to="/dmca" style={linkStyle}>DMCA & Copyright Policy</Link></li>
+          </ul>
+        </div>
       </div>
     </div>
   );
@@ -191,35 +212,53 @@ export const PrivacyPolicyPage = () => {
 
   const sections = [
     { title: "1. Information We Collect", body: "We collect the following types of information:", list: [
-      ["Account information:", "Username, email address, and profile picture when you register."],
-      ["Content you upload:", "Videos, thumbnails, titles, descriptions, and comments."],
-      ["Usage data:", "Pages visited, videos watched, search queries, likes, and subscriptions."],
-      ["Device information:", "Browser type, operating system, IP address, and approximate location (country)."],
+      ["Account information:", "Username, email address, profile picture and bio when you register or sign in."],
+      ["Google Sign-In data:", "If you choose \"Sign in with Google\", we receive your Google account name, email address and profile picture (the openid, email and profile permissions). We do not access your Gmail, Google Drive, contacts, calendar or any other Google data."],
+      ["Content you create:", "Videos, posts, stories, comments, messages, thumbnails, titles and descriptions."],
+      ["Usage data:", "Pages visited, videos watched, search queries, likes, subscriptions and visit duration."],
+      ["Device information:", "Browser type, operating system, IP address and approximate location (country)."],
+      ["Notification data:", "If you enable push notifications, your browser's push subscription."],
+      ["Payments:", "Payment features are processed by our payment partner (Razorpay). We do not store your card or UPI details."],
     ]},
     { title: "2. How We Use Your Information", list: [
-      ["", "To provide and improve our platform services"],
-      ["", "To personalise your content recommendations"],
+      ["", "To create your account, sign you in, and show your name and profile picture"],
+      ["", "To provide, personalise and improve the platform and your content recommendations"],
       ["", "To send notifications about your account and activity"],
-      ["", "To detect and prevent abuse, spam, and illegal content"],
+      ["", "To enable messages and voice calls between users"],
+      ["", "To detect and prevent abuse, spam and illegal content"],
       ["", "To comply with legal obligations under Indian law"],
     ]},
-    { title: "3. Data Storage", body: "Your data is stored securely using Supabase (PostgreSQL). We do not sell your personal data to third parties. Data may be stored on servers outside India but is protected under equivalent data protection standards." },
-    { title: "4. Cookies", body: "We use browser localStorage to keep you logged in and remember your preferences. We may use analytics cookies in the future, which will be disclosed in an updated policy." },
-    { title: "5. Third-Party Services", body: "We use the following third-party services that may access your data:", list: [
+    { title: "3. Google User Data", body: "We use your Google name, email address and profile picture only to create your Zixplon account, sign you in, and display your profile. We do not sell this data, use it for advertising, or share it with anyone except the service providers listed below that we need to run the platform. Zixplon's use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements." },
+    { title: "4. Who We Share Data With", body: "We do not sell your personal data. We use the following service providers to run Zixplon, and they may process your data on our behalf:", list: [
       ["", "Supabase — database and authentication"],
       ["", "Vercel — hosting and deployment"],
-      ["", "DiceBear / UI Avatars — profile picture generation"],
+      ["", "Cloudflare — media storage and delivery"],
+      ["", "LiveKit — voice calls"],
+      ["", "Razorpay — payments"],
+      ["", "Google — sign-in"],
+      ["", "Giphy — GIFs"],
+      ["", "DiceBear / UI Avatars — default profile pictures"],
       ["", "ipapi.co / ipwho.is — country detection (no data stored)"],
+      ["", "We may also disclose data when required by law."],
     ]},
-    { title: "6. Your Rights", list: [
+    { title: "5. Data Storage and Security", body: "Your data is stored securely with the providers above and may be processed on servers outside India under equivalent data protection standards." },
+    { title: "6. Retention and Deletion", body: "We keep your data while your account is active. Stories are removed automatically after 24 hours. You can delete your account, or email us to request deletion of your data, and we will delete it within a reasonable period, normally 30 days." },
+    { title: "7. Cookies and Local Storage", body: "We use browser local storage to keep you signed in and remember your preferences. We may use analytics cookies in the future and will disclose them in an updated policy." },
+    { title: "8. Your Rights", list: [
       ["", "Request access to the data we hold about you"],
-      ["", "Request correction or deletion of your account data"],
+      ["", "Request correction or deletion of your data"],
       ["", "Withdraw consent at any time by deleting your account"],
       ["", "Lodge a complaint with India's data protection authority if needed"],
     ]},
-    { title: "7. Children's Privacy", body: "Zixplon is not intended for users under the age of 13. We do not knowingly collect data from children. If you believe a child has registered, please contact us immediately." },
-    { title: "8. Changes to This Policy", body: "We may update this Privacy Policy from time to time. We will notify registered users of significant changes via the notifications system. Continued use of Zixplon after changes means you accept the updated policy." },
-    { title: "9. Contact", jsx: <p style={para}>For privacy-related concerns, please use our <Link to="/contact" style={linkStyle}>Contact Support</Link> page.</p> },
+    { title: "9. Children's Privacy", body: "Zixplon is not intended for users under the age of 13. We do not knowingly collect data from children. If you believe a child has registered, please contact us and we will remove the account." },
+    { title: "10. Changes to This Policy", body: "We may update this Privacy Policy from time to time. We will notify registered users of significant changes via the notifications system. Continued use of Zixplon after changes means you accept the updated policy." },
+    { title: "11. Contact", jsx: (
+      <p style={para}>
+        For privacy questions or data deletion requests, email{" "}
+        <a href="mailto:support@zixplon.com" style={linkStyle}>support@zixplon.com</a>{" "}
+        or use our <Link to="/contact" style={linkStyle}>Contact Support</Link> page.
+      </p>
+    )},
   ];
 
   return (
@@ -228,8 +267,13 @@ export const PrivacyPolicyPage = () => {
         <BackBtn />
         <h1 style={headingStyle}>Privacy Policy</h1>
         <div style={accentBar} />
-        <p style={metaLine}>Last updated: June 2025 · Effective immediately</p>
-        <p style={para}>At Zixplon, we take your privacy seriously. This Privacy Policy explains what data we collect, how we use it, and your rights regarding your personal information.</p>
+        <p style={metaLine}>Last updated: 28 October 2026 · Effective immediately</p>
+        <p style={para}>
+          Zixplon ("we", "us") operates the Zixplon video streaming and social
+          platform at https://zixplon.in. This Privacy Policy explains what data
+          we collect, how we use and share it, and your rights regarding your
+          personal information.
+        </p>
         {sections.map((s, i) => (
           <div key={i}>
             <div style={sectionTitle}>{s.title}</div>

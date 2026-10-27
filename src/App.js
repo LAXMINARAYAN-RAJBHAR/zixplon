@@ -539,7 +539,7 @@ function App() {
   // session in the browser, user opted out, FedCM blocked, etc). ──
   // NEW: "/install" added so the shared PWA install link opens cleanly,
   // without One Tap or the login modal appearing on top of it.
-  const suppressAutoModalRoutes = ["/signup", "/install"];
+  const suppressAutoModalRoutes = ["/signup", "/install", "/about", "/privacy-policy", "/terms-and-conditions"];
 
   useEffect(() => {
     if (!sessionChecked || currentUser) return;

@@ -1,4 +1,3 @@
-
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Outfit:wght@400;500;600;700;800&display=swap');
 
 :root {
@@ -52,16 +51,11 @@
   display: flex;
   color: var(--zx-text);
   padding-bottom: 24px;
-  justify-content: flex-start;   /* was: center */
+  justify-content: flex-start;
   font-family: 'Outfit', sans-serif;
   min-height: calc(100vh - 56px);
   transition: padding-left 0.3s ease;
 }
-
-/* REMOVED: the old standalone mobile `.video { padding-left: 8px !important; }`
-   rule that lived here — it was stacking on top of the padding already set
-   inside the big @media (max-width: 768px) block below, which is what
-   produced the extra pink side margins on mobile. */
 
 .videoPostSection {
   width: 100%;
@@ -82,7 +76,7 @@
   border-radius: 16px;
   overflow: hidden;
   background: #0d0d1a;
-  box-shadow: 0 8px 40px rgba(124,58,237,0.20);
+  box-shadow: 0 8px 40px rgba(220,38,38,0.20);
   scroll-margin-top: 64px;
 }
 
@@ -109,7 +103,6 @@
   gap: 8px;
   padding: 6px 10px;
 
-  /* glassmorphism */
   background: rgba(12, 8, 35, 0.68);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -117,7 +110,7 @@
   border-radius: 999px;
   box-shadow:
     0 6px 28px rgba(0,0,0,0.45),
-    0 0 0 1px rgba(124,58,237,0.22),
+    0 0 0 1px rgba(220,38,38,0.22),
     inset 0 1px 0 rgba(255,255,255,0.08);
 
   transition: opacity 0.3s, visibility 0.3s;
@@ -125,7 +118,6 @@
   pointer-events: auto;
 }
 
-/* visible / hidden states driven by JS */
 .video_controls_bar.visible {
   opacity: 1;
   visibility: visible;
@@ -156,9 +148,9 @@
 }
 
 .video_nav_btn:hover {
-  background: rgba(124,58,237,0.55);
-  border-color: rgba(168,85,247,0.70);
-  box-shadow: 0 0 18px rgba(124,58,237,0.55);
+  background: rgba(220,38,38,0.62);
+  border-color: rgba(239,68,68,0.72);
+  box-shadow: 0 0 18px rgba(220,38,38,0.55);
   transform: scale(1.06);
 }
 .video_nav_btn:active { transform: scale(0.95); }
@@ -187,7 +179,7 @@
 }
 .toggle_switch.on {
   background: var(--zx-primary2);
-  box-shadow: 0 0 10px rgba(168,85,247,0.60);
+  box-shadow: 0 0 10px rgba(220,38,38,0.60);
 }
 .toggle_switch.off { background: rgba(255,255,255,0.22); }
 
@@ -239,6 +231,7 @@
 /* ══════════════════════════════════════
    FLOATING LIKE / DISLIKE / SHARE
    Right-side vertical stack (glassmorphism)
+   — styled to match Reels (reels.css)
 ══════════════════════════════════════ */
 .video_frame_actions {
   position: absolute;
@@ -255,7 +248,6 @@
   pointer-events: none;
 }
 
-/* Desktop hover reveal */
 .video_player_wrapper:hover .video_frame_actions {
   opacity: 1;
   pointer-events: auto;
@@ -276,8 +268,8 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
-  width: 54px;
-  height: 54px;
+  width: 52px;
+  height: 52px;
 
   background: rgba(12, 8, 35, 0.68);
   backdrop-filter: blur(16px);
@@ -289,6 +281,7 @@
   font-size: 10px;
   font-family: 'Nunito', sans-serif;
   font-weight: 800;
+  letter-spacing: 0.3px;
 
   box-shadow:
     0 6px 20px rgba(0,0,0,0.40),
@@ -301,9 +294,9 @@
 }
 
 .video_frame_btn:hover {
-  background: rgba(124,58,237,0.62);
-  border-color: rgba(168,85,247,0.72);
-  box-shadow: 0 8px 26px rgba(124,58,237,0.55);
+  background: rgba(220,38,38,0.62);
+  border-color: rgba(239,68,68,0.72);
+  box-shadow: 0 8px 26px rgba(220,38,38,0.55);
   transform: scale(1.09) translateY(-2px);
 }
 .video_frame_btn:active { transform: scale(0.93); }
@@ -311,11 +304,11 @@
 /* active / liked */
 .video_frame_btn.active,
 .video_frame_btn.video_liked {
-  background: rgba(124,58,237,0.72);
-  border-color: rgba(168,85,247,0.90);
+  background: rgba(220,38,38,0.72) !important;
+  border-color: rgba(239,68,68,0.90) !important;
   box-shadow:
-    0 0 22px rgba(124,58,237,0.65),
-    inset 0 1px 0 rgba(255,255,255,0.12);
+    0 0 22px rgba(220,38,38,0.65),
+    inset 0 1px 0 rgba(255,255,255,0.12) !important;
 }
 
 .video_frame_btn span {
@@ -331,7 +324,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   transition: opacity 0.2s, transform 0.2s;
 }
 
@@ -350,7 +343,7 @@
 
 .video_like_emoji {
   position: absolute;
-  font-size: 24px;
+  font-size: 26px;
   opacity: 0;
   transform: scale(0.3) rotate(-20deg);
   pointer-events: none;
@@ -362,6 +355,58 @@
   30%  { opacity: 1; transform: scale(1.4) rotate(0deg); }
   60%  { opacity: 1; transform: scale(1)   rotate(0deg); }
   100% { opacity: 0; transform: scale(0.8) rotate(0deg); }
+}
+
+/* ══════════════════════════════════════
+   THREE-DOTS (⋮) MORE MENU
+   The dropdown is a real floating panel: absolutely positioned
+   relative to the ⋮ button wrapper, with its own background, so it
+   never pushes the Like/Dislike/Share buttons around.
+══════════════════════════════════════ */
+.video_frame_more_wrap {
+  position: relative;
+}
+
+.video_more_dropdown {
+  position: absolute !important;
+  top: auto !important;
+  bottom: 0 !important;
+  left: auto !important;
+  right: calc(100% + 8px) !important;
+  transform: none !important;
+  margin: 0 !important;
+  width: 170px;
+  min-width: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 6px 0;
+  background: rgba(12, 8, 35, 0.92);
+  border: 1px solid rgba(220, 38, 38, 0.45);
+  border-radius: 16px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.55),
+    0 0 0 1px rgba(220,38,38,0.15);
+  z-index: 50;
+}
+
+.video_more_dropdown_item {
+  padding: 10px 14px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: left;
+  transition: background 0.15s;
+}
+.video_more_dropdown_item:not(:last-child) {
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.video_more_dropdown_item:hover {
+  background: rgba(255,255,255,0.08);
 }
 
 /* ══════════════════════════════════════
@@ -406,7 +451,7 @@
   border-radius: 50%;
   object-fit: cover;
   border: 3px solid var(--zx-primary);
-  box-shadow: 0 0 10px rgba(124,58,237,0.25);
+  box-shadow: 0 0 10px rgba(220,38,38,0.25);
 }
 
 .youtubeVideo_subsView { display: flex; flex-direction: column; gap: 2px; }
@@ -458,7 +503,6 @@
   border-color: var(--zx-primary);
 }
 
-/* NEW: disabled state while a connect/disconnect request is in flight. */
 .connectBtnYoutube:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -505,7 +549,7 @@
 }
 .next_video_preview:hover {
   border-color: var(--zx-primary);
-  box-shadow: 0 4px 16px rgba(124,58,237,0.10);
+  box-shadow: 0 4px 16px rgba(220,38,38,0.10);
 }
 
 .next_video_label {
@@ -673,13 +717,10 @@
   line-height: 1.5;
 }
 
-/* NEW: full comment thread grouping (top-level + optional reply input +
-   its indented replies). */
 .yt_comment_thread {
   margin-bottom: 4px;
 }
 
-/* NEW: indented reply row */
 .yt_comment_item--reply {
   margin-left: 24px;
   margin-top: 8px;
@@ -696,7 +737,7 @@
   flex-shrink: 0;
 }
 
-/* NEW: per-comment kebab (⋯) menu — Share / Report / Save */
+/* per-comment kebab (⋯) menu — Share / Report / Save */
 .yt_comment_menu_wrap { position: relative; }
 
 .yt_comment_menu_btn {
@@ -720,7 +761,7 @@
   min-width: 130px;
   overflow: hidden;
   z-index: 40;
-  box-shadow: 0 8px 24px rgba(124,58,237,0.15);
+  box-shadow: 0 8px 24px rgba(220,38,38,0.15);
 }
 
 .yt_comment_dropdown_item {
@@ -738,7 +779,7 @@
   color: var(--zx-primary);
 }
 
-/* NEW: Like / Dislike / Reply / Translate action row under a comment */
+/* Like / Dislike / Reply / Translate action row under a comment */
 .yt_comment_action_row {
   display: flex;
   align-items: center;
@@ -778,9 +819,6 @@
 .yt_comment_translate_btn { color: var(--zx-accent3); }
 .yt_comment_translate_btn:hover { color: #0891b2; }
 
-/* NEW: inline reply input row, shown under a top-level comment when its
-   Reply button is clicked. Reuses .addACommentInput / .cancelcomment for
-   visual consistency with the main comment box. */
 .yt_reply_input_row {
   margin: 8px 0 8px 24px;
 }
@@ -815,7 +853,7 @@
 .videoSuggestionsBlock:hover {
   background: var(--zx-surface);
   border-color: var(--zx-border);
-  box-shadow: 0 2px 12px rgba(124,58,237,0.07);
+  box-shadow: 0 2px 12px rgba(220,38,38,0.07);
 }
 
 .video_suggestion_thumbnail {
@@ -867,35 +905,42 @@
   font-weight: 700;
 }
 
+.expandable-text-toggle {
+  color: var(--zx-primary, #dc2626);
+  font-weight: 700;
+  cursor: pointer;
+  margin-left: 4px;
+  white-space: nowrap;
+  user-select: none;
+}
+.expandable-text-toggle:hover {
+  text-decoration: underline;
+}
+
 /* ══════════════════════════════════════
    MOBILE  ≤ 768px
 ══════════════════════════════════════ */
 @media (max-width: 768px) {
   .video {
     flex-direction: column;
-    padding: 0;              /* CHANGED: was 8px — this + the two rules
-                                 below were combining to create the pink
-                                 side margins around the player/content */
+    padding: 0;
     padding-top: 56px;
     margin-top: 0;
     background: var(--zx-bg);
   }
 
-  .videoPostSection { width: 100%; order: 1; padding: 0; }  /* CHANGED: was "0 8px" */
+  .videoPostSection { width: 100%; order: 1; padding: 0; }
 
   .videoSuggestions {
     width: 100%;
     order: 2;
     max-height: none;
     overflow-y: visible;
-    padding: 8px 12px;   /* CHANGED: was flat "8px" — kept a little side
-                             breathing room here only, since this section
-                             holds text-heavy suggestion cards that look
-                             cramped edge-to-edge. The player and title/
-                             description above now run full-bleed. */
+    padding: 8px 12px;
   }
 
-  .video_youtube_video { height: 220px; border-radius: 0; }
+  /* taller than before so the 5-button stack fits inside the player */
+  .video_youtube_video { height: 260px; border-radius: 0; }
   .video_player_wrapper { border-radius: 0; }
 
   .youtube_video_About {
@@ -932,34 +977,38 @@
   .toggle_switch.on  .toggle_knob { left: 14px; }
   .toggle_switch.off .toggle_knob { left: 2px;  }
 
-  /* ── Frame actions: always visible via .mobile-visible, now smaller ── */
+  /* ── Frame actions: sized close to Reels (46px there) ── */
   .video_frame_actions {
-    right: 6px;
-    bottom: 44px;
-    gap: 5px;
+    right: 8px;
+    bottom: 40px;
+    gap: 4px;
   }
 
   .video_frame_btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 12px;
-    font-size: 8px;
-    gap: 1px;
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    font-size: 9px;
+    gap: 2px;
   }
 
   .video_frame_btn span {
-    font-size: 8px;
+    font-size: 9px;
   }
 
   .video_frame_btn .MuiSvgIcon-root {
-    font-size: 14px !important;
-    width: 14px !important;
-    height: 14px !important;
+    font-size: 18px !important;
+    width: 18px !important;
+    height: 18px !important;
   }
 
-  /* Native controls are hidden/simplified on many mobile browsers, and
-     the frame actions sit lower here — free up the tap zone. */
-  .video_tap_overlay { bottom: 0; }
+  .video_like_emoji { font-size: 22px; }
+
+  .video_more_dropdown { width: 160px; }
+  .video_more_dropdown_item { padding: 9px 12px; font-size: 12px; }
+
+  /* leave the native controls strip at the bottom tappable */
+  .video_tap_overlay { bottom: 40px; }
 
   .video_heart_burst { font-size: 48px; }
 
@@ -986,103 +1035,35 @@
   .toggle_switch.on  .toggle_knob { left: 12px; }
   .toggle_switch.off .toggle_knob { left: 2px;  }
 
-  .video_frame_actions { right: 5px; bottom: 40px; gap: 4px; }
+  /* same size as the 768px block, so small phones match Reels too */
+  .video_frame_actions { right: 8px; bottom: 40px; gap: 4px; }
 
   .video_frame_btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 9px;
-    font-size: 7px;
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    font-size: 9px;
   }
 
   .video_frame_btn span {
-    font-size: 7px;
+    font-size: 9px;
   }
 
   .video_frame_btn .MuiSvgIcon-root {
-    font-size: 12px !important;
-    width: 12px !important;
-    height: 12px !important;
+    font-size: 18px !important;
+    width: 18px !important;
+    height: 18px !important;
   }
 
   .video_heart_burst { font-size: 40px; }
 }
 
-.video_frame_more_wrap {
-  position: relative;
-}
-
-/* Keep the ⋮ dropdown inside the player: open upward, to the left of the button */
-.video_more_dropdown {
-  top: auto !important;
-  bottom: 0 !important;
-  left: auto !important;
-  right: calc(100% + 8px) !important;
-  margin: 0 !important;
-  min-width: 170px;
-  max-height: 60vh;
-  overflow-y: auto;
-  z-index: 50;
-}
-
-/* The wrapper must be the positioning anchor */
-.video_frame_more_wrap {
-  position: relative;
-}
-
-.video_more_dropdown_item {
-  padding: 10px 14px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #fff;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s;
-}
-.video_more_dropdown_item:hover {
-  background: rgba(124, 58, 237, 0.25);
-}
-
-.expandable-text-toggle {
-  color: var(--zx-primary, #7c3aed);
-  font-weight: 700;
-  cursor: pointer;
-  margin-left: 4px;
-  white-space: nowrap;
-  user-select: none;
-}
-.expandable-text-toggle:hover {
-  text-decoration: underline;
-}
-
-/* ══════════════════════════════════════
-   MOBILE  ≤ 768px
-══════════════════════════════════════ */
-@media (max-width: 768px) {
-  /* ...unchanged rules above... */
-
-  /* CHANGED: was `bottom: 0`, which covered the ENTIRE video including
-     the native controls bar — blocking the native fullscreen button,
-     seek bar, and volume control on mobile. Leaves a safe strip at the
-     bottom clickable, matching desktop's approach. Fullscreen itself no
-     longer depends on this gap (see the dedicated Fullscreen button in
-     .video_frame_actions), but native scrubbing/volume still need it. */
-  .video_tap_overlay { bottom: 40px; }
-
-  .video_heart_burst { font-size: 48px; }
-}
-
 /* ══════════════════════════════════════
    FULLSCREEN MODE
-   Video.jsx now fullscreens .video_player_wrapper (not the bare <video>),
-   so this whole overlay tree — the top Prev/Autoplay/Next pill AND the
-   Like/Dislike/Share/Fullscreen/More stack — stays mounted and visible
-   once fullscreen is entered. Here we turn the previously-vertical
-   right-side action stack into a single horizontal toolbar, to sit
-   alongside the already-horizontal Prev/Autoplay/Next bar.
-   All 4 vendor-prefixed fullscreen pseudo-classes are covered, and this
-   block is placed last in the file so it wins over the desktop AND
-   mobile rules above regardless of viewport width.
+   Video.jsx fullscreens .video_player_wrapper (not the bare <video>),
+   so the whole overlay tree stays visible. The right-side vertical
+   stack becomes a horizontal toolbar at the bottom centre.
+   Placed late in the file so it wins over desktop AND mobile rules.
 ══════════════════════════════════════ */
 .video_player_wrapper:fullscreen,
 .video_player_wrapper:-webkit-full-screen,
@@ -1108,8 +1089,7 @@
   border-radius: 0;
 }
 
-/* ── Top pill (Prev / Autoplay / Next) — already horizontal, just give it
-     more breathing room and slightly larger touch targets in fullscreen ── */
+/* Top pill (Prev / Autoplay / Next) */
 .video_player_wrapper:fullscreen .video_controls_bar,
 .video_player_wrapper:-webkit-full-screen .video_controls_bar,
 .video_player_wrapper:-moz-full-screen .video_controls_bar,
@@ -1127,9 +1107,7 @@
   font-size: 12px;
 }
 
-/* ── Like / Dislike / Share / Fullscreen / More — switched from a
-     vertical right-edge stack to a single horizontal toolbar, centred
-     along the bottom, always visible (no more hover-to-reveal) ── */
+/* Like / Dislike / Share / Fullscreen / More — horizontal toolbar */
 .video_player_wrapper:fullscreen .video_frame_actions,
 .video_player_wrapper:-webkit-full-screen .video_frame_actions,
 .video_player_wrapper:-moz-full-screen .video_frame_actions,
@@ -1151,17 +1129,12 @@
   padding: 8px 14px;
   box-shadow:
     0 6px 28px rgba(0,0,0,0.45),
-    0 0 0 1px rgba(124,58,237,0.22),
+    0 0 0 1px rgba(220,38,38,0.22),
     inset 0 1px 0 rgba(255,255,255,0.08);
   animation: floatInBottom 0.25s ease both;
 }
 
-/* NEW: collapsed state — when the person hides the row via the ⋮ "More"
-   menu (isFullscreen && fullscreenActionsHidden in Video.jsx), only the
-   More button itself renders inside .video_frame_actions. Trim the pill's
-   padding down so it hugs that single button instead of leaving space
-   sized for the full row, and dim it slightly so it reads as tucked away
-   without disappearing entirely. */
+/* Collapsed state — only the ⋮ button is rendered */
 .video_player_wrapper:fullscreen .video_frame_actions.actions-hidden,
 .video_player_wrapper:-webkit-full-screen .video_frame_actions.actions-hidden,
 .video_player_wrapper:-moz-full-screen .video_frame_actions.actions-hidden,
@@ -1176,9 +1149,9 @@
   opacity: 1 !important;
 }
 
-/* Individual buttons: strip their own card chrome since the row itself
-   is now the pill — buttons become plain icon+label pairs inside it. */
-.video_player_wrapper:fullscreen .video_frame_btn,.video_player_wrapper:-webkit-full-screen .video_frame_btn,
+/* Buttons: plain icon+label pairs inside the pill */
+.video_player_wrapper:fullscreen .video_frame_btn,
+.video_player_wrapper:-webkit-full-screen .video_frame_btn,
 .video_player_wrapper:-moz-full-screen .video_frame_btn,
 .video_player_wrapper:-ms-fullscreen .video_frame_btn {
   flex-direction: row;
@@ -1197,7 +1170,7 @@
 .video_player_wrapper:-webkit-full-screen .video_frame_btn:hover,
 .video_player_wrapper:-moz-full-screen .video_frame_btn:hover,
 .video_player_wrapper:-ms-fullscreen .video_frame_btn:hover {
-  background: rgba(124,58,237,0.55);
+  background: rgba(220,38,38,0.55);
   transform: scale(1.05);
 }
 
@@ -1209,8 +1182,8 @@
 .video_player_wrapper:-moz-full-screen .video_frame_btn.video_liked,
 .video_player_wrapper:-ms-fullscreen .video_frame_btn.active,
 .video_player_wrapper:-ms-fullscreen .video_frame_btn.video_liked {
-  background: rgba(124,58,237,0.65);
-  box-shadow: 0 0 16px rgba(124,58,237,0.55);
+  background: rgba(220,38,38,0.65) !important;
+  box-shadow: 0 0 16px rgba(220,38,38,0.55) !important;
 }
 
 .video_player_wrapper:fullscreen .video_frame_btn .MuiSvgIcon-root,
@@ -1230,7 +1203,6 @@
   margin-top: 0;
 }
 
-/* Like button keeps its icon+count side-by-side instead of stacked */
 .video_player_wrapper:fullscreen .video_like_inner,
 .video_player_wrapper:-webkit-full-screen .video_like_inner,
 .video_player_wrapper:-moz-full-screen .video_like_inner,
@@ -1239,19 +1211,26 @@
   gap: 6px;
 }
 
-/* More (⋮) dropdown opens upward now that the bar lives at the bottom */
+/* ⋮ dropdown in fullscreen: toolbar is at the bottom, so open upward */
 .video_player_wrapper:fullscreen .video_more_dropdown,
 .video_player_wrapper:-webkit-full-screen .video_more_dropdown,
 .video_player_wrapper:-moz-full-screen .video_more_dropdown,
 .video_player_wrapper:-ms-fullscreen .video_more_dropdown {
-  top: auto;
-  bottom: 110%;
-  right: 50%;
-  transform: translateX(50%);
+  bottom: calc(100% + 10px) !important;
+  right: 0 !important;
+  width: 190px;
+  font-size: 13px;
 }
 
-/* Give the tap-to-like layer room above the horizontal toolbar so it
-   doesn't swallow taps meant for it */
+.video_player_wrapper:fullscreen .video_more_dropdown_item,
+.video_player_wrapper:-webkit-full-screen .video_more_dropdown_item,
+.video_player_wrapper:-moz-full-screen .video_more_dropdown_item,
+.video_player_wrapper:-ms-fullscreen .video_more_dropdown_item {
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+/* Room above the toolbar so the tap-to-like layer doesn't swallow taps */
 .video_player_wrapper:fullscreen .video_tap_overlay,
 .video_player_wrapper:-webkit-full-screen .video_tap_overlay,
 .video_player_wrapper:-moz-full-screen .video_tap_overlay,
@@ -1261,17 +1240,7 @@
 
 /* ══════════════════════════════════════
    FULLSCREEN — FORCE LANDSCAPE ON MOBILE (CSS fallback)
-   Primary fix is the screen.orientation.lock("landscape") call in
-   Video.jsx, which physically rotates the device's rendering on browsers
-   that support it (Chrome/Android etc). That API isn't implemented in
-   Safari/iOS at all, and some Android browsers can reject the lock call
-   outright — for those cases, if we're fullscreen AND the viewport is
-   STILL reporting portrait (i.e. the JS lock didn't take effect), this
-   visually rotates the whole player 90° so it fills the screen the same
-   way an actually-landscape video would. On browsers where the JS lock
-   succeeds, the device itself switches to a landscape viewport, this
-   media query no longer matches, and this block never applies — so the
-   two fixes never fight each other.
+   Only applies if screen.orientation.lock() didn't rotate the device.
 ══════════════════════════════════════ */
 @media (max-width: 768px) and (orientation: portrait) {
   .video_player_wrapper:fullscreen,
@@ -1288,7 +1257,9 @@
   }
 }
 
-/* ── Emoji/GIF/sticker picker trigger for the comment box ── */
+/* ══════════════════════════════════════
+   COMMENT GIF/STICKER ATTACHMENTS + EMOJI PICKER TRIGGER
+══════════════════════════════════════ */
 .video_comment_input_row {
   display: flex;
   align-items: center;
@@ -1327,19 +1298,6 @@
   max-height: 200px;
   border-radius: 10px;
   display: block;
-  margin-top: 6px;
-}
-
-/* ══════════════════════════════════════════════════════════════════════
-   COMMENT GIF/STICKER ATTACHMENTS + EMOJI PICKER TRIGGER
-   Append this block to the end of video.css.
-   ══════════════════════════════════════════════════════════════════════ */
-
-.video_comment_media {
-  max-width: 200px;
-  max-height: 200px;
-  border-radius: 10px;
-  display: block;
   margin: 6px 0;
 }
 
@@ -1348,10 +1306,8 @@
   max-height: 120px;
 }
 
-/* Wraps the 🙂 trigger button so the CommentMediaPicker (position:
-   absolute) has a positioned ancestor to anchor against — video.css
-   has no existing wrapper for this since comments previously had no
-   emoji/GIF/sticker button at all. */
+/* Wraps the 🙂 trigger so CommentMediaPicker (position: absolute)
+   has a positioned ancestor to anchor against. */
 .yt_comment_emoji_wrap {
   position: relative;
   display: inline-flex;
@@ -1385,7 +1341,7 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #1e1b4b, #7c3aed);
+  background: linear-gradient(135deg, #1e1b4b, #dc2626);
   color: rgba(255, 255, 255, 0.85);
   font-size: 20px;
   box-sizing: border-box;

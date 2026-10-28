@@ -292,7 +292,9 @@ const AdminFab = () => (
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
   const location = useLocation();
-  const [appReady, setAppReady] = useState(false);
+  const [appReady, setAppReady] = useState(() =>
+  ["/about", "/privacy-policy", "/terms-and-conditions"].includes(window.location.pathname)
+);
   const [sideNavbar, setSideNavbar] = useState(false);
   const [currentUser, setCurrentUser] = useState(
     localStorage.getItem("username") || null,

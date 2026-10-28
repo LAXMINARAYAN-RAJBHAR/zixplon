@@ -1346,3 +1346,19 @@
   font-size: 20px;
   box-sizing: border-box;
 }
+
+/* ══════════════════════════════════════
+   BRIGHTER LIKE ICON WHEN LIKED
+   The JSX sets the icon colour inline (#ff0000), which blended into the
+   red active button — !important overrides it with bright gold.
+══════════════════════════════════════ */
+.video_frame_btn.video_liked .MuiSvgIcon-root {
+  color: #ffd400 !important;
+  fill: #ffd400 !important;
+  filter: drop-shadow(0 0 6px rgba(255, 212, 0, 0.85));
+}
+
+.video_frame_btn.video_liked .video_like_inner span {
+  color: #ffffff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}

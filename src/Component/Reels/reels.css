@@ -200,6 +200,23 @@
     inset 0 1px 0 rgba(255,255,255,0.12) !important;
 }
 
+/* ── Brighter, clearly visible Like / Dislike icons when active ──
+   The JSX sets the icon colour inline (#ff0000), which blended into
+   the red active background — !important overrides it with bright
+   gold plus a soft glow. */
+.reel_action_btn.reel_liked .MuiSvgIcon-root,
+.reel_action_btn.reel_disliked .MuiSvgIcon-root {
+  color: #ffd400 !important;
+  fill: #ffd400 !important;
+  filter: drop-shadow(0 0 6px rgba(255, 212, 0, 0.85));
+}
+
+/* Like count under the icon: pure white so it stays readable */
+.reel_liked .reel_like_count {
+  color: #ffffff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
 /* ══════════════════════════════════════
    USER INFO (bottom-left)
 ══════════════════════════════════════ */

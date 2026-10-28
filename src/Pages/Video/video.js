@@ -47,6 +47,11 @@ import { claimSound, releaseSound, soundPrefs } from "../../utils/soundArbiter";
 import { shuffleArray } from "../../utils/shuffleArray";
 // NEW (feedback): Interested / Not interested for videos.
 import useContentFeedback, { FeedbackToast } from "../../hooks/useContentFeedback";
+// NEW (feedback prompt): Interested / Not interested is no longer listed in
+// the ⋮ menu of every video. Instead a small prompt appears when the
+// visitor meets a NEW creator's video after they've already gone through a
+// few videos — see src/hooks/useFeedbackPrompt.jsx for the exact rules.
+import useFeedbackPrompt, { FeedbackPrompt } from "../../hooks/useFeedbackPrompt";
 // NOTE: notifyUser() is no longer imported/used anywhere in this file.
 // Like/comment notifications are owned by the notify_on_like /
 // notify_on_comment DB triggers (client-side calls were removed earlier
@@ -716,6 +721,42 @@ const Video = ({ sideNavbar }) => {
   const nextVideo = allVideos[currentIndex + 1] || allVideos[0];
   const prevVideo =
     allVideos[currentIndex - 1] || allVideos[allVideos.length - 1];
+
+  // NEW (feedback prompt): asks "Interested / Not interested?" only when
+  // the visitor meets a NEW creator's video after already going through a
+  // few videos (rules live in src/hooks/useFeedbackPrompt.jsx). Skipped on
+  // your own videos, for guests, and when this video was already rated.
+  // NOTE: this is a hook, so it must stay ABOVE the early returns below
+  // (the loading / "Video not found" screens).
+  const promptCreator = video?.username || video?.channel?.toLowerCase();
+  const feedbackPrompt = useFeedbackPrompt({
+    type: "video",
+    itemId: id,
+    creator: promptCreator,
+    active: !!video,
+    disabled:
+      !fb.loaded ||
+      loggedInUser === "Guest" ||
+      loggedInUser === promptCreator ||
+      !!fb.feedbackOf("video", id),
+  });
+
+  const handlePromptInterested = () => {
+    feedbackPrompt.dismiss();
+    fb.toggleInterested("video", id);
+  };
+
+  // "Not interested" hides this video from suggestions and moves on to the
+  // next one — same behaviour the ⋮ menu item used to have.
+  const handlePromptNotInterested = () => {
+    feedbackPrompt.dismiss();
+    fb.markNotInterested("video", id);
+    if (nextVideo && String(nextVideo.id) !== String(id)) {
+      navigate(`/video/${nextVideo.id}`, { state: navState });
+    } else {
+      navigate("/");
+    }
+  };
 
   useEffect(() => {
     if (!video?.isDb) {
@@ -1949,6 +1990,24 @@ const Video = ({ sideNavbar }) => {
             </button>
           )}
 
+          {/* NEW (feedback prompt): shown once when a NEW creator's video
+              comes up after the visitor has already gone through a few
+              videos. Sits above the "Tap to unmute" pill and clear of the
+              right-hand action stack. */}
+          <FeedbackPrompt
+            visible={feedbackPrompt.visible}
+            kind="video"
+            creator={video.channel || channelUsername}
+            onDismiss={feedbackPrompt.dismiss}
+            onInterested={handlePromptInterested}
+            onNotInterested={handlePromptNotInterested}
+            style={{
+              left: 12,
+              right: isMobile ? 64 : 84,
+              bottom: isMobile ? 96 : 100,
+            }}
+          />
+
           <div
             className={`video_frame_actions${isMobile ? " mobile-visible" : ""}${isFullscreen && fullscreenActionsHidden ? " actions-hidden" : ""
               }`}
@@ -2034,38 +2093,9 @@ const Video = ({ sideNavbar }) => {
                       {fullscreenActionsHidden ? "👁 Show controls" : "🙈 Hide controls"}
                     </div>
                   )}
-                  {/* NEW (feedback): Interested / Not interested. "Not
-                      interested" hides this video from suggestions and
-                      moves on to the next one. */}
-                  {loggedInUser !== channelUsername && (
-                    <>
-                      <div
-                        className="video_more_dropdown_item"
-                        onClick={() => {
-                          setShowMoreMenu(false);
-                          fb.toggleInterested("video", id);
-                        }}
-                      >
-                        {fb.feedbackOf("video", id) === "interested"
-                          ? "✓ Interested"
-                          : "👍 Interested"}
-                      </div>
-                      <div
-                        className="video_more_dropdown_item"
-                        onClick={() => {
-                          setShowMoreMenu(false);
-                          fb.markNotInterested("video", id);
-                          if (nextVideo && String(nextVideo.id) !== String(video.id)) {
-                            navigate(`/video/${nextVideo.id}`, { state: navState });
-                          } else {
-                            navigate("/");
-                          }
-                        }}
-                      >
-                        🚫 Not interested
-                      </div>
-                    </>
-                  )}
+                  {/* CHANGED (feedback): Interested / Not interested were
+                      removed from this menu — they now come from the
+                      first-time-creator prompt (<FeedbackPrompt /> above). */}
                   <div
                     className="video_more_dropdown_item"
                     onClick={() => {

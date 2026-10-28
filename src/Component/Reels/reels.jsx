@@ -52,6 +52,11 @@ import { shuffleArray } from "../../utils/shuffleArray";
 // NEW (feedback): Interested / Not interested for reels. This file sits in
 // src/Component/Reels/, so the hook path is two levels up.
 import useContentFeedback, { FeedbackToast } from "../../hooks/useContentFeedback";
+// NEW (feedback prompt): Interested / Not interested is no longer listed in
+// every reel's ⋮ menu. Instead a small prompt appears when the visitor meets
+// a NEW creator's reel after they've already gone through a few reels — see
+// src/hooks/useFeedbackPrompt.jsx for the exact rules.
+import useFeedbackPrompt, { FeedbackPrompt } from "../../hooks/useFeedbackPrompt";
 // NOTE: notifyUser() is no longer imported/used anywhere in this file.
 // Like/comment notifications are owned by the notify_on_like /
 // notify_on_comment DB triggers, and Connect requests/accepts are owned
@@ -273,9 +278,12 @@ const ReelCommentRow = ({
   );
 };
 
-// CHANGED (feedback): two new entries at the top — "Interested" (with a ✓
-// when already marked) and "Not interested". `interested` / `onInterested` /
-// `onNotInterested` come from ReelItem.
+// CHANGED (feedback): "Interested" / "Not interested" entries are only
+// built when `onInterested` is passed. ReelItem no longer passes them —
+// those options now come from the first-time-creator prompt instead — so
+// the ⋮ menu is just Remix / Use Sound / Collab / Green Screen / Cut /
+// Report. The code path is kept so the entries can be re-enabled by
+// passing the props again.
 const MoreDropdown = ({
   onRemix,
   onSound,
@@ -414,6 +422,11 @@ const ReelItem = ({ reel, allReels, fb }) => {
   const [progress, setProgress] = useState(0);
   // NEW: true while this reel is within one screen of the viewport.
   const [near, setNear] = useState(false);
+  // NEW (feedback prompt): state mirror of isActiveRef — true only while
+  // this reel is the one scrolled into view. isActiveRef can't drive a
+  // hook's dependencies (refs don't trigger re-renders), so the
+  // first-time-creator prompt reads this instead.
+  const [isActive, setIsActive] = useState(false);
   const hlsLoadStartedRef = useRef(false);
 
   // NEW: per-comment feature state — kebab menu, one-level replies,
@@ -1083,6 +1096,25 @@ const ReelItem = ({ reel, allReels, fb }) => {
   // prefix, so they match the Reels strip on the Home feed (dbId).
   const reelKey = String(reel.id).replace(/^db_/, "");
 
+  // NEW (feedback prompt): asks "Interested / Not interested?" only when
+  // the visitor meets a NEW creator's reel after already going through a
+  // few reels (rules live in src/hooks/useFeedbackPrompt.jsx). Skipped on
+  // your own reels, for guests, and when this reel was already rated.
+  // `isActive` is false for YouTube embeds (the observer effect never
+  // runs for them), so they never trigger it.
+  const feedbackPrompt = useFeedbackPrompt({
+    type: "reel",
+    itemId: reelKey,
+    creator: reel.username,
+    active: isActive,
+    disabled:
+      !fb ||
+      !fb.loaded ||
+      loggedInUser === "Guest" ||
+      loggedInUser === reel.username ||
+      !!fb.feedbackOf("reel", reelKey),
+  });
+
   const handleInterested = () => {
     if (!requireLogin()) return;
     fb?.toggleInterested("reel", reelKey);
@@ -1183,6 +1215,7 @@ const ReelItem = ({ reel, allReels, fb }) => {
         if (!isMounted.current) return;
         if (entry.isIntersecting) {
           isActiveRef.current = true;
+          setIsActive(true); // NEW (feedback prompt)
           window.history.replaceState(null, "", `/reels/${reel.id}`);
           document.querySelectorAll("video").forEach((v) => { if (v !== video) v.pause(); });
           startPlayback();
@@ -1195,6 +1228,7 @@ const ReelItem = ({ reel, allReels, fb }) => {
           }, 2000);
         } else {
           isActiveRef.current = false;
+          setIsActive(false); // NEW (feedback prompt)
           clearPendingUnmute();
           autoMutedRef.current = false;
           video.pause();
@@ -1627,10 +1661,9 @@ const ReelItem = ({ reel, allReels, fb }) => {
                 onCut={handleCut}
                 onReport={handleReport}
                 onClose={() => setShowMoreMenu(false)}
-                // NEW (feedback): not offered on your own reels.
-                interested={fb?.feedbackOf("reel", reelKey) === "interested"}
-                onInterested={fb && loggedInUser !== reel.username ? handleInterested : undefined}
-                onNotInterested={fb && loggedInUser !== reel.username ? handleNotInterested : undefined}
+                // CHANGED (feedback): Interested / Not interested are no
+                // longer passed here — they now come from the
+                // first-time-creator prompt (see <FeedbackPrompt /> below).
               />
             )}
           </div>
@@ -1780,6 +1813,26 @@ const ReelItem = ({ reel, allReels, fb }) => {
             {actionToast.msg}
           </div>
         )}
+
+        {/* NEW (feedback prompt): shown once when a NEW creator's reel
+            comes up after the visitor has already gone through a few
+            reels. Hidden while the comment sheet is open so the two
+            never overlap. */}
+        <FeedbackPrompt
+          visible={feedbackPrompt.visible && !showComments}
+          kind="reel"
+          creator={reel.user || reel.username}
+          onDismiss={feedbackPrompt.dismiss}
+          onInterested={() => {
+            feedbackPrompt.dismiss();
+            handleInterested();
+          }}
+          onNotInterested={() => {
+            feedbackPrompt.dismiss();
+            handleNotInterested();
+          }}
+          style={{ left: 12, right: 72, bottom: 170 }}
+        />
 
         {showReportModal && (
           <ReportModal

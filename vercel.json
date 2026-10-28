@@ -46,7 +46,7 @@
     { "source": "/api/process-recharge", "destination": "/api/payments?action=process-recharge" },
     { "source": "/s/:type/:id", "destination": "/api/og?type=:type&id=:id" },
     {
-      "source": "/((?!api/|static/|version\\.json|sw\\.js).*)",
+      "source": "/((?!api/|static/|version\\.json|sw\\.js|about\\.html|privacy\\.html|terms\\.html).*)",
       "destination": "/index.html"
     }
   ]

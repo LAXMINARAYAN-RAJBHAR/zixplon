@@ -32,7 +32,7 @@ const ContactSupport = () => {
       <button className="contact_btn" onClick={handleSubmit}>Send Message</button>
 
       <div className="contact_alt">
-        <p>Or reach us directly at <a href="mailto:support@zixplon.com">support@zixplon.com & support.zixplon@gmail.com</a></p>
+        <p>Or reach us directly at <a href="mailto:support@zixplon.in">support@zixplon.in & support.zixplon@gmail.com</a></p>
       </div>
     </div>
   )

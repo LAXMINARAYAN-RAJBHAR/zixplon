@@ -81,7 +81,7 @@ const TermsAndConditions = () => {
         <h2>9. Contact Us</h2>
         <p>
           For questions regarding these terms, please contact us at{' '}
-          <a href="mailto:support@zixplon.com">support@zixplon.com</a>.
+          <a href="mailto:support@zixplon.in">support@zixplon.in</a>.
         </p>
       </section>
     </div>

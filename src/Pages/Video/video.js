@@ -2199,16 +2199,17 @@ const Video = ({ sideNavbar }) => {
               {/* CHANGED: now a <button>, matching PostCard.jsx / Reels.jsx,
                   disabled while a request is in flight. Shows three
                   states: Connect / Requested / ✓ Connected. */}
-              {loggedInUser !== channelUsername && (
-                <button
-                  className={`connectBtnYoutube ${connectionStatus === "accepted" ? "connectBtnYoutube--connected" : ""
-                    } ${connectionStatus === "pending" ? "connectBtnYoutube--pending" : ""}`}
-                  onClick={handleConnect}
-                  disabled={connectLoading}
-                >
-                  {connectLabel}
-                </button>
-              )}
+              {loggedInUser !== channelUsername &&
+                connectionStatus !== "accepted" && (
+                  <button
+                    className={`connectBtnYoutube ${connectionStatus === "accepted" ? "connectBtnYoutube--connected" : ""
+                      } ${connectionStatus === "pending" ? "connectBtnYoutube--pending" : ""}`}
+                    onClick={handleConnect}
+                    disabled={connectLoading}
+                  >
+                    {connectLabel}
+                  </button>
+                )}
             </div>
           </div>
 

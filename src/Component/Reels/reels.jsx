@@ -309,9 +309,9 @@ const MoreDropdown = ({
   const items = [
     ...(onInterested
       ? [
-          { icon: <span style={{ fontSize: 17 }}>👍</span>, label: interested ? "Interested ✓" : "Interested", color: "#3b82f6", onClick: onInterested },
-          { icon: <span style={{ fontSize: 17 }}>🚫</span>, label: "Not interested", color: "#f43f5e", onClick: onNotInterested },
-        ]
+        { icon: <span style={{ fontSize: 17 }}>👍</span>, label: interested ? "Interested ✓" : "Interested", color: "#3b82f6", onClick: onInterested },
+        { icon: <span style={{ fontSize: 17 }}>🚫</span>, label: "Not interested", color: "#f43f5e", onClick: onNotInterested },
+      ]
       : []),
     { icon: <MusicNoteIcon style={{ fontSize: 18 }} />, label: "Remix", color: "#a855f7", onClick: onRemix },
     { icon: <span style={{ fontSize: 17 }}>🎵</span>, label: "Use Sound", color: "#f97316", onClick: onSound },
@@ -1661,9 +1661,9 @@ const ReelItem = ({ reel, allReels, fb }) => {
                 onCut={handleCut}
                 onReport={handleReport}
                 onClose={() => setShowMoreMenu(false)}
-                // CHANGED (feedback): Interested / Not interested are no
-                // longer passed here — they now come from the
-                // first-time-creator prompt (see <FeedbackPrompt /> below).
+              // CHANGED (feedback): Interested / Not interested are no
+              // longer passed here — they now come from the
+              // first-time-creator prompt (see <FeedbackPrompt /> below).
               />
             )}
           </div>
@@ -1870,16 +1870,17 @@ const ReelItem = ({ reel, allReels, fb }) => {
             </Link>
             {/* CHANGED: three-state label (Connect / Requested / ✓
                 Connected), same as PostCard.jsx and Video.jsx. */}
-            {loggedInUser !== reel.username && (
-              <button
-                className={`reel_connect_btn ${connectionStatus === "accepted" ? "reel_connect_btn--connected" : ""
-                  } ${connectionStatus === "pending" ? "reel_connect_btn--pending" : ""}`}
-                onClick={handleConnect}
-                disabled={connectLoading}
-              >
-                {connectLabel}
-              </button>
-            )}
+            {loggedInUser !== reel.username &&
+              connectionStatus !== "accepted" && (
+                <button
+                  className={`reel_connect_btn ${connectionStatus === "accepted" ? "reel_connect_btn--connected" : ""
+                    } ${connectionStatus === "pending" ? "reel_connect_btn--pending" : ""}`}
+                  onClick={handleConnect}
+                  disabled={connectLoading}
+                >
+                  {connectLabel}
+                </button>
+              )}
           </div>
           <div className="reel_description">
             <ExpandableText

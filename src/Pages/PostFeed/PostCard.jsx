@@ -206,7 +206,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
           // video), browsers lift the restriction, so try again then.
           vid.muted = true;
           setMuted(true);
-          vid.play().catch(() => {});
+          vid.play().catch(() => { });
           onUserInteract(() => {
             const el = videoRef.current;
             if (!el) return;
@@ -220,7 +220,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
         });
     } else {
       vid.muted = muted;
-      vid.play().catch(() => {});
+      vid.play().catch(() => { });
     }
     // Only `inView` should retrigger this — `muted` changes are handled
     // by the effect below so toggling sound doesn't re-run autoplay logic.
@@ -301,7 +301,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
       if (!next && videoRef.current) {
         // Unmuting is itself a user gesture, so re-issue play() in
         // case the element had stalled while muted-and-paused.
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch(() => { });
       }
       return next;
     });
@@ -347,7 +347,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
     const advanced = inView && !isFullscreen && onEnded ? onEnded() : false;
     if (!advanced && vid) {
       vid.currentTime = 0;
-      vid.play().catch(() => {});
+      vid.play().catch(() => { });
     }
   };
 
@@ -730,9 +730,8 @@ const PostCommentRow = ({
             only) and the Translate toggle. */}
         <div className="pf-comment-actions">
           <button
-            className={`pf-comment-like-btn ${
-              iLikedComment ? "pf-comment-like-active" : ""
-            }`}
+            className={`pf-comment-like-btn ${iLikedComment ? "pf-comment-like-active" : ""
+              }`}
             onClick={onLike}
           >
             👍 Like
@@ -742,9 +741,8 @@ const PostCommentRow = ({
           )}
 
           <button
-            className={`pf-comment-dislike-btn ${
-              iDislikedComment ? "pf-comment-dislike-active" : ""
-            }`}
+            className={`pf-comment-dislike-btn ${iDislikedComment ? "pf-comment-dislike-active" : ""
+              }`}
             onClick={onDislike}
           >
             👎 Dislike
@@ -954,7 +952,7 @@ const PostCard = ({
               setSongBlocked(false);
               claimSound(songSoundId, pauseForArbiter);
             })
-            .catch(() => {});
+            .catch(() => { });
         });
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1246,7 +1244,7 @@ const PostCard = ({
 
   const handleCopyLink = () => {
     const shareUrl = `https://zixplon.in/api/og?type=post&id=${post.id}`;
-    navigator.clipboard?.writeText(shareUrl).catch(() => {});
+    navigator.clipboard?.writeText(shareUrl).catch(() => { });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     setShowShareMenu(false);
@@ -1257,7 +1255,7 @@ const PostCard = ({
   // as the post-level Share/Copy link.
   const handleShareComment = (comment) => {
     const shareUrl = `https://zixplon.in/api/og?type=post&id=${post.id}&comment=${comment.id}`;
-    navigator.clipboard?.writeText(shareUrl).catch(() => {});
+    navigator.clipboard?.writeText(shareUrl).catch(() => { });
     setCommentMenuOpenId(null);
     setCommentShareToast(true);
     setTimeout(() => setCommentShareToast(false), 2000);
@@ -1493,17 +1491,18 @@ const PostCard = ({
             </p>
           </div>
 
-          {!isEditing && post.username !== currentUser && (
-            <button
-              className={`pf-connect-btn ${
-                connectionStatus === "accepted" ? "pf-connect-btn--connected" : ""
-              } ${connectionStatus === "pending" ? "pf-connect-btn--pending" : ""}`}
-              onClick={handleConnect}
-              disabled={connectLoading}
-            >
-              {connectLabel}
-            </button>
-          )}
+          {!isEditing &&
+            post.username !== currentUser &&
+            connectionStatus !== "accepted" && (
+              <button
+                className={`pf-connect-btn ${connectionStatus === "accepted" ? "pf-connect-btn--connected" : ""
+                  } ${connectionStatus === "pending" ? "pf-connect-btn--pending" : ""}`}
+                onClick={handleConnect}
+                disabled={connectLoading}
+              >
+                {connectLabel}
+              </button>
+            )}
 
           {!isEditing && (
             <div className="pf-menu-wrap" ref={menuRef}>

@@ -5,43 +5,85 @@ import React, { useCallback, useEffect, useState } from "react";
 //
 // Instead of listing those options in the ⋮ menu of every video/reel, the
 // prompt appears only when ALL of these are true:
-//   1. The visitor has come across a NEW profile — the first video/reel
-//      from this creator in this browser session.
-//   2. They have already gone through at least MIN_ITEMS_BEFORE_PROMPT
-//      videos/reels (counted separately for "video" and "reel").
-//   3. At least MIN_ITEMS_BEFORE_PROMPT items have passed since the last
-//      prompt, so it never feels spammy.
-//   4. The item is not their own, they are logged in, and they haven't
-//      already marked it Interested / Not interested.
-// It shows after SHOW_DELAY_MS of watching and hides itself after
-// AUTO_HIDE_MS. Progress is kept in sessionStorage, so it carries across
-// the Video page, the Reels page and refreshes within the same tab session.
+//   1. The visitor has come across a NEW profile — the first video/reel from
+//      this creator in this browser session.
+//   2. They have already gone through at least `minItems` videos/reels
+//      (counted separately for "video" and "reel").
+//   3. At least `minItems` items have passed since the last prompt, so it
+//      never feels spammy.
+//   4. The creator hasn't been asked about in the last CREATOR_COOLDOWN_DAYS
+//      (remembered across sessions, shared by videos and reels).
+//   5. The caller hasn't set `disabled` (own content, guest, already rated,
+//      feedback not loaded, already connected to the creator…).
+//
+// It shows after SHOW_DELAY_MS of watching (only if the tab is visible) and
+// hides itself after AUTO_HIDE_MS or when the visitor presses Esc.
 //
 // Place this file at: src/hooks/useFeedbackPrompt.jsx
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const MIN_ITEMS_BEFORE_PROMPT = 0; // "at least 2 or 3 videos" → change here
+export const MIN_ITEMS_BEFORE_PROMPT = 3; // "at least 2 or 3 videos" → change here
+export const CREATOR_COOLDOWN_DAYS = 7; // don't ask about the same creator again for this long
 const SHOW_DELAY_MS = 3000;
 const AUTO_HIDE_MS = 9000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-const storageKey = (type) => `zx_fbprompt_${type}`;
+const SESSION_KEY = (type) => `zx_fbprompt_${type}`;
+const COOLDOWN_KEY = "zx_fbprompt_creators";
 
-const readState = (type) => {
+// ── Safe storage helpers (storage can be blocked, e.g. private mode) ──
+const readJSON = (getStore, key) => {
   try {
-    const s = JSON.parse(sessionStorage.getItem(storageKey(type)) || "null");
-    if (s && Array.isArray(s.seen)) return s;
+    return JSON.parse(getStore().getItem(key) || "null");
   } catch {
-    /* ignore */
+    return null;
   }
-  return { seen: [], creatorFirst: {}, prompted: [], lastPromptAt: -1000 };
 };
 
-const writeState = (type, state) => {
+const writeJSON = (getStore, key, value) => {
   try {
-    sessionStorage.setItem(storageKey(type), JSON.stringify(state));
+    getStore().setItem(key, JSON.stringify(value));
   } catch {
     /* ignore */
   }
+};
+
+const session = () => window.sessionStorage;
+const local = () => window.localStorage;
+
+// Per-section progress for this browser tab session.
+//   order:        { [itemId]: n }  → n-th item gone through (0-based)
+//   count:        how many distinct items have been gone through
+//   creatorFirst: { [creator]: itemId } → which item first introduced them
+//   prompted:     creators already prompted this session
+//   lastPromptAt: index of the item the last prompt was shown on
+const readSession = (type) => {
+  const s = readJSON(session, SESSION_KEY(type));
+  if (s && s.order && typeof s.count === "number" && s.creatorFirst && Array.isArray(s.prompted)) {
+    return s;
+  }
+  return { order: {}, count: 0, creatorFirst: {}, prompted: [], lastPromptAt: -1000 };
+};
+
+const writeSession = (type, state) => writeJSON(session, SESSION_KEY(type), state);
+
+// Cross-session "already asked about this creator" memory.
+const readCooldowns = (cooldownDays) => {
+  const all = readJSON(local, COOLDOWN_KEY);
+  const now = Date.now();
+  const fresh = {};
+  if (all && typeof all === "object") {
+    Object.entries(all).forEach(([who, ts]) => {
+      if (typeof ts === "number" && now - ts < cooldownDays * DAY_MS) fresh[who] = ts;
+    });
+  }
+  return fresh;
+};
+
+const rememberCreator = (who, cooldownDays) => {
+  const fresh = readCooldowns(cooldownDays);
+  fresh[who] = Date.now();
+  writeJSON(local, COOLDOWN_KEY, fresh);
 };
 
 export default function useFeedbackPrompt({
@@ -50,6 +92,8 @@ export default function useFeedbackPrompt({
   creator, // uploader username
   active = true, // is this item actually on screen right now?
   disabled = false, // own content, guest, already rated, feedback not loaded…
+  minItems = MIN_ITEMS_BEFORE_PROMPT,
+  cooldownDays = CREATOR_COOLDOWN_DAYS,
 }) {
   const [visible, setVisible] = useState(false);
   const dismiss = useCallback(() => setVisible(false), []);
@@ -63,33 +107,42 @@ export default function useFeedbackPrompt({
 
     // Register this item as "gone through" (once) and remember which item
     // first introduced this creator.
-    const state = readState(type);
-    if (!state.seen.includes(id)) state.seen.push(id);
+    const state = readSession(type);
+    if (state.order[id] === undefined) {
+      state.order[id] = state.count;
+      state.count += 1;
+    }
     if (!state.creatorFirst[who]) state.creatorFirst[who] = id;
-    writeState(type, state);
+    writeSession(type, state);
 
-    const index = state.seen.indexOf(id); // items gone through BEFORE this one
+    const index = state.order[id]; // items gone through BEFORE this one
     const isNewProfile = state.creatorFirst[who] === id;
-    const watchedEnough = index >= MIN_ITEMS_BEFORE_PROMPT;
-    const spacedOut = index - state.lastPromptAt > MIN_ITEMS_BEFORE_PROMPT;
+    const watchedEnough = index >= minItems;
+    const spacedOut = index - state.lastPromptAt > minItems;
 
     if (
       disabled ||
       !isNewProfile ||
       !watchedEnough ||
       !spacedOut ||
-      state.prompted.includes(who)
+      state.prompted.includes(who) ||
+      readCooldowns(cooldownDays)[who]
     ) {
       return;
     }
 
     let hideTimer;
     const showTimer = setTimeout(() => {
-      const fresh = readState(type);
+      // Don't pop up while the tab is in the background.
+      if (typeof document !== "undefined" && document.hidden) return;
+
+      const fresh = readSession(type);
       if (fresh.prompted.includes(who)) return;
       fresh.prompted.push(who);
-      fresh.lastPromptAt = fresh.seen.indexOf(id);
-      writeState(type, fresh);
+      fresh.lastPromptAt = fresh.order[id] ?? index;
+      writeSession(type, fresh);
+      rememberCreator(who, cooldownDays);
+
       setVisible(true);
       hideTimer = setTimeout(() => setVisible(false), AUTO_HIDE_MS);
     }, SHOW_DELAY_MS);
@@ -98,7 +151,7 @@ export default function useFeedbackPrompt({
       clearTimeout(showTimer);
       clearTimeout(hideTimer);
     };
-  }, [type, itemId, creator, active, disabled]);
+  }, [type, itemId, creator, active, disabled, minItems, cooldownDays]);
 
   return { visible, dismiss };
 }
@@ -110,13 +163,15 @@ export default function useFeedbackPrompt({
 const pillBase = {
   border: "none",
   borderRadius: 999,
-  padding: "6px 12px",
-  fontSize: 11,
+  padding: "8px 14px",
+  minHeight: 34,
+  fontSize: 12,
   fontWeight: 800,
   fontFamily: "'Nunito', sans-serif",
   color: "#fff",
   cursor: "pointer",
   whiteSpace: "nowrap",
+  touchAction: "manipulation",
 };
 
 export const FeedbackPrompt = ({
@@ -128,17 +183,32 @@ export const FeedbackPrompt = ({
   onDismiss,
   style,
 }) => {
+  // Esc closes the prompt (desktop).
+  useEffect(() => {
+    if (!visible || !onDismiss) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") onDismiss();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [visible, onDismiss]);
+
   if (!visible) return null;
+
+  const reduceMotion =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   return (
     <div
-      role="dialog"
+      role="group"
       aria-label="Interested or not interested"
       onClick={(e) => e.stopPropagation()}
       style={{
         position: "absolute",
         zIndex: 32,
-        background: "rgba(12, 8, 35, 0.84)",
+        background: "rgba(12, 8, 35, 0.86)",
         backdropFilter: "blur(16px)",
         WebkitBackdropFilter: "blur(16px)",
         border: "1px solid rgba(255,255,255,0.18)",
@@ -146,9 +216,8 @@ export const FeedbackPrompt = ({
         padding: "10px 12px",
         color: "#fff",
         fontFamily: "'Nunito', sans-serif",
-        boxShadow:
-          "0 8px 28px rgba(0,0,0,0.5), 0 0 0 1px rgba(220,38,38,0.2)",
-        animation: "zxFbPromptIn 0.28s ease both",
+        boxShadow: "0 8px 28px rgba(0,0,0,0.5), 0 0 0 1px rgba(220,38,38,0.2)",
+        animation: reduceMotion ? "none" : "zxFbPromptIn 0.28s ease both",
         ...style,
       }}
     >
@@ -161,14 +230,14 @@ export const FeedbackPrompt = ({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 800,
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
             }}
           >
-            New: {creator}
+            {creator}
           </div>
           <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>
             Interested in {kind}s like this?
@@ -182,10 +251,11 @@ export const FeedbackPrompt = ({
             background: "transparent",
             border: "none",
             color: "rgba(255,255,255,0.7)",
-            fontSize: 14,
+            fontSize: 16,
             lineHeight: 1,
             cursor: "pointer",
-            padding: 2,
+            padding: 4,
+            margin: -4,
           }}
         >
           ✕

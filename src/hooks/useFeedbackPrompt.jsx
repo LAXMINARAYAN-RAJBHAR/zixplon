@@ -20,7 +20,7 @@ import React, { useCallback, useEffect, useState } from "react";
 // Place this file at: src/hooks/useFeedbackPrompt.jsx
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const MIN_ITEMS_BEFORE_PROMPT = 3; // "at least 2 or 3 videos" → change here
+export const MIN_ITEMS_BEFORE_PROMPT = 0; // "at least 2 or 3 videos" → change here
 const SHOW_DELAY_MS = 3000;
 const AUTO_HIDE_MS = 9000;
 

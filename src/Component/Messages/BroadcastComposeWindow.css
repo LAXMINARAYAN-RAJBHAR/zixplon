@@ -95,37 +95,86 @@
   border-radius: 999px;
 }
 
-/* Holds one result row per attachment/text sent in a batch — the
-   original single .bcw-result is still used per-row, just wrapped in
-   a list now instead of assuming exactly one send happened. */
-.bcw-results {
+/* ══════════════════════════════════════════════════════════════════════
+   SENT ANNOUNCEMENTS — each one you send appears as a message bubble on
+   the right (like a chat), with a "Sent to X of Y" line underneath.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.bcw-sent-list {
   margin-top: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-.bcw-result {
-  background: #f0fdf4;
-  border: 1.5px solid #bbf7d0;
-  color: #166534;
+.bcw-sent-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.bcw-sent-bubble {
+  max-width: 78%;
+  background: linear-gradient(135deg, #f97316, #eab308);
+  color: #fff;
+  border-radius: 14px 14px 4px 14px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-size: 13px;
-  font-weight: 700;
-  padding: 10px 12px;
+  word-break: break-word;
+}
+
+.bcw-sent-bubble--sticker {
+  background: transparent;
+  padding: 2px;
+}
+
+.bcw-sent-text {
+  white-space: pre-wrap;
+}
+
+.bcw-sent-media {
+  max-width: 220px;
+  max-height: 220px;
   border-radius: 10px;
+  display: block;
+}
+
+.bcw-sent-sticker {
+  max-width: 140px;
+  max-height: 140px;
+  display: block;
+}
+
+.bcw-sent-file {
+  color: inherit;
+  text-decoration: underline;
+  font-size: 12px;
+}
+
+.bcw-sent-time {
+  font-size: 9px;
+  opacity: 0.85;
+  align-self: flex-end;
+}
+
+.bcw-sent-status {
+  font-size: 11px;
+  font-weight: 700;
+  color: #166534;
 }
 
 .bcw-result-failed {
-  margin-top: 4px;
   font-size: 11px;
   font-weight: 600;
   color: #b91c1c;
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   MULTI-FILE COMPOSE TRAY — mirrors MessagesPanel.css's .mp-pending-*
-   rules and GroupChatWindow.css's .gcw-pending-* rules, so all three
-   compose surfaces look/behave identically.
+   MULTI-FILE COMPOSE TRAY
    ══════════════════════════════════════════════════════════════════════ */
 
 .bcw-pending-attachments-row {
@@ -291,6 +340,7 @@
   font-size: 18px;
   cursor: pointer;
   padding: 4px 6px;
+  flex-shrink: 0;
 }
 .bcw-icon-btn:disabled {
   opacity: 0.4;
@@ -299,6 +349,7 @@
 
 .bcw-text-input {
   flex: 1;
+  min-width: 0; /* lets the input shrink so the send button stays on screen */
   border: 2px solid #fbd5d5;
   border-radius: 20px;
   padding: 8px 14px;

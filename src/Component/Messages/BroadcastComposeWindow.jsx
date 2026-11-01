@@ -10,6 +10,11 @@ const MAX_ATTACHMENTS = 10;
 
 let attachmentIdCounter = 0;
 const makeAttachmentId = () => `att-${Date.now()}-${++attachmentIdCounter}`;
+let sentIdCounter = 0;
+const makeSentId = () => `sent-${Date.now()}-${++sentIdCounter}`;
+
+const timeShort = (d) =>
+  new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 
 // ── Small upload-progress bar shown over a queued attachment while it
 // uploads (shared shape with MessagesPanel/GroupChatWindow). ──
@@ -28,14 +33,14 @@ const UploadProgressBar = ({ progress, status }) => (
 const BroadcastComposeWindow = ({ list, currentUser, onBack, onClose }) => {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  // Queue of not-yet-sent attachments (images/videos/files picked
-  // together). Each item tracks its own upload `progress` (0-100) and
-  // `status` ("pending" | "uploading" | "error") — mirrors
-  // MessagesPanel's pendingAttachments.
   const [pendingAttachments, setPendingAttachments] = useState([]);
-  const [results, setResults] = useState([]); // [{ label, sentCount, failed }] — one per attachment/text sent, most recent last
+  // NEW: every announcement sent in this window, shown as message
+  // bubbles (most recent last). Each entry:
+  // { id, text, attachmentUrl, attachmentType, attachmentName, sentCount, failed, createdAt }
+  const [sentLog, setSentLog] = useState([]);
   const fileInputRef = useRef();
   const inputRef = useRef();
+  const bottomRef = useRef();
 
   // ── Emoji / GIF / Sticker picker ──
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -58,9 +63,29 @@ const BroadcastComposeWindow = ({ list, currentUser, onBack, onClose }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showEmojiPicker]);
 
+  // Keep the newest sent announcement in view.
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [sentLog]);
+
   const recipients = (list.broadcast_recipients || []).map((r) => r.username);
 
-  // ── Multi-file attachment picking (mirrors MessagesPanel) ──
+  const addSent = (entry) =>
+    setSentLog((prev) => [
+      ...prev,
+      {
+        id: makeSentId(),
+        text: "",
+        attachmentUrl: null,
+        attachmentType: null,
+        attachmentName: null,
+        failed: [],
+        createdAt: new Date().toISOString(),
+        ...entry,
+      },
+    ]);
+
+  // ── Multi-file attachment picking ──
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = "";
@@ -126,21 +151,13 @@ const BroadcastComposeWindow = ({ list, currentUser, onBack, onClose }) => {
     inputRef.current?.focus();
   };
 
-  const attachmentLabel = (type, name) => {
-    if (type === "image") return "📷 Photo";
-    if (type === "video") return "🎥 Video";
-    if (type === "file") return `📎 ${name || "Attachment"}`;
-    return "Message";
-  };
-
   const handleSend = async () => {
     if ((!text.trim() && pendingAttachments.length === 0) || sending) return;
     setSending(true);
-    setResults([]);
     const trimmed = text.trim();
 
     if (pendingAttachments.length === 0) {
-      // Text-only broadcast — original fast path.
+      // Text-only broadcast.
       try {
         const res = await sendBroadcastMessage({
           broadcastId: list.id,
@@ -152,7 +169,7 @@ const BroadcastComposeWindow = ({ list, currentUser, onBack, onClose }) => {
           attachmentName: null,
           attachmentSize: null,
         });
-        setResults([{ label: "Message", sentCount: res.sentCount, failed: res.failed }]);
+        addSent({ text: trimmed, sentCount: res.sentCount, failed: res.failed || [] });
         setText("");
       } catch (err) {
         alert(`Failed to send broadcast: ${err?.message || "please try again."}`);
@@ -162,13 +179,10 @@ const BroadcastComposeWindow = ({ list, currentUser, onBack, onClose }) => {
       return;
     }
 
-    // One or more attachments queued: upload + broadcast them ONE AT A
-    // TIME, each with its own progress bar, so the sender can see each
-    // file go out individually rather than the whole batch appearing to
-    // hang. The typed caption (if any) rides along with the FIRST
-    // attachment only, same convention as MessagesPanel/GroupChatWindow.
+    // Attachments: upload + broadcast one at a time. The typed caption
+    // rides along with the FIRST attachment only.
     const batch = pendingAttachments;
-    const batchResults = [];
+    let anySent = false;
 
     for (let i = 0; i < batch.length; i++) {
       const att = batch[i];
@@ -198,11 +212,15 @@ const BroadcastComposeWindow = ({ list, currentUser, onBack, onClose }) => {
           attachmentName: att.name,
           attachmentSize: att.size,
         });
-        batchResults.push({
-          label: captionText || attachmentLabel(att.type, att.name),
+        addSent({
+          text: captionText,
+          attachmentUrl: uploaded.url,
+          attachmentType: att.type,
+          attachmentName: att.name,
           sentCount: res.sentCount,
-          failed: res.failed,
+          failed: res.failed || [],
         });
+        anySent = true;
       } catch (err) {
         updateAttachmentProgress(att.id, 100, "error");
         alert(`"${att.name}" failed to send: ${err?.message || "please try again."}`);
@@ -214,20 +232,14 @@ const BroadcastComposeWindow = ({ list, currentUser, onBack, onClose }) => {
       if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
     }
 
-    if (batchResults.length) {
-      setResults(batchResults);
-      setText("");
-    }
+    if (anySent) setText("");
     setSending(false);
   };
 
-  // Sends a GIF or sticker to every recipient immediately — no upload
-  // needed since Giphy already hosts the media, mirrors handleSend but
-  // skips the attachment-upload branch.
+  // Sends a GIF or sticker to every recipient immediately.
   const sendMedia = async (url, type) => {
     if (!url || sending) return;
     setSending(true);
-    setResults([]);
     try {
       const res = await sendBroadcastMessage({
         broadcastId: list.id,
@@ -239,7 +251,12 @@ const BroadcastComposeWindow = ({ list, currentUser, onBack, onClose }) => {
         attachmentName: null,
         attachmentSize: null,
       });
-      setResults([{ label: type === "gif" ? "🎬 GIF" : "🏷️ Sticker", sentCount: res.sentCount, failed: res.failed }]);
+      addSent({
+        attachmentUrl: url,
+        attachmentType: type,
+        sentCount: res.sentCount,
+        failed: res.failed || [],
+      });
     } catch (err) {
       alert(`Failed to send broadcast: ${err?.message || "please try again."}`);
     } finally {
@@ -273,21 +290,54 @@ const BroadcastComposeWindow = ({ list, currentUser, onBack, onClose }) => {
           ))}
         </div>
 
-        {results.length > 0 && (
-          <div className="bcw-results">
-            {results.map((r, i) => (
-              <div key={i} className="bcw-result">
-                ✓ {r.label !== "Message" ? `${r.label} — ` : ""}Sent to {r.sentCount} of {recipients.length}
-                {r.failed.length > 0 && (
-                  <div className="bcw-result-failed">Failed: {r.failed.join(", ")}</div>
+        {/* NEW: the announcements you've sent, shown as message bubbles. */}
+        {sentLog.length > 0 && (
+          <div className="bcw-sent-list">
+            {sentLog.map((m) => (
+              <div key={m.id} className="bcw-sent-row">
+                <div
+                  className={`bcw-sent-bubble ${
+                    m.attachmentType === "sticker" ? "bcw-sent-bubble--sticker" : ""
+                  }`}
+                >
+                  {m.attachmentUrl && m.attachmentType === "image" && (
+                    <img src={m.attachmentUrl} alt="attachment" className="bcw-sent-media" />
+                  )}
+                  {m.attachmentUrl && m.attachmentType === "video" && (
+                    <video src={m.attachmentUrl} controls playsInline preload="metadata" className="bcw-sent-media" />
+                  )}
+                  {m.attachmentUrl && m.attachmentType === "gif" && (
+                    <img src={m.attachmentUrl} alt="GIF" className="bcw-sent-media" />
+                  )}
+                  {m.attachmentUrl && m.attachmentType === "sticker" && (
+                    <img src={m.attachmentUrl} alt="sticker" className="bcw-sent-sticker" />
+                  )}
+                  {m.attachmentUrl && m.attachmentType === "file" && (
+                    <a
+                      href={m.attachmentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bcw-sent-file"
+                    >
+                      📎 {m.attachmentName || "Attachment"}
+                    </a>
+                  )}
+                  {m.text && <span className="bcw-sent-text">{m.text}</span>}
+                  <span className="bcw-sent-time">{timeShort(m.createdAt)}</span>
+                </div>
+                <div className="bcw-sent-status">
+                  ✓ Sent to {m.sentCount} of {recipients.length}
+                </div>
+                {m.failed.length > 0 && (
+                  <div className="bcw-result-failed">Failed: {m.failed.join(", ")}</div>
                 )}
               </div>
             ))}
           </div>
         )}
+        <div ref={bottomRef} />
       </div>
 
-      {/* NEW: multi-file compose tray — mirrors MessagesPanel/GroupChatWindow's. */}
       {pendingAttachments.length > 0 && (
         <div className="bcw-pending-attachments-row">
           <div className="bcw-pending-attachments-scroll">
@@ -370,6 +420,12 @@ const BroadcastComposeWindow = ({ list, currentUser, onBack, onClose }) => {
           placeholder="Compose broadcast message…"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
         />
         <button
           className="bcw-send-btn"

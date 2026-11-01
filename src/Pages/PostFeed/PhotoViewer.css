@@ -321,9 +321,99 @@
   cursor: pointer;
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   SINGLE-PHOTO POSTS
+   • The photo fits the screen (photo + like/comment panel, no scroll).
+   • The ⛶ button is replaced by a ⋯ menu containing "Full screen".
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ~200px is reserved for the top bar + the like/comment panel. Tweak
+   if your panel is taller or shorter. */
+.pv-block--single .pv-block-image {
+  width: 100%;
+  height: auto;
+  max-height: calc(100vh - 200px);
+  max-height: calc(100dvh - 200px);
+  object-fit: contain;
+}
+
+/* Keep the full-screen look winning over the rule above */
+.pv-block--single .pv-image-wrap:fullscreen .pv-block-image {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+}
+.pv-block--single .pv-image-wrap:-webkit-full-screen .pv-block-image {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+}
+.pv-block--single .pv-image-wrap--fs .pv-block-image {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+}
+
+/* ⋯ button */
+.pv-dots-btn {
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 0 4px;
+}
+
+/* Menu (lives inside .pv-image-wrap so it also shows in full screen) */
+.pv-menu-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+
+.pv-menu {
+  position: absolute;
+  top: 52px;
+  right: 10px;
+  z-index: 6;
+  min-width: 170px;
+  padding: 6px;
+  border-radius: 12px;
+  background: #2a2a2a;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+}
+.pv-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  font-family: "Outfit", sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.pv-menu button:hover { background: rgba(255, 255, 255, 0.1); }
+
+.pv-image-wrap:fullscreen .pv-menu,
+.pv-image-wrap--fs .pv-menu {
+  top: 64px;
+  right: 16px;
+}
+.pv-image-wrap:-webkit-full-screen .pv-menu {
+  top: 64px;
+  right: 16px;
+}
+
 @media (max-width: 480px) {
   .pv-block { width: 100vw; }
   .pv-block-image { max-height: 60vh; border-radius: 0; }
+  .pv-block--single .pv-block-image {
+    max-height: calc(100vh - 200px);
+    max-height: calc(100dvh - 200px);
+  }
   .pv-panel { border-radius: 0; }
 
   .pv-nav-btn { opacity: 0.7; }

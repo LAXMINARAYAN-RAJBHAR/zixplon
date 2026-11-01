@@ -36,12 +36,15 @@ const isAnyPhotoFullscreen = () =>
 
 /*
  * PhotoBlock — one photo + its own like/comment/share + its OWN
- * full-screen button, rendered as one "row" in PhotoViewer's vertical
+ * full-screen control, rendered as one "row" in PhotoViewer's vertical
  * stack. All state for this photo lives here so each block is
  * independent.
  *
- * Full screen (per photo): the ⛶ button on the image fullscreens just
- * this photo's image wrapper (black background, photo letterboxed).
+ * Full screen (per photo):
+ *   • Multi-photo posts: the ⛶ button on the image fullscreens just this
+ *     photo's image wrapper.
+ *   • Single-photo posts: the photo fits the screen, and "Full screen"
+ *     lives in a ⋯ menu in the top-right corner of the photo instead.
  * If the browser has no element-fullscreen support, the wrapper is
  * pinned over the whole window with CSS instead (.pv-image-wrap--fs).
  * While a photo is full screen, swipe / ‹ › / arrow-key navigation is
@@ -74,6 +77,10 @@ const PhotoBlock = ({
   const [showComments, setShowComments] = useState(false);
   const [copied, setCopied] = useState(false);
   const pickerRef = useRef(null);
+
+  // Single-photo posts: fit-to-screen layout + ⋯ menu instead of ⛶ button.
+  const isSingle = total === 1;
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // ── Per-photo full screen ──
   const wrapRef = useRef(null);
@@ -126,6 +133,16 @@ const PhotoBlock = ({
     return () => document.removeEventListener("keydown", onKey);
   }, [pseudoFs]);
 
+  // Esc closes the ⋯ menu.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
   const enterFs = () => {
     const el = wrapRef.current;
     if (!el) return;
@@ -149,7 +166,7 @@ const PhotoBlock = ({
   };
 
   const toggleFs = (e) => {
-    e.stopPropagation();
+    e?.stopPropagation?.();
     if (isFs) exitFs();
     else enterFs();
   };
@@ -319,7 +336,10 @@ const PhotoBlock = ({
   };
 
   return (
-    <div className="pv-block" ref={blockRef}>
+    <div
+      className={`pv-block${isSingle ? " pv-block--single" : ""}`}
+      ref={blockRef}
+    >
       {total > 1 && (
         <span className="pv-block-counter">
           {index + 1} / {total}
@@ -367,26 +387,66 @@ const PhotoBlock = ({
           </button>
         )}
 
-        {/* This photo's OWN full screen button */}
-        <button
-          type="button"
-          className="pv-fs-btn"
-          onClick={toggleFs}
-          aria-label={isFs ? "Exit full screen" : "View this photo full screen"}
-          title={isFs ? "Exit full screen" : "Full screen"}
-        >
-          {isFs ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
-            </svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-            </svg>
-          )}
-        </button>
+        {isSingle ? (
+          /* Single photo: ⋯ menu with Full screen / Exit full screen */
+          <>
+            <button
+              type="button"
+              className="pv-fs-btn pv-dots-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen((v) => !v);
+              }}
+              aria-label="Photo options"
+              aria-haspopup="true"
+              aria-expanded={menuOpen}
+            >
+              ⋯
+            </button>
+            {menuOpen && (
+              <>
+                <div
+                  className="pv-menu-backdrop"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div className="pv-menu" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if (isFs) exitFs();
+                      else enterFs();
+                    }}
+                  >
+                    {isFs ? "⛶ Exit full screen" : "⛶ Full screen"}
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          /* Multi-photo: this photo's OWN full screen button */
+          <button
+            type="button"
+            className="pv-fs-btn"
+            onClick={toggleFs}
+            aria-label={isFs ? "Exit full screen" : "View this photo full screen"}
+            title={isFs ? "Exit full screen" : "Full screen"}
+          >
+            {isFs ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+              </svg>
+            )}
+          </button>
+        )}
       </div>
 
       <div className="pv-panel">
@@ -491,9 +551,9 @@ const PhotoBlock = ({
  * photo in the post is shown stacked one below another (scroll to move
  * between photos), and the view auto-scrolls to the tapped photo.
  *
- * CHANGED: the single ⋯ → "Full screen" menu at the top is gone. Every
- * photo now has its OWN ⛶ full screen button (see PhotoBlock), so you
- * choose full screen for the exact photo you're looking at.
+ * Multi-photo posts: every photo has its OWN ⛶ full screen button.
+ * Single-photo posts: the photo fits the screen and "Full screen" lives
+ * in a ⋯ menu on the photo.
  *
  * `startFullscreen` — when the viewer was opened from a grid tile's
  * "Full screen" menu item, that photo goes full screen immediately.

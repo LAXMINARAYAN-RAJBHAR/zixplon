@@ -6,7 +6,7 @@ import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
 import ExpandableText from "../../Component/ExpandableText/ExpandableText";
 import ReportPostModal from "./ReportPostModal";
 // PhotoViewer: full-screen swipe/scroll viewer with per-photo
-// like/comment/share/copy-link AND a per-photo full screen button.
+// like/comment/share/copy-link AND per-photo full screen.
 import PhotoViewer from "./PhotoViewer";
 // Generic content-report modal (contentType/contentId/contentTitle/
 // contentOwner/onClose), same component used by Video.jsx and Reels.jsx.
@@ -521,10 +521,10 @@ const PostVideo = ({ src, inView, onEnded }) => {
 };
 
 /* ─────────────────────────────────────────
-   IMAGE GRID — Facebook-style collage for multi-image posts.
+   IMAGE GRID — Facebook-style collage for image posts.
    Layout is driven by the .pf-img-grid / .pf-img-grid-1..4 CSS in
    PostFeed.css:
-     1 photo  → full-width single tile
+     1 photo  → full-width single tile (shown at its natural shape)
      2 photos → two tiles side by side
      3 photos → one large + two stacked small
      4 photos → 2x2 grid
@@ -533,10 +533,11 @@ const PostVideo = ({ src, inView, onEnded }) => {
    Tapping ANY tile opens the full-screen, swipeable PhotoViewer
    starting at that tile's actual index in the full image_urls array.
 
-   EVERY tile has its own ⋯ menu with a "Full screen" option for THAT
-   photo (opens the viewer at that photo, already full screen). The menu
-   is rendered through a portal with fixed positioning because the tiles
-   clip their contents (overflow: hidden). ── */
+   EVERY tile — including a single photo — has its own ⋯ menu with a
+   "Full screen" option for THAT photo (opens the viewer at that photo,
+   already full screen). The menu is rendered through a portal with
+   fixed positioning because the tiles clip their contents
+   (overflow: hidden). ── */
 const ImageGrid = ({ images, onOpenViewer, onFullscreen }) => {
   const count = images.length;
   const displayCount = Math.min(count, 4);
@@ -937,10 +938,9 @@ const PostCard = ({
 
   // ── Photo full screen ──
   // Each photo has its OWN full screen option: the ⋯ button on every grid
-  // tile, and a ⛶ button on every photo inside PhotoViewer. Choosing it
-  // from a tile opens the viewer at that photo with that photo already
-  // full screen. (The old single "view all photos full screen" option is
-  // gone.)
+  // tile (single photos included), and a ⛶ button / ⋯ menu on every photo
+  // inside PhotoViewer. Choosing it from a tile opens the viewer at that
+  // photo with that photo already full screen.
   const openPhotosFullscreen = (images, startIndex = 0) => {
     if (!images || images.length === 0) return;
     setPhotoViewerData({ images, startIndex, startFullscreen: true });
@@ -1304,6 +1304,16 @@ const PostCard = ({
   const repliesFor = (parentId) =>
     allComments.filter((c) => c.parent_comment_id === parentId);
 
+  // All photos on this post — image_urls, or the legacy single image_url.
+  // A single photo now goes through the same ImageGrid (so it gets the
+  // ⋯ → "Full screen" menu and is shown at its natural shape).
+  const photos =
+    post.image_urls && post.image_urls.length > 0
+      ? post.image_urls
+      : post.image_url
+        ? [post.image_url]
+        : null;
+
   return (
     <>
       {/* PhotoViewer — launched from ImageGrid taps (or a tile's
@@ -1603,30 +1613,19 @@ const PostCard = ({
               </p>
             )}
 
-            {/* Multi-image (and single-image, via image_urls) posts
-                render as a Facebook-style collage — tapping any tile
-                opens PhotoViewer at that tile's index, and each tile's
-                ⋯ menu offers "Full screen" for just that photo. */}
-            {post.image_urls && post.image_urls.length > 0 ? (
+            {/* Photos — one OR many — render through ImageGrid.
+                Tapping a tile opens PhotoViewer at that photo, and each
+                tile's ⋯ menu offers "Full screen" for just that photo
+                (this now includes a post with a single picture). */}
+            {photos ? (
               <ImageGrid
-                images={post.image_urls}
+                images={photos}
                 onOpenViewer={(startIndex) =>
-                  setPhotoViewerData({ images: post.image_urls, startIndex })
+                  setPhotoViewerData({ images: photos, startIndex })
                 }
                 onFullscreen={(startIndex) =>
-                  openPhotosFullscreen(post.image_urls, startIndex)
+                  openPhotosFullscreen(photos, startIndex)
                 }
-              />
-            ) : post.image_url ? (
-              <img
-                src={post.image_url}
-                alt="Post"
-                className="pf-card-image"
-                loading="lazy"
-                onClick={() =>
-                  setPhotoViewerData({ images: [post.image_url], startIndex: 0 })
-                }
-                style={{ cursor: "zoom-in" }}
               />
             ) : (
               // PostVideo receives `inView` (mediaInView) so it autoplays

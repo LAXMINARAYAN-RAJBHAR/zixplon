@@ -4488,3 +4488,22 @@
   background: var(--zx-bg);
   color: var(--zx-primary);
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   SINGLE PHOTO IN THE FEED
+   APPEND this block to the very bottom of PostFeed.css.
+   Shows the whole picture at its natural shape instead of a 16:10 crop.
+   (The ⋯ → "Full screen" button already comes from .pf-img-tile-menu-btn.)
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-img-grid-1 .pf-img-grid-item {
+  aspect-ratio: auto;
+  background: #000;
+}
+.pf-img-grid-1 .pf-img-grid-item img {
+  width: 100%;
+  height: auto;
+  max-height: 80vh;
+  object-fit: contain;
+  margin: 0 auto;
+}

@@ -975,13 +975,15 @@ const PostCard = ({
   // Choosing it from a tile opens the viewer at that photo with that
   // photo already full screen. (The old single "view all photos full
   // screen" option is gone.)
-  const openPhotosFullscreen = (images, startIndex = 0) => {
+    const openPhotosFullscreen = (images, startIndex = 0) => {
     if (!images || images.length === 0) return;
     setPhotoViewerData({ images, startIndex, startFullscreen: true });
     setShowMenu(false);
   };
 
   const closePhotoViewer = () => setPhotoViewerData(null);
+
+  const initials = (post.username || "?").slice(0, 2).toUpperCase();
   // NEW: full date/time — shown inline on desktop, tooltip-only on phones.
   const fullDate = new Date(post.created_at).toLocaleString("en-IN", {
     day: "numeric",

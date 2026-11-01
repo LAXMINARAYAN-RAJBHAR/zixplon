@@ -21,6 +21,9 @@ import StoryViewer from "./StoryViewer";
 //   • Usernames in the `verified_users` table get the verified badge in
 //     the viewer.
 //
+// CHANGED: StoryCreator can now post several items at once, so
+// handleCreated accepts an ARRAY of new stories (a single story still works).
+//
 // Data comes from the `stories` table and is kept fresh through a
 // realtime subscription.
 // ─────────────────────────────────────────────────────────────────────────
@@ -101,8 +104,8 @@ const StoriesStrip = ({ currentUser }) => {
   const deepLinkHandledRef = useRef(false);
 
   const fetchStories = useCallback(async () => {
-    // CHANGED: also reads link_url / link_label (needs
-    // story_link_migration.sql) so the viewer can show the story's link.
+    // Also reads link_url / link_label (needs story_link_migration.sql)
+    // so the viewer can show the story's link.
     const { data, error } = await supabase
       .from("stories")
       .select(
@@ -268,11 +271,14 @@ const StoriesStrip = ({ currentUser }) => {
     [currentUser]
   );
 
-  const handleCreated = (story) => {
-    if (story) {
-      setStories((prev) =>
-        prev.some((s) => s.id === story.id) ? prev : [...prev, story]
-      );
+  // CHANGED: accepts an array of new stories (multi-upload) or a single one.
+  const handleCreated = (created) => {
+    const list = Array.isArray(created) ? created : created ? [created] : [];
+    if (list.length > 0) {
+      setStories((prev) => {
+        const have = new Set(prev.map((s) => s.id));
+        return [...prev, ...list.filter((s) => !have.has(s.id))];
+      });
     }
     fetchStories();
   };

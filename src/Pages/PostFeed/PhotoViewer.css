@@ -8,12 +8,6 @@
   overflow: hidden;
 }
 
-/* While the overlay itself is fullscreen, use a solid black backdrop. */
-.pv-overlay:fullscreen,
-.pv-overlay:-webkit-full-screen {
-  background: #000;
-}
-
 .pv-close {
   position: fixed;
   top: 16px;
@@ -29,64 +23,7 @@
   z-index: 10;
 }
 
-/* ── ⋯ menu (sits just left of the ✕ button) ── */
-.pv-menu-btn {
-  position: fixed;
-  top: 16px;
-  right: 68px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-  z-index: 10;
-  transition: background 0.15s;
-}
-.pv-menu-btn:hover { background: rgba(255, 255, 255, 0.22); }
-
-.pv-menu-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 11;
-}
-
-.pv-menu {
-  position: fixed;
-  top: 64px;
-  right: 68px;
-  z-index: 12;
-  min-width: 170px;
-  padding: 6px;
-  border-radius: 12px;
-  background: #2a2a2a;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
-}
-.pv-menu button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 12px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: #fff;
-  font-family: "Outfit", sans-serif;
-  font-size: 13.5px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-.pv-menu button:hover { background: rgba(255, 255, 255, 0.1); }
-
-/* ── Vertical stack — every photo in the post, one below another.
-   Scrolls the whole overlay; each PhotoBlock is a natural-height row
-   rather than a fixed-height slide, so tall/short photos and open
-   comment panels don't fight for space like a fixed viewport would. ── */
+/* ── Vertical stack — every photo in the post, one below another. ── */
 .pv-scroll-stack {
   height: 100%;
   overflow-y: auto;
@@ -111,7 +48,7 @@
   flex-direction: column;
   align-items: center;
   width: min(92vw, 480px);
-  scroll-margin-top: 70px; /* keeps scrollIntoView from tucking under pv-close */
+  scroll-margin-top: 70px;
 }
 
 .pv-block-counter {
@@ -126,9 +63,7 @@
   margin-bottom: 8px;
 }
 
-/* Wraps the image + left/right nav buttons, so the buttons can
-   be absolutely positioned relative to just the image, not the whole
-   block (which also includes the like/comment/share panel below). */
+/* Wraps the image + nav buttons + the photo's own full screen button. */
 .pv-image-wrap {
   position: relative;
   width: 100%;
@@ -145,11 +80,109 @@
   -webkit-user-drag: none;
 }
 
+/* ── Per-photo full screen button (top-right corner of each photo) ── */
+.pv-fs-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+  transition: opacity 0.15s, background 0.15s, transform 0.15s;
+}
+.pv-fs-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.08);
+}
+
+/* ── A photo shown full screen ──
+   Two cases share the same look:
+   • real browser fullscreen (:fullscreen on the wrapper)
+   • CSS fallback (.pv-image-wrap--fs) where the Fullscreen API is not
+     available, e.g. iPhone Safari.
+   Kept as separate rules because an unknown pseudo-class would make a
+   combined selector list invalid in some browsers. */
+.pv-image-wrap:fullscreen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+}
+.pv-image-wrap:-webkit-full-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+}
+.pv-image-wrap--fs {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.pv-image-wrap:fullscreen .pv-block-image {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+  border-radius: 0;
+}
+.pv-image-wrap:-webkit-full-screen .pv-block-image {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+  border-radius: 0;
+}
+.pv-image-wrap--fs .pv-block-image {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+  border-radius: 0;
+}
+
+/* No photo-to-photo buttons while one photo is full screen */
+.pv-image-wrap:fullscreen .pv-nav-btn { display: none; }
+.pv-image-wrap:-webkit-full-screen .pv-nav-btn { display: none; }
+.pv-image-wrap--fs .pv-nav-btn { display: none; }
+
+.pv-image-wrap:fullscreen .pv-fs-btn,
+.pv-image-wrap--fs .pv-fs-btn {
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+}
+.pv-image-wrap:-webkit-full-screen .pv-fs-btn {
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+}
+
 /* Left/right chevron buttons for jumping directly to the next/
-   previous photo — the click-based counterpart to swipe/drag/arrow-key
-   navigation. Only rendered when there's more than one photo, and only
-   on the end where there IS an adjacent photo (no "prev" on the first
-   photo, no "next" on the last). */
+   previous photo. */
 .pv-nav-btn {
   position: absolute;
   top: 50%;
@@ -293,13 +326,7 @@
   .pv-block-image { max-height: 60vh; border-radius: 0; }
   .pv-panel { border-radius: 0; }
 
-  /* Slightly more visible by default on touch, since there's no hover
-     to reveal them — still not fully opaque so they don't distract
-     from the photo itself. */
   .pv-nav-btn { opacity: 0.7; }
 
-  /* Keep the ⋯ button clear of the ✕ on narrow screens. */
   .pv-close { right: 12px; }
-  .pv-menu-btn { right: 60px; }
-  .pv-menu { right: 60px; }
 }

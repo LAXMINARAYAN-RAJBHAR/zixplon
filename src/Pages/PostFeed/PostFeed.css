@@ -4419,3 +4419,72 @@
   font-weight: 700;
   color: var(--zx-text3);
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   IMAGE GRID — per-photo ⋯ button + menu ("Full screen" for THAT photo)
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-img-tile-menu-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(26, 20, 20, 0.55);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.15s;
+}
+.pf-img-tile-menu-btn:hover {
+  background: rgba(26, 20, 20, 0.8);
+  transform: scale(1.08);
+}
+
+/* Rendered through a portal into <body> (the tiles clip their contents) */
+.pf-img-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+}
+
+.pf-img-menu {
+  position: fixed;
+  z-index: 100001;
+  min-width: 160px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--zx-surface);
+  box-shadow: 0 10px 32px rgba(26, 20, 20, 0.28), 0 0 0 1px var(--zx-border);
+  animation: pf-dropdown-in 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: top right;
+}
+
+.pf-img-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--zx-text2);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.pf-img-menu button:hover {
+  background: var(--zx-bg);
+  color: var(--zx-primary);
+}

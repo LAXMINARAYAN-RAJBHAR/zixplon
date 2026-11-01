@@ -25,18 +25,31 @@ const timeAgo = (dateStr) => {
 // incidental wiggle or the start of a vertical scroll.
 const SWIPE_THRESHOLD = 50;
 
+const getFsElement = () =>
+  document.fullscreenElement || document.webkitFullscreenElement || null;
+
+// True while ANY photo in the viewer is shown full screen (real browser
+// fullscreen, or the CSS fallback used where the Fullscreen API doesn't
+// exist, e.g. iPhone Safari).
+const isAnyPhotoFullscreen = () =>
+  !!getFsElement() || !!document.querySelector(".pv-image-wrap--fs");
+
 /*
- * PhotoBlock — one photo + its own like/comment/share, rendered as one
- * "row" in PhotoViewer's vertical stack. All state for this photo lives
- * here so each block is independent — commenting on photo 3 doesn't
- * re-render or reset photo 1's picker/input state.
+ * PhotoBlock — one photo + its own like/comment/share + its OWN
+ * full-screen button, rendered as one "row" in PhotoViewer's vertical
+ * stack. All state for this photo lives here so each block is
+ * independent.
  *
- * The image itself also supports horizontal swipe (touch),
- * click-and-drag (mouse), and left/right chevron buttons to jump
- * directly to the next/previous photo — on top of (not instead of) the
- * existing vertical scroll between blocks. onNavigate(direction) is
- * called with -1 (previous) or +1 (next); the parent (PhotoViewer)
- * owns actually scrolling to that block, since it holds all the refs.
+ * Full screen (per photo): the ⛶ button on the image fullscreens just
+ * this photo's image wrapper (black background, photo letterboxed).
+ * If the browser has no element-fullscreen support, the wrapper is
+ * pinned over the whole window with CSS instead (.pv-image-wrap--fs).
+ * While a photo is full screen, swipe / ‹ › / arrow-key navigation is
+ * switched off so the photo underneath can't change.
+ *
+ * `autoFullscreen` — set for the photo that was chosen via a grid tile's
+ * "Full screen" menu item: it goes full screen as soon as the viewer
+ * opens.
  */
 const PhotoBlock = ({
   src,
@@ -51,6 +64,7 @@ const PhotoBlock = ({
   loading,
   blockRef,
   onNavigate,
+  autoFullscreen,
 }) => {
   const [reactionCounts, setReactionCounts] = useState(initialReactions.counts);
   const [myReaction, setMyReaction] = useState(initialReactions.mine);
@@ -61,18 +75,18 @@ const PhotoBlock = ({
   const [copied, setCopied] = useState(false);
   const pickerRef = useRef(null);
 
+  // ── Per-photo full screen ──
+  const wrapRef = useRef(null);
+  const [nativeFs, setNativeFs] = useState(false); // real browser fullscreen
+  const [pseudoFs, setPseudoFs] = useState(false); // CSS fallback
+  const isFs = nativeFs || pseudoFs;
+
   // ── Horizontal swipe / drag tracking ──
-  // dragState holds the in-progress gesture's start point and axis lock
-  // decision. axisLockRef prevents a gesture from being reinterpreted
-  // mid-drag — once we've decided "this is horizontal" or "this is
-  // vertical" based on the first few pixels of movement, we stick with
-  // that decision for the rest of the gesture.
   const dragStartRef = useRef(null); // { x, y } | null
   const axisLockRef = useRef(null); // "horizontal" | "vertical" | null
   const isMouseDraggingRef = useRef(false);
 
-  // Keep in sync if the parent's initial fetch resolves after mount
-  // (e.g. this block was rendered before the batched query returned).
+  // Keep in sync if the parent's initial fetch resolves after mount.
   useEffect(() => {
     setReactionCounts(initialReactions.counts);
     setMyReaction(initialReactions.mine);
@@ -88,6 +102,70 @@ const PhotoBlock = ({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // Track whether THIS photo's wrapper is the fullscreen element,
+  // including when the person leaves with Esc / browser controls.
+  useEffect(() => {
+    const sync = () => setNativeFs(getFsElement() === wrapRef.current);
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync);
+    };
+  }, []);
+
+  // Esc leaves the CSS-fallback full screen (real fullscreen is left by
+  // the browser itself).
+  useEffect(() => {
+    if (!pseudoFs) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setPseudoFs(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [pseudoFs]);
+
+  const enterFs = () => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const request = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!request) {
+      setPseudoFs(true);
+      return;
+    }
+    try {
+      Promise.resolve(request.call(el)).catch(() => setPseudoFs(true));
+    } catch (_) {
+      setPseudoFs(true);
+    }
+  };
+
+  const exitFs = () => {
+    setPseudoFs(false);
+    if (getFsElement() === wrapRef.current) {
+      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+    }
+  };
+
+  const toggleFs = (e) => {
+    e.stopPropagation();
+    if (isFs) exitFs();
+    else enterFs();
+  };
+
+  // Opened from a grid tile's "Full screen" item → go full screen right
+  // away for that photo.
+  useEffect(() => {
+    if (autoFullscreen) enterFs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Navigation is ignored while this photo is full screen.
+  const navigateSafe = (direction) => {
+    if (isFs) return;
+    onNavigate(direction);
+  };
 
   const totalReactions = Object.values(reactionCounts).reduce((a, b) => a + b, 0);
   const myReactionInfo = REACTIONS.find((r) => r.key === myReaction);
@@ -167,15 +245,12 @@ const PhotoBlock = ({
 
   const handleCopyLink = () => {
     const url = `https://zixplon.in/api/og?type=post&id=${postId}&photo=${index}`;
-    navigator.clipboard?.writeText(url).catch(() => {});
+    navigator.clipboard?.writeText(url).catch(() => { });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   // ── Touch swipe handlers ──
-  // Only the image itself is the swipe surface (see JSX below) — the
-  // panel underneath (like/comment/share, comment list) keeps its
-  // normal touch behavior untouched.
   const handleTouchStart = (e) => {
     const t = e.touches[0];
     dragStartRef.current = { x: t.clientX, y: t.clientY };
@@ -189,18 +264,12 @@ const PhotoBlock = ({
     const dy = t.clientY - dragStartRef.current.y;
 
     if (!axisLockRef.current) {
-      // Decide once, on the first meaningfully-sized movement, whether
-      // this gesture is horizontal (photo nav) or vertical (let the
-      // page's normal scroll handle it — don't preventDefault in that
-      // case, or scrolling between blocks would break).
       if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
         axisLockRef.current = Math.abs(dx) > Math.abs(dy) ? "horizontal" : "vertical";
       }
     }
 
     if (axisLockRef.current === "horizontal") {
-      // Prevent the browser from also trying to scroll/pan while we're
-      // handling a horizontal swipe ourselves.
       e.preventDefault();
     }
   };
@@ -217,21 +286,17 @@ const PhotoBlock = ({
     axisLockRef.current = null;
 
     if (Math.abs(dx) < SWIPE_THRESHOLD) return;
-    // Swiped left (dx negative) → advance to next photo.
-    // Swiped right (dx positive) → go back to previous photo.
-    onNavigate(dx < 0 ? 1 : -1);
+    navigateSafe(dx < 0 ? 1 : -1);
   };
 
-  // ── Mouse drag handlers (desktop) — mirrors the touch gesture above ──
+  // ── Mouse drag handlers (desktop) ──
   const handleMouseDown = (e) => {
     isMouseDraggingRef.current = true;
     dragStartRef.current = { x: e.clientX, y: e.clientY };
   };
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = () => {
     if (!isMouseDraggingRef.current || !dragStartRef.current) return;
-    // No preventDefault needed here — native image drag-ghosting is
-    // already suppressed via draggable={false} on the <img> below.
   };
 
   const handleMouseUp = (e) => {
@@ -245,14 +310,10 @@ const PhotoBlock = ({
     dragStartRef.current = null;
 
     if (Math.abs(dx) < SWIPE_THRESHOLD) return;
-    onNavigate(dx < 0 ? 1 : -1);
+    navigateSafe(dx < 0 ? 1 : -1);
   };
 
   const handleMouseLeave = () => {
-    // Cancel an in-progress drag if the pointer leaves the image
-    // entirely (e.g. user drags off the edge) — avoids a stale
-    // dragStartRef causing a spurious jump on the next mouseup
-    // elsewhere on the page.
     isMouseDraggingRef.current = false;
     dragStartRef.current = null;
   };
@@ -265,12 +326,15 @@ const PhotoBlock = ({
         </span>
       )}
 
-      <div className="pv-image-wrap">
+      <div
+        className={`pv-image-wrap${pseudoFs ? " pv-image-wrap--fs" : ""}`}
+        ref={wrapRef}
+      >
         {total > 1 && index > 0 && (
           <button
             type="button"
             className="pv-nav-btn pv-nav-btn--prev"
-            onClick={() => onNavigate(-1)}
+            onClick={() => navigateSafe(-1)}
             aria-label="Previous photo"
           >
             ‹
@@ -289,19 +353,40 @@ const PhotoBlock = ({
           onMouseMove={total > 1 ? handleMouseMove : undefined}
           onMouseUp={total > 1 ? handleMouseUp : undefined}
           onMouseLeave={total > 1 ? handleMouseLeave : undefined}
-          style={total > 1 ? { cursor: "grab", touchAction: "pan-y" } : undefined}
+          style={total > 1 && !isFs ? { cursor: "grab", touchAction: "pan-y" } : undefined}
         />
 
         {total > 1 && index < total - 1 && (
           <button
             type="button"
             className="pv-nav-btn pv-nav-btn--next"
-            onClick={() => onNavigate(1)}
+            onClick={() => navigateSafe(1)}
             aria-label="Next photo"
           >
             ›
           </button>
         )}
+
+        {/* This photo's OWN full screen button */}
+        <button
+          type="button"
+          className="pv-fs-btn"
+          onClick={toggleFs}
+          aria-label={isFs ? "Exit full screen" : "View this photo full screen"}
+          title={isFs ? "Exit full screen" : "Full screen"}
+        >
+          {isFs ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            </svg>
+          )}
+        </button>
       </div>
 
       <div className="pv-panel">
@@ -404,44 +489,26 @@ const PhotoBlock = ({
  * PhotoViewer — Facebook-style vertical photo feed for multi-image (and
  * single-image) posts. Clicking any tile in ImageGrid opens this; every
  * photo in the post is shown stacked one below another (scroll to move
- * between photos), and the view auto-scrolls to the tapped photo's
- * position on open.
+ * between photos), and the view auto-scrolls to the tapped photo.
  *
- * Each photo's image also supports jumping directly to the next/
- * previous photo via touch swipe, mouse drag, on-screen ‹ › buttons, or
- * the ArrowLeft/ArrowRight keys — all of these funnel through
- * scrollToIndex() below, which just smooth-scrolls the vertical stack
- * to that photo's block.
+ * CHANGED: the single ⋯ → "Full screen" menu at the top is gone. Every
+ * photo now has its OWN ⛶ full screen button (see PhotoBlock), so you
+ * choose full screen for the exact photo you're looking at.
  *
- * NEW: a ⋯ menu next to the ✕ button with a "Full screen" option. It
- * fullscreens the viewer overlay itself (not the whole page), so the
- * close button, ‹ › buttons, likes and comments all keep working while
- * fullscreen. The label flips to "Exit full screen" while active and
- * stays in sync if the person exits with Esc / browser controls, or if
- * the viewer was opened already-fullscreen from the feed tile's own
- * "Full screen" menu item. Hidden on browsers with no page fullscreen
- * support (iPhone Safari) — the viewer is already full-window there.
+ * `startFullscreen` — when the viewer was opened from a grid tile's
+ * "Full screen" menu item, that photo goes full screen immediately.
  *
  * Each photo gets its OWN like/comment/share, independent of the
  * post-level reactions shown on the feed card. Per-photo reactions/
- * comments are keyed by a deterministic `${postId}_${index}` string
- * rather than a real foreign key into a dedicated photos table — this
- * works retroactively on every existing post's `image_urls` array with
- * zero changes to the upload flow (PostComposer.jsx). Tradeoff: if a
- * post's photos are ever reordered or individually removed after the
- * fact, the index-based key can point at the wrong photo's history. Not
- * a concern for normal add/delete-the-whole-post usage.
+ * comments are keyed by `${postId}_${index}`. All reactions/comments
+ * are fetched in two batched queries on open.
  *
- * All reactions/comments for every photo in the post are fetched in two
- * batched queries (image_key IN [...]) on open, rather than one query
- * per photo — keeps this cheap even for posts with many images.
- *
- * Requires the post_image_reactions / post_image_comments tables — see
- * the accompanying SQL migration.
+ * Requires the post_image_reactions / post_image_comments tables.
  */
 const PhotoViewer = ({
   images,        // array of URL strings (post.image_urls, or [post.image_url])
   startIndex = 0,
+  startFullscreen = false,
   postId,
   postUsername,
   currentUser,
@@ -451,20 +518,6 @@ const PhotoViewer = ({
   const [loading, setLoading] = useState(true);
   const blockRefs = useRef([]);
   const scrolledRef = useRef(false);
-
-  // NEW: full screen state + ⋯ menu state.
-  const overlayRef = useRef(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // iPhone Safari can't fullscreen a <div>; the viewer is already
-  // full-window there, so the menu is hidden.
-  const canFullscreen =
-    typeof document !== "undefined" &&
-    !!(
-      document.documentElement.requestFullscreen ||
-      document.documentElement.webkitRequestFullscreen
-    );
 
   const loadAllImageData = useCallback(async () => {
     setLoading(true);
@@ -513,18 +566,12 @@ const PhotoViewer = ({
     }
   });
 
-  // Smooth-scrolls the stack so the given photo index's block is
-  // at the top of the view. Used by swipe/drag/button/keyboard nav —
-  // all of them just compute a target index and call this.
   const scrollToIndex = useCallback((index) => {
     const el = blockRefs.current[index];
     if (el) el.scrollIntoView({ block: "start", behavior: "smooth" });
   }, []);
 
-  // Figures out which photo is currently most in view (used as
-  // the "current" position for relative navigation — swiping left on
-  // whichever photo you're looking at should go to the NEXT photo
-  // relative to that one, not relative to startIndex forever).
+  // Which photo is currently most in view (for relative navigation).
   const getCurrentIndex = useCallback(() => {
     let closestIndex = 0;
     let closestDistance = Infinity;
@@ -540,61 +587,25 @@ const PhotoViewer = ({
     return closestIndex;
   }, []);
 
-  // direction: -1 (previous) or +1 (next), relative to whichever photo
-  // is currently most visible — not relative to the block that
-  // triggered the gesture, so this stays correct even if the person
-  // has scrolled elsewhere with normal vertical scrolling in between.
   const navigate = useCallback(
     (direction) => {
       const current = getCurrentIndex();
       const target = current + direction;
-      if (target < 0 || target >= images.length) return; // no-op at the ends
+      if (target < 0 || target >= images.length) return;
       scrollToIndex(target);
     },
     [getCurrentIndex, scrollToIndex, images.length],
   );
 
-  // NEW: keep isFullscreen in sync, including when the person exits
-  // with Esc / the browser's own controls, or when the viewer was
-  // opened already-fullscreen from the feed tile's "Full screen" item.
-  useEffect(() => {
-    const sync = () =>
-      setIsFullscreen(
-        !!(document.fullscreenElement || document.webkitFullscreenElement),
-      );
-    sync();
-    document.addEventListener("fullscreenchange", sync);
-    document.addEventListener("webkitfullscreenchange", sync);
-    return () => {
-      document.removeEventListener("fullscreenchange", sync);
-      document.removeEventListener("webkitfullscreenchange", sync);
-    };
-  }, []);
-
-  // NEW: enter / exit fullscreen from the ⋯ menu. Fullscreens the
-  // overlay element (not the page) so every control inside it keeps
-  // working. Must be called straight from a click.
-  const toggleFullscreen = () => {
-    setMenuOpen(false);
-    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
-    if (fsEl) {
-      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
-      return;
-    }
-    const el = overlayRef.current;
-    if (!el) return;
-    const request = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (request) Promise.resolve(request.call(el)).catch(() => {});
-  };
-
   useEffect(() => {
     document.body.style.overflow = "hidden";
     const handleKey = (e) => {
-      if (e.key === "Escape") {
-        // CHANGED: Esc closes the ⋯ menu first, then the viewer.
-        if (menuOpen) setMenuOpen(false);
-        else onClose();
-      } else if (e.key === "ArrowLeft") navigate(-1);
+      // While a photo is full screen, Esc only leaves full screen and
+      // the arrow keys don't change photos.
+      if (isAnyPhotoFullscreen()) return;
+
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowLeft") navigate(-1);
       else if (e.key === "ArrowRight") navigate(1);
     };
     document.addEventListener("keydown", handleKey);
@@ -602,42 +613,13 @@ const PhotoViewer = ({
       document.body.style.overflow = "";
       document.removeEventListener("keydown", handleKey);
     };
-  }, [onClose, navigate, menuOpen]);
+  }, [onClose, navigate]);
 
   return (
-    <div className="pv-overlay" ref={overlayRef}>
+    <div className="pv-overlay">
       <button className="pv-close" onClick={onClose} aria-label="Close">
         ✕
       </button>
-
-      {/* NEW: ⋯ menu with Full screen / Exit full screen. */}
-      {canFullscreen && (
-        <>
-          <button
-            type="button"
-            className="pv-menu-btn"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label="Photo options"
-            aria-haspopup="true"
-            aria-expanded={menuOpen}
-          >
-            ⋯
-          </button>
-          {menuOpen && (
-            <>
-              <div
-                className="pv-menu-backdrop"
-                onClick={() => setMenuOpen(false)}
-              />
-              <div className="pv-menu" role="menu">
-                <button type="button" role="menuitem" onClick={toggleFullscreen}>
-                  {isFullscreen ? "⛶ Exit full screen" : "⛶ Full screen"}
-                </button>
-              </div>
-            </>
-          )}
-        </>
-      )}
 
       <div className="pv-scroll-stack" onClick={(e) => e.stopPropagation()}>
         {images.map((src, i) => (
@@ -655,6 +637,7 @@ const PhotoViewer = ({
             loading={loading}
             blockRef={(el) => (blockRefs.current[i] = el)}
             onNavigate={navigate}
+            autoFullscreen={startFullscreen && i === startIndex}
           />
         ))}
       </div>

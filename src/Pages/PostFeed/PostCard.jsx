@@ -970,48 +970,18 @@ const PostCard = ({
   const navigate = useNavigate();
 
   // ── Photo full screen ──
-  // "Full screen" = the swipeable PhotoViewer PLUS the browser's own
-  // fullscreen mode (address bar / tabs hidden). It must be called straight
-  // from a click so the browser allows it. Where the browser has no page
-  // fullscreen (iPhone Safari) the PhotoViewer still opens full-window.
-  // Exit: the viewer's close button, or Esc.
-  const fsEnteredRef = useRef(false);
-
+  // Each photo has its OWN full screen option: the ⋯ button on every
+  // grid tile, and a ⛶ button on every photo inside PhotoViewer.
+  // Choosing it from a tile opens the viewer at that photo with that
+  // photo already full screen. (The old single "view all photos full
+  // screen" option is gone.)
   const openPhotosFullscreen = (images, startIndex = 0) => {
     if (!images || images.length === 0) return;
-    try {
-      const el = document.documentElement;
-      const alreadyFs =
-        document.fullscreenElement || document.webkitFullscreenElement;
-      const request = el.requestFullscreen || el.webkitRequestFullscreen;
-      if (request && !alreadyFs) {
-        fsEnteredRef.current = true;
-        Promise.resolve(request.call(el)).catch(() => {
-          fsEnteredRef.current = false;
-        });
-      }
-    } catch (_) {
-      fsEnteredRef.current = false;
-    }
-    setPhotoViewerData({ images, startIndex });
+    setPhotoViewerData({ images, startIndex, startFullscreen: true });
     setShowMenu(false);
   };
 
-  const closePhotoViewer = () => {
-    setPhotoViewerData(null);
-    if (fsEnteredRef.current) {
-      fsEnteredRef.current = false;
-      try {
-        if (document.fullscreenElement || document.webkitFullscreenElement) {
-          (document.exitFullscreen || document.webkitExitFullscreen)?.call(
-            document,
-          );
-        }
-      } catch (_) { }
-    }
-  };
-
-  const initials = (post.username || "?").slice(0, 2).toUpperCase();
+  const closePhotoViewer = () => setPhotoViewerData(null);
   // NEW: full date/time — shown inline on desktop, tooltip-only on phones.
   const fullDate = new Date(post.created_at).toLocaleString("en-IN", {
     day: "numeric",
@@ -1394,6 +1364,7 @@ const PostCard = ({
         <PhotoViewer
           images={photoViewerData.images}
           startIndex={photoViewerData.startIndex}
+          startFullscreen={!!photoViewerData.startFullscreen}
           postId={post.id}
           postUsername={post.username}
           currentUser={currentUser}
@@ -1516,7 +1487,7 @@ const PostCard = ({
               {showMenu && (
                 <div className="pf-dropdown">
                   {/* NEW: full-screen view for any post with photos. */}
-                  {(post.image_urls?.length > 0 || post.image_url) && (
+                  {/* {(post.image_urls?.length > 0 || post.image_url) && (
                     <button
                       className="pf-dropdown-item"
                       onClick={() =>
@@ -1530,7 +1501,7 @@ const PostCard = ({
                     >
                       ⛶ View photos full screen
                     </button>
-                  )}
+                  )} */}
                   {/* CHANGED: the Message action now only shows once the
                       connection is actually accepted — messaging an
                       unconnected or still-pending user isn't offered

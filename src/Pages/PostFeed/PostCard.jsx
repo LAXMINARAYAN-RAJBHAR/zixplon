@@ -5,42 +5,32 @@ import EmojiPicker from "./EmojiPicker";
 import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
 import ExpandableText from "../../Component/ExpandableText/ExpandableText";
 import ReportPostModal from "./ReportPostModal";
-// CHANGED: Lightbox (view-only zoom/swipe) replaced with PhotoViewer,
-// which adds per-photo like/comment/share/copy-link on top of the same
-// full-screen swipe experience. See PhotoViewer.jsx.
+// PhotoViewer: full-screen swipe/scroll viewer with per-photo
+// like/comment/share/copy-link AND a per-photo full screen button.
 import PhotoViewer from "./PhotoViewer";
-// NEW: generic content-report modal (contentType/contentId/contentTitle/
-// contentOwner/onClose), same component already used by Video.jsx and
-// Reels.jsx for reel/video/comment reports. ReportPostModal above stays
-// dedicated to post-level reports; this one is only used for individual
-// comment reports (see the kebab menu below).
+// Generic content-report modal (contentType/contentId/contentTitle/
+// contentOwner/onClose), same component used by Video.jsx and Reels.jsx.
+// ReportPostModal above stays dedicated to post-level reports; this one is
+// only used for individual comment reports (see the kebab menu below).
 import ReportModal from "../../Component/Moderation/ReportModal";
 // Connect button on each post's header — same "connections" table
-// used by the Connect button on Video.jsx / Reels.jsx (see
-// subscriptions_to_connections_migration.sql and the later
-// connection_request_migration.sql that added the pending/accepted
-// status column).
+// used by the Connect button on Video.jsx / Reels.jsx.
 import { supabase } from "../../config/supabase";
-// NEW: shared sound arbiter — keeps sound to one thing at a time across
-// the app (same one the Home feed cards use). The attached song now plays
-// through a hidden <audio> in this card (see below) instead of a song
-// card; it is shown as a small 🎵 line in the header subtitle.
+// Shared sound arbiter — keeps sound to one thing at a time across
+// the app. The attached song plays through a hidden <audio> in this card
+// and is shown as a small 🎵 line in the header subtitle.
 import { claimSound, releaseSound } from "../../utils/soundArbiter";
-// NEW: hls.js gives adaptive-bitrate HLS playback in every browser that
+// hls.js gives adaptive-bitrate HLS playback in every browser that
 // doesn't support it natively (i.e. everything except Safari/iOS).
 // Install with: npm install hls.js
-// If a post's video_url is still a plain .mp4 (no .m3u8 manifest), this
-// whole path is a no-op and playback falls back to plain <video src>
-// exactly as before — nothing breaks until posts start carrying HLS
-// manifests.
+// If a post's video_url is a plain .mp4 (no .m3u8 manifest), this whole
+// path is a no-op and playback falls back to plain <video src>.
 import Hls from "hls.js";
-// NEW: tracks whether the visitor has interacted with the page yet —
-// browsers only allow unmuted audio/video autoplay after a user
-// gesture, so this lets PostVideo (and SongAttachmentCard) retry
-// sound the instant that happens, rather than only on their own click.
+// Tracks whether the visitor has interacted with the page yet — browsers
+// only allow unmuted audio/video autoplay after a user gesture.
 import { onUserInteract } from "../../utils/audioUnlock";
-// NEW: when a post video ends, scroll to the next video / post video in
-// the feed (its own autoplay-on-scroll then starts it).
+// When a post video ends, scroll to the next video / post video in the
+// feed (its own autoplay-on-scroll then starts it).
 import { advanceToNextFeedMedia } from "../../utils/autoAdvance";
 
 const REACTIONS = [
@@ -76,8 +66,8 @@ const formatViews = (n) => {
   return n + " views";
 };
 
-// NEW: compact count for the Facebook-style action pills and header
-// meta line (1234 -> "1.2K", 3300000 -> "3.3M").
+// Compact count for the Facebook-style action pills and header meta line
+// (1234 -> "1.2K", 3300000 -> "3.3M").
 const formatCount = (n) => {
   if (!n) return "0";
   if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
@@ -85,7 +75,7 @@ const formatCount = (n) => {
   return String(n);
 };
 
-// NEW: m:ss formatter for the video progress bar's scrub label.
+// m:ss formatter for the video progress bar's scrub label.
 const formatTime = (s) => {
   if (!isFinite(s) || s < 0) return "0:00";
   const m = Math.floor(s / 60);
@@ -93,8 +83,8 @@ const formatTime = (s) => {
   return `${m}:${String(sec).padStart(2, "0")}`;
 };
 
-// NEW: HLS manifests are served as .m3u8. Everything else (mp4/webm/etc)
-// keeps using a plain <video src> exactly as before.
+// HLS manifests are served as .m3u8. Everything else (mp4/webm/etc)
+// keeps using a plain <video src>.
 const isHlsSource = (src) => !!src && /\.m3u8(\?.*)?$/i.test(src);
 
 // ── Comment translate stub — same as Reels.jsx / Video.jsx. NOT a real
@@ -126,25 +116,22 @@ const stubTranslateToHindi = (text) => {
        by PostCard's IntersectionObserver below).
      • The moment it first enters view, it tries to autoplay WITH
        sound — some browsers allow this once the page has enough
-       "media engagement", and this is the one moment that's worth
-       trying. If the browser blocks it (the common case), it falls
-       back to a muted autoplay instead.
+       "media engagement". If the browser blocks it (the common case),
+       it falls back to a muted autoplay instead.
      • Leaving the viewport pauses it; scrolling back in resumes
        playback (muted state carries over — no re-prompt).
-     • Tapping the video, or the speaker icon, toggles sound on/off at
-       any time.
+     • Tapping the video, or the speaker icon, toggles sound on/off.
      • A full screen button sits next to the speaker icon. It
        fullscreens the wrapper (so the mute button keeps working), and
        falls back to the video element's native fullscreen on iOS
        Safari, which can't fullscreen a <div>.
-     • A progress bar runs along the bottom edge. It shows played
-       and buffered progress, supports click / drag (mouse + touch) to
-       seek, and Left/Right arrow keys (±5s) when focused. It only
-       reads the <video> element's events, so it works for HLS too.
-     • NEW (auto-advance): the video no longer loops. When it ends,
-       `onEnded` is called; if that returns true the feed has scrolled
-       to the next video, otherwise (no next item / off-screen /
-       fullscreen) the video replays from the start.
+     • A progress bar runs along the bottom edge. It shows played and
+       buffered progress, supports click / drag (mouse + touch) to
+       seek, and Left/Right arrow keys (±5s) when focused.
+     • Auto-advance: the video doesn't loop. When it ends, `onEnded` is
+       called; if that returns true the feed has scrolled to the next
+       video, otherwise (no next item / off-screen / fullscreen) the
+       video replays from the start.
 
    HLS support — if `src` is an .m3u8 manifest, playback routes through
    hls.js (or native HLS on Safari) instead of setting the <video>'s
@@ -152,7 +139,7 @@ const stubTranslateToHindi = (text) => {
 ───────────────────────────────────────── */
 const PostVideo = ({ src, inView, onEnded }) => {
   const videoRef = useRef(null);
-  // NEW: wrapper ref — this is the element that actually goes fullscreen.
+  // Wrapper ref — this is the element that actually goes fullscreen.
   const wrapRef = useRef(null);
   // Holds the active hls.js instance for this video, torn down on
   // unmount or whenever `src` changes.
@@ -163,15 +150,15 @@ const PostVideo = ({ src, inView, onEnded }) => {
   // attempt succeeds, or the user taps to unmute.
   const [muted, setMuted] = useState(true);
   const [showMuteHint, setShowMuteHint] = useState(false);
-  // NEW: whether THIS video's wrapper is currently fullscreen.
+  // Whether THIS video's wrapper is currently fullscreen.
   const [isFullscreen, setIsFullscreen] = useState(false);
   const muteHintTimeoutRef = useRef(null);
   // Only worth trying "autoplay with sound" the FIRST time this video
   // enters view — afterwards we just respect whatever mute state is
-  // already in effect (the user's own choice, or the earlier fallback).
+  // already in effect.
   const attemptedUnmutedRef = useRef(false);
 
-  // NEW: progress bar state.
+  // Progress bar state.
   const trackRef = useRef(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -184,7 +171,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
     if (!vid) return;
 
     if (!inView) {
-      // NEW: don't pause while the person is watching it fullscreen.
+      // Don't pause while the person is watching it fullscreen.
       const fsEl =
         document.fullscreenElement || document.webkitFullscreenElement;
       if (fsEl && fsEl === wrapRef.current) return;
@@ -202,8 +189,8 @@ const PostVideo = ({ src, inView, onEnded }) => {
           // Autoplay-with-sound was blocked — fall back to a muted
           // autoplay; the speaker icon lets the user turn sound on. Also
           // register a one-time retry: the moment the visitor
-          // interacts with the page ANYWHERE (not necessarily this
-          // video), browsers lift the restriction, so try again then.
+          // interacts with the page ANYWHERE, browsers lift the
+          // restriction, so try again then.
           vid.muted = true;
           setMuted(true);
           vid.play().catch(() => { });
@@ -237,7 +224,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
     return () => clearTimeout(muteHintTimeoutRef.current);
   }, []);
 
-  // NEW: keep isFullscreen in sync, including when the person exits with
+  // Keep isFullscreen in sync, including when the person exits with
   // Esc / the browser's own controls rather than our button.
   useEffect(() => {
     const onChange = () => {
@@ -253,7 +240,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
     };
   }, []);
 
-  // NEW: keep progress state in sync with the <video> element.
+  // Keep progress state in sync with the <video> element.
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
@@ -310,9 +297,9 @@ const PostVideo = ({ src, inView, onEnded }) => {
     muteHintTimeoutRef.current = setTimeout(() => setShowMuteHint(false), 1200);
   };
 
-  // NEW: enter/exit fullscreen. Fullscreens the wrapper so the mute
-  // button stays available; falls back to the <video>'s own native
-  // fullscreen on iPhone Safari.
+  // Enter/exit fullscreen. Fullscreens the wrapper so the mute button
+  // stays available; falls back to the <video>'s own native fullscreen
+  // on iPhone Safari.
   const toggleFullscreen = (e) => {
     e.stopPropagation();
     const wrap = wrapRef.current;
@@ -338,10 +325,9 @@ const PostVideo = ({ src, inView, onEnded }) => {
     }
   };
 
-  // NEW (auto-advance): the video reached its end. Ask the card to move
-  // on to the next video; if it can't (nothing after it, the post is off
-  // screen, or the person is watching fullscreen) replay from the start —
-  // which is what `loop` used to do.
+  // Auto-advance: the video reached its end. Ask the card to move on to
+  // the next video; if it can't (nothing after it, the post is off
+  // screen, or the person is watching fullscreen) replay from the start.
   const handleEnded = () => {
     const vid = videoRef.current;
     const advanced = inView && !isFullscreen && onEnded ? onEnded() : false;
@@ -351,7 +337,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
     }
   };
 
-  // ── NEW: progress bar seeking ──
+  // ── Progress bar seeking ──
   const seekToClientX = (clientX) => {
     const vid = videoRef.current;
     const track = trackRef.current;
@@ -389,10 +375,10 @@ const PostVideo = ({ src, inView, onEnded }) => {
 
   // ── HLS playback ──────────────────────────────────────────────────
   // For a plain mp4/webm `src`, this is a no-op — the <video src={src}>
-  // below handles it exactly as before. For an .m3u8 manifest, hands
-  // the element to hls.js (or lets Safari's native HLS take over)
-  // instead of setting `src` directly, since browsers other than
-  // Safari can't play a raw .m3u8 URL as a video source.
+  // below handles it. For an .m3u8 manifest, hands the element to hls.js
+  // (or lets Safari's native HLS take over) instead of setting `src`
+  // directly, since browsers other than Safari can't play a raw .m3u8
+  // URL as a video source.
   useEffect(() => {
     const vid = videoRef.current;
 
@@ -438,7 +424,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
         // to fetch the raw .m3u8 as a video file.
         src={usingHls ? undefined : src}
         muted={muted}
-        // CHANGED: `loop` removed so the "ended" event fires — handleEnded
+        // `loop` is removed so the "ended" event fires — handleEnded
         // replays the video itself when there is no next item.
         onEnded={handleEnded}
         playsInline
@@ -448,7 +434,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
         disablePictureInPicture
         onContextMenu={(e) => e.preventDefault()}
       />
-      {/* NEW: full screen button — sits just left of the mute button. */}
+      {/* Full screen button — sits just left of the mute button. */}
       <button
         type="button"
         className="pf-card-video-fs-btn"
@@ -496,7 +482,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
         {muted ? "🔇" : "🔊"}
       </button>
 
-      {/* NEW: progress bar — only rendered once the duration is known. */}
+      {/* Progress bar — only rendered once the duration is known. */}
       {duration > 0 && (
         <div
           className={`pf-vp-bar${scrubbing ? " pf-vp-bar--scrubbing" : ""}`}
@@ -536,9 +522,8 @@ const PostVideo = ({ src, inView, onEnded }) => {
 
 /* ─────────────────────────────────────────
    IMAGE GRID — Facebook-style collage for multi-image posts.
-   Replaces the old in-feed ImageCarousel. Layout is driven entirely by
-   the existing .pf-img-grid / .pf-img-grid-1..4 CSS in PostFeed.css
-   (which was already written but never wired to any component):
+   Layout is driven by the .pf-img-grid / .pf-img-grid-1..4 CSS in
+   PostFeed.css:
      1 photo  → full-width single tile
      2 photos → two tiles side by side
      3 photos → one large + two stacked small
@@ -546,17 +531,18 @@ const PostVideo = ({ src, inView, onEnded }) => {
      5+       → same 2x2 grid, with a "+N" overlay on the 4th tile
                 showing how many more photos aren't shown here
    Tapping ANY tile opens the full-screen, swipeable PhotoViewer
-   starting at that tile's actual index in the full image_urls array —
-   so tapping the "+N" tile still lands you on photo #4, and swiping
-   from there reveals the rest, exactly like Facebook. ── */
+   starting at that tile's actual index in the full image_urls array.
+
+   EVERY tile has its own ⋯ menu with a "Full screen" option for THAT
+   photo (opens the viewer at that photo, already full screen). The menu
+   is rendered through a portal with fixed positioning because the tiles
+   clip their contents (overflow: hidden). ── */
 const ImageGrid = ({ images, onOpenViewer, onFullscreen }) => {
   const count = images.length;
   const displayCount = Math.min(count, 4);
   const remaining = count - displayCount;
 
-  // Per-photo ⋯ menu. Rendered through a portal with fixed positioning
-  // because the tiles clip their contents (overflow: hidden) — an inline
-  // dropdown would be cut off. { index, top, right } | null
+  // { index, top, right } | null
   const [menu, setMenu] = useState(null);
 
   useEffect(() => {
@@ -647,10 +633,10 @@ const ImageGrid = ({ images, onOpenViewer, onFullscreen }) => {
 /* ─────────────────────────────────────────
    COMMENT ROW — used for both top-level comments and their (one level
    deep) replies. Renders the kebab menu (Share/Report/Save), the
-   existing Like/Dislike actions, a Reply button (top-level only), the
-   Translate-to-Hindi toggle, and — NEW — an attached GIF/sticker image
-   when the comment has one (comment.attachment_url). Mirrors
-   ReelCommentRow / VideoCommentRow in Reels.jsx / Video.jsx.
+   Like/Dislike actions, a Reply button (top-level only), the
+   Translate-to-Hindi toggle, and an attached GIF/sticker image when the
+   comment has one (comment.attachment_url). Mirrors ReelCommentRow /
+   VideoCommentRow in Reels.jsx / Video.jsx.
 ───────────────────────────────────────── */
 const PostCommentRow = ({
   comment,
@@ -783,7 +769,7 @@ const PostCard = ({
   onReport,
   onLikeComment, // like/unlike a single comment
   onDislikeComment, // dislike/undislike a single comment
-  onSaveComment, // NEW: (postId, commentId) => void — kebab menu "Save"
+  onSaveComment, // (postId, commentId) => void — kebab menu "Save"
   viewCount = 0, // this post's total view count, from PostFeed's viewCounts map
   onView, // (postId) => void — called once per mount when the card scrolls into view
 }) => {
@@ -792,8 +778,7 @@ const PostCard = ({
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [copied, setCopied] = useState(false);
-  // CHANGED: renamed from lightboxData — now drives PhotoViewer instead
-  // of the old view-only Lightbox. Same {images, startIndex} shape.
+  // Drives PhotoViewer: { images, startIndex, startFullscreen? } | null
   const [photoViewerData, setPhotoViewerData] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
 
@@ -803,23 +788,19 @@ const PostCard = ({
   const [editImages, setEditImages] = useState(
     post.image_urls || (post.image_url ? [post.image_url] : []),
   );
-  // NEW: editable location while editing a post — song is intentionally
-  // NOT re-pickable here (kept from creation), but the location can be
-  // cleared, matching how a Facebook "check-in" can be removed from an
-  // existing post via Edit.
+  // Editable location while editing a post — song is intentionally NOT
+  // re-pickable here (kept from creation), but the location can be
+  // cleared, matching how a Facebook "check-in" can be removed.
   const [editLocation, setEditLocation] = useState(post.location_name || "");
   const [showEditEmoji, setShowEditEmoji] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [showCommentEmoji, setShowCommentEmoji] = useState(false);
-  // NEW: separate picker-open state for whichever reply row is
-  // currently active — the reply input row previously had no emoji/GIF/
-  // sticker button at all.
+  // Separate picker-open state for whichever reply row is currently active.
   const [showReplyEmoji, setShowReplyEmoji] = useState(false);
 
-  // NEW: per-comment feature state — kebab menu, one-level replies, and
-  // the translate-to-Hindi toggle (per comment id). Mirrors Reels.jsx /
-  // Video.jsx.
+  // Per-comment feature state — kebab menu, one-level replies, and the
+  // translate-to-Hindi toggle (per comment id).
   const [commentMenuOpenId, setCommentMenuOpenId] = useState(null);
   const [replyingToId, setReplyingToId] = useState(null);
   const [replyText, setReplyText] = useState("");
@@ -830,24 +811,20 @@ const PostCard = ({
   const [commentShareToast, setCommentShareToast] = useState(false);
   const [commentSavedToast, setCommentSavedToast] = useState(false);
 
-  // Connect button state — mirrors the same three-state flow used in
-  // Video.jsx and Reels.jsx, against the same "connections" table.
+  // Connect button state — the same three-state flow used in Video.jsx
+  // and Reels.jsx, against the same "connections" table.
   // connectionStatus is null (no relationship / never requested),
-  // "pending" (a request is outstanding — either direction), or
-  // "accepted" (both sides can message each other). Requesting a
-  // connection no longer notifies via a client-side call — the
-  // notify_on_subscribe DB trigger owns "wants to connect" notifications
-  // on insert, and notify_on_connect_accept owns "accepted your request"
-  // notifications on the status update, so this component never calls
-  // notifyUser() for Connect anymore (that previously duplicated the
-  // trigger's own notification, same issue we hit with likes/comments).
+  // "pending" (a request is outstanding), or "accepted" (connected —
+  // the Connect button is hidden in that case). The notify_on_subscribe /
+  // notify_on_connect_accept DB triggers own the notifications, so this
+  // component never calls notifyUser() for Connect.
   const [connectionStatus, setConnectionStatus] = useState(null);
   const [connectLoading, setConnectLoading] = useState(false);
 
   // ── Action bar animation state ──
   // likePopKey / burstKey: replayed via React key remount rather than
   // toggling classes, since remounting an element always restarts its
-  // CSS animation cleanly (no need to force a reflow).
+  // CSS animation cleanly.
   const [likePopKey, setLikePopKey] = useState(0);
   const [burstKey, setBurstKey] = useState(null);
   const [commentBounceKey, setCommentBounceKey] = useState(0);
@@ -859,35 +836,25 @@ const PostCard = ({
   const shareRef = useRef();
   const menuRef = useRef();
 
-  // NEW: unique per-mount suffix for this card's connection-status
-  // realtime channel (see the connection useEffect below). Supabase's
-  // client REUSES a channel object whenever `.channel(name)` is called
-  // with a name that's already subscribed elsewhere — so without this,
-  // two posts from the same author both showing in the feed would build
-  // the identical channel name (same viewer + same author), and the
-  // second card's `.on()` call would land on the first card's
-  // already-subscribed channel, crashing with "cannot add
-  // postgres_changes callbacks ... after subscribe()". A random
-  // per-instance suffix guarantees every mounted PostCard gets its own
-  // channel even when several reference the same (viewer, author) pair.
+  // Unique per-mount suffix for this card's connection-status realtime
+  // channel (see the connection useEffect below). Supabase's client REUSES
+  // a channel object whenever `.channel(name)` is called with a name
+  // that's already subscribed elsewhere — so two posts from the same
+  // author in the feed would otherwise crash with "cannot add
+  // postgres_changes callbacks ... after subscribe()".
   const channelInstanceIdRef = useRef(Math.random().toString(36).slice(2));
 
-  // Root card ref + one-shot guard for the view-count
-  // IntersectionObserver below. Mirrors ShortCard's viewFiredRef pattern
-  // on the homepage — fires at most once per mount, once the card is
-  // at least 60% visible.
+  // Root card ref + one-shot guard for the view-count IntersectionObserver
+  // below. Fires at most once per mount, once the card is at least 60%
+  // visible.
   const cardRef = useRef(null);
   const viewFiredRef = useRef(false);
 
-  // NEW: feed-style autoplay visibility. Separate from the view-count
-  // observer above (that one fires once, ever, at 60% visible, purely
-  // for analytics); this one toggles continuously at a slightly lower
-  // threshold and drives actual playback — the post's video (via
-  // PostVideo's `inView` prop) and its attached song (via
-  // SongAttachmentCard's `active` prop) both play once the post is
-  // meaningfully on-screen and pause the instant it isn't, the same
-  // "only what's on screen makes noise" pattern used by Instagram/
-  // TikTok feeds.
+  // Feed-style autoplay visibility. Separate from the view-count observer
+  // (that one fires once, purely for analytics); this one toggles
+  // continuously and drives actual playback — the post's video (via
+  // PostVideo's `inView` prop) and its attached song both play once the
+  // post is meaningfully on-screen and pause the instant it isn't.
   const [mediaInView, setMediaInView] = useState(false);
 
   useEffect(() => {
@@ -901,12 +868,11 @@ const PostCard = ({
     return () => observer.disconnect();
   }, []);
 
-  // NEW: real playback for the attached song, now that the big card is
-  // gone. Plays (with sound) while the post is >=50% on screen, pauses
-  // when it isn't or while editing. If the browser blocks sound it shows
-  // 🔇 in the header line and retries on the visitor's next interaction
-  // anywhere on the page. Claims the shared sound arbiter so only one
-  // card is audible at a time.
+  // Real playback for the attached song. Plays (with sound) while the
+  // post is >=50% on screen, pauses when it isn't or while editing. If the
+  // browser blocks sound it shows 🔇 in the header line and retries on the
+  // visitor's next interaction anywhere on the page. Claims the shared
+  // sound arbiter so only one card is audible at a time.
   const songAudioRef = useRef(null);
   const songUnsubscribeRef = useRef(null);
   const [songBlocked, setSongBlocked] = useState(false);
@@ -970,12 +936,12 @@ const PostCard = ({
   const navigate = useNavigate();
 
   // ── Photo full screen ──
-  // Each photo has its OWN full screen option: the ⋯ button on every
-  // grid tile, and a ⛶ button on every photo inside PhotoViewer.
-  // Choosing it from a tile opens the viewer at that photo with that
-  // photo already full screen. (The old single "view all photos full
-  // screen" option is gone.)
-    const openPhotosFullscreen = (images, startIndex = 0) => {
+  // Each photo has its OWN full screen option: the ⋯ button on every grid
+  // tile, and a ⛶ button on every photo inside PhotoViewer. Choosing it
+  // from a tile opens the viewer at that photo with that photo already
+  // full screen. (The old single "view all photos full screen" option is
+  // gone.)
+  const openPhotosFullscreen = (images, startIndex = 0) => {
     if (!images || images.length === 0) return;
     setPhotoViewerData({ images, startIndex, startFullscreen: true });
     setShowMenu(false);
@@ -984,7 +950,7 @@ const PostCard = ({
   const closePhotoViewer = () => setPhotoViewerData(null);
 
   const initials = (post.username || "?").slice(0, 2).toUpperCase();
-  // NEW: full date/time — shown inline on desktop, tooltip-only on phones.
+  // Full date/time — shown inline on desktop, tooltip-only on phones.
   const fullDate = new Date(post.created_at).toLocaleString("en-IN", {
     day: "numeric",
     month: "short",
@@ -1002,7 +968,7 @@ const PostCard = ({
 
   // Fire the like-burst + icon pop only when going from "no reaction" to
   // "reacted" — not on every reaction swap, so picking a different
-  // reaction doesn't retrigger the confetti-style burst repeatedly.
+  // reaction doesn't retrigger the burst repeatedly.
   useEffect(() => {
     const prev = prevReactionRef.current;
     prevReactionRef.current = post.myReaction;
@@ -1027,11 +993,10 @@ const PostCard = ({
     }
   }, [totalReactions]);
 
-  // NEW: view-count tracking. Same 60%-visible threshold used by
-  // ShortCard/VideoCard on the homepage — counts a "view" once the post
-  // has genuinely scrolled into the viewport, not just rendered
-  // off-screen in a long feed. onView() itself (in PostFeed) handles
-  // the 24h-per-user de-duplication, same as incrementView() there.
+  // View-count tracking. Same 60%-visible threshold used by ShortCard/
+  // VideoCard on the homepage — counts a "view" once the post has
+  // genuinely scrolled into the viewport. onView() itself (in PostFeed)
+  // handles the 24h-per-user de-duplication.
   useEffect(() => {
     viewFiredRef.current = false;
     if (!cardRef.current || !onView) return;
@@ -1066,11 +1031,8 @@ const PostCard = ({
   }, []);
 
   // Load whether the current user has a connection (of any status) with
-  // this post's author. Skipped entirely for the author's own posts,
-  // since the button never renders there anyway — same early-return
-  // shape as Reels.jsx / Video.jsx's connection loaders. Reads `status`
-  // so the button can render its three states (Connect / Requested /
-  // ✓ Connected) instead of just on/off.
+  // this post's author. Skipped for the author's own posts, since the
+  // button never renders there anyway.
   useEffect(() => {
     if (!post.username || post.username === currentUser) return;
     const userId = localStorage.getItem("userId");
@@ -1087,19 +1049,13 @@ const PostCard = ({
     };
     loadConnection();
 
-    // FIX: keep connectionStatus in sync when the other person accepts
-    // or declines from elsewhere (the bell dropdown or /notifications
-    // page) while this card is already mounted. Previously this effect
-    // only ever fetched once on mount, so the button stayed stuck on
-    // "Requested" indefinitely — nothing here ever re-queried the
-    // connections table until a full page reload re-ran loadConnection.
+    // Keep connectionStatus in sync when the other person accepts or
+    // declines from elsewhere (the bell dropdown or /notifications page)
+    // while this card is already mounted.
     //
     // Realtime filters can only match a single column server-side, so
-    // this subscribes on connector_id (always this viewer's own userId
-    // — set at insert time in handleConnect below) and then narrows to
-    // this specific post's author client-side — matches the per-user
-    // channel-scoping pattern already used in Navbar.jsx / Video.jsx /
-    // Reels.jsx.
+    // this subscribes on connector_id (always this viewer's own userId)
+    // and then narrows to this specific post's author client-side.
     const channel = supabase
       .channel(
         `postcard-connection-${userId}-${post.username}-${channelInstanceIdRef.current}`,
@@ -1129,11 +1085,8 @@ const PostCard = ({
   //   • self-connect guard
   //   • optimistic flip with rollback on failure
   //   • connector_username included on insert
-  //   • inserts as status: "pending" — a fresh Connect click no longer
-  //     connects instantly, it sends a request the other person must
-  //     accept (see the Notifications page's Accept/Decline actions)
-  //   • clicking again while "pending" or "accepted" withdraws the
-  //     request / disconnects, same delete path either way
+  //   • inserts as status: "pending" — the other person must accept
+  //   • clicking again while "pending" withdraws the request
   const handleConnect = async () => {
     if (!currentUser || currentUser === "anonymous") {
       window.dispatchEvent(new CustomEvent("openLogin"));
@@ -1193,9 +1146,9 @@ const PostCard = ({
     }
   };
 
-  // NEW: submit a one-level-deep reply to a top-level comment. Same
-  // onComment callback as a fresh comment, just with the parent's id as
-  // the third argument (see PostFeed.jsx's handleComment).
+  // Submit a one-level-deep reply to a top-level comment. Same onComment
+  // callback as a fresh comment, just with the parent's id as the third
+  // argument (see PostFeed.jsx's handleComment).
   const handleReplySubmit = (parentId) => {
     if (!replyText.trim()) return;
     onComment(post.id, replyText, parentId);
@@ -1203,10 +1156,8 @@ const PostCard = ({
     setReplyingToId(null);
   };
 
-  // NEW: a GIF/sticker picked from CommentMediaPicker posts immediately
-  // — text stays empty, attachment carries the media — same "send right
-  // away" pattern used in the chat panels and Video.jsx/Reels.jsx
-  // comments.
+  // A GIF/sticker picked from CommentMediaPicker posts immediately — text
+  // stays empty, attachment carries the media.
   const sendCommentMedia = (url, type) => {
     onComment(post.id, "", null, { url, type });
   };
@@ -1222,9 +1173,8 @@ const PostCard = ({
     setShowShareMenu(false);
   };
 
-  // NEW: kebab menu "Share" action for an individual comment — copies a
-  // link back to this post with the comment's id tagged on, same shape
-  // as the post-level Share/Copy link.
+  // Kebab menu "Share" action for an individual comment — copies a link
+  // back to this post with the comment's id tagged on.
   const handleShareComment = (comment) => {
     const shareUrl = `https://zixplon.in/api/og?type=post&id=${post.id}&comment=${comment.id}`;
     navigator.clipboard?.writeText(shareUrl).catch(() => { });
@@ -1233,10 +1183,8 @@ const PostCard = ({
     setTimeout(() => setCommentShareToast(false), 2000);
   };
 
-  // NEW: kebab menu "Save" action for an individual comment — delegates
-  // the actual state update + Supabase write up to PostFeed via the
-  // passed-in onSaveComment callback, same delegation pattern already
-  // used for onLikeComment/onDislikeComment.
+  // Kebab menu "Save" action for an individual comment — delegates the
+  // actual state update + Supabase write up to PostFeed via onSaveComment.
   const handleSaveCommentClick = (comment) => {
     if (!currentUser || currentUser === "anonymous") {
       window.dispatchEvent(new CustomEvent("openLogin"));
@@ -1251,8 +1199,8 @@ const PostCard = ({
     }
   };
 
-  // NEW: per-comment translate toggle, backed by the stub dictionary
-  // near the top of this file.
+  // Per-comment translate toggle, backed by the stub dictionary near the
+  // top of this file.
   const toggleTranslate = (commentId) => {
     setTranslatedCommentIds((prev) => {
       const next = new Set(prev);
@@ -1315,11 +1263,10 @@ const PostCard = ({
     setShowMenu(false);
   };
 
-  // NEW: like/dislike an individual comment. Guards against logged-out
-  // users the same way every other interactive action on this card
-  // does (Like/Comment/Share), then delegates the actual state update
-  // + Supabase write up to PostFeed via the passed-in callback
-  // (onLikeComment or onDislikeComment).
+  // Like/dislike an individual comment. Guards against logged-out users
+  // the same way every other interactive action on this card does, then
+  // delegates the actual state update + Supabase write up to PostFeed via
+  // the passed-in callback (onLikeComment or onDislikeComment).
   const handleCommentReactionClick = (commentId, callback) => {
     if (!currentUser || currentUser === "anonymous") {
       window.dispatchEvent(new CustomEvent("openLogin"));
@@ -1328,7 +1275,7 @@ const PostCard = ({
     callback(post.id, commentId);
   };
 
-  // NEW: kebab menu "Report" action for an individual comment.
+  // Kebab menu "Report" action for an individual comment.
   const handleReportCommentClick = (comment) => {
     if (!currentUser || currentUser === "anonymous") {
       window.dispatchEvent(new CustomEvent("openLogin"));
@@ -1346,11 +1293,10 @@ const PostCard = ({
         ? "Requested"
         : "Connect";
 
-  // NEW: build the top-level/reply comment tree. Top-level comments
-  // (parent_comment_id null) are reversed for newest-first display;
-  // each thread's replies stay in their natural chronological order
-  // (post.comments is already sorted ascending in PostFeed's
-  // enrichPost).
+  // Build the top-level/reply comment tree. Top-level comments
+  // (parent_comment_id null) are reversed for newest-first display; each
+  // thread's replies stay in their natural chronological order
+  // (post.comments is already sorted ascending in PostFeed's enrichPost).
   const allComments = post.comments || [];
   const topLevelComments = [...allComments]
     .filter((c) => !c.parent_comment_id)
@@ -1360,8 +1306,8 @@ const PostCard = ({
 
   return (
     <>
-      {/* PhotoViewer — same {images, startIndex} shape as before, now
-          launched from ImageGrid taps instead of ImageCarousel drags. */}
+      {/* PhotoViewer — launched from ImageGrid taps (or a tile's
+          "Full screen" item, which also sets startFullscreen). */}
       {photoViewerData && (
         <PhotoViewer
           images={photoViewerData.images}
@@ -1382,7 +1328,7 @@ const PostCard = ({
         />
       )}
 
-      {/* NEW: reporting an individual comment — reuses the same generic
+      {/* Reporting an individual comment — reuses the same generic
           ReportModal used by Video.jsx / Reels.jsx, pointed at
           contentType "comment". */}
       {reportCommentTarget && (
@@ -1396,7 +1342,7 @@ const PostCard = ({
       )}
 
       <div className="pf-card" ref={cardRef}>
-        {/* NEW: hidden audio for the attached song — driven by the effect
+        {/* Hidden audio for the attached song — driven by the effect
             above (plays while the post is on screen). */}
         {post.song?.url && (
           <audio ref={songAudioRef} src={post.song.url} loop preload="none" />
@@ -1421,8 +1367,8 @@ const PostCard = ({
                   — feeling {post.feeling}
                 </span>
               )}
-              {/* NEW: Facebook-style "— at <place>" check-in, shown
-                  alongside "— feeling X" in the author line. */}
+              {/* Facebook-style "— at <place>" check-in, shown alongside
+                  "— feeling X" in the author line. */}
               {post.location_name && (
                 <span className="pf-card-feeling">
                   {" "}
@@ -1430,17 +1376,17 @@ const PostCard = ({
                 </span>
               )}
             </p>
-            {/* CHANGED: Facebook-style compact meta line — short relative
-                time first (full date only on desktop), the view count
-                moved up here from the old counts row, then privacy. */}
+            {/* Facebook-style compact meta line — short relative time
+                first (full date only on desktop), then the view count,
+                then privacy. */}
             <p className="pf-card-time">
               <span title={fullDate}>{timeAgo(post.created_at)}</span>
               <span className="pf-time-full">&nbsp;·&nbsp;{fullDate}</span>
               &nbsp;·&nbsp;
               <span title={formatViews(viewCount)}>👁 {formatCount(viewCount)}</span>
-              {/* NEW: small 🎵 line (replaces the big song card). Shows 🔇
-                  while the browser is blocking sound; playback is driven
-                  by the hidden <audio> + effect further up. */}
+              {/* Small 🎵 line. Shows 🔇 while the browser is blocking
+                  sound; playback is driven by the hidden <audio> +
+                  effect further up. */}
               {post.song && (
                 <>
                   &nbsp;·&nbsp;
@@ -1464,6 +1410,7 @@ const PostCard = ({
             </p>
           </div>
 
+          {/* Connect button — hidden once the connection is accepted. */}
           {!isEditing &&
             post.username !== currentUser &&
             connectionStatus !== "accepted" && (
@@ -1488,30 +1435,11 @@ const PostCard = ({
               </button>
               {showMenu && (
                 <div className="pf-dropdown">
-                  {/* NEW: full-screen view for any post with photos. */}
-                  {/* {(post.image_urls?.length > 0 || post.image_url) && (
-                    <button
-                      className="pf-dropdown-item"
-                      onClick={() =>
-                        openPhotosFullscreen(
-                          post.image_urls?.length > 0
-                            ? post.image_urls
-                            : [post.image_url],
-                          0,
-                        )
-                      }
-                    >
-                      ⛶ View photos full screen
-                    </button>
-                  )} */}
-                  {/* CHANGED: the Message action now only shows once the
-                      connection is actually accepted — messaging an
-                      unconnected or still-pending user isn't offered
-                      from here anymore. MessagesPanel itself still
-                      allows starting a fresh conversation as a message
-                      request via its inbox search, independent of the
-                      Connect system — this only gates the shortcut on
-                      the post card. */}
+                  {/* The Message action only shows once the connection
+                      is accepted. MessagesPanel itself still allows
+                      starting a fresh conversation as a message request
+                      via its inbox search — this only gates the shortcut
+                      on the post card. */}
                   {post.username !== currentUser &&
                     connectionStatus === "accepted" && (
                       <button
@@ -1604,8 +1532,8 @@ const PostCard = ({
               </div>
             )}
 
-            {/* Attached song shown read-only while editing — not re-pickable
-                here. */}
+            {/* Attached song shown read-only while editing — not
+                re-pickable here. */}
             {post.song && (
               <p className="pf-feeling-badge" style={{ margin: "8px 0 0" }}>
                 🎵 {post.song.title}
@@ -1613,7 +1541,7 @@ const PostCard = ({
               </p>
             )}
 
-            {/* NEW: editable location — can be cleared during edit. */}
+            {/* Editable location — can be cleared during edit. */}
             {editLocation && (
               <div
                 style={{
@@ -1675,11 +1603,10 @@ const PostCard = ({
               </p>
             )}
 
-            {/* CHANGED: ImageCarousel → ImageGrid. Multi-image (and
-                single-image, via image_urls) posts now render as a
-                Facebook-style collage in the feed instead of a
-                one-at-a-time carousel — tapping any tile opens
-                PhotoViewer at that tile's index. */}
+            {/* Multi-image (and single-image, via image_urls) posts
+                render as a Facebook-style collage — tapping any tile
+                opens PhotoViewer at that tile's index, and each tile's
+                ⋯ menu offers "Full screen" for just that photo. */}
             {post.image_urls && post.image_urls.length > 0 ? (
               <ImageGrid
                 images={post.image_urls}
@@ -1702,12 +1629,10 @@ const PostCard = ({
                 style={{ cursor: "zoom-in" }}
               />
             ) : (
-              // CHANGED: PostVideo now receives `inView` (mediaInView)
-              // so it autoplays the moment the post is on-screen and
-              // pauses the moment it isn't, instead of only playing on
-              // desktop hover / after an explicit click.
-              // NEW (auto-advance): `onEnded` scrolls the feed to the
-              // next video / post video once this one finishes.
+              // PostVideo receives `inView` (mediaInView) so it autoplays
+              // the moment the post is on-screen and pauses the moment it
+              // isn't. `onEnded` scrolls the feed to the next video /
+              // post video once this one finishes.
               post.video_url && (
                 <PostVideo
                   src={post.video_url}
@@ -1743,9 +1668,8 @@ const PostCard = ({
           </div>
         )}
 
-        {/* CHANGED: the separate "0 Likes | views | comments" row is gone —
-            like/comment counts now live inside the action pills below
-            (Facebook-style) and the view count moved to the header. */}
+        {/* Like/comment counts live inside the action pills below
+            (Facebook-style) and the view count is in the header. */}
 
         {/* ── Action bar ── */}
         {!isEditing && (
@@ -1783,9 +1707,8 @@ const PostCard = ({
                 )}
               </button>
 
-              {/* Signature moment: a small particle burst radiating from
-                  the Like button the instant a reaction lands, echoing
-                  the tactile "pop" of a physical button press. */}
+              {/* A small particle burst radiating from the Like button
+                  the instant a reaction lands. */}
               {burstKey !== null && (
                 <span
                   className="pf-like-burst"
@@ -1824,8 +1747,7 @@ const PostCard = ({
             <button
               className="pf-action-btn"
               onClick={() => {
-                // CHANGED: opening the comments is allowed for guests (the
-                // old "N comments" button used to do this); the input
+                // Opening the comments is allowed for guests; the input
                 // itself is still disabled until they log in.
                 setCommentBounceKey((k) => k + 1);
                 onToggleComments(post.id);

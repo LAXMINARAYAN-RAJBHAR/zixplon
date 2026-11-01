@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import EmojiPicker from "./EmojiPicker";
 import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
 import ExpandableText from "../../Component/ExpandableText/ExpandableText";
 import ReportPostModal from "./ReportPostModal";
-// PhotoViewer: full-screen swipe/scroll viewer with per-photo
-// like/comment/share/copy-link AND per-photo full screen.
+// PhotoViewer: swipe/scroll viewer with per-photo like/comment/share/
+// copy-link AND a per-photo ⋯ → Full screen menu.
 import PhotoViewer from "./PhotoViewer";
 // Generic content-report modal (contentType/contentId/contentTitle/
 // contentOwner/onClose), same component used by Video.jsx and Reels.jsx.
@@ -532,102 +531,28 @@ const PostVideo = ({ src, inView, onEnded }) => {
                 showing how many more photos aren't shown here
    Tapping ANY tile opens the full-screen, swipeable PhotoViewer
    starting at that tile's actual index in the full image_urls array.
-
-   EVERY tile — including a single photo — has its own ⋯ menu with a
-   "Full screen" option for THAT photo (opens the viewer at that photo,
-   already full screen). The menu is rendered through a portal with
-   fixed positioning because the tiles clip their contents
-   (overflow: hidden). ── */
-const ImageGrid = ({ images, onOpenViewer, onFullscreen }) => {
+   There is no menu on the tiles themselves — each photo's ⋯ → Full
+   screen option lives inside PhotoViewer. ── */
+const ImageGrid = ({ images, onOpenViewer }) => {
   const count = images.length;
   const displayCount = Math.min(count, 4);
   const remaining = count - displayCount;
 
-  // { index, top, right } | null
-  const [menu, setMenu] = useState(null);
-
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(null);
-    const onKey = (e) => {
-      if (e.key === "Escape") close();
-    };
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [menu]);
-
-  const toggleMenu = (e, index) => {
-    e.stopPropagation(); // don't also open the viewer
-    const rect = e.currentTarget.getBoundingClientRect();
-    setMenu((prev) =>
-      prev && prev.index === index
-        ? null
-        : {
-          index,
-          top: rect.bottom + 6,
-          right: Math.max(8, window.innerWidth - rect.right),
-        }
-    );
-  };
-
   return (
-    <>
-      <div className={`pf-img-grid pf-img-grid-${displayCount}`}>
-        {images.slice(0, displayCount).map((url, i) => (
-          <div
-            className="pf-img-grid-item"
-            key={i}
-            onClick={() => onOpenViewer(i)}
-          >
-            <img src={url} alt={`Image ${i + 1}`} loading="lazy" />
-            {i === displayCount - 1 && remaining > 0 && (
-              <div className="pf-img-grid-more">+{remaining}</div>
-            )}
-            <button
-              type="button"
-              className="pf-img-tile-menu-btn"
-              onClick={(e) => toggleMenu(e, i)}
-              aria-label="Photo options"
-              aria-haspopup="true"
-              aria-expanded={menu?.index === i}
-            >
-              ⋯
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {menu &&
-        createPortal(
-          <>
-            <div className="pf-img-menu-backdrop" onClick={() => setMenu(null)} />
-            <div
-              className="pf-img-menu"
-              style={{ top: menu.top, right: menu.right }}
-              role="menu"
-            >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  const index = menu.index;
-                  setMenu(null);
-                  onFullscreen(index);
-                }}
-              >
-                ⛶ Full screen
-              </button>
-            </div>
-          </>,
-          document.body
-        )}
-    </>
+    <div className={`pf-img-grid pf-img-grid-${displayCount}`}>
+      {images.slice(0, displayCount).map((url, i) => (
+        <div
+          className="pf-img-grid-item"
+          key={i}
+          onClick={() => onOpenViewer(i)}
+        >
+          <img src={url} alt={`Image ${i + 1}`} loading="lazy" />
+          {i === displayCount - 1 && remaining > 0 && (
+            <div className="pf-img-grid-more">+{remaining}</div>
+          )}
+        </div>
+      ))}
+    </div>
   );
 };
 
@@ -935,17 +860,6 @@ const PostCard = ({
   );
 
   const navigate = useNavigate();
-
-  // ── Photo full screen ──
-  // Each photo has its OWN full screen option: the ⋯ button on every grid
-  // tile (single photos included), and a ⛶ button / ⋯ menu on every photo
-  // inside PhotoViewer. Choosing it from a tile opens the viewer at that
-  // photo with that photo already full screen.
-  const openPhotosFullscreen = (images, startIndex = 0) => {
-    if (!images || images.length === 0) return;
-    setPhotoViewerData({ images, startIndex, startFullscreen: true });
-    setShowMenu(false);
-  };
 
   const closePhotoViewer = () => setPhotoViewerData(null);
 
@@ -1305,8 +1219,8 @@ const PostCard = ({
     allComments.filter((c) => c.parent_comment_id === parentId);
 
   // All photos on this post — image_urls, or the legacy single image_url.
-  // A single photo now goes through the same ImageGrid (so it gets the
-  // ⋯ → "Full screen" menu and is shown at its natural shape).
+  // A single photo goes through the same ImageGrid (shown at its
+  // natural shape).
   const photos =
     post.image_urls && post.image_urls.length > 0
       ? post.image_urls
@@ -1316,8 +1230,7 @@ const PostCard = ({
 
   return (
     <>
-      {/* PhotoViewer — launched from ImageGrid taps (or a tile's
-          "Full screen" item, which also sets startFullscreen). */}
+      {/* PhotoViewer — launched from ImageGrid taps. */}
       {photoViewerData && (
         <PhotoViewer
           images={photoViewerData.images}
@@ -1614,17 +1527,13 @@ const PostCard = ({
             )}
 
             {/* Photos — one OR many — render through ImageGrid.
-                Tapping a tile opens PhotoViewer at that photo, and each
-                tile's ⋯ menu offers "Full screen" for just that photo
-                (this now includes a post with a single picture). */}
+                Tapping a tile opens PhotoViewer at that photo; each photo
+                there has its own ⋯ → Full screen option. */}
             {photos ? (
               <ImageGrid
                 images={photos}
                 onOpenViewer={(startIndex) =>
                   setPhotoViewerData({ images: photos, startIndex })
-                }
-                onFullscreen={(startIndex) =>
-                  openPhotosFullscreen(photos, startIndex)
                 }
               />
             ) : (

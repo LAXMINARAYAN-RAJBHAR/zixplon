@@ -34,18 +34,25 @@ const getFsElement = () =>
 const isAnyPhotoFullscreen = () =>
   !!getFsElement() || !!document.querySelector(".pv-image-wrap--fs");
 
+// True while any photo's ⋯ menu is open (so Esc closes just the menu).
+const isAnyPhotoMenuOpen = () => !!document.querySelector(".pv-photo-menu");
+
 /*
- * PhotoBlock — one photo + its own like/comment/share + its OWN
- * full-screen button, rendered as one "row" in PhotoViewer's vertical
+ * PhotoBlock — one photo + its own like/comment/share + its OWN ⋯
+ * (three dots) menu, rendered as one "row" in PhotoViewer's vertical
  * stack. All state for this photo lives here so each block is
  * independent.
  *
- * Full screen (per photo): the ⛶ button on the image fullscreens just
- * this photo's image wrapper (black background, photo letterboxed).
- * If the browser has no element-fullscreen support, the wrapper is
- * pinned over the whole window with CSS instead (.pv-image-wrap--fs).
- * While a photo is full screen, swipe / ‹ › / arrow-key navigation is
- * switched off so the photo underneath can't change.
+ * The ⋯ menu sits in the top-right corner of the photo and holds
+ * "Full screen" / "Exit full screen" for THAT photo. The menu is
+ * rendered INSIDE the image wrapper (not through a portal), so it keeps
+ * working while the wrapper itself is the browser's fullscreen element.
+ *
+ * Full screen (per photo): fullscreens just this photo's image wrapper
+ * (black background, photo letterboxed). If the browser has no
+ * element-fullscreen support, the wrapper is pinned over the whole
+ * window with CSS instead (.pv-image-wrap--fs). While a photo is full
+ * screen, swipe / ‹ › / arrow-key navigation is switched off.
  *
  * `autoFullscreen` — set for the photo that was chosen via a grid tile's
  * "Full screen" menu item: it goes full screen as soon as the viewer
@@ -75,8 +82,10 @@ const PhotoBlock = ({
   const [copied, setCopied] = useState(false);
   const pickerRef = useRef(null);
 
-  // ── Per-photo full screen ──
+  // ── Per-photo ⋯ menu + full screen ──
   const wrapRef = useRef(null);
+  const menuRef = useRef(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [nativeFs, setNativeFs] = useState(false); // real browser fullscreen
   const [pseudoFs, setPseudoFs] = useState(false); // CSS fallback
   const isFs = nativeFs || pseudoFs;
@@ -103,6 +112,25 @@ const PhotoBlock = ({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Close the ⋯ menu on an outside click, or on Esc.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
   // Track whether THIS photo's wrapper is the fullscreen element,
   // including when the person leaves with Esc / browser controls.
   useEffect(() => {
@@ -120,11 +148,11 @@ const PhotoBlock = ({
   useEffect(() => {
     if (!pseudoFs) return;
     const onKey = (e) => {
-      if (e.key === "Escape") setPseudoFs(false);
+      if (e.key === "Escape" && !menuOpen) setPseudoFs(false);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [pseudoFs]);
+  }, [pseudoFs, menuOpen]);
 
   const enterFs = () => {
     const el = wrapRef.current;
@@ -148,8 +176,10 @@ const PhotoBlock = ({
     }
   };
 
-  const toggleFs = (e) => {
+  // The ⋯ menu's "Full screen" / "Exit full screen" item.
+  const handleFullscreenItem = (e) => {
     e.stopPropagation();
+    setMenuOpen(false);
     if (isFs) exitFs();
     else enterFs();
   };
@@ -367,26 +397,29 @@ const PhotoBlock = ({
           </button>
         )}
 
-        {/* This photo's OWN full screen button */}
-        <button
-          type="button"
-          className="pv-fs-btn"
-          onClick={toggleFs}
-          aria-label={isFs ? "Exit full screen" : "View this photo full screen"}
-          title={isFs ? "Exit full screen" : "Full screen"}
-        >
-          {isFs ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
-            </svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-            </svg>
+        {/* This photo's OWN three-dots menu (Full screen lives here) */}
+        <div className="pv-photo-menu-wrap" ref={menuRef}>
+          <button
+            type="button"
+            className="pv-photo-menu-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen((v) => !v);
+            }}
+            aria-label="Photo options"
+            aria-haspopup="true"
+            aria-expanded={menuOpen}
+          >
+            ⋯
+          </button>
+          {menuOpen && (
+            <div className="pv-photo-menu" role="menu">
+              <button type="button" role="menuitem" onClick={handleFullscreenItem}>
+                {isFs ? "⛶ Exit full screen" : "⛶ Full screen"}
+              </button>
+            </div>
           )}
-        </button>
+        </div>
       </div>
 
       <div className="pv-panel">
@@ -491,12 +524,12 @@ const PhotoBlock = ({
  * photo in the post is shown stacked one below another (scroll to move
  * between photos), and the view auto-scrolls to the tapped photo.
  *
- * CHANGED: the single ⋯ → "Full screen" menu at the top is gone. Every
- * photo now has its OWN ⛶ full screen button (see PhotoBlock), so you
- * choose full screen for the exact photo you're looking at.
+ * Every photo has its OWN ⋯ (three dots) menu with a "Full screen"
+ * option (see PhotoBlock), so you choose full screen for the exact
+ * photo you're looking at.
  *
  * `startFullscreen` — when the viewer was opened from a grid tile's
- * "Full screen" menu item, that photo goes full screen immediately.
+ * ⋯ → "Full screen" item, that photo goes full screen immediately.
  *
  * Each photo gets its OWN like/comment/share, independent of the
  * post-level reactions shown on the feed card. Per-photo reactions/
@@ -601,8 +634,10 @@ const PhotoViewer = ({
     document.body.style.overflow = "hidden";
     const handleKey = (e) => {
       // While a photo is full screen, Esc only leaves full screen and
-      // the arrow keys don't change photos.
+      // the arrow keys don't change photos. While a ⋯ menu is open, Esc
+      // only closes that menu.
       if (isAnyPhotoFullscreen()) return;
+      if (isAnyPhotoMenuOpen()) return;
 
       if (e.key === "Escape") onClose();
       else if (e.key === "ArrowLeft") navigate(-1);

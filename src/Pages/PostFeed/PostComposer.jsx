@@ -6,6 +6,10 @@ import MusicPicker from "../../Component/Shared/MusicPicker";
 import LocationPicker from "../../Component/Shared/LocationPicker";
 import { uploadToR2, buildTransformUrl, uploadVideoToR2 } from "../../utils/mediaUpload";
 import { getInitials } from "../../utils/initials";
+// NEW (Reel mode): same moderation + connection-notification helpers the
+// Upload page (VideoUpload.jsx) uses when it saves a reel.
+import { checkContent } from "../../Component/Moderation/useModerationFilter";
+import { notifyConnections } from "../../utils/notifications";
 
 // NOTE: no cap on image count anymore — ImageGrid/HomeImageGrid already
 // render any number of images fine (4 visible tiles + a "+N" overlay for
@@ -38,20 +42,10 @@ const FEELINGS = [
 // too), force a decode by briefly play()-ing then pause()-ing after the
 // seek, and always clean up the element whether capture succeeds or fails.
 //
-// v2 root cause ("Thumbnail capture timed out."): confirmed in production
-// via console log on a recently-uploaded, longer-form video. That error
-// can only fire once a seek was actually attempted (video.currentTime was
-// set) — meaning duration resolved fine, but the browser's `seeked` event
-// never arrived within the full 10s window. This matches MP4 files where
-// the moov atom (metadata index) sits at the END of the file rather than
-// the beginning ("not fast-start" encoded) — the browser has to fetch/
-// parse a large chunk of the Blob just to resolve ANY seek target, which
-// can stall past the old fallback windows (the only earlier fallback, at
-// 3s, explicitly skips when a seek WAS attempted). v2 fix: seek closer to
-// the very start of the file (cheaper once the index is available), and
-// add a NEW 5s fallback that grabs whatever frame is currently decoded if
-// a seek was attempted but `seeked` never fired, rather than waiting out
-// the full 10s and losing the thumbnail entirely.
+// v2 root cause ("Thumbnail capture timed out."): MP4 files where the
+// moov atom sits at the END of the file make the browser stall on any
+// seek. v2 fix: seek closer to the start, and add a 5s fallback that
+// grabs whatever frame is currently decoded.
 // ─────────────────────────────────────────────────────────────────────────────
 const captureThumbnail = (file) => new Promise((resolve, reject) => {
   const video = document.createElement("video");
@@ -103,11 +97,6 @@ const captureThumbnail = (file) => new Promise((resolve, reject) => {
     const dur = video.duration;
     if (!isFinite(dur) || dur <= 0) return; // not ready yet — wait for next event
     seekAttempted = true;
-    // v2 CHANGE: seek closer to the start (was: dur > 2 ? 1 : dur / 2).
-    // For MP4s with the moov atom at the end of the file, the browser
-    // needs to fetch/parse a large chunk of the file just to resolve
-    // ANY seek target at all — keeping the target itself modest avoids
-    // also over-requesting once that index is available.
     const seekTo = Math.min(0.5, dur / 2);
     try {
       video.currentTime = seekTo || 0.1;
@@ -120,18 +109,8 @@ const captureThumbnail = (file) => new Promise((resolve, reject) => {
   video.ondurationchange = trySeek;
   video.onloadeddata = trySeek;
 
-  // ── shared decode-forcing grab, v3 ──
-  // v1 root cause reminder: a seek alone can leave an off-screen video's
-  // decode pipeline "behind" — play() forces the browser to actually
-  // push a decoded frame to the compositor before we grab it, or
-  // grabFrame() reads stale (usually black) buffer contents.
-  //
-  // v3 FIX: previously this decode-forcing dance lived ONLY inside
-  // onseeked, while the 5s stalled-seek fallback (v2) called grabFrame()
-  // directly — confirmed in production to produce a solid BLACK
-  // thumbnail when that fallback fired. Extracted into one shared
-  // function so every code path that grabs a frame goes through the
-  // same play→pause→grab sequence.
+  // Shared decode-forcing grab: play → pause → grab, so every code path
+  // reads a real decoded frame instead of a stale (black) buffer.
   const grabWithDecodeForce = () => {
     const grabAfterDecode = () => {
       if ("requestVideoFrameCallback" in video) {
@@ -164,19 +143,12 @@ const captureThumbnail = (file) => new Promise((resolve, reject) => {
 
   video.onerror = () => finish(null, new Error("Failed to load video for thumbnail."));
 
-  // Existing safety net: nothing seeked yet at all — grab whatever's
-  // loaded. v3: routed through grabWithDecodeForce now, same reasoning.
+  // Nothing seeked yet at all — grab whatever's loaded.
   setTimeout(() => {
     if (!settled && !seekAttempted && video.readyState >= 2) grabWithDecodeForce();
   }, 3000);
 
-  // v2 NEW / v3 FIXED: a seek WAS attempted (currentTime was set) but the
-  // `seeked` event never fired — this is the "moov atom at the end" /
-  // large-file stall case. Rather than waiting the full 10s and giving
-  // up entirely, force-decode and grab whatever frame is currently
-  // loaded once readyState allows it. v3: now goes through
-  // grabWithDecodeForce (was a raw grabFrame() call in v2, which
-  // produced black thumbnails).
+  // A seek WAS attempted but `seeked` never fired — grab the current frame.
   setTimeout(() => {
     if (!settled && seekAttempted && video.readyState >= 2) {
       console.warn("seeked event never fired — grabbing current frame as fallback");
@@ -191,15 +163,113 @@ const captureThumbnail = (file) => new Promise((resolve, reject) => {
   video.load();
 });
 
-const PostComposer = ({ currentUser, onPost }) => {
+// ─────────────────────────────────────────────────────────────────────────────
+// NEW (Reel mode) helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Reads a video file's duration ("mm:ss" / "hh:mm:ss") and orientation from
+// its metadata. Always resolves (error / stalled metadata → defaults).
+const getVideoMeta = (file) =>
+  new Promise((resolve) => {
+    const fallback = { duration: "00:00", portrait: false };
+    const el = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    el.preload = "metadata";
+
+    const timer = setTimeout(() => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(fallback);
+    }, 10000);
+
+    el.onloadedmetadata = () => {
+      clearTimeout(timer);
+      URL.revokeObjectURL(objectUrl);
+      const totalSec = Math.floor(el.duration) || 0;
+      const hrs = Math.floor(totalSec / 3600);
+      const mins = Math.floor((totalSec % 3600) / 60);
+      const secs = totalSec % 60;
+      const pad = (n) => String(n).padStart(2, "0");
+      resolve({
+        duration: hrs > 0 ? `${pad(hrs)}:${pad(mins)}:${pad(secs)}` : `${pad(mins)}:${pad(secs)}`,
+        portrait: el.videoHeight > el.videoWidth,
+      });
+    };
+    el.onerror = () => {
+      clearTimeout(timer);
+      URL.revokeObjectURL(objectUrl);
+      resolve(fallback);
+    };
+    el.src = objectUrl;
+  });
+
+// Last-resort cover drawn on a canvas so a reel ALWAYS has a thumbnail,
+// even when no frame could be captured (same idea as VideoUpload.jsx).
+const generatePlaceholderThumbnail = (title, portrait) =>
+  new Promise((resolve) => {
+    const W = portrait ? 360 : 640;
+    const H = portrait ? 640 : 360;
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    const gradient = ctx.createLinearGradient(0, 0, W, H);
+    gradient.addColorStop(0, "#b91c1c");
+    gradient.addColorStop(1, "#f97316");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, W, H);
+
+    const r = Math.min(W, H) * 0.14;
+    const cx = W / 2;
+    const cy = H * 0.42;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#b91c1c";
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 0.3, cy - r * 0.45);
+    ctx.lineTo(cx - r * 0.3, cy + r * 0.45);
+    ctx.lineTo(cx + r * 0.5, cy);
+    ctx.closePath();
+    ctx.fill();
+
+    const text = (title || "").trim();
+    if (text) {
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.font = `bold ${Math.round(W * 0.05)}px sans-serif`;
+      let shown = text;
+      while (shown.length > 3 && ctx.measureText(shown).width > W * 0.86) {
+        shown = shown.slice(0, -2);
+      }
+      if (shown !== text) shown = shown.trimEnd() + "…";
+      ctx.fillText(shown, cx, H * 0.72);
+    }
+
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.textAlign = "center";
+    ctx.font = `800 ${Math.round(W * 0.04)}px sans-serif`;
+    ctx.fillText("ZIXPLON", cx, H * 0.92);
+
+    canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.85);
+  });
+
+const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
+  // NEW: "post" (normal post) or "reel" (saved to the reels table).
+  const [postAs, setPostAs] = useState("post");
+  const [reelTitle, setReelTitle] = useState("");
+  // NEW: how loud the video's own audio plays relative to an attached song.
+  const [originalAudioVolume, setOriginalAudioVolume] = useState(1);
+  // NEW: shown after a reel is shared.
+  const [reelSuccess, setReelSuccess] = useState(false);
+
   const [text, setText] = useState("");
   const [imageFiles, setImageFiles] = useState([]);
   const [videoFile, setVideoFile] = useState(null);
-  // NEW: a GIF or sticker picked from CommentMediaPicker — { url, type }.
-  // Already hosted by Giphy, so unlike imageFiles/videoFile it needs no
-  // upload step; it's mutually exclusive with both (a post can carry
-  // images, a video, OR one GIF/sticker, not a mix), mirroring the
-  // existing image-vs-video exclusivity below.
+  // A GIF or sticker picked from CommentMediaPicker — { url, type }.
+  // Already hosted by Giphy, so it needs no upload step; mutually
+  // exclusive with images and video.
   const [gifStickerAttachment, setGifStickerAttachment] = useState(null);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkPreview, setLinkPreview] = useState(null);
@@ -213,10 +283,7 @@ const PostComposer = ({ currentUser, onPost }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState("");
 
-  // NEW: song ({ title, artist, cover, url }) and location-name attachments,
-  // Facebook-style. Both are purely decorative metadata — neither is
-  // required, and either can be attached independent of (and alongside)
-  // images/video/link/feeling.
+  // Song ({ title, artist, cover, url }) and location-name attachments.
   const [song, setSong] = useState(null);
   const [locationName, setLocationName] = useState(null);
   const [showMusicPicker, setShowMusicPicker] = useState(false);
@@ -225,9 +292,8 @@ const PostComposer = ({ currentUser, onPost }) => {
   const fileRef = useRef();
   const videoRef = useRef();
   const linkDebounceRef = useRef(null);
-  // NEW: lets HomeHub's "+ Upload" -> "Post" menu item scroll this
-  // composer into view and focus it, via the "zx:focus-composer"
-  // window event dispatched from HomeHub.jsx.
+  // Lets HomeHub's "+ Upload" -> "Post" menu item scroll this composer
+  // into view and focus it, via the "zx:focus-composer" window event.
   const textareaRef = useRef();
 
   useEffect(() => {
@@ -242,9 +308,29 @@ const PostComposer = ({ currentUser, onPost }) => {
     };
   }, []);
 
+  const isReel = postAs === "reel";
   const initials = getInitials(currentUser);
-  const canPost =
-    text.trim() || imageFiles.length > 0 || videoFile || linkUrl || gifStickerAttachment;
+
+  const canPost = isReel
+    ? !!videoFile && !!(reelTitle.trim() || text.trim())
+    : text.trim() || imageFiles.length > 0 || videoFile || linkUrl || gifStickerAttachment;
+
+  // NEW: switch between Post and Reel. A reel is a single video, so photos,
+  // a GIF/sticker or a link can't come along — ask the user to remove them
+  // first instead of silently throwing them away.
+  const switchPostAs = (mode) => {
+    if (mode === postAs || posting) return;
+    setError("");
+    setReelSuccess(false);
+    if (mode === "reel") {
+      if (imageFiles.length > 0 || gifStickerAttachment || linkUrl) {
+        setError("A reel is a single video. Remove the photos, GIF/sticker or link first.");
+        return;
+      }
+      setShowLinkInput(false);
+    }
+    setPostAs(mode);
+  };
 
   const handleImageSelect = (e) => {
     const files = Array.from(e.target.files || []);
@@ -323,11 +409,14 @@ const PostComposer = ({ currentUser, onPost }) => {
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  // NEW: picking a GIF/sticker from CommentMediaPicker. Blocked if
-  // images or a video are already attached (same mutual-exclusion the
-  // image/video pickers already enforce against each other).
+  // Picking a GIF/sticker from CommentMediaPicker. Blocked if images or a
+  // video are already attached.
   const handleGifStickerSelect = ({ url, type }) => {
     setError("");
+    if (isReel) {
+      setError("GIFs and stickers can't be added to a reel.");
+      return;
+    }
     if (imageFiles.length > 0 || videoFile) {
       setError("A post can't combine a GIF/sticker with photos or a video. Remove those first.");
       return;
@@ -338,9 +427,8 @@ const PostComposer = ({ currentUser, onPost }) => {
 
   const removeGifSticker = () => setGifStickerAttachment(null);
 
-  // ── Real link preview: fetches Open Graph metadata (title, description,
-  // thumbnail image) from /api/link-preview instead of faking a card from
-  // just the domain name. Debounced so we don't hit the API on every
+  // ── Real link preview: fetches Open Graph metadata from
+  // /api/link-preview. Debounced so we don't hit the API on every
   // keystroke while the user is still typing/pasting the URL. ──
   const fetchLinkPreview = async (rawUrl) => {
     let parsedUrl;
@@ -394,33 +482,142 @@ const PostComposer = ({ currentUser, onPost }) => {
     return buildTransformUrl(url, { width: 800, quality: 85 });
   };
 
-  // ── Thumbnail upload — mirrors VideoUpload.jsx's uploadThumbnail:
-  // small file, goes through R2 directly (no progress callback needed).
-  // format: "jpeg" (not the default "webp") because this becomes the
-  // og:image for shared post links, and WhatsApp's link-preview crawler
-  // does not render webp images.
-  const uploadThumbnail = async (blob) => {
+  // ── Thumbnail upload. format: "jpeg" (not the default "webp") because
+  // this becomes the og:image for shared links, and WhatsApp's link-preview
+  // crawler does not render webp images. `portrait` makes reel thumbnails
+  // 360x640 instead of 16:9. ──
+  const uploadThumbnail = async (blob, portrait = false) => {
     const file = new File([blob], "thumbnail.jpg", { type: "image/jpeg" });
     const { url } = await uploadToR2(file);
-    return buildTransformUrl(url, { width: 640, height: 360, fit: "cover", format: "jpeg" });
+    return buildTransformUrl(url, {
+      width: portrait ? 360 : 640,
+      height: portrait ? 640 : 360,
+      fit: "cover",
+      format: "jpeg",
+    });
+  };
+
+  const resetAfterSuccess = () => {
+    setText("");
+    setReelTitle("");
+    clearAllImages();
+    removeVideo();
+    removeGifSticker();
+    setLinkUrl("");
+    setLinkPreview(null);
+    setFetchingPreview(false);
+    setShowLinkInput(false);
+    setFeeling("");
+    setShowFeelings(false);
+    setSong(null);
+    setLocationName(null);
+    setShowMusicPicker(false);
+    setShowLocationPicker(false);
+    setOriginalAudioVolume(1);
+    setUploadProgress(0);
+  };
+
+  // ── NEW: share the picked video as a REEL ──
+  // Saves to the same `reels` table VideoUpload.jsx uses, so it shows up
+  // in Reels/Shorts exactly like an uploaded reel.
+  const submitReel = async () => {
+    const title = reelTitle.trim() || text.trim().slice(0, 60);
+    const description = text.trim() || title;
+
+    if (!videoFile) throw new Error("Please choose a video for your reel.");
+    if (!title) throw new Error("Please add a title for your reel.");
+
+    // Same community-guidelines check the Upload page runs.
+    try {
+      const { isClean, violatingWord } = await checkContent(title, description, "");
+      if (!isClean) {
+        throw new Error(
+          `Content violates community guidelines (contains "${violatingWord}"). Please review our Community Guidelines before uploading.`,
+        );
+      }
+    } catch (moderationErr) {
+      if (/community guidelines/i.test(moderationErr?.message || "")) throw moderationErr;
+      console.warn("Moderation check failed, proceeding:", moderationErr);
+    }
+
+    const [{ url: videoUrl }, meta, capturedBlob] = await Promise.all([
+      uploadVideoToR2(videoFile.file, (pct) => setUploadProgress(pct)),
+      getVideoMeta(videoFile.file),
+      captureThumbnail(videoFile.file).catch((err) => {
+        console.warn("Reel thumbnail capture failed:", err.message);
+        return null;
+      }),
+    ]);
+
+    // Always end up with a thumbnail: captured frame, else a generated cover.
+    const thumbBlob = capturedBlob || (await generatePlaceholderThumbnail(title, meta.portrait));
+    if (!thumbBlob) throw new Error("Couldn't create a thumbnail for your reel.");
+    const thumbnailUrl = await uploadThumbnail(thumbBlob, meta.portrait);
+
+    const uploaderUsername = currentUser || "anonymous";
+
+    const reelPayload = {
+      title,
+      description,
+      video_url: videoUrl,
+      thumbnail: thumbnailUrl,
+      uploaded_by: uploaderUsername,
+      username: uploaderUsername.toLowerCase().replace(/\s+/g, ""),
+      duration: meta.duration,
+      likes: 0,
+      comments: 0,
+      // Same optional columns the Upload page writes for reels.
+      song: song || null,
+      location_name: locationName || null,
+      feeling: feeling || null,
+      original_audio_volume: song ? originalAudioVolume : 1,
+    };
+
+    const { data: newReel, error: reelError } = await supabase
+      .from("reels")
+      .insert([reelPayload])
+      .select()
+      .single();
+    if (reelError) throw new Error(reelError.message);
+
+    try {
+      await notifyConnections(uploaderUsername, {
+        type: "reel",
+        message: `${uploaderUsername} uploaded a new reel: "${title}"`,
+        contentId: newReel.id,
+        contentType: "reel",
+      });
+    } catch (notifyErr) {
+      console.warn("Reel notification failed:", notifyErr);
+    }
+
+    return newReel;
   };
 
   const handleSubmit = async () => {
     if (!canPost || posting) return;
     setPosting(true);
     setError("");
+    setReelSuccess(false);
     setUploadProgress(0);
 
     try {
+      // ── Reel mode ──
+      if (isReel) {
+        const newReel = await submitReel();
+        resetAfterSuccess();
+        setReelSuccess(true);
+        if (onReelPosted) onReelPosted(newReel);
+        return;
+      }
+
+      // ── Normal post ──
       let imageUrls = [];
       let videoUrl = null;
       let thumbnailUrl = null;
 
       if (gifStickerAttachment) {
-        // Already hosted by Giphy — no upload needed. Stored the same
-        // way a regular image post is (image_url/image_urls); GIFs
-        // animate fine straight out of an <img> tag, same as anywhere
-        // else in the app.
+        // Already hosted by Giphy — no upload needed.
         imageUrls = [gifStickerAttachment.url];
       } else if (imageFiles.length > 0) {
         const total = imageFiles.length;
@@ -432,12 +629,9 @@ const PostComposer = ({ currentUser, onPost }) => {
           imageUrls.push(url);
         }
       } else if (videoFile) {
-        // Capture a thumbnail in parallel with the video upload itself,
-        // same as VideoUpload.jsx does. If capture fails (client decode
-        // issue, unsupported codec, etc.) we log it and continue — the
-        // post still goes out with video_url set, it just won't have a
-        // thumbnail_url until this succeeds on a retry/edit. This never
-        // blocks or fails the actual post submission.
+        // Capture a thumbnail in parallel with the video upload itself.
+        // If capture fails we log it and continue — the post still goes
+        // out with video_url set.
         const [{ url }, thumbnailBlob] = await Promise.all([
           uploadVideoToR2(videoFile.file, (pct) => {
             setUploadProgress(pct);
@@ -459,19 +653,11 @@ const PostComposer = ({ currentUser, onPost }) => {
         image_url: imageUrls[0] || null,
         image_urls: imageUrls.length > 0 ? imageUrls : null,
         video_url: videoUrl,
-        // Requires a migration —
-        //   alter table posts add column thumbnail_url text;
-        // Used by /api/og.js as the shared-link preview image for video
-        // posts, and could also be surfaced as a static poster image in
-        // PostVideo.jsx later if wanted (currently PostVideo relies on
-        // the <video preload="metadata"> tag's own native first frame
-        // instead, which still works fine in-app — this column is purely
-        // for the share-link crawler case, which can't do that).
+        // Requires: alter table posts add column thumbnail_url text;
         thumbnail_url: thumbnailUrl,
         link: linkPreview || null,
         feeling: feeling || null,
-        // NEW: song ({ title, artist, cover, url }) and location_name —
-        // requires:
+        // Requires:
         //   alter table posts add column song jsonb;
         //   alter table posts add column location_name text;
         song: song || null,
@@ -495,23 +681,9 @@ const PostComposer = ({ currentUser, onPost }) => {
         showComments: false,
       });
 
-      setText("");
-      clearAllImages();
-      removeVideo();
-      removeGifSticker();
-      setLinkUrl("");
-      setLinkPreview(null);
-      setFetchingPreview(false);
-      setShowLinkInput(false);
-      setFeeling("");
-      setShowFeelings(false);
-      setSong(null);
-      setLocationName(null);
-      setShowMusicPicker(false);
-      setShowLocationPicker(false);
-      setUploadProgress(0);
+      resetAfterSuccess();
     } catch (err) {
-      setError(err.message || "Failed to post. Please try again.");
+      setError(err.message || (isReel ? "Failed to share reel. Please try again." : "Failed to post. Please try again."));
     } finally {
       setPosting(false);
     }
@@ -519,26 +691,76 @@ const PostComposer = ({ currentUser, onPost }) => {
 
   const mediaAlreadyAttached = imageFiles.length > 0 || !!videoFile || !!gifStickerAttachment;
 
+  const postLabel = posting
+    ? isReel ? "Sharing…" : "Posting…"
+    : isReel ? "Share Reel" : "Post";
+
   return (
     <div className="pf-composer">
+      {/* NEW: Post / Reel switch */}
+      <div className="pf-mode-toggle" role="tablist" aria-label="Create">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!isReel}
+          className={`pf-mode-btn ${!isReel ? "active" : ""}`}
+          onClick={() => switchPostAs("post")}
+          disabled={posting}
+        >
+          📝 Post
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={isReel}
+          className={`pf-mode-btn ${isReel ? "active" : ""}`}
+          onClick={() => switchPostAs("reel")}
+          disabled={posting}
+        >
+          🎬 Reel
+        </button>
+      </div>
+
       <div className="pf-composer-top">
         <div className="pf-avatar">{initials}</div>
         <div className="pf-composer-body">
+          {/* NEW: reel title (Reel mode only) */}
+          {isReel && (
+            <input
+              type="text"
+              className="pf-link-input"
+              placeholder="Reel title"
+              value={reelTitle}
+              onChange={(e) => setReelTitle(e.target.value)}
+              maxLength={100}
+            />
+          )}
+
           <textarea
             ref={textareaRef}
             className="pf-composer-input"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={`What's on your mind, ${currentUser}?`}
+            placeholder={
+              isReel
+                ? "Describe your reel…"
+                : `What's on your mind, ${currentUser}?`
+            }
             rows={3}
           />
+
+          {isReel && !videoFile && (
+            <p className="pf-reel-hint">
+              Tap 🎥 below to choose the video for your reel. Reels are short
+              vertical videos and appear in the Reels / Shorts section.
+            </p>
+          )}
 
           {feeling && (
             <p className="pf-feeling-badge">— feeling {feeling}</p>
           )}
 
-          {/* CHANGED: small 🎵 line (same as the post card header) instead
-              of the big song card — removable. */}
+          {/* Small 🎵 line (same as the post card header) — removable. */}
           {song && (
             <p className="pf-feeling-badge">
               🎵 {song.title}
@@ -552,7 +774,25 @@ const PostComposer = ({ currentUser, onPost }) => {
             </p>
           )}
 
-          {/* NEW: attached location preview — removable */}
+          {/* NEW (Reel mode): original-audio volume, only once a song is
+              attached — lets the song be heard over the video's own sound. */}
+          {isReel && song && (
+            <div className="pf-reel-volume">
+              <div className="pf-reel-volume-row">
+                <span>🔊 Original video volume</span>
+                <b>{Math.round(originalAudioVolume * 100)}%</b>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={Math.round(originalAudioVolume * 100)}
+                onChange={(e) => setOriginalAudioVolume(Number(e.target.value) / 100)}
+              />
+            </div>
+          )}
+
+          {/* Attached location preview — removable */}
           {locationName && (
             <p className="pf-feeling-badge">
               📍 at <b>{locationName}</b>{" "}
@@ -599,8 +839,7 @@ const PostComposer = ({ currentUser, onPost }) => {
             </div>
           )}
 
-          {/* NEW: GIF/sticker preview — same remove-button treatment as
-              the image/video previews above. */}
+          {/* GIF/sticker preview — same remove-button treatment. */}
           {gifStickerAttachment && (
             <div className="pf-img-preview-wrap pf-gif-preview-wrap">
               <img
@@ -618,7 +857,7 @@ const PostComposer = ({ currentUser, onPost }) => {
             </div>
           )}
 
-          {showLinkInput && (
+          {showLinkInput && !isReel && (
             <input
               type="url"
               className="pf-link-input"
@@ -628,11 +867,11 @@ const PostComposer = ({ currentUser, onPost }) => {
             />
           )}
 
-          {fetchingPreview && (
+          {fetchingPreview && !isReel && (
             <div className="pf-link-loading">Fetching link preview…</div>
           )}
 
-          {!fetchingPreview && linkPreview && (
+          {!fetchingPreview && linkPreview && !isReel && (
             <div className="pf-link-preview">
               {linkPreview.image && (
                 <img
@@ -660,6 +899,13 @@ const PostComposer = ({ currentUser, onPost }) => {
             </div>
           )}
 
+          {reelSuccess && (
+            <p className="pf-reel-success">
+              ✅ Your reel is live!{" "}
+              <a href="/reels">View in Reels</a>
+            </p>
+          )}
+
           {error && <p className="pf-error">{error}</p>}
         </div>
       </div>
@@ -680,10 +926,15 @@ const PostComposer = ({ currentUser, onPost }) => {
 
       <div className="pf-composer-footer">
         <div className="pf-attach-row">
+          {/* Photos aren't available in Reel mode. */}
           <label
             className="pf-attach-btn"
             title="Photo"
-            style={videoFile || gifStickerAttachment ? { opacity: 0.4, cursor: "not-allowed" } : {}}
+            style={
+              isReel || videoFile || gifStickerAttachment
+                ? { opacity: 0.4, cursor: "not-allowed" }
+                : {}
+            }
           >
             📷
             <input
@@ -693,13 +944,13 @@ const PostComposer = ({ currentUser, onPost }) => {
               multiple
               style={{ display: "none" }}
               onChange={handleImageSelect}
-              disabled={!!videoFile || !!gifStickerAttachment}
+              disabled={isReel || !!videoFile || !!gifStickerAttachment}
             />
           </label>
 
           <label
             className="pf-attach-btn"
-            title="Video"
+            title={isReel ? "Choose reel video" : "Video"}
             style={
               imageFiles.length > 0 || gifStickerAttachment
                 ? { opacity: 0.4, cursor: "not-allowed" }
@@ -717,10 +968,13 @@ const PostComposer = ({ currentUser, onPost }) => {
             />
           </label>
 
+          {/* Links aren't available in Reel mode. */}
           <button
             className="pf-attach-btn"
             title="Link"
             onClick={() => setShowLinkInput((v) => !v)}
+            disabled={isReel}
+            style={isReel ? { opacity: 0.4, cursor: "not-allowed" } : {}}
           >🔗</button>
           <button
             className="pf-attach-btn"
@@ -728,7 +982,7 @@ const PostComposer = ({ currentUser, onPost }) => {
             onClick={() => setShowFeelings((v) => !v)}
           >😊</button>
 
-          {/* NEW: Music attach trigger */}
+          {/* Music attach trigger */}
           <div className="map-attach-trigger-wrap">
             <button
               type="button"
@@ -748,7 +1002,7 @@ const PostComposer = ({ currentUser, onPost }) => {
             )}
           </div>
 
-          {/* NEW: Location ("check in") attach trigger */}
+          {/* Location ("check in") attach trigger */}
           <div className="map-attach-trigger-wrap">
             <button
               type="button"
@@ -768,14 +1022,8 @@ const PostComposer = ({ currentUser, onPost }) => {
             )}
           </div>
 
-          {/* CHANGED: was the plain EmojiPicker (emoji only). Now opens
-              CommentMediaPicker instead, which adds GIF/Sticker tabs
-              alongside Emoji — same component used for comments across
-              Video/Reels/Posts and the chat panels. Picking a GIF/sticker
-              here attaches it to the post (mutually exclusive with
-              photos/video, see handleGifStickerSelect above); it doesn't
-              post immediately the way a comment does, since this is a
-              draft the person is still composing. */}
+          {/* Emoji / GIF / Sticker picker. In Reel mode GIF/sticker picks
+              are refused (see handleGifStickerSelect); emoji still works. */}
           <div className="pf-attach-wrap">
             <button
               className="pf-attach-btn"
@@ -801,24 +1049,27 @@ const PostComposer = ({ currentUser, onPost }) => {
         </div>
 
         <div className="pf-composer-actions">
-          <select
-            className="pf-privacy-select"
-            value={privacy}
-            onChange={(e) => setPrivacy(e.target.value)}
-          >
-            {PRIVACY_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.icon} {o.label}
-              </option>
-            ))}
-          </select>
+          {/* Reels have no privacy setting, so the selector is hidden. */}
+          {!isReel && (
+            <select
+              className="pf-privacy-select"
+              value={privacy}
+              onChange={(e) => setPrivacy(e.target.value)}
+            >
+              {PRIVACY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.icon} {o.label}
+                </option>
+              ))}
+            </select>
+          )}
 
           <button
             className="pf-post-btn"
             onClick={handleSubmit}
             disabled={!canPost || posting}
           >
-            {posting ? "Posting…" : "Post"}
+            {postLabel}
           </button>
         </div>
       </div>

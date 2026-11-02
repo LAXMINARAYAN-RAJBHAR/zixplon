@@ -4507,3 +4507,79 @@
   object-fit: contain;
   margin: 0 auto;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   POST COMPOSER — "Post / Reel" switch + reel extras
+   APPEND this block to the very bottom of PostFeed.css.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-mode-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 12px;
+  border-radius: 999px;
+  background: rgba(26, 20, 20, 0.05);
+}
+
+.pf-mode-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 16px;
+  background: transparent;
+  color: var(--zx-text3);
+  font-family: 'Nunito', sans-serif;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.pf-mode-btn:hover:not(:disabled):not(.active) { color: var(--zx-primary); }
+.pf-mode-btn.active {
+  background: var(--zx-surface);
+  color: var(--zx-primary);
+  box-shadow: 0 1px 4px rgba(26, 20, 20, 0.15);
+}
+.pf-mode-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.pf-reel-hint {
+  margin: 0;
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--zx-text3);
+  line-height: 1.5;
+}
+
+.pf-reel-success {
+  margin: 0;
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  color: #166534;
+}
+.pf-reel-success a { color: var(--zx-primary); text-decoration: none; }
+.pf-reel-success a:hover { text-decoration: underline; }
+
+.pf-reel-volume {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--zx-surface2);
+}
+.pf-reel-volume-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--zx-text2);
+}
+.pf-reel-volume-row b { color: var(--zx-primary); }
+.pf-reel-volume input[type="range"] {
+  width: 100%;
+  accent-color: var(--zx-primary);
+}

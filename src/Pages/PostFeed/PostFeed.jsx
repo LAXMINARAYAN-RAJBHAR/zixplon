@@ -10,6 +10,11 @@ import VideoFeedCard from "./VideoFeedCard";
 // NEW: Stories strip (Create story + people's stories) shown above the
 // composer trigger at the top of the Posts feed.
 import StoriesStrip from "./StoriesStrip";
+// NEW: same live-streams browser the Home page shows (🔴 Live section).
+// ⚠ Adjust this path to wherever LiveViewer lives in your project —
+// HomePage imports it as "../Live/LiveViewer", so from the PostFeed
+// folder it is probably this:
+import LiveBrowser from "../../Pages/Live/LiveViewer";
 import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 // NEW: shared preloading, buffer-hiding video — used for search-result
 // reels that have no thumbnail, so they only load once near the screen.
@@ -1381,6 +1386,15 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
             story. Hidden while searching. Logged-out visitors can still
             watch stories; "Create story" prompts login. */}
         {!searchQuery && <StoriesStrip currentUser={currentUser} />}
+
+        {/* NEW: Live streams — the same 🔴 Live section the Home page
+            shows (LiveBrowser). Sits between Stories and the suggested
+            connections, and is hidden while searching, like Stories. */}
+        {!searchQuery && (
+          <div style={{ marginBottom: "28px" }}>
+            <LiveBrowser currentUser={isLoggedIn ? currentUser : ""} />
+          </div>
+        )}
 
         {!searchQuery && <SuggestedConnections variant="feed" />}
 

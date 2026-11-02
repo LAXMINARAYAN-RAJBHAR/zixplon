@@ -10,6 +10,10 @@ import { getInitials } from "../../utils/initials";
 // Upload page (VideoUpload.jsx) uses when it saves a reel.
 import { checkContent } from "../../Component/Moderation/useModerationFilter";
 import { notifyConnections } from "../../utils/notifications";
+// NEW (Live / Record): the same record/go-live popup the Upload page uses.
+// ⚠ Adjust this path to wherever RecordModal lives in your project — in
+// VideoUpload.jsx it is imported as "../RecordModal/RecordModal".
+import RecordModal from "../../Pages/RecordModal/RecordModal";
 
 // NOTE: no cap on image count anymore — ImageGrid/HomeImageGrid already
 // render any number of images fine (4 visible tiles + a "+N" overlay for
@@ -255,10 +259,15 @@ const generatePlaceholderThumbnail = (title, portrait) =>
     canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.85);
   });
 
-const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
-  // NEW: "post" (normal post) or "reel" (saved to the reels table).
+const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
+  // NEW: what is being created — "post" (normal post), "reel" (saved to the
+  // reels table) or "video" (saved to the videos table, like the Upload page).
+  // "Live / Record" is not a mode: it opens the RecordModal popup instead.
   const [postAs, setPostAs] = useState("post");
-  const [reelTitle, setReelTitle] = useState("");
+  const [videoCategory, setVideoCategory] = useState("");
+  const [showRecordModal, setShowRecordModal] = useState(false);
+  const [successKind, setSuccessKind] = useState("reel");
+  const [mediaTitle, setMediaTitle] = useState("");
   // NEW: how loud the video's own audio plays relative to an attached song.
   const [originalAudioVolume, setOriginalAudioVolume] = useState(1);
   // NEW: shown after a reel is shared.
@@ -309,10 +318,15 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
   }, []);
 
   const isReel = postAs === "reel";
+  const isVideo = postAs === "video";
+  // Reel and Video share the same "one uploaded video" behaviour.
+  const isMedia = isReel || isVideo;
   const initials = getInitials(currentUser);
 
-  const canPost = isReel
-    ? !!videoFile && !!(reelTitle.trim() || text.trim())
+  const canPost = isMedia
+    ? !!videoFile &&
+      !!(mediaTitle.trim() || text.trim()) &&
+      (!isVideo || !!videoCategory.trim())
     : text.trim() || imageFiles.length > 0 || videoFile || linkUrl || gifStickerAttachment;
 
   // NEW: switch between Post and Reel. A reel is a single video, so photos,
@@ -322,9 +336,9 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
     if (mode === postAs || posting) return;
     setError("");
     setReelSuccess(false);
-    if (mode === "reel") {
+    if (mode === "reel" || mode === "video") {
       if (imageFiles.length > 0 || gifStickerAttachment || linkUrl) {
-        setError("A reel is a single video. Remove the photos, GIF/sticker or link first.");
+        setError(`A ${mode} is a single video. Remove the photos, GIF/sticker or link first.`);
         return;
       }
       setShowLinkInput(false);
@@ -413,8 +427,8 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
   // video are already attached.
   const handleGifStickerSelect = ({ url, type }) => {
     setError("");
-    if (isReel) {
-      setError("GIFs and stickers can't be added to a reel.");
+    if (isMedia) {
+      setError(`GIFs and stickers can't be added to a ${postAs}.`);
       return;
     }
     if (imageFiles.length > 0 || videoFile) {
@@ -499,7 +513,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
 
   const resetAfterSuccess = () => {
     setText("");
-    setReelTitle("");
+    setMediaTitle("");
     clearAllImages();
     removeVideo();
     removeGifSticker();
@@ -514,22 +528,30 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
     setShowMusicPicker(false);
     setShowLocationPicker(false);
     setOriginalAudioVolume(1);
+    setVideoCategory("");
     setUploadProgress(0);
   };
 
-  // ── NEW: share the picked video as a REEL ──
-  // Saves to the same `reels` table VideoUpload.jsx uses, so it shows up
-  // in Reels/Shorts exactly like an uploaded reel.
-  const submitReel = async () => {
-    const title = reelTitle.trim() || text.trim().slice(0, 60);
+  // ── NEW: share the picked video as a REEL or a VIDEO ──
+  // Reel  → `reels` table (same payload as the Upload page's reel mode).
+  // Video → `videos` table (same payload as the Upload page's video mode,
+  //         including the required category).
+  const submitVideoContent = async () => {
+    const title = mediaTitle.trim() || text.trim().slice(0, 60);
     const description = text.trim() || title;
+    const label = isVideo ? "video" : "reel";
 
-    if (!videoFile) throw new Error("Please choose a video for your reel.");
-    if (!title) throw new Error("Please add a title for your reel.");
+    if (!videoFile) throw new Error(`Please choose a video for your ${label}.`);
+    if (!title) throw new Error(`Please add a title for your ${label}.`);
+    if (isVideo && !videoCategory.trim()) throw new Error("Please enter a category.");
 
     // Same community-guidelines check the Upload page runs.
     try {
-      const { isClean, violatingWord } = await checkContent(title, description, "");
+      const { isClean, violatingWord } = await checkContent(
+        title,
+        description,
+        isVideo ? videoCategory.trim() : "",
+      );
       if (!isClean) {
         throw new Error(
           `Content violates community guidelines (contains "${violatingWord}"). Please review our Community Guidelines before uploading.`,
@@ -544,54 +566,83 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
       uploadVideoToR2(videoFile.file, (pct) => setUploadProgress(pct)),
       getVideoMeta(videoFile.file),
       captureThumbnail(videoFile.file).catch((err) => {
-        console.warn("Reel thumbnail capture failed:", err.message);
+        console.warn("Thumbnail capture failed:", err.message);
         return null;
       }),
     ]);
 
     // Always end up with a thumbnail: captured frame, else a generated cover.
-    const thumbBlob = capturedBlob || (await generatePlaceholderThumbnail(title, meta.portrait));
-    if (!thumbBlob) throw new Error("Couldn't create a thumbnail for your reel.");
-    const thumbnailUrl = await uploadThumbnail(thumbBlob, meta.portrait);
+    // Reels use portrait thumbnails when the video is portrait; long videos
+    // are always 16:9.
+    const portrait = isReel && meta.portrait;
+    const thumbBlob = capturedBlob || (await generatePlaceholderThumbnail(title, portrait));
+    if (!thumbBlob) throw new Error(`Couldn't create a thumbnail for your ${label}.`);
+    const thumbnailUrl = await uploadThumbnail(thumbBlob, portrait);
 
     const uploaderUsername = currentUser || "anonymous";
+    let saved;
 
-    const reelPayload = {
-      title,
-      description,
-      video_url: videoUrl,
-      thumbnail: thumbnailUrl,
-      uploaded_by: uploaderUsername,
-      username: uploaderUsername.toLowerCase().replace(/\s+/g, ""),
-      duration: meta.duration,
-      likes: 0,
-      comments: 0,
-      // Same optional columns the Upload page writes for reels.
-      song: song || null,
-      location_name: locationName || null,
-      feeling: feeling || null,
-      original_audio_volume: song ? originalAudioVolume : 1,
-    };
-
-    const { data: newReel, error: reelError } = await supabase
-      .from("reels")
-      .insert([reelPayload])
-      .select()
-      .single();
-    if (reelError) throw new Error(reelError.message);
+    if (isVideo) {
+      const { data, error: videoError } = await supabase
+        .from("videos")
+        .insert([
+          {
+            title,
+            description,
+            video_url: videoUrl,
+            thumbnail_url: thumbnailUrl,
+            category: videoCategory.trim(),
+            channel: uploaderUsername,
+            username: uploaderUsername,
+            duration: meta.duration,
+            song: song || null,
+            location_name: locationName || null,
+            feeling: feeling || null,
+            original_audio_volume: song ? originalAudioVolume : 1,
+          },
+        ])
+        .select()
+        .single();
+      if (videoError) throw new Error(videoError.message);
+      saved = data;
+    } else {
+      const { data, error: reelError } = await supabase
+        .from("reels")
+        .insert([
+          {
+            title,
+            description,
+            video_url: videoUrl,
+            thumbnail: thumbnailUrl,
+            uploaded_by: uploaderUsername,
+            username: uploaderUsername.toLowerCase().replace(/\s+/g, ""),
+            duration: meta.duration,
+            likes: 0,
+            comments: 0,
+            song: song || null,
+            location_name: locationName || null,
+            feeling: feeling || null,
+            original_audio_volume: song ? originalAudioVolume : 1,
+          },
+        ])
+        .select()
+        .single();
+      if (reelError) throw new Error(reelError.message);
+      saved = data;
+    }
 
     try {
       await notifyConnections(uploaderUsername, {
-        type: "reel",
-        message: `${uploaderUsername} uploaded a new reel: "${title}"`,
-        contentId: newReel.id,
-        contentType: "reel",
+        type: label,
+        message: `${uploaderUsername} uploaded a new ${label}: "${title}"`,
+        contentId: saved.id,
+        contentType: label,
       });
     } catch (notifyErr) {
-      console.warn("Reel notification failed:", notifyErr);
+      console.warn("Notification failed:", notifyErr);
     }
 
-    return newReel;
+    return saved;
   };
 
   const handleSubmit = async () => {
@@ -603,11 +654,13 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
 
     try {
       // ── Reel mode ──
-      if (isReel) {
-        const newReel = await submitReel();
+      if (isMedia) {
+        const saved = await submitVideoContent();
         resetAfterSuccess();
+        setSuccessKind(isVideo ? "video" : "reel");
         setReelSuccess(true);
-        if (onReelPosted) onReelPosted(newReel);
+        if (isVideo) onVideoPosted?.(saved);
+        else onReelPosted?.(saved);
         return;
       }
 
@@ -683,7 +736,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
 
       resetAfterSuccess();
     } catch (err) {
-      setError(err.message || (isReel ? "Failed to share reel. Please try again." : "Failed to post. Please try again."));
+      setError(err.message || (isMedia ? `Failed to share ${postAs}. Please try again.` : "Failed to post. Please try again."));
     } finally {
       setPosting(false);
     }
@@ -692,47 +745,64 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
   const mediaAlreadyAttached = imageFiles.length > 0 || !!videoFile || !!gifStickerAttachment;
 
   const postLabel = posting
-    ? isReel ? "Sharing…" : "Posting…"
-    : isReel ? "Share Reel" : "Post";
+    ? isMedia ? "Sharing…" : "Posting…"
+    : isReel ? "Share Reel" : isVideo ? "Share Video" : "Post";
 
   return (
     <div className="pf-composer">
-      {/* NEW: Post / Reel switch */}
+      {/* NEW: Post / Reel / Video / Live switch */}
       <div className="pf-mode-toggle" role="tablist" aria-label="Create">
+        {[
+          { key: "post", label: "📝 Post" },
+          { key: "reel", label: "🎬 Reel" },
+          { key: "video", label: "📺 Video" },
+        ].map((m) => (
+          <button
+            key={m.key}
+            type="button"
+            role="tab"
+            aria-selected={postAs === m.key}
+            className={`pf-mode-btn ${postAs === m.key ? "active" : ""}`}
+            onClick={() => switchPostAs(m.key)}
+            disabled={posting}
+          >
+            {m.label}
+          </button>
+        ))}
+        {/* Live / Record isn't a mode — it opens the record / go-live popup. */}
         <button
           type="button"
-          role="tab"
-          aria-selected={!isReel}
-          className={`pf-mode-btn ${!isReel ? "active" : ""}`}
-          onClick={() => switchPostAs("post")}
+          className="pf-mode-btn pf-mode-btn--live"
+          onClick={() => setShowRecordModal(true)}
           disabled={posting}
         >
-          📝 Post
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={isReel}
-          className={`pf-mode-btn ${isReel ? "active" : ""}`}
-          onClick={() => switchPostAs("reel")}
-          disabled={posting}
-        >
-          🎬 Reel
+          <span className="pf-live-dot" aria-hidden="true" />
+          Live / Record
         </button>
       </div>
 
       <div className="pf-composer-top">
         <div className="pf-avatar">{initials}</div>
         <div className="pf-composer-body">
-          {/* NEW: reel title (Reel mode only) */}
-          {isReel && (
+          {/* NEW: title (Reel / Video) and category (Video only) */}
+          {isMedia && (
             <input
               type="text"
               className="pf-link-input"
-              placeholder="Reel title"
-              value={reelTitle}
-              onChange={(e) => setReelTitle(e.target.value)}
+              placeholder={isVideo ? "Video title" : "Reel title"}
+              value={mediaTitle}
+              onChange={(e) => setMediaTitle(e.target.value)}
               maxLength={100}
+            />
+          )}
+          {isVideo && (
+            <input
+              type="text"
+              className="pf-link-input"
+              placeholder="Category (e.g. Music, Gaming, News)"
+              value={videoCategory}
+              onChange={(e) => setVideoCategory(e.target.value)}
+              maxLength={40}
             />
           )}
 
@@ -744,15 +814,18 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
             placeholder={
               isReel
                 ? "Describe your reel…"
-                : `What's on your mind, ${currentUser}?`
+                : isVideo
+                  ? "Describe your video…"
+                  : `What's on your mind, ${currentUser}?`
             }
             rows={3}
           />
 
-          {isReel && !videoFile && (
+          {isMedia && !videoFile && (
             <p className="pf-reel-hint">
-              Tap 🎥 below to choose the video for your reel. Reels are short
-              vertical videos and appear in the Reels / Shorts section.
+              {isReel
+                ? "Tap 🎥 below to choose the video for your reel. Reels are short vertical videos and appear in the Reels / Shorts section."
+                : "Tap 🎥 below to choose your video. It will be published in the Videos section with its own title and category."}
             </p>
           )}
 
@@ -776,7 +849,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
 
           {/* NEW (Reel mode): original-audio volume, only once a song is
               attached — lets the song be heard over the video's own sound. */}
-          {isReel && song && (
+          {isMedia && song && (
             <div className="pf-reel-volume">
               <div className="pf-reel-volume-row">
                 <span>🔊 Original video volume</span>
@@ -857,7 +930,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
             </div>
           )}
 
-          {showLinkInput && !isReel && (
+          {showLinkInput && !isMedia && (
             <input
               type="url"
               className="pf-link-input"
@@ -867,11 +940,11 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
             />
           )}
 
-          {fetchingPreview && !isReel && (
+          {fetchingPreview && !isMedia && (
             <div className="pf-link-loading">Fetching link preview…</div>
           )}
 
-          {!fetchingPreview && linkPreview && !isReel && (
+          {!fetchingPreview && linkPreview && !isMedia && (
             <div className="pf-link-preview">
               {linkPreview.image && (
                 <img
@@ -901,8 +974,10 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
 
           {reelSuccess && (
             <p className="pf-reel-success">
-              ✅ Your reel is live!{" "}
-              <a href="/reels">View in Reels</a>
+              ✅ Your {successKind} is live!{" "}
+              <a href={successKind === "video" ? "/" : "/reels"}>
+                {successKind === "video" ? "View on Home" : "View in Reels"}
+              </a>
             </p>
           )}
 
@@ -931,7 +1006,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
             className="pf-attach-btn"
             title="Photo"
             style={
-              isReel || videoFile || gifStickerAttachment
+              isMedia || videoFile || gifStickerAttachment
                 ? { opacity: 0.4, cursor: "not-allowed" }
                 : {}
             }
@@ -944,13 +1019,13 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
               multiple
               style={{ display: "none" }}
               onChange={handleImageSelect}
-              disabled={isReel || !!videoFile || !!gifStickerAttachment}
+              disabled={isMedia || !!videoFile || !!gifStickerAttachment}
             />
           </label>
 
           <label
             className="pf-attach-btn"
-            title={isReel ? "Choose reel video" : "Video"}
+            title={isMedia ? `Choose ${postAs} video` : "Video"}
             style={
               imageFiles.length > 0 || gifStickerAttachment
                 ? { opacity: 0.4, cursor: "not-allowed" }
@@ -973,8 +1048,8 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
             className="pf-attach-btn"
             title="Link"
             onClick={() => setShowLinkInput((v) => !v)}
-            disabled={isReel}
-            style={isReel ? { opacity: 0.4, cursor: "not-allowed" } : {}}
+            disabled={isMedia}
+            style={isMedia ? { opacity: 0.4, cursor: "not-allowed" } : {}}
           >🔗</button>
           <button
             className="pf-attach-btn"
@@ -1049,8 +1124,8 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
         </div>
 
         <div className="pf-composer-actions">
-          {/* Reels have no privacy setting, so the selector is hidden. */}
-          {!isReel && (
+          {/* Reels and Videos have no privacy setting, so the selector is hidden. */}
+          {!isMedia && (
             <select
               className="pf-privacy-select"
               value={privacy}
@@ -1073,6 +1148,13 @@ const PostComposer = ({ currentUser, onPost, onReelPosted }) => {
           </button>
         </div>
       </div>
+
+      {showRecordModal && (
+        <RecordModal
+          onClose={() => setShowRecordModal(false)}
+          currentUser={currentUser}
+        />
+      )}
     </div>
   );
 };

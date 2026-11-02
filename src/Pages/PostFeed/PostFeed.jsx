@@ -14,7 +14,7 @@ import StoriesStrip from "./StoriesStrip";
 // ⚠ Adjust this path to wherever LiveViewer lives in your project —
 // HomePage imports it as "../Live/LiveViewer", so from the PostFeed
 // folder it is probably this:
-import LiveBrowser from "../../Pages/Live/LiveViewer";
+import LiveBrowser from "../../Component/Live/LiveViewer";
 import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 // NEW: shared preloading, buffer-hiding video — used for search-result
 // reels that have no thumbnail, so they only load once near the screen.

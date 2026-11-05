@@ -15,6 +15,19 @@ import { advanceToNextFeedMedia } from "../../utils/autoAdvance";
 const PAGE_SIZE = 10;
 const LOAD_MORE_THRESHOLD_PX = 300;
 
+// NEW (duplicate fix): when a page turns out to be mostly reels that are
+// already shown (in this strip or in another strip), keep scanning until at
+// least this many NEW reels were found (or the whole table was scanned).
+const MIN_NEW_PER_LOAD = 6;
+// Safety cap on pages scanned in one load.
+const MAX_PAGES_PER_LOAD = 6;
+
+// NEW (duplicate fix): ids of reels currently shown by ANY strip on the
+// page. Each strip claims what it loads and releases it when it unmounts
+// (the feed unmounts everything on refresh), so two strips never show the
+// same reel at the same time.
+const claimedReelIds = new Set();
+
 // NEW: how many cards the strip plays through on its own (each time a clip
 // ends) before handing off to the next item in the feed. The strip wraps
 // around forever, so without a cap it would never let go. Touching the
@@ -333,6 +346,12 @@ const ReelStripCard = ({
 // horizontally. Owns its own report modal so a report from any card in
 // this strip has somewhere to render.
 //
+// CHANGED (duplicate fix): the strip now walks the reels table at most ONCE
+// (it remembers how many positions it has scanned), skips reels it already
+// shows, and skips reels another strip on the page has claimed. When the
+// table is exhausted it simply stops instead of looping back to the start,
+// so the same reels no longer come round again.
+//
 // NEW (feedback): optional `fb` prop (from useContentFeedback in
 // PostFeed). Reels marked "Not interested" are filtered out of the
 // strip. ──
@@ -341,7 +360,6 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
   const [reels, setReels] = useState([]);
   const [viewCounts, setViewCounts] = useState({});
   const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const offsetRef = useRef(startOffset);
   const loadingRef = useRef(false);
   const trackRef = useRef(null);
@@ -354,9 +372,21 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
   const totalRef = useRef(null);
   const loggedInUsername = localStorage.getItem("username") || "";
 
+  // NEW (duplicate fix):
+  //  - scannedRef: how many table positions this strip has walked through.
+  //  - doneRef: true once the whole table was walked (or wrapAround=false
+  //    and the end was reached) — nothing left to load.
+  //  - ownIdsRef: ids this strip shows (also claimed in claimedReelIds).
+  //  - epochRef: bumped on unmount so an in-flight load from a dead mount
+  //    (React StrictMode, or a quick unmount) is dropped.
+  const scannedRef = useRef(0);
+  const doneRef = useRef(false);
+  const ownIdsRef = useRef(new Set());
+  const epochRef = useRef(0);
+
   // Unique per-strip id, so preview ids stay unique even when several
-  // strips (or a wrapped-around duplicate of the same reel) are on
-  // screen — the shared sound arbiter tells previews apart by id.
+  // strips are on screen — the shared sound arbiter tells previews apart
+  // by id.
   const stripIdRef = useRef(Math.random().toString(36).slice(2));
 
   // NEW: scroll-autoplay bookkeeping. visibleRef maps previewId -> card
@@ -463,61 +493,114 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
   }, []);
 
   const loadPage = useCallback(async () => {
-    if (loadingRef.current || !hasMore) return;
+    if (loadingRef.current || doneRef.current) return;
     loadingRef.current = true;
     setLoading(true);
+    const epoch = epochRef.current;
+    const dead = () => epoch !== epochRef.current;
 
-    // NEW: first load only — find how many reels exist, then jump to a
-    // random spot so the strip looks different on every refresh.
-    if (totalRef.current === null) {
-      try {
-        const { count } = await supabase
-          .from("reels")
-          .select("id", { count: "exact", head: true });
-        totalRef.current = count || 0;
-      } catch (_) {
-        totalRef.current = 0;
-      }
-      if (totalRef.current > 0) {
-        offsetRef.current =
-          (Math.floor(SESSION_RANDOM_BASE * totalRef.current) + startOffset) %
-          totalRef.current;
-      }
-    }
-
-    const { data, error } = await supabase
-      .from("reels")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .range(offsetRef.current, offsetRef.current + PAGE_SIZE - 1);
-
-    if (!error && data && data.length > 0) {
-      // NEW: shuffle each page before appending.
-      const mapped = shuffle(data.map(mapReelRow));
-      setReels((prev) => [...prev, ...mapped]);
-      fetchViewCountsFor(mapped.map((r) => r.id));
-      offsetRef.current += data.length;
-      if (data.length < PAGE_SIZE) {
-        if (wrapAround) {
-          offsetRef.current = 0;
-        } else {
-          setHasMore(false);
+    try {
+      // First load only — find how many reels exist, then jump to a
+      // random spot so the strip looks different on every refresh.
+      if (totalRef.current === null) {
+        let total = 0;
+        try {
+          const { count } = await supabase
+            .from("reels")
+            .select("id", { count: "exact", head: true });
+          total = count || 0;
+        } catch (_) {
+          total = 0;
         }
+        if (dead()) return;
+        totalRef.current = total;
+        if (total > 0) {
+          offsetRef.current =
+            (Math.floor(SESSION_RANDOM_BASE * total) + startOffset) % total;
+        }
+        scannedRef.current = 0;
       }
-    } else if (wrapAround && offsetRef.current > 0) {
-      // NEW: a random offset can land past the end — wrap to the start
-      // instead of showing an empty strip.
-      offsetRef.current = 0;
-    } else {
-      setHasMore(false);
-    }
 
-    loadingRef.current = false;
-    setLoading(false);
-  }, [hasMore, wrapAround, fetchViewCountsFor, startOffset]);
+      const total = totalRef.current;
+      if (!total) {
+        doneRef.current = true;
+        return;
+      }
+
+      const fresh = [];
+      let pages = 0;
+
+      while (
+        fresh.length < MIN_NEW_PER_LOAD &&
+        scannedRef.current < total &&
+        pages++ < MAX_PAGES_PER_LOAD
+      ) {
+        const from = offsetRef.current;
+        // Never cross the end of the table inside one query; the next
+        // page starts again at position 0 (wrap-around).
+        const to = Math.min(from + PAGE_SIZE, total) - 1;
+
+        const { data, error } = await supabase
+          .from("reels")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(from, to);
+
+        if (dead()) return;
+        if (error) break;
+
+        scannedRef.current += to - from + 1;
+        offsetRef.current = to + 1 >= total ? 0 : to + 1;
+
+        // Without wrap-around the strip stops at the end of the table.
+        if (!wrapAround && to + 1 >= total) {
+          doneRef.current = true;
+        }
+
+        for (const row of data || []) {
+          const key = String(row.id);
+          if (ownIdsRef.current.has(key) || claimedReelIds.has(key)) continue;
+          ownIdsRef.current.add(key);
+          claimedReelIds.add(key);
+          fresh.push(row);
+        }
+
+        if (doneRef.current) break;
+      }
+
+      // Walked the whole table: nothing new can ever appear in this strip.
+      if (scannedRef.current >= total) doneRef.current = true;
+
+      if (fresh.length > 0) {
+        // Shuffle each batch before appending.
+        const mapped = shuffle(fresh.map(mapReelRow));
+        setReels((prev) => [...prev, ...mapped]);
+        fetchViewCountsFor(mapped.map((r) => r.id));
+      }
+    } finally {
+      if (!dead()) {
+        loadingRef.current = false;
+        setLoading(false);
+      }
+    }
+  }, [wrapAround, fetchViewCountsFor, startOffset]);
 
   useEffect(() => {
     loadPage();
+
+    // Cleanup runs on unmount (and on StrictMode's dev double-mount):
+    // release this strip's claims and reset it so a fresh mount starts
+    // clean, and invalidate any load still in flight.
+    return () => {
+      epochRef.current += 1;
+      loadingRef.current = false;
+      ownIdsRef.current.forEach((id) => claimedReelIds.delete(id));
+      ownIdsRef.current = new Set();
+      totalRef.current = null;
+      offsetRef.current = startOffset;
+      scannedRef.current = 0;
+      doneRef.current = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -563,7 +646,7 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
           const previewId = `${stripIdRef.current}-${r.id}-${i}`;
           return (
             <ReelStripCard
-              key={`${r.id}-${i}`}
+              key={r.id}
               reel={r}
               previewId={previewId}
               index={i}

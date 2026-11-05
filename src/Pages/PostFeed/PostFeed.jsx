@@ -40,6 +40,18 @@ const shuffleArray = (arr) => {
   return a;
 };
 
+// NEW (duplicate fix): append `next` to `prev`, skipping any post whose id
+// is already in `prev`. Used everywhere posts are added to the list.
+const mergeUnique = (prev, next) => {
+  const seen = new Set(prev.map((p) => p.id));
+  return [...prev, ...next.filter((p) => !seen.has(p.id))];
+};
+
+// NEW (duplicate fix): put `post` at the top unless it's already in the list
+// (e.g. the realtime INSERT event and handleNewPost both add your own post).
+const prependUnique = (prev, post) =>
+  prev.some((p) => p.id === post.id) ? prev : [post, ...prev];
+
 // NEW: how many videos are fetched (then shuffled) per refill of the
 // video pool. Bigger = more variety in what shows up between posts.
 const VIDEO_POOL_SIZE = 30;
@@ -447,6 +459,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const fetchPosts = useCallback(async (reset = false) => {
     // NEW: each call gets a ticket; only the newest ticket may update state.
     const seq = ++fetchSeqRef.current;
+    // NEW (duplicate fix): true once a newer fetch has started. Checked after
+    // EVERY await, BEFORE touching offsetRef / shuffledPoolRef, so an
+    // outdated call can no longer pollute the shared pool.
+    const stale = () => seq !== fetchSeqRef.current;
+
     try {
       // ────────────── NEW: SEARCH MODE ──────────────
       // When a search query is present, skip the shuffled pool entirely
@@ -474,15 +491,15 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           .order("created_at", { ascending: false })
           .range(offset, offset + PAGE_SIZE - 1);
 
-        if (fetchErr) throw fetchErr;
-
         // NEW: a newer search/fetch started while this one was in flight.
-        if (seq !== fetchSeqRef.current) return;
+        if (stale()) return;
+        if (fetchErr) throw fetchErr;
 
         const page = (data || []).map(enrichPost);
         offsetRef.current += page.length;
         setHasMore(page.length === PAGE_SIZE);
-        setPosts((prev) => (reset ? page : [...prev, ...page]));
+        // CHANGED: dedupe when appending.
+        setPosts((prev) => (reset ? page : mergeUnique(prev, page)));
 
         // CHANGED: also invalidate any in-flight / queued feed videos.
         videoEpochRef.current += 1;
@@ -512,6 +529,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           .order("created_at", { ascending: false })
           .range(offset, offset + POOL_SIZE - 1);
 
+        // CHANGED: bail out BEFORE mutating any ref if we're outdated.
+        if (stale()) return;
         if (fetchErr) throw fetchErr;
 
         offsetRef.current += (data || []).length;
@@ -521,9 +540,17 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           break;
         }
 
-        const enrichedBatch = data.map(enrichPost);
+        // NEW (duplicate fix): skip posts that are already on screen or
+        // already waiting in the pool (offset pagination can return the
+        // same post twice when new posts shift the rows). On a reset the
+        // old on-screen list is about to be replaced, so ignore it.
+        const known = new Set([
+          ...(reset ? [] : postsRef.current.map((p) => p.id)),
+          ...shuffledPoolRef.current.map((p) => p.id),
+        ]);
+        const fresh = data.filter((p) => !known.has(p.id)).map(enrichPost);
         shuffledPoolRef.current = shuffledPoolRef.current.concat(
-          shuffleArray(enrichedBatch),
+          shuffleArray(fresh),
         );
 
         if (data.length < POOL_SIZE) {
@@ -534,7 +561,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       }
 
       // NEW: a newer fetch started while we were loading the pool.
-      if (seq !== fetchSeqRef.current) return;
+      if (stale()) return;
 
       const page = shuffledPoolRef.current.splice(0, PAGE_SIZE);
 
@@ -548,8 +575,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         setVideos([]);
         fetchMoreVideos(page.length);
       } else {
-        setPosts((prev) => [...prev, ...page]);
-        fetchMoreVideos(page.length);
+        // CHANGED: dedupe when appending. Only ask for as many videos as
+        // posts that were actually added, so the two lists stay in step.
+        const before = postsRef.current;
+        const merged = mergeUnique(before, page);
+        setPosts((prev) => mergeUnique(prev, page));
+        fetchMoreVideos(Math.max(merged.length - before.length, 0) || page.length);
       }
 
       fetchViewCounts(page.map((p) => p.id));
@@ -683,6 +714,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
   const loadMore = useCallback(() => {
     if (loadingMoreRef.current || !hasMoreRef.current) return;
+    // CHANGED (duplicate fix): lock IMMEDIATELY. The ref used to be updated
+    // only by an effect after the next render, so the IntersectionObserver
+    // could fire twice before the lock took effect.
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     fetchPosts(false);
   }, [fetchPosts]);
@@ -695,6 +730,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       const newId = payload.new?.id;
       if (!newId) return;
+
+      // NEW (duplicate fix): if handleNewPost already added this post
+      // (your own upload), don't fetch + add it again.
+      if (postsRef.current.some((p) => p.id === newId)) return;
 
       const { data, error: fetchErr } = await supabase
         .from("posts")
@@ -710,10 +749,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       const enrichedPost = enrichPost(data);
 
-      setPosts((prev) => {
-        if (prev.some((p) => p.id === newId)) return prev;
-        return [enrichedPost, ...prev];
-      });
+      // Already in the list? (handled again inside the updater, since the
+      // post may have been added while the fetch above was in flight.)
+      if (postsRef.current.some((p) => p.id === newId)) return;
+
+      setPosts((prev) => prependUnique(prev, enrichedPost));
       fetchMoreVideos(1);
 
       fetchViewCounts([newId]);
@@ -800,7 +840,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       const enrichedPost = enrichPost(data);
 
       setPosts((current) => {
-        if (current.some((p) => p.id === sharedPostId)) return current;
+        if (current.some((p) => String(p.id) === String(sharedPostId)))
+          return current;
         return [enrichedPost, ...current];
       });
 
@@ -829,7 +870,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   }, [posts, highlightedPostId]);
 
   const handleNewPost = async (post) => {
-    setPosts((prev) => [post, ...prev]);
+    // CHANGED: dedupe — the realtime INSERT listener may add it too.
+    setPosts((prev) => prependUnique(prev, post));
     fetchViewCounts([post.id]);
 
     const uploaderUsername = currentUser;
@@ -1132,16 +1174,16 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       if (err) throw err;
 
-      setPosts((prev) => [
-        {
+      // CHANGED: dedupe — the realtime INSERT listener may add it too.
+      setPosts((prev) =>
+        prependUnique(prev, {
           ...data,
           myReaction: null,
           reactionCounts: {},
           comments: [],
           showComments: false,
-        },
-        ...prev,
-      ]);
+        })
+      );
 
       fetchViewCounts([data.id]);
     } catch (err) {

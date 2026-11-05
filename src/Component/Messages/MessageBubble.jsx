@@ -102,6 +102,8 @@ const MessageBubble = ({
   reactionOpen,
 }) => {
   const mine = m.sender_username === currentUser;
+  // While an attachment is still uploading, show the local blob preview.
+  const mediaUrl = m._uploading ? m._previewUrl : m.attachment_url;
 
   // ── Long-press (open menu) + swipe-right (reply) on touch devices ──
   const touchRef = useRef({ x: 0, y: 0, timer: null, fired: false });
@@ -179,7 +181,7 @@ const MessageBubble = ({
 
   const bubbleClass = [
     "mp-bubble",
-    m.attachment_url && "mp-bubble-has-attachment",
+    (m.attachment_url || m._uploading) && "mp-bubble-has-attachment",
     m.attachment_type === "voice" && "mp-bubble-has-voice",
     m.attachment_type === "sticker" && "mp-bubble-sticker-wrap",
     emojiOnly && "mp-bubble-emoji-only",
@@ -327,21 +329,21 @@ const MessageBubble = ({
                 </div>
               )}
 
-              {m.attachment_url && m.attachment_type === "image" && (
+              {mediaUrl && m.attachment_type === "image" && (
                 <img
-                  src={m.attachment_url}
+                  src={mediaUrl}
                   alt="attachment"
                   className="mp-bubble-image"
                   loading="lazy"
                   decoding="async"
-                  onClick={() => actions.openImage(m.attachment_url)}
+                  onClick={() => !m._uploading && actions.openImage(m.attachment_url)}
                   onDoubleClick={() => actions.react(m, "❤️")}
                 />
               )}
 
-              {m.attachment_url && m.attachment_type === "video" && (
+              {mediaUrl && m.attachment_type === "video" && (
                 <video
-                  src={m.attachment_url}
+                  src={mediaUrl}
                   controls
                   playsInline
                   preload="metadata"
@@ -369,17 +371,17 @@ const MessageBubble = ({
                 />
               )}
 
-              {m.attachment_url && m.attachment_type === "voice" && (
-                <VoiceMessagePlayer src={m.attachment_url} mine={mine} />
+              {mediaUrl && m.attachment_type === "voice" && (
+                <VoiceMessagePlayer src={mediaUrl} mine={mine} />
               )}
 
               {m.attachment_url && m.attachment_type === "location" && (
                 <LocationCard message={m} mine={mine} />
               )}
 
-              {m.attachment_url && m.attachment_type === "file" && (
+              {(m.attachment_url || m._uploading) && m.attachment_type === "file" && (
                 <a
-                  href={m.attachment_url}
+                  href={m.attachment_url || undefined}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mp-bubble-file"
@@ -407,6 +409,15 @@ const MessageBubble = ({
                 ))}
 
               {firstUrl && <LinkPreviewCard url={firstUrl} mine={mine} classPrefix="mp" />}
+
+              {m._uploading && (
+                <div className="mp-bubble-progress" aria-label="Uploading">
+                  <div
+                    className="mp-bubble-progress-fill"
+                    style={{ width: `${Math.max(4, m._progress || 0)}%` }}
+                  />
+                </div>
+              )}
 
               <span className="mp-bubble-footer">
                 {m.edited_at && <span className="mp-edited-tag">edited</span>}

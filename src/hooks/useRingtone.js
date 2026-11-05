@@ -4,31 +4,63 @@ import { useEffect } from "react";
 const ring = typeof Audio !== "undefined" ? new Audio("/ringtone.mp3") : null;
 if (ring) {
   ring.loop = true;
-  ring.volume = 1; // maximum allowed by the browser
   ring.preload = "auto";
-  // Never paused by usePauseMediaWhileOpen, so an incoming call still rings
-  // while the chat panel is open.
   ring.dataset.keepPlaying = "1";
 }
 
-// Browsers block audio until the user has tapped the page at least once.
-// This silently "unlocks" the audio element on the first interaction.
 let unlocked = false;
-const unlock = () => {
+let ringing = false; // true while a call is ringing (set by the hook below)
+
+const UNLOCK_EVENTS = ["pointerdown", "touchstart", "keydown"];
+const removeUnlockListeners = () =>
+  UNLOCK_EVENTS.forEach((e) => window.removeEventListener(e, unlock));
+
+const reportPlayError = (err) => {
+  if (err?.name === "NotSupportedError") {
+    console.error("[ringtone] /ringtone.mp3 is missing, empty or not valid audio.");
+  } else if (err?.name !== "NotAllowedError" && err?.name !== "AbortError") {
+    console.warn("[ringtone] play failed:", err);
+  }
+  // NotAllowedError = autoplay blocked, expected before the first tap.
+};
+
+// Browsers only allow audio after a tap/key press. Use the first one to unlock.
+function unlock() {
   if (unlocked || !ring) return;
+
+  // A call is already ringing but was blocked: this tap lets it start now.
+  if (ringing) {
+    ring
+      .play()
+      .then(() => {
+        unlocked = true;
+        removeUnlockListeners();
+      })
+      .catch(reportPlayError);
+    return;
+  }
+
   ring.muted = true;
   ring
     .play()
     .then(() => {
-      ring.pause();
-      ring.currentTime = 0;
       ring.muted = false;
       unlocked = true;
+      removeUnlockListeners();
+      // If a call started while we were unlocking, leave it playing.
+      if (!ringing) {
+        ring.pause();
+        ring.currentTime = 0;
+      }
     })
-    .catch(() => {});
-};
+    .catch((err) => {
+      ring.muted = false; // never leave the element muted after a failure
+      reportPlayError(err);
+    });
+}
+
 if (typeof window !== "undefined") {
-  ["pointerdown", "touchstart", "keydown"].forEach((evt) =>
+  UNLOCK_EVENTS.forEach((evt) =>
     window.addEventListener(evt, unlock, { passive: true }),
   );
 }
@@ -39,8 +71,10 @@ export function useRingtone(active) {
     let vibTimer;
 
     if (active) {
+      ringing = true;
+      ring.muted = false;
       ring.currentTime = 0;
-      ring.play().catch(() => {});
+      ring.play().catch(reportPlayError);
       if (navigator.vibrate) {
         navigator.vibrate([800, 400]);
         vibTimer = setInterval(() => navigator.vibrate([800, 400]), 1200);
@@ -48,6 +82,7 @@ export function useRingtone(active) {
     }
 
     return () => {
+      ringing = false;
       ring.pause();
       ring.currentTime = 0;
       clearInterval(vibTimer);

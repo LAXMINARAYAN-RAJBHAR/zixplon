@@ -298,6 +298,12 @@ const AdminPanel = () => {
   const [visitsTotal, setVisitsTotal] = useState(null);
   const [visitsLoggedIn, setVisitsLoggedIn] = useState(null);
   const [visitsLoadingMore, setVisitsLoadingMore] = useState(false);
+  // NEW: hide visits whose duration is 0s (left before the first ~20s
+  // heartbeat — bots / instant bounces). Filtered in the DATABASE via the
+  // generated `duration_seconds` column, so the cards, the counts and the
+  // table all agree. `zeroHidden` = how many are currently hidden.
+  const [hideZeroVisits, setHideZeroVisits] = useState(true);
+  const [zeroHidden, setZeroHidden] = useState(null);
 
   // ── NEW: "Installs" tab state (PWA install stats) ───────────────────────
   // Filled by the pwa_install_stats() Supabase function (admin-only).
@@ -505,24 +511,50 @@ const AdminPanel = () => {
   // Loads the first page + exact counts for the chosen date range.
   // NOTE: always call as fetchVisits() or fetchVisits("7d") — never pass it
   // straight to onClick, or the click event would be used as the range.
-  const fetchVisits = async (range = visitRange) => {
+  //
+  // CHANGED: when `hideZero` is on, visits with duration_seconds = 0 are
+  // excluded in the DATABASE query (page + both counts), so the cards, the
+  // "Showing X of Y" line and the table all agree. A fourth, unfiltered
+  // count is only used to tell the admin how many were hidden.
+  const fetchVisits = async (range = visitRange, hideZero = hideZeroVisits) => {
     setVisitsLoading(true);
     const since = visitRangeStart(range);
     const inRange = (q) => (since ? q.gte("started_at", since) : q);
+    const scoped = (q) => {
+      q = inRange(q);
+      return hideZero ? q.gt("duration_seconds", 0) : q;
+    };
 
-    const [pageRes, totalRes, loggedInRes] = await Promise.all([
-      inRange(supabase.from("site_visits").select("*"))
+    const [pageRes, totalRes, loggedInRes, allRes] = await Promise.all([
+      scoped(supabase.from("site_visits").select("*"))
         .order("started_at", { ascending: false })
         .range(0, VISITS_PAGE - 1),
-      inRange(supabase.from("site_visits").select("id", { count: "exact", head: true })),
-      inRange(
+      scoped(supabase.from("site_visits").select("id", { count: "exact", head: true })),
+      scoped(
         supabase.from("site_visits").select("id", { count: "exact", head: true }).not("username", "is", null),
       ),
+      hideZero
+        ? inRange(supabase.from("site_visits").select("id", { count: "exact", head: true }))
+        : Promise.resolve(null),
     ]);
+
+    // Column missing (the duration_seconds SQL hasn't been run yet)?
+    // Fall back to showing everything instead of an empty tab.
+    if (hideZero && pageRes.error) {
+      showToast("❌ Run the duration_seconds SQL first — showing all visits");
+      setHideZeroVisits(false);
+      setVisitsLoading(false);
+      return fetchVisits(range, false);
+    }
 
     if (!pageRes.error && pageRes.data) setVisits(pageRes.data);
     setVisitsTotal(totalRes.error ? null : totalRes.count);
     setVisitsLoggedIn(loggedInRes.error ? null : loggedInRes.count);
+    setZeroHidden(
+      hideZero && allRes && !allRes.error && !totalRes.error
+        ? Math.max(0, allRes.count - totalRes.count)
+        : null,
+    );
     setVisitsLoading(false);
     setVisitsLoaded(true);
   };
@@ -533,6 +565,13 @@ const AdminPanel = () => {
     fetchVisits(range);
   };
 
+  // NEW: flips the "Hide 0s visits" checkbox and reloads with the new value.
+  const toggleHideZeroVisits = () => {
+    const next = !hideZeroVisits;
+    setHideZeroVisits(next);
+    fetchVisits(visitRange, next);
+  };
+
   // Appends the next page. New visits arriving mid-session can shift the
   // offsets, so rows are de-duplicated by id.
   const loadMoreVisits = async () => {
@@ -541,6 +580,7 @@ const AdminPanel = () => {
     const since = visitRangeStart(visitRange);
     let q = supabase.from("site_visits").select("*");
     if (since) q = q.gte("started_at", since);
+    if (hideZeroVisits) q = q.gt("duration_seconds", 0);
     const { data, error } = await q
       .order("started_at", { ascending: false })
       .range(visits.length, visits.length + VISITS_PAGE - 1);
@@ -1710,6 +1750,32 @@ const AdminPanel = () => {
                     {r.label}
                   </button>
                 ))}
+
+                {/* NEW: ignore visits that lasted 0s (left before the first
+                    ~20s heartbeat). Inline styles, so no CSS file change. */}
+                <label
+                  title="Hide visits that ended before the first ~20s heartbeat (bots / instant bounces)"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    marginLeft: "auto",
+                    fontFamily: "'Nunito', sans-serif",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    color: "var(--zx-text2)",
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={hideZeroVisits}
+                    onChange={toggleHideZeroVisits}
+                    style={{ accentColor: "var(--zx-primary)" }}
+                  />
+                  Hide 0s visits
+                </label>
               </div>
 
               <div className="admin_stats" style={{ marginBottom: "20px" }}>
@@ -1734,6 +1800,7 @@ const AdminPanel = () => {
                   Showing {visits.length} of {visitStats.totalVisits} visits
                   ({VISIT_RANGES.find((r) => r.key === visitRange)?.label.toLowerCase()}).
                   Duration is accurate to within ~20s (heartbeat interval).
+                  {hideZeroVisits && zeroHidden != null && ` ${zeroHidden} visits under ~20s (0s) are hidden.`}
                   {visits.length < visitStats.totalVisits &&
                     ` Unique sessions and avg. duration are based on the ${visits.length} loaded visits; the other three cards cover all ${visitStats.totalVisits}.`}
                 </p>

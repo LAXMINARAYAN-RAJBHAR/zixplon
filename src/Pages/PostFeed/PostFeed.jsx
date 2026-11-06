@@ -28,9 +28,14 @@ import useContentFeedback, { FeedbackToast } from "../../hooks/useContentFeedbac
 // per-post items that used to live in each post's ⋯ menu).
 import useProfileFeedback from "../../hooks/useProfileFeedback";
 import ProfilePrompt, { ProfileFeedbackToast } from "./ProfilePrompt";
-// NEW: remembers what this browser has already seen, and orders each batch
-// "brand-new unseen on top → other unseen shuffled → seen shuffled".
-import { markSeen, orderForFeed } from "../../utils/seenContent";
+// NEW: server-ranked feed (see feed_ranking.sql). The database returns the
+// next ids: brand-new unseen on top, other unseen next, already-seen last.
+import {
+  markSeen,
+  flushSeen,
+  startFeedSession,
+  fetchRankedIds,
+} from "../../utils/seenContent";
 
 // NEW (duplicate fix): append `next` to `prev`, skipping any post whose id
 // is already in `prev`. Used everywhere posts are added to the list.
@@ -47,12 +52,6 @@ const prependUnique = (prev, post) =>
 // NEW: how many videos are fetched (then ordered) per refill of the
 // video pool.
 const VIDEO_POOL_SIZE = 30;
-
-// NEW (newest on top): on a fresh load, up to this many posts / videos that
-// are less than 24h old AND not yet seen are pinned at the very top,
-// newest first. Everything else follows in the unseen → seen order.
-const PIN_MAX_POSTS = 3;
-const PIN_MAX_VIDEOS = 2;
 
 // NEW: HomeHub's Upload -> Post item opens the composer popup. When the
 // Posts tab is already showing it fires OPEN_COMPOSER_EVENT; when it has
@@ -85,11 +84,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const [postNotFound, setPostNotFound] = useState(false);
   const [viewCounts, setViewCounts] = useState({});
   const PAGE_SIZE = 10;
-  const POOL_SIZE = 50;
   const offsetRef = useRef(0);
   const shuffledPoolRef = useRef([]);
   const [videos, setVideos] = useState([]);
-  const videosOffsetRef = useRef(0);
+  // NEW: keyset cursors ({ score, id }) for the server-ranked lists.
+  const postCursorRef = useRef(null);
+  const videoCursorRef = useRef(null);
 
   // NEW: video pool + helpers.
   //  - videoPoolRef: videos fetched and ordered, waiting to be shown.
@@ -378,14 +378,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     setProfileToast(null);
   };
 
-  // CHANGED: videos are fetched newest-first in pools of VIDEO_POOL_SIZE.
-  // Each batch is ordered ONCE at load time (never at render time, so
-  // hovering/liking a card never reorders the feed):
-  //   brand-new unseen videos pinned on top → other unseen shuffled →
-  //   already-seen shuffled.
-  // CHANGED (duplicate fix): a video already handed to the feed is never
-  // handed out again, and once the whole catalogue has been walked the
-  // fetching stops (no wrap-around) instead of repeating videos.
+  // CHANGED: videos now come from the server ranking (get_feed_ids):
+  // brand-new unseen videos first, then other unseen, then seen — a
+  // different shuffle every session. Pages are fetched with a keyset
+  // cursor, so there is no offset drift. A video already handed to the
+  // feed is never handed out again, and when the database has no more the
+  // fetching simply stops (no wrap-around, no repeats).
   const fetchMoreVideos = useCallback((count) => {
     if (!count) return Promise.resolve();
     const epoch = videoEpochRef.current;
@@ -397,42 +395,52 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         !videosExhaustedRef.current &&
         attempts++ < 2
       ) {
-        const from = videosOffsetRef.current;
-        const { data, error: fetchErr } = await supabase
-          .from("videos")
-          .select("id, short_id, video_url, thumbnail_url, title, channel, username, duration, created_at")
-          .order("created_at", { ascending: false })
-          .range(from, from + VIDEO_POOL_SIZE - 1);
-
-        // The feed was reset / a search started while we were fetching.
+        let ranked;
+        try {
+          ranked = await fetchRankedIds("video", {
+            limit: VIDEO_POOL_SIZE,
+            cursor: videoCursorRef.current,
+            seedOffset: 1000,
+          });
+        } catch (_) {
+          break; // try again on the next call
+        }
         if (epoch !== videoEpochRef.current) return;
 
-        if (fetchErr) break; // try again on the next call
-
-        if (!data || data.length === 0) {
+        if (ranked.ids.length === 0) {
           videosExhaustedRef.current = true;
           break;
         }
 
-        const mapped = data.map((v) => ({
-          id: v.id,
-          short_id: v.short_id,
-          src: v.video_url,
-          thumbnail: v.thumbnail_url || null,
-          title: v.title,
-          duration: v.duration || "00:00",
-          channel: v.channel,
-          username: v.username || v.channel?.toLowerCase() || "unknown",
-          created_at: v.created_at || null,
-          likes: 0,
-        }));
+        const { data, error: fetchErr } = await supabase
+          .from("videos")
+          .select("id, short_id, video_url, thumbnail_url, title, channel, username, duration, created_at")
+          .in("id", ranked.ids);
+        if (epoch !== videoEpochRef.current) return;
+        if (fetchErr) break;
+
+        const byId = new Map((data || []).map((v) => [String(v.id), v]));
+        const mapped = ranked.ids
+          .map((id) => byId.get(id))
+          .filter(Boolean)
+          .map((v) => ({
+            id: v.id,
+            short_id: v.short_id,
+            src: v.video_url,
+            thumbnail: v.thumbnail_url || null,
+            title: v.title,
+            duration: v.duration || "00:00",
+            channel: v.channel,
+            username: v.username || v.channel?.toLowerCase() || "unknown",
+            created_at: v.created_at || null,
+            likes: 0,
+          }));
 
         const { data: likesData } = await supabase
           .from("likes")
           .select("content_id")
           .eq("content_type", "video")
           .in("content_id", mapped.map((v) => String(v.id)));
-
         if (epoch !== videoEpochRef.current) return;
 
         const likesMap = {};
@@ -449,15 +457,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           .filter((v) => !known.has(String(v.id)))
           .map((v) => ({ ...v, likes: likesMap[String(v.id)] ?? 0 }));
 
-        // Pin brand-new unseen videos, then unseen, then seen.
-        videoPoolRef.current = videoPoolRef.current.concat(
-          orderForFeed(fresh, "video", { pinMax: PIN_MAX_VIDEOS }),
-        );
+        // Already in ranked order — just queue them.
+        videoPoolRef.current = videoPoolRef.current.concat(fresh);
 
-        videosOffsetRef.current = from + data.length;
-        if (data.length < VIDEO_POOL_SIZE) {
-          videosExhaustedRef.current = true;
-        }
+        videoCursorRef.current = ranked.next;
+        if (ranked.done) videosExhaustedRef.current = true;
       }
     };
 
@@ -483,7 +487,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const resetVideoState = useCallback(() => {
     videoEpochRef.current += 1;
     videoPoolRef.current = [];
-    videosOffsetRef.current = 0;
+    videoCursorRef.current = null;
     videosExhaustedRef.current = false;
     shownVideoIdsRef.current = new Set();
     setVideos([]);
@@ -541,15 +545,31 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         return; // `finally` below still clears loading flags
       }
 
-      // ────────────── NORMAL FEED ──────────────
+      // ────────────── NORMAL FEED (server-ranked) ──────────────
+      // The database decides the order (see feed_ranking.sql): brand-new
+      // unseen posts pinned on top, then other unseen, then already-seen,
+      // with a fresh shuffle every session. We get ids + a keyset cursor,
+      // then load the full rows (reactions, comments) for just those ids.
       if (reset) {
-        shuffledPoolRef.current = [];
         offsetRef.current = 0;
+        shuffledPoolRef.current = [];
+        // Make sure everything seen so far is saved, then start a new
+        // session (new seed + new "seen before" cut-off).
+        await flushSeen();
+        if (stale()) return;
+        startFeedSession();
+        postCursorRef.current = null;
         setHasMore(true);
       }
 
-      while (shuffledPoolRef.current.length < PAGE_SIZE) {
-        const offset = offsetRef.current;
+      const ranked = await fetchRankedIds("post", {
+        limit: PAGE_SIZE,
+        cursor: postCursorRef.current,
+      });
+      if (stale()) return;
+
+      let rows = [];
+      if (ranked.ids.length > 0) {
         const { data, error: fetchErr } = await supabase
           .from("posts")
           .select(`
@@ -557,48 +577,24 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
             post_reactions ( type, username ),
             post_comments ( ${POST_COMMENTS_SELECT} )
           `)
-          .order("created_at", { ascending: false })
-          .range(offset, offset + POOL_SIZE - 1);
-
-        // CHANGED: bail out BEFORE mutating any ref if we're outdated.
+          .in("id", ranked.ids);
         if (stale()) return;
         if (fetchErr) throw fetchErr;
-
-        offsetRef.current += (data || []).length;
-
-        if (!data || data.length === 0) {
-          setHasMore(false);
-          break;
-        }
-
-        // NEW (duplicate fix): skip posts that are already on screen or
-        // already waiting in the pool (offset pagination can return the
-        // same post twice when new posts shift the rows). On a reset the
-        // old on-screen list is about to be replaced, so ignore it.
-        const known = new Set([
-          ...(reset ? [] : postsRef.current.map((p) => p.id)),
-          ...shuffledPoolRef.current.map((p) => p.id),
-        ]);
-        const fresh = data.filter((p) => !known.has(p.id)).map(enrichPost);
-
-        // CHANGED: instead of a plain shuffle —
-        //   brand-new unseen posts pinned on top (newest first) →
-        //   other unseen posts shuffled → already-seen posts shuffled.
-        shuffledPoolRef.current = shuffledPoolRef.current.concat(
-          orderForFeed(fresh, "post", { pinMax: PIN_MAX_POSTS }),
-        );
-
-        if (data.length < POOL_SIZE) {
-          setHasMore(false);
-          break;
-        }
-        setHasMore(true);
+        rows = data || [];
       }
 
-      // NEW: a newer fetch started while we were loading the pool.
-      if (stale()) return;
+      // Keep the server's order, and drop anything already on screen.
+      const byId = new Map(rows.map((p) => [String(p.id), p]));
+      const onScreen = new Set(
+        (reset ? [] : postsRef.current).map((p) => String(p.id)),
+      );
+      const page = ranked.ids
+        .map((id) => byId.get(id))
+        .filter((p) => p && !onScreen.has(String(p.id)))
+        .map(enrichPost);
 
-      const page = shuffledPoolRef.current.splice(0, PAGE_SIZE);
+      postCursorRef.current = ranked.next;
+      setHasMore(!ranked.done);
 
       if (reset) {
         setPosts(page);

@@ -11,9 +11,8 @@ import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
 // NEW: once the strip has auto-advanced far enough, hand off to the next
 // video / post video below it in the feed.
 import { advanceToNextFeedMedia } from "../../utils/autoAdvance";
-// NEW: remembers which reels this browser has already shown, and orders a
-// batch "brand-new unseen on top → other unseen shuffled → seen shuffled".
-import { markSeen, isSeen, orderForFeed } from "../../utils/seenContent";
+// NEW: server-ranked reels (see feed_ranking.sql) + "seen" tracking.
+import { markSeen, fetchRankedIds } from "../../utils/seenContent";
 
 const PAGE_SIZE = 10;
 const LOAD_MORE_THRESHOLD_PX = 300;
@@ -25,10 +24,8 @@ const MIN_NEW_PER_LOAD = 6;
 // Safety cap on pages scanned in one load.
 const MAX_PAGES_PER_LOAD = 6;
 
-// NEW (newest on top): the FIRST strip in the feed starts at the newest
-// reel instead of a random spot, and pins up to this many reels that are
-// less than 24h old AND not yet seen at its very front, newest first.
-const PIN_MAX_REELS = 4;
+// NEW (newest on top): the FIRST strip in the feed asks the server to pin
+// the newest unseen (<24h) reels at its front; the other strips don't pin.
 
 // NEW (duplicate fix): ids of reels currently shown by ANY strip on the
 // page. Each strip claims what it loads and releases it when it unmounts
@@ -94,10 +91,6 @@ const formatViews = (n) => {
   if (n >= 1000) return (n / 1000).toFixed(1) + "K";
   return String(n);
 };
-
-// NEW: one random base per page load, shared by every strip, so strips
-// with different `startOffset`s stay on different slices of the feed.
-const SESSION_RANDOM_BASE = Math.random();
 
 // ── One reel card in the strip. Desktop hovers-to-preview (the clip
 // plays over the thumbnail, sound-first, with the attached song in sync
@@ -344,15 +337,11 @@ const ReelStripCard = ({
 // horizontally. Owns its own report modal so a report from any card in
 // this strip has somewhere to render.
 //
-// CHANGED (newest on top): the FIRST strip in the feed (startOffset 0)
-// starts at the newest reel and pins brand-new unseen reels at its front.
-// Every other strip starts at a random spot (shifted by `startOffset`).
-// In every strip, reels you haven't seen come before reels you have.
-//
-// CHANGED (duplicate fix): a strip walks the reels table at most ONCE
-// (it remembers how many positions it has scanned), skips reels it already
-// shows, and skips reels another strip on the page has claimed. When the
-// table is exhausted it simply stops instead of looping back to the start.
+// CHANGED (server ranking): each strip asks the database for its next
+// reels (get_feed_ids): unseen before seen, brand-new unseen reels pinned
+// on top in the FIRST strip (startOffset 0), a different shuffle per strip
+// and per session. Pages use a keyset cursor, so there is no offset drift
+// and no wrap-around. Reels another strip already shows are skipped.
 //
 // NEW (feedback): optional `fb` prop (from useContentFeedback in
 // PostFeed). Reels marked "Not interested" are filtered out of the
@@ -363,7 +352,7 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
   const [reels, setReels] = useState([]);
   const [viewCounts, setViewCounts] = useState({});
   const [loading, setLoading] = useState(false);
-  const offsetRef = useRef(startOffset);
+  const cursorRef = useRef(null);
   const loadingRef = useRef(false);
   const trackRef = useRef(null);
   // NEW (auto-advance): root element of the strip (used as the anchor when
@@ -371,23 +360,16 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
   // on our own since the user last touched the strip.
   const stripRef = useRef(null);
   const autoAdvancedRef = useRef(0);
-  // NEW: total reel count, fetched once so we can pick a random offset.
-  const totalRef = useRef(null);
   const loggedInUsername = localStorage.getItem("username") || "";
 
-  // NEW (duplicate fix):
-  //  - scannedRef: how many table positions this strip has walked through.
-  //  - doneRef: true once the whole table was walked (or wrapAround=false
-  //    and the end was reached) — nothing left to scan.
+  // NEW (server ranking):
+  //  - cursorRef: keyset cursor for the next page from the server.
+  //  - doneRef: the server has no more reels for this strip.
   //  - ownIdsRef: ids this strip shows (also claimed in claimedReelIds).
-  //  - deferredRef: already-seen reels found while scanning; they are only
-  //    used to top the strip up when too few unseen reels were found.
   //  - epochRef: bumped on unmount so an in-flight load from a dead mount
   //    (React StrictMode, or a quick unmount) is dropped.
-  const scannedRef = useRef(0);
   const doneRef = useRef(false);
   const ownIdsRef = useRef(new Set());
-  const deferredRef = useRef([]);
   const epochRef = useRef(0);
 
   // Unique per-strip id, so preview ids stay unique even when several
@@ -499,116 +481,75 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
   }, []);
 
   const loadPage = useCallback(async () => {
-    if (loadingRef.current) return;
-    if (doneRef.current && deferredRef.current.length === 0) return;
+    if (loadingRef.current || doneRef.current) return;
     loadingRef.current = true;
     setLoading(true);
     const epoch = epochRef.current;
     const dead = () => epoch !== epochRef.current;
 
     try {
-      // First load only — find how many reels exist. The first strip then
-      // starts at the newest reel (position 0); every other strip jumps to
-      // a random spot so the feed looks different on every refresh.
-      if (totalRef.current === null) {
-        let total = 0;
-        try {
-          const { count } = await supabase
-            .from("reels")
-            .select("id", { count: "exact", head: true });
-          total = count || 0;
-        } catch (_) {
-          total = 0;
-        }
-        if (dead()) return;
-        totalRef.current = total;
-        if (total > 0) {
-          offsetRef.current = isFirstStrip
-            ? 0
-            : (Math.floor(SESSION_RANDOM_BASE * total) + startOffset) % total;
-        }
-        scannedRef.current = 0;
-      }
-
-      const total = totalRef.current;
-      if (!total) {
-        doneRef.current = true;
-        return;
-      }
-
       const fresh = [];
       let pages = 0;
 
       while (
         !doneRef.current &&
         fresh.length < MIN_NEW_PER_LOAD &&
-        scannedRef.current < total &&
         pages++ < MAX_PAGES_PER_LOAD
       ) {
-        const from = offsetRef.current;
-        // Never cross the end of the table inside one query; the next
-        // page starts again at position 0 (wrap-around).
-        const to = Math.min(from + PAGE_SIZE, total) - 1;
-
-        const { data, error } = await supabase
-          .from("reels")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .range(from, to);
-
+        let ranked;
+        try {
+          ranked = await fetchRankedIds("reel", {
+            limit: PAGE_SIZE,
+            cursor: cursorRef.current,
+            // a different shuffle per strip; only the first one pins
+            seedOffset: startOffset,
+            pin: isFirstStrip,
+          });
+        } catch (_) {
+          break; // try again on the next scroll
+        }
         if (dead()) return;
-        if (error) break;
 
-        scannedRef.current += to - from + 1;
-        offsetRef.current = to + 1 >= total ? 0 : to + 1;
-
-        // Without wrap-around the strip stops at the end of the table.
-        if (!wrapAround && to + 1 >= total) {
+        if (ranked.ids.length === 0) {
           doneRef.current = true;
+          break;
         }
 
-        for (const row of data || []) {
-          const key = String(row.id);
-          if (ownIdsRef.current.has(key) || claimedReelIds.has(key)) continue;
+        // Skip reels this strip or another strip already shows.
+        const wanted = ranked.ids.filter(
+          (id) => !ownIdsRef.current.has(id) && !claimedReelIds.has(id),
+        );
 
-          // Already seen → keep aside; only used to top the strip up.
-          if (isSeen("reel", row.id)) {
-            if (!deferredRef.current.some((r) => String(r.id) === key)) {
-              deferredRef.current.push(row);
-            }
-            continue;
-          }
+        let rows = [];
+        if (wanted.length > 0) {
+          const { data, error } = await supabase
+            .from("reels")
+            .select("*")
+            .in("id", wanted);
+          if (dead()) return;
+          if (error) break;
+          rows = data || [];
+        }
 
-          ownIdsRef.current.add(key);
-          claimedReelIds.add(key);
+        // Keep the server's order.
+        const byId = new Map(rows.map((r) => [String(r.id), r]));
+        wanted.forEach((id) => {
+          const row = byId.get(id);
+          if (!row) return;
+          ownIdsRef.current.add(id);
+          claimedReelIds.add(id);
           fresh.push(row);
-        }
-      }
+        });
 
-      // Walked the whole table: nothing more to scan in this strip.
-      if (scannedRef.current >= total) doneRef.current = true;
-
-      // Too few unseen reels? Top up with reels already seen so the strip
-      // is never nearly empty (they are ordered after the unseen ones).
-      let need = MIN_NEW_PER_LOAD - fresh.length;
-      while (need > 0 && deferredRef.current.length > 0) {
-        const row = deferredRef.current.shift();
-        const key = String(row.id);
-        if (ownIdsRef.current.has(key) || claimedReelIds.has(key)) continue;
-        ownIdsRef.current.add(key);
-        claimedReelIds.add(key);
-        fresh.push(row);
-        need -= 1;
+        cursorRef.current = ranked.next;
+        if (ranked.done) doneRef.current = true;
+        if (!wrapAround && ranked.done) doneRef.current = true;
       }
 
       if (fresh.length > 0) {
-        // Brand-new unseen reels pinned first (first strip only), then
-        // other unseen shuffled, then seen shuffled.
-        const ordered = orderForFeed(fresh, "reel", {
-          pinMax: isFirstStrip ? PIN_MAX_REELS : 0,
-        }).map(mapReelRow);
-        setReels((prev) => [...prev, ...ordered]);
-        fetchViewCountsFor(ordered.map((r) => r.id));
+        const mapped = fresh.map(mapReelRow);
+        setReels((prev) => [...prev, ...mapped]);
+        fetchViewCountsFor(mapped.map((r) => r.id));
       }
     } finally {
       if (!dead()) {
@@ -629,10 +570,7 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
       loadingRef.current = false;
       ownIdsRef.current.forEach((id) => claimedReelIds.delete(id));
       ownIdsRef.current = new Set();
-      deferredRef.current = [];
-      totalRef.current = null;
-      offsetRef.current = startOffset;
-      scannedRef.current = 0;
+      cursorRef.current = null;
       doneRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

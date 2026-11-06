@@ -28,17 +28,9 @@ import useContentFeedback, { FeedbackToast } from "../../hooks/useContentFeedbac
 // per-post items that used to live in each post's ⋯ menu).
 import useProfileFeedback from "../../hooks/useProfileFeedback";
 import ProfilePrompt, { ProfileFeedbackToast } from "./ProfilePrompt";
-
-// CHANGED: moved out of the component (it's a pure function) so it can be
-// used inside useCallback hooks without a dependency warning.
-const shuffleArray = (arr) => {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-};
+// NEW: remembers what this browser has already seen, and orders each batch
+// "brand-new unseen on top → other unseen shuffled → seen shuffled".
+import { markSeen, orderForFeed } from "../../utils/seenContent";
 
 // NEW (duplicate fix): append `next` to `prev`, skipping any post whose id
 // is already in `prev`. Used everywhere posts are added to the list.
@@ -52,9 +44,15 @@ const mergeUnique = (prev, next) => {
 const prependUnique = (prev, post) =>
   prev.some((p) => p.id === post.id) ? prev : [post, ...prev];
 
-// NEW: how many videos are fetched (then shuffled) per refill of the
-// video pool. Bigger = more variety in what shows up between posts.
+// NEW: how many videos are fetched (then ordered) per refill of the
+// video pool.
 const VIDEO_POOL_SIZE = 30;
+
+// NEW (newest on top): on a fresh load, up to this many posts / videos that
+// are less than 24h old AND not yet seen are pinned at the very top,
+// newest first. Everything else follows in the unseen → seen order.
+const PIN_MAX_POSTS = 3;
+const PIN_MAX_VIDEOS = 2;
 
 // NEW: HomeHub's Upload -> Post item opens the composer popup. When the
 // Posts tab is already showing it fires OPEN_COMPOSER_EVENT; when it has
@@ -93,15 +91,21 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const [videos, setVideos] = useState([]);
   const videosOffsetRef = useRef(0);
 
-  // NEW: shuffled video pool + helpers.
-  //  - videoPoolRef: videos fetched and shuffled, waiting to be shown.
+  // NEW: video pool + helpers.
+  //  - videoPoolRef: videos fetched and ordered, waiting to be shown.
   //  - videoFetchChainRef: serialises fetchMoreVideos calls so loadMore
   //    and realtime inserts can't fill the pool twice at the same time.
   //  - videoEpochRef: bumped whenever the feed resets or a search
   //    starts, so an in-flight video fetch from the old feed is dropped.
+  //  - shownVideoIdsRef: every video already handed to the feed this
+  //    session, so the same video is never shown twice.
+  //  - videosExhaustedRef: the whole catalogue has been walked once —
+  //    stop fetching instead of wrapping around and repeating videos.
   const videoPoolRef = useRef([]);
   const videoFetchChainRef = useRef(Promise.resolve());
   const videoEpochRef = useRef(0);
+  const shownVideoIdsRef = useRef(new Set());
+  const videosExhaustedRef = useRef(false);
 
   // NEW: request counter — lets fetchPosts ignore a slow, outdated
   // response (e.g. results for "hulk" arriving after a newer search for
@@ -330,6 +334,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const handlePostView = useCallback(
     (postId) => {
       incrementView(postId);
+      // NEW: remember it, so the next refresh shows unseen posts first.
+      markSeen("post", postId);
 
       const live = liveRef.current;
       if (!live.isLoggedIn || live.searchQuery || !live.connectionsLoaded) return;
@@ -372,21 +378,25 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     setProfileToast(null);
   };
 
-  // CHANGED: videos are now SHUFFLED. Instead of reading the next
-  // newest-first page by offset (which always produced the same order),
-  // this fetches a pool of VIDEO_POOL_SIZE videos, shuffles each batch
-  // once, queues it in videoPoolRef, and hands out `count` videos at a
-  // time. When the catalogue runs out the offset wraps to 0, so videos
-  // repeat in a freshly shuffled order. Shuffling happens once per batch
-  // at load time (never at render time), so hovering/liking a card never
-  // reorders the feed.
+  // CHANGED: videos are fetched newest-first in pools of VIDEO_POOL_SIZE.
+  // Each batch is ordered ONCE at load time (never at render time, so
+  // hovering/liking a card never reorders the feed):
+  //   brand-new unseen videos pinned on top → other unseen shuffled →
+  //   already-seen shuffled.
+  // CHANGED (duplicate fix): a video already handed to the feed is never
+  // handed out again, and once the whole catalogue has been walked the
+  // fetching stops (no wrap-around) instead of repeating videos.
   const fetchMoreVideos = useCallback((count) => {
     if (!count) return Promise.resolve();
     const epoch = videoEpochRef.current;
 
     const fillPool = async () => {
       let attempts = 0;
-      while (videoPoolRef.current.length < count && attempts++ < 2) {
+      while (
+        videoPoolRef.current.length < count &&
+        !videosExhaustedRef.current &&
+        attempts++ < 2
+      ) {
         const from = videosOffsetRef.current;
         const { data, error: fetchErr } = await supabase
           .from("videos")
@@ -397,8 +407,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         // The feed was reset / a search started while we were fetching.
         if (epoch !== videoEpochRef.current) return;
 
-        if (fetchErr || !data || data.length === 0) {
-          videosOffsetRef.current = 0; // wrap around
+        if (fetchErr) break; // try again on the next call
+
+        if (!data || data.length === 0) {
+          videosExhaustedRef.current = true;
           break;
         }
 
@@ -427,17 +439,25 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         (likesData || []).forEach((row) => {
           likesMap[row.content_id] = (likesMap[row.content_id] || 0) + 1;
         });
-        const withLikes = mapped.map((v) => ({
-          ...v,
-          likes: likesMap[String(v.id)] ?? 0,
-        }));
 
-        // Shuffle each batch once, then queue it.
+        // Skip videos already shown this session or already queued.
+        const known = new Set([
+          ...shownVideoIdsRef.current,
+          ...videoPoolRef.current.map((v) => String(v.id)),
+        ]);
+        const fresh = mapped
+          .filter((v) => !known.has(String(v.id)))
+          .map((v) => ({ ...v, likes: likesMap[String(v.id)] ?? 0 }));
+
+        // Pin brand-new unseen videos, then unseen, then seen.
         videoPoolRef.current = videoPoolRef.current.concat(
-          shuffleArray(withLikes),
+          orderForFeed(fresh, "video", { pinMax: PIN_MAX_VIDEOS }),
         );
-        videosOffsetRef.current =
-          data.length < VIDEO_POOL_SIZE ? 0 : from + data.length;
+
+        videosOffsetRef.current = from + data.length;
+        if (data.length < VIDEO_POOL_SIZE) {
+          videosExhaustedRef.current = true;
+        }
       }
     };
 
@@ -449,11 +469,24 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         await fillPool();
         if (epoch !== videoEpochRef.current) return;
         const batch = videoPoolRef.current.splice(0, count);
-        if (batch.length) setVideos((prev) => [...prev, ...batch]);
+        if (batch.length) {
+          batch.forEach((v) => shownVideoIdsRef.current.add(String(v.id)));
+          setVideos((prev) => [...prev, ...batch]);
+        }
       })
       .catch(() => { });
 
     return videoFetchChainRef.current;
+  }, []);
+
+  // NEW: reset all video bookkeeping (feed reset or a search starting).
+  const resetVideoState = useCallback(() => {
+    videoEpochRef.current += 1;
+    videoPoolRef.current = [];
+    videosOffsetRef.current = 0;
+    videosExhaustedRef.current = false;
+    shownVideoIdsRef.current = new Set();
+    setVideos([]);
   }, []);
 
   const fetchPosts = useCallback(async (reset = false) => {
@@ -502,15 +535,13 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         setPosts((prev) => (reset ? page : mergeUnique(prev, page)));
 
         // CHANGED: also invalidate any in-flight / queued feed videos.
-        videoEpochRef.current += 1;
-        videoPoolRef.current = [];
-        setVideos([]);
+        resetVideoState();
 
         fetchViewCounts(page.map((p) => p.id));
         return; // `finally` below still clears loading flags
       }
 
-      // ────────────── NORMAL (SHUFFLED) FEED ──────────────
+      // ────────────── NORMAL FEED ──────────────
       if (reset) {
         shuffledPoolRef.current = [];
         offsetRef.current = 0;
@@ -549,8 +580,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           ...shuffledPoolRef.current.map((p) => p.id),
         ]);
         const fresh = data.filter((p) => !known.has(p.id)).map(enrichPost);
+
+        // CHANGED: instead of a plain shuffle —
+        //   brand-new unseen posts pinned on top (newest first) →
+        //   other unseen posts shuffled → already-seen posts shuffled.
         shuffledPoolRef.current = shuffledPoolRef.current.concat(
-          shuffleArray(fresh),
+          orderForFeed(fresh, "post", { pinMax: PIN_MAX_POSTS }),
         );
 
         if (data.length < POOL_SIZE) {
@@ -567,12 +602,9 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       if (reset) {
         setPosts(page);
-        // CHANGED: bump the epoch (cancels any in-flight video fetch from
-        // the previous feed) and clear the shuffled video pool.
-        videoEpochRef.current += 1;
-        videoPoolRef.current = [];
-        videosOffsetRef.current = 0;
-        setVideos([]);
+        // CHANGED: cancel any in-flight video fetch from the previous
+        // feed and clear the video pool / shown list.
+        resetVideoState();
         fetchMoreVideos(page.length);
       } else {
         // CHANGED: dedupe when appending. Only ask for as many videos as
@@ -594,7 +626,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         setLoadingMore(false);
       }
     }
-  }, [enrichPost, fetchMoreVideos, searchQuery]);
+  }, [enrichPost, fetchMoreVideos, resetVideoState, searchQuery]);
 
   // Search mode: also look up reels and uploaded videos (YouTube is
   // intentionally NOT searched here). Posts are handled by fetchPosts.
@@ -749,8 +781,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       const enrichedPost = enrichPost(data);
 
-      // Already in the list? (handled again inside the updater, since the
-      // post may have been added while the fetch above was in flight.)
+      // Already in the list? (the post may have been added while the
+      // fetch above was in flight.)
       if (postsRef.current.some((p) => p.id === newId)) return;
 
       setPosts((prev) => prependUnique(prev, enrichedPost));
@@ -759,6 +791,42 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       fetchViewCounts([newId]);
     },
     [enrichPost, fetchMoreVideos, searchQuery]
+  );
+
+  // NEW: a video uploaded while the feed is open goes straight to the top
+  // of the video list (it pairs with the first post). Needs Realtime to be
+  // enabled for the `videos` table in Supabase.
+  const handleVideoInsert = useCallback(
+    (payload) => {
+      if (searchQuery) return;
+      const row = payload.new;
+      if (!row?.id) return;
+      const key = String(row.id);
+      if (shownVideoIdsRef.current.has(key)) return;
+
+      const v = {
+        id: row.id,
+        short_id: row.short_id,
+        src: row.video_url,
+        thumbnail: row.thumbnail_url || null,
+        title: row.title,
+        duration: row.duration || "00:00",
+        channel: row.channel,
+        username: row.username || row.channel?.toLowerCase() || "unknown",
+        created_at: row.created_at || null,
+        likes: 0,
+      };
+
+      shownVideoIdsRef.current.add(key);
+      // If it was already queued in the pool, drop that copy.
+      videoPoolRef.current = videoPoolRef.current.filter(
+        (x) => String(x.id) !== key
+      );
+      setVideos((prev) =>
+        prev.some((x) => String(x.id) === key) ? prev : [v, ...prev]
+      );
+    },
+    [searchQuery]
   );
 
   useEffect(() => {
@@ -785,10 +853,15 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           }
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "videos" },
+        handleVideoInsert
+      )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [fetchPosts, handleRealtimeInsert]);
+  }, [fetchPosts, handleRealtimeInsert, handleVideoInsert]);
 
   useEffect(() => {
     if (!sentinelNode) return;

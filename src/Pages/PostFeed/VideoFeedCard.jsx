@@ -11,6 +11,9 @@ import {
 import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
 // NEW: when this clip ends, scroll to the next video / post video in the feed.
 import { advanceToNextFeedMedia } from "../../utils/autoAdvance";
+// NEW: remembers which videos this browser has already shown, so the next
+// refresh puts unseen videos first (see PostFeed.jsx / utils/seenContent.js).
+import { markSeen } from "../../utils/seenContent";
 
 const HOVER_PREVIEW_DELAY = 400; // ms
 
@@ -41,6 +44,10 @@ const shortTimeAgo = (dateStr) => {
 // too). Shows views/likes/posted-time and a three-dots menu (Save to
 // Watch Later, Add to Playlist, Go to Channel, Share, Report, and
 // owner-only Delete) — matching VideoCard on the Home feed.
+//
+// NEW (seen): once the card has been ≥60% on screen (or opened) the video
+// is remembered as "seen". PostFeed uses that on the next load: brand-new
+// unseen videos go to the top, already-seen ones go to the back.
 //
 // NEW (auto-advance): when the clip finishes, the feed scrolls to the next
 // video / post video below it (see utils/autoAdvance.js). If there is
@@ -79,6 +86,11 @@ const VideoFeedCard = ({ video, fb }) => {
     observer.observe(node);
     return () => observer.disconnect();
   }, [video?.src]);
+
+  // NEW (seen): remember this video the moment it is really on screen.
+  useEffect(() => {
+    if (inView && video?.id) markSeen("video", video.id);
+  }, [inView, video?.id]);
 
   // Playback itself now lives in <AutoPlayVideo>, which keeps one video
   // element mounted, preloads it before the card is on screen, and just
@@ -245,7 +257,11 @@ const VideoFeedCard = ({ video, fb }) => {
     setHovering(false);
   };
 
-  const goToVideo = () => { incrementView(); navigate(`/video/${video.id}`); };
+  const goToVideo = () => {
+    markSeen("video", video.id); // NEW (seen)
+    incrementView();
+    navigate(`/video/${video.id}`);
+  };
 
   // NEW: Facebook-style action pill "Share" (same payload as the ⋮ menu).
   const handleSharePill = (e) => {

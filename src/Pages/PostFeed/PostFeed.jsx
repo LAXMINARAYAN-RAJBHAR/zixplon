@@ -90,6 +90,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   // NEW: keyset cursors ({ score, id }) for the server-ranked lists.
   const postCursorRef = useRef(null);
   const videoCursorRef = useRef(null);
+  // NEW: new posts / videos that arrive live from other people are held
+  // here and shown behind a "↑ N new" pill, so the page never jumps
+  // while you're reading. Your own posts still go straight to the top.
+  const pendingPostsRef = useRef([]);
+  const pendingVideosRef = useRef([]);
+  const [pendingCount, setPendingCount] = useState(0);
 
   // NEW: video pool + helpers.
   //  - videoPoolRef: videos fetched and ordered, waiting to be shown.
@@ -490,6 +496,9 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     videoCursorRef.current = null;
     videosExhaustedRef.current = false;
     shownVideoIdsRef.current = new Set();
+    pendingPostsRef.current = [];
+    pendingVideosRef.current = [];
+    setPendingCount(0);
     setVideos([]);
   }, []);
 
@@ -781,12 +790,22 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       // fetch above was in flight.)
       if (postsRef.current.some((p) => p.id === newId)) return;
 
-      setPosts((prev) => prependUnique(prev, enrichedPost));
-      fetchMoreVideos(1);
+      if (data.username === currentUser) {
+        // Your own post: straight to the top, as before.
+        setPosts((prev) => prependUnique(prev, enrichedPost));
+        fetchMoreVideos(1);
+        fetchViewCounts([newId]);
+        return;
+      }
 
-      fetchViewCounts([newId]);
+      // Someone else's post: hold it behind the "↑ N new" pill.
+      if (pendingPostsRef.current.some((p) => p.id === newId)) return;
+      pendingPostsRef.current = [...pendingPostsRef.current, enrichedPost];
+      setPendingCount(
+        pendingPostsRef.current.length + pendingVideosRef.current.length
+      );
     },
-    [enrichPost, fetchMoreVideos, searchQuery]
+    [enrichPost, fetchMoreVideos, searchQuery, currentUser]
   );
 
   // NEW: a video uploaded while the feed is open goes straight to the top
@@ -813,17 +832,55 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         likes: 0,
       };
 
-      shownVideoIdsRef.current.add(key);
-      // If it was already queued in the pool, drop that copy.
-      videoPoolRef.current = videoPoolRef.current.filter(
-        (x) => String(x.id) !== key
-      );
-      setVideos((prev) =>
-        prev.some((x) => String(x.id) === key) ? prev : [v, ...prev]
+      // Hold it behind the "↑ N new" pill (applied by applyPending).
+      if (pendingVideosRef.current.some((x) => String(x.id) === key)) return;
+      pendingVideosRef.current = [...pendingVideosRef.current, v];
+      setPendingCount(
+        pendingPostsRef.current.length + pendingVideosRef.current.length
       );
     },
     [searchQuery]
   );
+
+  // NEW: the "↑ N new" pill — put everything that arrived on top, newest
+  // first, and scroll to the top.
+  const applyPending = useCallback(() => {
+    const newPosts = pendingPostsRef.current;
+    const newVideos = pendingVideosRef.current;
+    pendingPostsRef.current = [];
+    pendingVideosRef.current = [];
+    setPendingCount(0);
+
+    if (newPosts.length > 0) {
+      setPosts((prev) => {
+        let out = prev;
+        newPosts.forEach((p) => {
+          out = prependUnique(out, p);
+        });
+        return out;
+      });
+      fetchViewCounts(newPosts.map((p) => p.id));
+      // keep posts and videos paired one-to-one
+      fetchMoreVideos(newPosts.length);
+    }
+
+    if (newVideos.length > 0) {
+      const keys = new Set(newVideos.map((v) => String(v.id)));
+      keys.forEach((k) => shownVideoIdsRef.current.add(k));
+      // If any of them was already queued in the pool, drop that copy.
+      videoPoolRef.current = videoPoolRef.current.filter(
+        (x) => !keys.has(String(x.id))
+      );
+      setVideos((prev) => {
+        const have = new Set(prev.map((x) => String(x.id)));
+        const add = newVideos.filter((v) => !have.has(String(v.id)));
+        // newest first
+        return [...add.reverse(), ...prev];
+      });
+    }
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [fetchMoreVideos]);
 
   useEffect(() => {
     // NEW: show the skeleton again whenever the query changes
@@ -1725,6 +1782,33 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       {/* NEW (feedback): one toast for the whole feed, so the message and
           Undo survive the hidden card unmounting. */}
+      {/* NEW: "↑ N new" pill for live posts / videos from other people. */}
+      {!searchQuery && pendingCount > 0 && (
+        <button
+          type="button"
+          onClick={applyPending}
+          style={{
+            position: "fixed",
+            top: 76,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 9000,
+            padding: "9px 18px",
+            border: "none",
+            borderRadius: 999,
+            background: "var(--zx-primary, #dc2626)",
+            color: "#fff",
+            fontFamily: "'Nunito', sans-serif",
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: "pointer",
+            boxShadow: "0 6px 20px rgba(220, 38, 38, 0.4)",
+          }}
+        >
+          ↑ {pendingCount} new
+        </button>
+      )}
+
       <FeedbackToast fb={fb} />
 
       {/* NEW: "Interested in <profile>?" popup + its confirmation / Undo. */}

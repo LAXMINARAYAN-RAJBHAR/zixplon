@@ -340,8 +340,9 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const handlePostView = useCallback(
     (postId) => {
       incrementView(postId);
-      // NEW: remember it, so the next refresh shows unseen posts first.
-      markSeen("post", postId);
+      // NEW: remember it, so this post is never shown again after a refresh.
+      // (Posts opened from a search result don't count as "seen" in the feed.)
+      if (!liveRef.current.searchQuery) markSeen("post", postId);
 
       const live = liveRef.current;
       if (!live.isLoggedIn || live.searchQuery || !live.connectionsLoaded) return;
@@ -1722,7 +1723,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         {!searchQuery && posts.length === 0 && !loading && (
           <div className="pf-empty">
             <span className="pf-empty-icon">📭</span>
-            <p>No posts yet. Be the first to share something!</p>
+            <p>You're all caught up. New posts will show up here — or be the first to share something!</p>
           </div>
         )}
 

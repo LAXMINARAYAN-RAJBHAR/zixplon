@@ -113,8 +113,10 @@ const formatViews = (n) => {
 // strip to move on (next card, or the next feed item). If it returns
 // false, AutoPlayVideo replays the clip.
 //
-// NEW (feedback): `fb` (from useContentFeedback in PostFeed) adds
-// "Interested" / "Not interested" to the ⋮ menu. ──
+// NEW (profile prompt): when this card is the strip's active one, the feed is
+// told its author is on screen, so it can ask "Interested in <profile>?"
+// once for new profiles. (The per-reel "Interested / Not interested" items
+// were removed from the ⋮ menu.) ──
 const ReelStripCard = ({
   reel,
   previewId,
@@ -127,7 +129,7 @@ const ReelStripCard = ({
   loggedInUsername,
   onReport,
   onDeleted,
-  fb,
+  onProfileView,
 }) => {
   const isOwner = loggedInUsername && reel.username && reel.username === loggedInUsername;
   const cardRef = useRef(null);
@@ -156,6 +158,11 @@ const ReelStripCard = ({
     };
   }, [previewId, index, reel.src, reel.dbId, onVisibilityChange]);
 
+  // NEW (profile prompt): this card is the one the user is looking at.
+  useEffect(() => {
+    if (autoplay && reel.username && onProfileView) onProfileView(reel.username);
+  }, [autoplay, reel.username, onProfileView]);
+
   const goToReel = () => navigate(`/reels/${reel.id}`, { state: { clickedReel: reel } });
 
   const handleDelete = async (e) => {
@@ -166,9 +173,6 @@ const ReelStripCard = ({
     if (error) alert("Failed to delete reel.");
     else onDeleted(reel.dbId);
   };
-
-  // NEW (feedback): is this reel currently marked "Interested"?
-  const interestedNow = fb?.feedbackOf("reel", reel.dbId) === "interested";
 
   const menuItems = [
     {
@@ -194,30 +198,6 @@ const ReelStripCard = ({
         navigate("/user/" + (reel.username || "unknown"));
       },
     },
-    // NEW (feedback): Interested / Not interested — not offered on your own reels.
-    ...(fb && !isOwner
-      ? [
-          {
-            id: "interested",
-            icon: <span style={{ fontSize: 15 }}>👍</span>,
-            label: interestedNow ? "Interested ✓" : "Interested",
-            active: interestedNow,
-            onClick: (e) => {
-              e.preventDefault(); e.stopPropagation();
-              fb.toggleInterested("reel", reel.dbId);
-            },
-          },
-          {
-            id: "not-interested",
-            icon: <span style={{ fontSize: 15 }}>🚫</span>,
-            label: "Not interested",
-            onClick: (e) => {
-              e.preventDefault(); e.stopPropagation();
-              fb.markNotInterested("reel", reel.dbId);
-            },
-          },
-        ]
-      : []),
     {
       id: "report",
       icon: <span style={{ fontSize: 15 }}>🚩</span>,
@@ -343,10 +323,18 @@ const ReelStripCard = ({
 // and per session. Pages use a keyset cursor, so there is no offset drift
 // and no wrap-around. Reels another strip already shows are skipped.
 //
-// NEW (feedback): optional `fb` prop (from useContentFeedback in
-// PostFeed). Reels marked "Not interested" are filtered out of the
-// strip. ──
-const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
+// NEW (feedback): optional `fb` prop (from useContentFeedback in PostFeed) —
+// reels hidden through an earlier "Not interested" stay hidden.
+// NEW (profile prompt): `onProfileView(username)` is called for the author of
+// the strip's active reel; `isProfileHidden(username)` hides reels from
+// profiles answered "Not interested" in the profile prompt. ──
+const ReelsStrip = ({
+  startOffset = 0,
+  wrapAround = true,
+  fb,
+  onProfileView,
+  isProfileHidden,
+}) => {
   const navigate = useNavigate();
   const isFirstStrip = startOffset === 0;
   const [reels, setReels] = useState([]);
@@ -608,8 +596,11 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
 
   if (reels.length === 0 && !loading) return null;
 
-  // NEW (feedback): drop reels the user marked "Not interested".
-  const visibleReels = reels.filter((r) => !fb?.isHidden("reel", r.dbId));
+  // Drop reels hidden earlier via "Not interested", and reels from profiles
+  // answered "Not interested" in the profile prompt.
+  const visibleReels = reels.filter(
+    (r) => !fb?.isHidden("reel", r.dbId) && !isProfileHidden?.(r.username),
+  );
 
   return (
     <div className="pf-reels-strip" ref={stripRef}>
@@ -647,7 +638,7 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
               loggedInUsername={loggedInUsername}
               onReport={setReportTarget}
               onDeleted={handleDeleted}
-              fb={fb}
+              onProfileView={onProfileView}
             />
           );
         })}

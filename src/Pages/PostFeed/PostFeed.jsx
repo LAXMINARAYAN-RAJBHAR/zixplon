@@ -334,9 +334,30 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     } catch (_) { }
   }, []);
 
+  // NEW: ask "Interested in <profile>?" for an author who just appeared on
+  // screen — whether through a post, a video or a reel. Safe to call as often
+  // as you like: it only fires for a logged-in user, outside search, for a
+  // profile that is not your own, not connected with you, not answered or
+  // snoozed yet, while no other prompt is open and at least
+  // PROFILE_PROMPT_GAP_MS after the previous one. Stable identity (reads
+  // everything through refs) so child cards don't re-arm their tracking.
+  const maybePromptProfile = useCallback((author) => {
+    const live = liveRef.current;
+    if (!live.isLoggedIn || live.searchQuery || !live.connectionsLoaded) return;
+    if (!author || author === "unknown" || author === live.currentUser) return;
+    if (live.connectedUsers.has(author)) return;
+    if (!live.pfb.shouldAsk(author)) return;
+    if (promptOpenRef.current) return;
+    if (Date.now() - lastPromptAtRef.current < PROFILE_PROMPT_GAP_MS) return;
+
+    lastPromptAtRef.current = Date.now();
+    promptOpenRef.current = true;
+    setPromptUser(author);
+  }, []);
+
   // NEW: PostCard calls this once per card when it is ~60% on screen. It
-  // still counts the view, and additionally decides whether to ask
-  // "Interested in <profile>?" for that post's author.
+  // still counts the view, remembers the post as seen, and offers the
+  // profile prompt for the post's author.
   const handlePostView = useCallback(
     (postId) => {
       incrementView(postId);
@@ -344,22 +365,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       // (Posts opened from a search result don't count as "seen" in the feed.)
       if (!liveRef.current.searchQuery) markSeen("post", postId);
 
-      const live = liveRef.current;
-      if (!live.isLoggedIn || live.searchQuery || !live.connectionsLoaded) return;
-
       const post = postsRef.current.find((p) => p.id === postId);
-      const author = post?.username;
-      if (!author || author === live.currentUser) return;
-      if (live.connectedUsers.has(author)) return;
-      if (!live.pfb.shouldAsk(author)) return;
-      if (promptOpenRef.current) return;
-      if (Date.now() - lastPromptAtRef.current < PROFILE_PROMPT_GAP_MS) return;
-
-      lastPromptAtRef.current = Date.now();
-      promptOpenRef.current = true;
-      setPromptUser(author);
+      maybePromptProfile(post?.username);
     },
-    [incrementView]
+    [incrementView, maybePromptProfile]
   );
 
   const closePrompt = () => {
@@ -1697,7 +1706,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               🎬 Videos
             </h3>
             {searchVideos.map((v) => (
-              <VideoFeedCard key={v.id} video={v} fb={fb} />
+              <VideoFeedCard key={v.id} video={v} />
             ))}
           </div>
         )}
@@ -1755,11 +1764,20 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
             {/* CHANGED: no interleaved videos/reels while searching */}
             {!searchQuery && visibleVideos[index] && (
-              <VideoFeedCard video={visibleVideos[index]} fb={fb} />
+              <VideoFeedCard
+                video={visibleVideos[index]}
+                onProfileView={maybePromptProfile}
+              />
             )}
 
             {!searchQuery && (
-              <ReelsStrip key={`reels-${index}`} startOffset={index * 10} fb={fb} />
+              <ReelsStrip
+                key={`reels-${index}`}
+                startOffset={index * 10}
+                fb={fb}
+                onProfileView={maybePromptProfile}
+                isProfileHidden={pfb.isHidden}
+              />
             )}
 
             {!searchQuery && index >= 3 && (index - 3) % 6 === 0 && (

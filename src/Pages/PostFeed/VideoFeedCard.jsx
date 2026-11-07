@@ -54,10 +54,11 @@ const shortTimeAgo = (dateStr) => {
 // nothing after it — or the card isn't actually on screen — the clip
 // replays instead.
 //
-// NEW (feedback): `fb` is the object returned by useContentFeedback()
-// in PostFeed. It adds "Interested" / "Not interested" to the ⋮ menu.
-// "Not interested" is filtered out of the feed by PostFeed itself. ──
-const VideoFeedCard = ({ video, fb }) => {
+// NEW (profile prompt): when the card is ≥60% on screen, `onProfileView` tells
+// PostFeed that this video's author is on screen, so it can ask "Interested
+// in <profile>?" once for new profiles. (The per-video "Interested / Not
+// interested" items were removed from the ⋮ menu.) ──
+const VideoFeedCard = ({ video, onProfileView }) => {
   const navigate = useNavigate();
   // NEW: two independent reasons to play the clip — the pointer is
   // hovering it (desktop), or it's scrolled into view (all devices).
@@ -91,6 +92,11 @@ const VideoFeedCard = ({ video, fb }) => {
   useEffect(() => {
     if (inView && video?.id) markSeen("video", video.id);
   }, [inView, video?.id]);
+
+  // NEW (profile prompt): this video's author is on screen.
+  useEffect(() => {
+    if (inView && video?.username && onProfileView) onProfileView(video.username);
+  }, [inView, video?.username, onProfileView]);
 
   // Playback itself now lives in <AutoPlayVideo>, which keeps one video
   // element mounted, preloads it before the card is on screen, and just
@@ -280,9 +286,6 @@ const VideoFeedCard = ({ video, fb }) => {
   const channelName = video.channel || video.username || "?";
   const initials = channelName.slice(0, 2).toUpperCase();
 
-  // NEW (feedback): is this video currently marked "Interested"?
-  const interestedNow = fb?.feedbackOf("video", video?.id) === "interested";
-
   const menuItems = [
     {
       id: "watch-later",
@@ -315,30 +318,6 @@ const VideoFeedCard = ({ video, fb }) => {
         shareContent({ contentType: "video", contentId: video.short_id || video.id, title: video.title || "Video", text: `Watch "${video.title}" on Zixplon` });
       },
     },
-    // NEW (feedback): Interested / Not interested — not offered on your own videos.
-    ...(fb && !isOwner
-      ? [
-          {
-            id: "interested",
-            icon: <span style={{ fontSize: 15 }}>👍</span>,
-            label: interestedNow ? "Interested ✓" : "Interested",
-            active: interestedNow,
-            onClick: (e) => {
-              e.preventDefault(); e.stopPropagation();
-              fb.toggleInterested("video", video.id);
-            },
-          },
-          {
-            id: "not-interested",
-            icon: <span style={{ fontSize: 15 }}>🚫</span>,
-            label: "Not interested",
-            onClick: (e) => {
-              e.preventDefault(); e.stopPropagation();
-              fb.markNotInterested("video", video.id);
-            },
-          },
-        ]
-      : []),
     {
       id: "report",
       icon: <span style={{ fontSize: 15 }}>🚩</span>,

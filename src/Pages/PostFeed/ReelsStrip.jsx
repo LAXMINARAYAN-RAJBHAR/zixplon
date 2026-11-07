@@ -515,10 +515,23 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
           break;
         }
 
-        // Skip reels this strip or another strip already shows.
-        const wanted = ranked.ids.filter(
-          (id) => !ownIdsRef.current.has(id) && !claimedReelIds.has(id),
-        );
+        // Reserve reels BEFORE fetching them: check-and-claim happen in the
+        // same step, so two strips that load at the same time can never take
+        // the same reel. (Claiming only after the fetch — as before — let
+        // every strip see "nothing taken yet" and fetch the same top reels.)
+        // If this strip is unmounted meanwhile, its cleanup releases them.
+        const wanted = [];
+        for (const id of ranked.ids) {
+          if (ownIdsRef.current.has(id) || claimedReelIds.has(id)) continue;
+          ownIdsRef.current.add(id);
+          claimedReelIds.add(id);
+          wanted.push(id);
+        }
+        const release = (ids) =>
+          ids.forEach((id) => {
+            ownIdsRef.current.delete(id);
+            claimedReelIds.delete(id);
+          });
 
         let rows = [];
         if (wanted.length > 0) {
@@ -527,17 +540,21 @@ const ReelsStrip = ({ startOffset = 0, wrapAround = true, fb }) => {
             .select("*")
             .in("id", wanted);
           if (dead()) return;
-          if (error) break;
+          if (error) {
+            release(wanted); // let another strip (or a retry) take them
+            break;
+          }
           rows = data || [];
         }
 
-        // Keep the server's order.
+        // Keep the server's order; free any id whose row no longer exists.
         const byId = new Map(rows.map((r) => [String(r.id), r]));
         wanted.forEach((id) => {
           const row = byId.get(id);
-          if (!row) return;
-          ownIdsRef.current.add(id);
-          claimedReelIds.add(id);
+          if (!row) {
+            release([id]);
+            return;
+          }
           fresh.push(row);
         });
 

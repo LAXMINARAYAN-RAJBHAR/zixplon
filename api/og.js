@@ -9,26 +9,46 @@ function escapeHtml(str = "") {
     .replace(/'/g, "&#39;");
 }
 
-// NEW: turns post / video / profile text into clean plain text for the share
-// preview. Link previews (WhatsApp, Facebook, X ...) do NOT render markdown, so
-// text typed as **bold** showed up with literal asterisks. This removes the
-// markers but keeps the words, and leaves things like @snake_case_names,
-// URLs with underscores, and "5 * 3" untouched. Long text is cut at a word
-// boundary with "…" (instead of mid-word).
-function plainText(input = "", max = 200) {
+// NEW: share-preview text. Link previews (WhatsApp, Facebook, X ...) are plain
+// text and don't render markdown, so text typed as **bold** used to show
+// literal asterisks. Instead, the marked words are converted to Unicode "bold"
+// (or "italic") look-alike letters, which DO look bold in any preview:
+//     **Happy Diwali**  ->  𝗛𝗮𝗽𝗽𝘆 𝗗𝗶𝘄𝗮𝗹        *wish*  ->  𝘸𝘪𝘴𝘩
+// Only A-Z, a-z and 0-9 have such letters; other scripts (Hindi, accented
+// letters, emoji) are kept as typed, just without the asterisks.
+// Things like @snake_case_names, URLs with underscores and "5 * 3" are left
+// alone. Long text is cut at a word boundary with "…".
+function mapChars(str, upper, lower, digit) {
+  return Array.from(str)
+    .map((ch) => {
+      const c = ch.codePointAt(0);
+      if (c >= 65 && c <= 90) return String.fromCodePoint(upper + (c - 65));
+      if (c >= 97 && c <= 122) return String.fromCodePoint(lower + (c - 97));
+      if (digit && c >= 48 && c <= 57) return String.fromCodePoint(digit + (c - 48));
+      return ch;
+    })
+    .join("");
+}
+const toBold = (t) => mapChars(t, 0x1d5d4, 0x1d5ee, 0x1d7ec); // sans-serif bold
+const toItalic = (t) => mapChars(t, 0x1d608, 0x1d622, 0); // sans-serif italic (no digits)
+
+function previewText(input = "", max = 200) {
   let s = String(input || "").replace(/\r\n?/g, "\n");
   s = s.replace(/```[\s\S]*?```/g, " "); // code blocks
   s = s.replace(/`([^`\n]+)`/g, "$1"); // inline code
-  s = s.replace(/(\*\*|__)(?=\S)([\s\S]+?)(?<=\S)\1/g, "$2"); // **bold** / __bold__
-  s = s.replace(/~~(?=\S)([\s\S]+?)(?<=\S)~~/g, "$1"); // ~~strike~~
-  s = s.replace(/(^|[\s(])\*(?=\S)([^*\n]+?)(?<=\S)\*(?=$|[\s).,!?:;])/g, "$1$2"); // *italic*
-  s = s.replace(/(^|[\s(])_(?=\S)([^_\n]+?)(?<=\S)_(?=$|[\s).,!?:;])/g, "$1$2"); // _italic_
+  s = s.replace(/(\*\*|__)(?=\S)([\s\S]+?)(?<=\S)\1/g, (_, __, t) => toBold(t)); // **bold** / __bold__
+  s = s.replace(/~~(?=\S)([\s\S]+?)(?<=\S)~~/g, "$1"); // ~~strike~~ (no look-alike: just unwrap)
+  s = s.replace(/(^|[\s(])\*(?=\S)([^*\n]+?)(?<=\S)\*(?=$|[\s).,!?:;])/g, (_, pre, t) => pre + toItalic(t)); // *italic*
+  s = s.replace(/(^|[\s(])_(?=\S)([^_\n]+?)(?<=\S)_(?=$|[\s).,!?:;])/g, (_, pre, t) => pre + toItalic(t)); // _italic_
   s = s.replace(/^\s{0,3}#{1,6}\s+/gm, ""); // # headings
   s = s.replace(/\*{2,}/g, ""); // leftover **
   s = s.replace(/(^|\s)\*+(?=\S)/g, "$1").replace(/(?<=\S)\*+(?=\s|$)/g, ""); // stray * hugging a word
   s = s.replace(/\s+/g, " ").trim();
-  if (s.length > max) {
-    s = s.slice(0, max).replace(/\s+\S*$/, "").trim() + "…";
+  // count characters, not UTF-16 units: the bold letters are 2 units each, and
+  // slicing between the halves would produce a broken character
+  const chars = Array.from(s);
+  if (chars.length > max) {
+    s = chars.slice(0, max).join("").replace(/\s+\S*$/, "").trim() + "…";
   }
   return s;
 }
@@ -254,7 +274,7 @@ export default async function handler(req) {
       title = item?.username ? `${item.username} on ZIXPLON` : "Post on ZIXPLON";
       // CHANGED: markdown markers (**bold**, _italic_ ...) are stripped so the
       // preview doesn't show literal asterisks.
-      description = plainText(item?.text, 200) || "Check out this post on ZIXPLON";
+      description = previewText(item?.text, 200) || "Check out this post on ZIXPLON";
       // CHANGED: also reads image_urls when it is a JSON string, and `thumbnail`.
       candidates = [
         item?.image_url,
@@ -282,7 +302,7 @@ export default async function handler(req) {
 
       const name = item.channel_name || item.username;
       title = `${name} (@${item.username})`;
-      description = plainText(item.about, 200) || `Watch ${name}'s videos, reels and posts on ZIXPLON`;
+      description = previewText(item.about, 200) || `Watch ${name}'s videos, reels and posts on ZIXPLON`;
       candidates = [
         item.profile_pic,
         item.banner_pic,
@@ -316,8 +336,8 @@ export default async function handler(req) {
         });
       }
 
-      title = plainText(item?.title, 100) || "Watch on ZIXPLON";
-      description = plainText(item?.description, 200) || item?.channel || "Watch videos and reels on ZIXPLON";
+      title = previewText(item?.title, 100) || "Watch on ZIXPLON";
+      description = previewText(item?.description, 200) || item?.channel || "Watch videos and reels on ZIXPLON";
       // CHANGED: tries both column names for both tables (videos use
       // thumbnail_url, reels use thumbnail) and skips unusable values.
       candidates = [

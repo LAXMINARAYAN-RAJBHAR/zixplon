@@ -127,8 +127,12 @@ function firstImage(candidates) {
 // NEW: routes any thumbnail through the wsrv.nl proxy so crawlers always get a
 // small JPEG (keeps tall 9:16 / square images under WhatsApp's ~300 KB limit).
 // fit=cover crops to the target size; a=attention picks the interesting area.
+// CHANGED: landscape cards use fit=contain (whole image visible, dark side bars
+// for vertical/square media) so text on posters is never cropped. Square
+// profile avatars still use cover.
 function ogImage(url, w = 1200, h = 630) {
-  return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${w}&h=${h}&fit=cover&a=attention&output=jpg&q=80`;
+  const fit = w === h ? "fit=cover&a=attention" : "fit=contain&cbg=111111";
+  return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${w}&h=${h}&${fit}&output=jpg&q=80`;
 }
 
 // image_urls may be a real array, a JSON string, or empty.

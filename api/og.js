@@ -9,6 +9,30 @@ function escapeHtml(str = "") {
     .replace(/'/g, "&#39;");
 }
 
+// NEW: turns post / video / profile text into clean plain text for the share
+// preview. Link previews (WhatsApp, Facebook, X ...) do NOT render markdown, so
+// text typed as **bold** showed up with literal asterisks. This removes the
+// markers but keeps the words, and leaves things like @snake_case_names,
+// URLs with underscores, and "5 * 3" untouched. Long text is cut at a word
+// boundary with "…" (instead of mid-word).
+function plainText(input = "", max = 200) {
+  let s = String(input || "").replace(/\r\n?/g, "\n");
+  s = s.replace(/```[\s\S]*?```/g, " "); // code blocks
+  s = s.replace(/`([^`\n]+)`/g, "$1"); // inline code
+  s = s.replace(/(\*\*|__)(?=\S)([\s\S]+?)(?<=\S)\1/g, "$2"); // **bold** / __bold__
+  s = s.replace(/~~(?=\S)([\s\S]+?)(?<=\S)~~/g, "$1"); // ~~strike~~
+  s = s.replace(/(^|[\s(])\*(?=\S)([^*\n]+?)(?<=\S)\*(?=$|[\s).,!?:;])/g, "$1$2"); // *italic*
+  s = s.replace(/(^|[\s(])_(?=\S)([^_\n]+?)(?<=\S)_(?=$|[\s).,!?:;])/g, "$1$2"); // _italic_
+  s = s.replace(/^\s{0,3}#{1,6}\s+/gm, ""); // # headings
+  s = s.replace(/\*{2,}/g, ""); // leftover **
+  s = s.replace(/(^|\s)\*+(?=\S)/g, "$1").replace(/(?<=\S)\*+(?=\s|$)/g, ""); // stray * hugging a word
+  s = s.replace(/\s+/g, " ").trim();
+  if (s.length > max) {
+    s = s.slice(0, max).replace(/\s+\S*$/, "").trim() + "…";
+  }
+  return s;
+}
+
 // Kept as a documented no-op for R2 URLs (R2 has no "grab a frame" transform).
 // Only matches legacy Cloudinary video URLs. Real thumbnails must be stored
 // at upload time (thumbnail_url / thumbnail columns).
@@ -228,7 +252,9 @@ export default async function handler(req) {
       }
 
       title = item?.username ? `${item.username} on ZIXPLON` : "Post on ZIXPLON";
-      description = item?.text?.slice(0, 200) || "Check out this post on ZIXPLON";
+      // CHANGED: markdown markers (**bold**, _italic_ ...) are stripped so the
+      // preview doesn't show literal asterisks.
+      description = plainText(item?.text, 200) || "Check out this post on ZIXPLON";
       // CHANGED: also reads image_urls when it is a JSON string, and `thumbnail`.
       candidates = [
         item?.image_url,
@@ -256,7 +282,7 @@ export default async function handler(req) {
 
       const name = item.channel_name || item.username;
       title = `${name} (@${item.username})`;
-      description = item.about?.slice(0, 200) || `Watch ${name}'s videos, reels and posts on ZIXPLON`;
+      description = plainText(item.about, 200) || `Watch ${name}'s videos, reels and posts on ZIXPLON`;
       candidates = [
         item.profile_pic,
         item.banner_pic,
@@ -290,8 +316,8 @@ export default async function handler(req) {
         });
       }
 
-      title = item?.title || "Watch on ZIXPLON";
-      description = item?.description || item?.channel || "Watch videos and reels on ZIXPLON";
+      title = plainText(item?.title, 100) || "Watch on ZIXPLON";
+      description = plainText(item?.description, 200) || item?.channel || "Watch videos and reels on ZIXPLON";
       // CHANGED: tries both column names for both tables (videos use
       // thumbnail_url, reels use thumbnail) and skips unusable values.
       candidates = [
@@ -320,6 +346,7 @@ export default async function handler(req) {
             chosenImage: image,
             imageCheck: await probeImage(image),
             candidates: candidates.map(short),
+            description,
             note: "WhatsApp usually skips images over ~300 KB. data: URLs are never usable.",
           },
           null,

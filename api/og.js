@@ -124,6 +124,13 @@ function firstImage(candidates) {
   return null;
 }
 
+// NEW: routes any thumbnail through the wsrv.nl proxy so crawlers always get a
+// small JPEG (keeps tall 9:16 / square images under WhatsApp's ~300 KB limit).
+// fit=cover crops to the target size; a=attention picks the interesting area.
+function ogImage(url, w = 1200, h = 630) {
+  return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${w}&h=${h}&fit=cover&a=attention&output=jpg&q=80`;
+}
+
 // image_urls may be a real array, a JSON string, or empty.
 function parseList(v) {
   if (Array.isArray(v)) return v;
@@ -150,7 +157,7 @@ function ogTypeFor(type) {
   return "video.other";
 }
 
-function renderHtml({ type, title, description, image, url, shareUrl, card = "summary_large_image" }) {
+function renderHtml({ type, title, description, image, url, shareUrl, card = "summary_large_image", imageSize = null }) {
   const safeTitle = escapeHtml(title);
   const safeDescription = escapeHtml(description);
   const safeImage = escapeHtml(image);
@@ -168,6 +175,9 @@ function renderHtml({ type, title, description, image, url, shareUrl, card = "su
     <meta property="og:description" content="${safeDescription}" />
     <meta property="og:image" content="${safeImage}" />
     <meta property="og:image:secure_url" content="${safeImage}" />
+    ${imageSize ? `<meta property="og:image:width" content="${imageSize.w}" />
+    <meta property="og:image:height" content="${imageSize.h}" />
+    <meta property="og:image:type" content="image/jpeg" />` : ""}
     <meta property="og:image:alt" content="${safeTitle}" />
     <meta property="og:url" content="${safeShareUrl}" />
     <meta property="og:site_name" content="ZIXPLON" />
@@ -363,7 +373,9 @@ export default async function handler(req) {
     }
 
     const picked = firstImage(candidates);
-    const image = picked || FALLBACK_OG_IMAGE;
+    // Profiles use the square "summary" card, everything else is landscape.
+    const imageSize = card === "summary" ? { w: 600, h: 600 } : { w: 1200, h: 630 };
+    const image = picked ? ogImage(picked, imageSize.w, imageSize.h) : FALLBACK_OG_IMAGE;
 
     // ?debug=1 → JSON report instead of HTML.
     if (debug) {
@@ -373,6 +385,8 @@ export default async function handler(req) {
             type,
             id,
             usedFallback: !picked,
+            originalImage: picked,
+            originalImageCheck: picked ? await probeImage(picked) : null,
             chosenImage: image,
             imageCheck: await probeImage(image),
             candidates: candidates.map(short),
@@ -394,7 +408,7 @@ export default async function handler(req) {
     // When we had to use the fallback logo, cache for only 60s so a
     // thumbnail added/fixed later isn't hidden behind an hour-long cache.
     return new Response(
-      renderHtml({ type, title, description, image, url, shareUrl, card }),
+      renderHtml({ type, title, description, image, url, shareUrl, card, imageSize: picked ? imageSize : null }),
       { headers: picked ? headers : notFoundHeaders }
     );
   } catch (err) {

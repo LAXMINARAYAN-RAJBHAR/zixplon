@@ -9,7 +9,7 @@ function escapeHtml(str = "") {
     .replace(/'/g, "&#39;");
 }
 
-// NEW: share-preview text. Link previews (WhatsApp, Facebook, X ...) are plain
+// Share-preview text. Link previews (WhatsApp, Facebook, X ...) are plain
 // text and don't render markdown, so text typed as **bold** used to show
 // literal asterisks. Instead, the marked words are converted to Unicode "bold"
 // (or "italic") look-alike letters, which DO look bold in any preview:
@@ -36,7 +36,17 @@ function previewText(input = "", max = 200) {
   let s = String(input || "").replace(/\r\n?/g, "\n");
   s = s.replace(/```[\s\S]*?```/g, " "); // code blocks
   s = s.replace(/`([^`\n]+)`/g, "$1"); // inline code
-  s = s.replace(/(\*\*|__)(?=\S)([\s\S]+?)(?<=\S)\1/g, (_, __, t) => toBold(t)); // **bold** / __bold__
+
+  // CHANGED: **bold**, now tolerating spaces just inside the markers
+  // (e.g. "** Happy Diwali **"). [^\n] keeps a stray ** from bolding
+  // everything up to a distant ** several lines later.
+  s = s.replace(/\*\*\s*([^\n]*?\S)\s*\*\*/g, (_, t) => toBold(t));
+  // CHANGED: __bold__ only at word edges, so snake__case__names are left alone
+  s = s.replace(
+    /(^|[\s(])__\s*([^\n]*?\S)\s*__(?=$|[\s).,!?:;])/g,
+    (_, pre, t) => pre + toBold(t)
+  );
+
   s = s.replace(/~~(?=\S)([\s\S]+?)(?<=\S)~~/g, "$1"); // ~~strike~~ (no look-alike: just unwrap)
   s = s.replace(/(^|[\s(])\*(?=\S)([^*\n]+?)(?<=\S)\*(?=$|[\s).,!?:;])/g, (_, pre, t) => pre + toItalic(t)); // *italic*
   s = s.replace(/(^|[\s(])_(?=\S)([^_\n]+?)(?<=\S)_(?=$|[\s).,!?:;])/g, (_, pre, t) => pre + toItalic(t)); // _italic_
@@ -88,7 +98,7 @@ const PROFILE_PATH = "/profile";
 // and change this to `${SITE}/og-fallback.jpg`.
 const FALLBACK_OG_IMAGE = `${SITE}/logo192.png`;
 
-// CHANGED: returns a clean absolute https URL, or null when the value can't be
+// Returns a clean absolute https URL, or null when the value can't be
 // used by a crawler (empty, data:/blob: URLs, or not a valid URL at all).
 // Crawlers (WhatsApp, Facebook, X...) cannot use data: URIs as og:image.
 function cleanImage(url) {
@@ -185,7 +195,7 @@ function fallbackHtml(type, url, shareUrl) {
   });
 }
 
-// NEW: used by ?debug=1 — fetches the chosen image the way a crawler would and
+// Used by ?debug=1 — fetches the chosen image the way a crawler would and
 // reports status / content-type / size, so you can see WHY a thumbnail fails.
 async function probeImage(imageUrl) {
   try {
@@ -272,10 +282,10 @@ export default async function handler(req) {
       }
 
       title = item?.username ? `${item.username} on ZIXPLON` : "Post on ZIXPLON";
-      // CHANGED: markdown markers (**bold**, _italic_ ...) are stripped so the
+      // Markdown markers (**bold**, _italic_ ...) are converted/stripped so the
       // preview doesn't show literal asterisks.
       description = previewText(item?.text, 200) || "Check out this post on ZIXPLON";
-      // CHANGED: also reads image_urls when it is a JSON string, and `thumbnail`.
+      // Also reads image_urls when it is a JSON string, and `thumbnail`.
       candidates = [
         item?.image_url,
         parseList(item?.image_urls)[0],
@@ -338,7 +348,7 @@ export default async function handler(req) {
 
       title = previewText(item?.title, 100) || "Watch on ZIXPLON";
       description = previewText(item?.description, 200) || item?.channel || "Watch videos and reels on ZIXPLON";
-      // CHANGED: tries both column names for both tables (videos use
+      // Tries both column names for both tables (videos use
       // thumbnail_url, reels use thumbnail) and skips unusable values.
       candidates = [
         item?.thumbnail_url,
@@ -355,7 +365,7 @@ export default async function handler(req) {
     const picked = firstImage(candidates);
     const image = picked || FALLBACK_OG_IMAGE;
 
-    // NEW: ?debug=1 → JSON report instead of HTML.
+    // ?debug=1 → JSON report instead of HTML.
     if (debug) {
       return new Response(
         JSON.stringify(
@@ -381,7 +391,7 @@ export default async function handler(req) {
       url += (url.includes("?") ? "&" : "?") + `comment=${encodeURIComponent(commentId)}`;
     }
 
-    // CHANGED: when we had to use the fallback logo, cache for only 60s so a
+    // When we had to use the fallback logo, cache for only 60s so a
     // thumbnail added/fixed later isn't hidden behind an hour-long cache.
     return new Response(
       renderHtml({ type, title, description, image, url, shareUrl, card }),

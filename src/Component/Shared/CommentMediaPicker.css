@@ -148,8 +148,8 @@
     bottom: 0;
     width: 100%;
     max-width: none;
-    max-height: 50vh;   /* fallback */
-    max-height: 50dvh;
+    max-height: 38vh;   /* fallback */
+    max-height: 38dvh;
     border-width: 2px 0 0;
     border-radius: 16px 16px 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0px);

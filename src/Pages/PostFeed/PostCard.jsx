@@ -31,6 +31,9 @@ import { onUserInteract } from "../../utils/audioUnlock";
 // When a post video ends, scroll to the next video / post video in the
 // feed (its own autoplay-on-scroll then starts it).
 import { advanceToNextFeedMedia } from "../../utils/autoAdvance";
+// NEW: Facebook-style inline "Are you interested in this post?" card.
+// Lives in the same folder as this file.
+import InlineInterestPrompt from "./InlineInterestPrompt";
 
 const REACTIONS = [
   { key: "like", emoji: "👍", label: "Like", color: "#1877f2" },
@@ -698,6 +701,12 @@ const PostCard = ({
   onSaveComment, // (postId, commentId) => void — kebab menu "Save"
   viewCount = 0, // this post's total view count, from PostFeed's viewCounts map
   onView, // (postId) => void — called once per mount when the card scrolls into view
+  // NEW: inline "Are you interested in this post?" card (see PostFeed.jsx).
+  interestPrompt = false, // true while THIS post should show the card
+  onInterested, // () => void — "Interested" tapped
+  onNotInterested, // () => void — "Not interested" tapped
+  onInterestUndo, // () => void — Undo after answering "Interested"
+  onInterestDismiss, // () => void — ✕ on the thank-you line
 }) => {
   const [commentText, setCommentText] = useState("");
   const [showPicker, setShowPicker] = useState(false);
@@ -1576,6 +1585,20 @@ const PostCard = ({
           </div>
         )}
 
+        {/* NEW: Facebook-style inline "Are you interested in this post?"
+            card. A direct child of .pf-card (NOT inside .pf-card-body), so
+            it sits between the post media and the action bar and picks up
+            the card's --pf-card-pad side margin. Replaces the old floating
+            popup. */}
+        {!isEditing && interestPrompt && (
+          <InlineInterestPrompt
+            onInterested={onInterested}
+            onNotInterested={onNotInterested}
+            onUndo={onInterestUndo}
+            onDismiss={onInterestDismiss}
+          />
+        )}
+
         {/* Like/comment counts live inside the action pills below
             (Facebook-style) and the view count is in the header. */}
 
@@ -1757,6 +1780,7 @@ const PostCard = ({
                           type="button"
                           className="pf-attach-btn"
                           title="Emoji"
+                          data-cmp-trigger
                           onClick={() => setShowReplyEmoji((v) => !v)}
                         >
                           🙂
@@ -1831,6 +1855,7 @@ const PostCard = ({
                   type="button"
                   className="pf-attach-btn"
                   title="Emoji"
+                  data-cmp-trigger
                   disabled={!currentUser || currentUser === "anonymous"}
                   onClick={() => setShowCommentEmoji((v) => !v)}
                 >

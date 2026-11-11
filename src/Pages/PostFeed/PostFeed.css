@@ -4724,3 +4724,113 @@
      🙂
    </button>
    ══════════════════════════════════════════════════════════════════════ */
+
+  /* ══════════════════════════════════════════════════════════════════════
+   INLINE "ARE YOU INTERESTED IN THIS POST?" CARD
+   APPEND this block to the very bottom of PostFeed.css.
+
+   Sits inside .pf-card, between the post media and the reaction summary
+   row — Facebook style. Replaces the floating .pf-profile-prompt popup
+   (that block can be deleted once nothing renders the popup any more).
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-interest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px var(--pf-card-pad, 16px) 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(26, 20, 20, 0.05);
+  font-family: 'Outfit', sans-serif;
+  color: var(--zx-text);
+  animation: pf-interest-in 0.25s ease;
+}
+@keyframes pf-interest-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pf-interest-question {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--zx-text);
+}
+
+.pf-interest-btn {
+  width: 100%;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(26, 20, 20, 0.09);
+  color: var(--zx-text);
+  font-family: 'Outfit', sans-serif;
+  font-size: 14.5px;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
+}
+.pf-interest-btn:hover {
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--zx-primary);
+}
+.pf-interest-btn:active { transform: scale(0.98); }
+
+/* After answering: thank-you line + Undo */
+.pf-interest--done {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.pf-interest-done-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.pf-interest-done-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.pf-interest-undo {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(26, 20, 20, 0.09);
+  color: var(--zx-text);
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.pf-interest-undo:hover {
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--zx-primary);
+}
+.pf-interest-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--zx-text3);
+  font-size: 12px;
+  cursor: pointer;
+}
+.pf-interest-close:hover { color: var(--zx-primary); }
+
+@media (max-width: 768px) {
+  .pf-interest { margin-left: 12px; margin-right: 12px; padding: 12px; }
+  .pf-interest-question { font-size: 14.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-interest { animation: none; }
+}

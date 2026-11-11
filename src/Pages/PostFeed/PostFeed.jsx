@@ -24,10 +24,13 @@ import { extractMentions } from "../../utils/linkify";
 import SuggestedConnections from "../../Component/Messages/SuggestedConnections";
 // NEW (feedback): Interested / Not interested for posts, videos and reels.
 import useContentFeedback, { FeedbackToast } from "../../hooks/useContentFeedback";
-// NEW: profile-level "Interested / Not interested" popup (replaces the
+// NEW: profile-level "Interested / Not interested" feedback (replaces the
 // per-post items that used to live in each post's ⋯ menu).
 import useProfileFeedback from "../../hooks/useProfileFeedback";
-import ProfilePrompt, { ProfileFeedbackToast } from "./ProfilePrompt";
+// CHANGED: the "Interested in <profile>?" question is no longer a floating
+// popup — it is an inline card inside the post (InlineInterestPrompt, rendered
+// by PostCard). Only the confirmation / Undo toast is still used from here.
+import { ProfileFeedbackToast } from "./ProfilePrompt";
 // NEW: server-ranked feed (see feed_ranking.sql). The database returns the
 // next ids: brand-new unseen on top, other unseen next, already-seen last.
 import {
@@ -63,7 +66,7 @@ const OPEN_COMPOSER_EVENT = "zx:open-composer";
 const OPEN_COMPOSER_FLAG = "zx:open-composer";
 const OPEN_COMPOSER_FLAG_MAX_AGE_MS = 5000;
 
-// NEW: minimum time between two "Interested in <profile>?" popups, so
+// NEW: minimum time between two "Interested in <profile>?" cards, so
 // scrolling through many new profiles doesn't nag.
 const PROFILE_PROMPT_GAP_MS = 25000;
 
@@ -130,19 +133,22 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   // passed down to PostCard, VideoFeedCard and ReelsStrip.
   const fb = useContentFeedback();
 
-  // ────────────── NEW: PROFILE "INTERESTED?" POPUP ──────────────
+  // ────────────── NEW: PROFILE "INTERESTED?" INLINE CARD ──────────────
   // The first time a post from a profile you haven't connected with (and
-  // haven't answered for) is on screen, a small popup asks ONCE about that
-  // PROFILE. "Not interested" hides that profile's posts and videos from
-  // the feed (with Undo), "Interested" is remembered, ✕ snoozes it for 7
-  // days. Own posts, connected people, and search results never prompt.
+  // haven't answered for) is on screen, an inline card inside THAT post
+  // asks ONCE about that PROFILE. "Not interested" hides that profile's
+  // posts and videos from the feed (with Undo), "Interested" is remembered.
+  // Own posts, connected people, and search results never prompt.
   const pfb = useProfileFeedback(currentUser);
   const [connectedUsers, setConnectedUsers] = useState(() => new Set());
   const [connectionsLoaded, setConnectionsLoaded] = useState(false);
-  const [promptUser, setPromptUser] = useState(null);
+  // Which post currently shows the inline card: { postId, username } | null.
+  const [inlinePrompt, setInlinePrompt] = useState(null);
   const [profileToast, setProfileToast] = useState(null);
   const postsRef = useRef([]);
   const liveRef = useRef({});
+  // true while a question card is waiting for an answer (so a second post
+  // doesn't open another card at the same time).
   const promptOpenRef = useRef(false);
   const lastPromptAtRef = useRef(0);
 
@@ -334,14 +340,16 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     } catch (_) { }
   }, []);
 
-  // NEW: ask "Interested in <profile>?" for an author who just appeared on
-  // screen — whether through a post, a video or a reel. Safe to call as often
+  // CHANGED: ask "Interested in <profile>?" via an inline card inside the
+  // post that just appeared on screen. Only posts have such a card, so a
+  // call without a postId (videos / reels) is ignored. Safe to call as often
   // as you like: it only fires for a logged-in user, outside search, for a
   // profile that is not your own, not connected with you, not answered or
-  // snoozed yet, while no other prompt is open and at least
+  // snoozed yet, while no other card is waiting for an answer and at least
   // PROFILE_PROMPT_GAP_MS after the previous one. Stable identity (reads
   // everything through refs) so child cards don't re-arm their tracking.
-  const maybePromptProfile = useCallback((author) => {
+  const maybePromptProfile = useCallback((author, postId) => {
+    if (!postId) return;
     const live = liveRef.current;
     if (!live.isLoggedIn || live.searchQuery || !live.connectionsLoaded) return;
     if (!author || author === "unknown" || author === live.currentUser) return;
@@ -352,12 +360,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
     lastPromptAtRef.current = Date.now();
     promptOpenRef.current = true;
-    setPromptUser(author);
+    setInlinePrompt({ postId, username: author });
   }, []);
 
   // NEW: PostCard calls this once per card when it is ~60% on screen. It
   // still counts the view, remembers the post as seen, and offers the
-  // profile prompt for the post's author.
+  // inline profile card for the post's author.
   const handlePostView = useCallback(
     (postId) => {
       incrementView(postId);
@@ -366,29 +374,37 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       if (!liveRef.current.searchQuery) markSeen("post", postId);
 
       const post = postsRef.current.find((p) => p.id === postId);
-      maybePromptProfile(post?.username);
+      maybePromptProfile(post?.username, postId);
     },
     [incrementView, maybePromptProfile]
   );
 
-  const closePrompt = () => {
-    promptOpenRef.current = false;
-    setPromptUser(null);
-  };
-
-  const answerPrompt = (value) => {
-    const username = promptUser;
-    if (!username) return;
+  // The inline card was answered.
+  //  - "not_interested": the profile's posts are about to be hidden, so the
+  //    card goes with them; the bottom toast gives the Undo.
+  //  - "interested": the card stays and switches itself to its own
+  //    thank-you + Undo state; we just free the "waiting for an answer" lock.
+  const answerInlinePrompt = (username, value) => {
     pfb.set(username, value);
-    closePrompt();
-    setProfileToast({ username, value, key: Date.now() });
+    promptOpenRef.current = false;
+    if (value === "not_interested") {
+      setInlinePrompt(null);
+      setProfileToast({ username, value, key: Date.now() });
+    }
   };
 
-  const dismissPrompt = () => {
-    if (promptUser) pfb.snooze(promptUser);
-    closePrompt();
+  // Undo from the card's own thank-you state ("Interested" case).
+  const undoInlinePrompt = (username) => {
+    pfb.clear(username);
   };
 
+  // ✕ on the card's thank-you line.
+  const dismissInlinePrompt = () => {
+    promptOpenRef.current = false;
+    setInlinePrompt(null);
+  };
+
+  // Undo from the bottom toast ("Not interested" case).
   const undoProfileFeedback = () => {
     if (profileToast) pfb.clear(profileToast.username);
     setProfileToast(null);
@@ -1759,6 +1775,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
                 viewCount={viewCounts[String(post.id)] ?? 0}
                 onView={handlePostView}
                 fb={fb}
+                interestPrompt={inlinePrompt?.postId === post.id}
+                onInterested={() => answerInlinePrompt(post.username, "interested")}
+                onNotInterested={() => answerInlinePrompt(post.username, "not_interested")}
+                onInterestUndo={() => undoInlinePrompt(post.username)}
+                onInterestDismiss={dismissInlinePrompt}
               />
             </div>
 
@@ -1830,15 +1851,9 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       <FeedbackToast fb={fb} />
 
-      {/* NEW: "Interested in <profile>?" popup + its confirmation / Undo. */}
-      {promptUser && (
-        <ProfilePrompt
-          username={promptUser}
-          onInterested={() => answerPrompt("interested")}
-          onNotInterested={() => answerPrompt("not_interested")}
-          onDismiss={dismissPrompt}
-        />
-      )}
+      {/* CHANGED: the floating "Interested in <profile>?" popup is gone —
+          the question now lives inline inside the post (PostCard). Only
+          the confirmation / Undo toast for "Not interested" remains. */}
       <ProfileFeedbackToast
         toast={profileToast}
         onUndo={undoProfileFeedback}

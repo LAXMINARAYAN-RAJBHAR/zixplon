@@ -12,6 +12,7 @@
   flex-direction: column;
   z-index: 200;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .cmp-anchor-left { left: 0; }
@@ -134,9 +135,30 @@
   opacity: 0.7;
 }
 
+/* ── Phones: bottom sheet pinned to the screen ──
+   The desktop popover is anchored to the trigger button and can run off
+   the right edge of a narrow screen. On phones it becomes a full-width
+   sheet at the bottom instead, so it can never overflow. */
 @media (max-width: 768px) {
   .cmp-panel {
-    width: min(300px, calc(100vw - 32px));
-    max-height: 280px;
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    max-height: 50vh;   /* fallback */
+    max-height: 50dvh;
+    border-width: 2px 0 0;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    z-index: 100003;    /* above .pf-modal-overlay (100000) and story viewer (100001) */
+  }
+
+  .cmp-anchor-left,
+  .cmp-anchor-right {
+    left: 0;
+    right: 0;
   }
 }

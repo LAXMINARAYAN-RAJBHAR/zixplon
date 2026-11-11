@@ -14,6 +14,14 @@ const TABS = [
   { id: "sticker", label: "🏷️", title: "Stickers" },
 ];
 
+// On touch devices, auto-focusing the search box pops the on-screen
+// keyboard open the moment the picker appears, which squeezes the picker
+// and shoves the page around. Only auto-focus where there's a real keyboard.
+const isTouchDevice =
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(pointer: coarse)").matches;
+
 // Unlike EmojiGifStickerPicker (used in chat, which relies on the parent
 // component's existing ref-based outside-click handler), this version
 // manages its own outside-click detection and just calls onClose — it
@@ -21,6 +29,11 @@ const TABS = [
 // already used for comment boxes across Video.jsx / PostCard.jsx /
 // Reels.jsx, so it can drop in next to a plain button with no extra
 // wiring needed from the caller.
+//
+// TRIGGER BUTTON: give the button that opens this picker a
+// `data-cmp-trigger` attribute. Clicks on it are ignored by the
+// outside-click handler, so tapping the button while the picker is open
+// closes it via the button's own toggle instead of close-then-reopen.
 const CommentMediaPicker = ({ onEmojiSelect, onMediaSelect, onClose, anchor = "left" }) => {
   const [activeTab, setActiveTab] = useState("emoji");
   const [emojiSearch, setEmojiSearch] = useState("");
@@ -34,6 +47,8 @@ const CommentMediaPicker = ({ onEmojiSelect, onMediaSelect, onClose, anchor = "l
 
   useEffect(() => {
     const handleClickOutside = (e) => {
+      // Ignore clicks on the trigger button (it toggles the picker itself).
+      if (e.target.closest && e.target.closest("[data-cmp-trigger]")) return;
       if (panelRef.current && !panelRef.current.contains(e.target)) onClose();
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -118,7 +133,7 @@ const CommentMediaPicker = ({ onEmojiSelect, onMediaSelect, onClose, anchor = "l
             placeholder="Search emoji…"
             value={emojiSearch}
             onChange={(e) => setEmojiSearch(e.target.value)}
-            autoFocus
+            autoFocus={!isTouchDevice}
           />
           <div className="cmp-emoji-scroll">
             {filteredEmojiCategories.length === 0 ? (
@@ -153,7 +168,7 @@ const CommentMediaPicker = ({ onEmojiSelect, onMediaSelect, onClose, anchor = "l
             placeholder={activeTab === "gif" ? "Search GIFs…" : "Search stickers…"}
             value={mediaQuery}
             onChange={(e) => setMediaQuery(e.target.value)}
-            autoFocus
+            autoFocus={!isTouchDevice}
           />
           <div className="cmp-media-scroll">
             {loadingMedia ? (

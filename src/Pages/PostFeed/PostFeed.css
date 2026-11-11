@@ -4686,3 +4686,41 @@
 @media (prefers-reduced-motion: reduce) {
   .pf-live-dot { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   EMOJI / GIF PICKER FIX (mobile)
+   APPEND this block to the very bottom of PostFeed.css.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 1. Stop the popup overlay from ever scrolling sideways. An overflowing
+      child used to make it horizontally scrollable, which shifted and
+      clipped the modal when the picker's search box took focus. */
+.pf-modal-overlay {
+  overflow-x: hidden;
+}
+
+/* 2. Any transform on an ancestor turns it into the containing block for
+      `position: fixed` descendants. The panel used to end its pop-in on
+      `translateY(0) scale(1)`, which would pin the picker's bottom sheet
+      inside the modal instead of the screen. `none` fixes that and
+      still animates smoothly from the start state. */
+.pf-modal-overlay.open .pf-modal-panel {
+  transform: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   PostComposer.jsx — one-line change (not CSS)
+   Add `data-cmp-trigger` to the 🙂 button so the picker's outside-click
+   handler ignores it (prevents close-then-reopen flicker):
+
+   <button
+     className="pf-attach-btn"
+     title="Emoji, GIFs & stickers"
+     type="button"
+     data-cmp-trigger
+     onClick={() => setShowEmojiPicker((v) => !v)}
+     style={mediaAlreadyAttached && !gifStickerAttachment ? { opacity: 0.4 } : {}}
+   >
+     🙂
+   </button>
+   ══════════════════════════════════════════════════════════════════════ */

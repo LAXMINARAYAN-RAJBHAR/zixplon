@@ -75,6 +75,45 @@ const OPEN_COMPOSER_FLAG_MAX_AGE_MS = 5000;
 // scrolling through many new profiles doesn't nag.
 const PROFILE_PROMPT_GAP_MS = 25000;
 
+// PERF: renders its children only once the placeholder is within
+// `rootMargin` of the viewport, then keeps them mounted. Used for the
+// video card and the reels strip that follow every post — each of those
+// loads its own data and renders its own thumbnails/video previews, so
+// mounting dozens of them up front (one pair per post) is a major source
+// of lag. Until mounted, the placeholder reserves `minHeight` so the page
+// doesn't jump much when they appear.
+const LazyMount = ({ minHeight = 320, rootMargin = "800px 0px", children }) => {
+  const ref = useRef(null);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (show) return;
+    const node = ref.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setShow(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShow(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [show, rootMargin]);
+
+  return (
+    <div ref={ref} style={show ? undefined : { minHeight }}>
+      {show ? children : null}
+    </div>
+  );
+};
+
 const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const location = useLocation();
   const { t } = useT();
@@ -136,7 +175,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const isLoggedIn = !!currentUser && currentUser !== "anonymous";
 
   // NEW (feedback): one instance serves posts, videos and reels. It's
-  // passed down to PostCard, VideoFeedCard and ReelsStrip.
+  // passed down to ReelsStrip (PostCard no longer receives it — it never
+  // used it, and passing a fresh object each render would defeat memo).
   const fb = useContentFeedback();
 
   // ────────────── NEW: PROFILE "INTERESTED?" INLINE CARD ──────────────
@@ -390,25 +430,38 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   //    card goes with them; the bottom toast gives the Undo.
   //  - "interested": the card stays and switches itself to its own
   //    thank-you + Undo state; we just free the "waiting for an answer" lock.
-  const answerInlinePrompt = (username, value) => {
-    pfb.set(username, value);
+  // PERF: stable identity (reads pfb through liveRef) so the same handlers
+  // can be handed to every PostCard without breaking React.memo.
+  const answerInlinePrompt = useCallback((username, value) => {
+    liveRef.current.pfb.set(username, value);
     promptOpenRef.current = false;
     if (value === "not_interested") {
       setInlinePrompt(null);
       setProfileToast({ username, value, key: Date.now() });
     }
-  };
+  }, []);
+
+  // PERF: the per-post wrappers are shared; PostCard passes its own
+  // author's username when it calls them.
+  const handleInterested = useCallback(
+    (username) => answerInlinePrompt(username, "interested"),
+    [answerInlinePrompt]
+  );
+  const handleNotInterested = useCallback(
+    (username) => answerInlinePrompt(username, "not_interested"),
+    [answerInlinePrompt]
+  );
 
   // Undo from the card's own thank-you state ("Interested" case).
-  const undoInlinePrompt = (username) => {
-    pfb.clear(username);
-  };
+  const undoInlinePrompt = useCallback((username) => {
+    liveRef.current.pfb.clear(username);
+  }, []);
 
   // ✕ on the card's thank-you line.
-  const dismissInlinePrompt = () => {
+  const dismissInlinePrompt = useCallback(() => {
     promptOpenRef.current = false;
     setInlinePrompt(null);
-  };
+  }, []);
 
   // Undo from the bottom toast ("Not interested" case).
   const undoProfileFeedback = () => {
@@ -1060,348 +1113,392 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     await handleNewPost(post);
   };
 
-  const handleReaction = async (postId, reactionType) => {
-    if (!currentUser || currentUser === "anonymous") {
-      window.dispatchEvent(new CustomEvent("openLogin"));
-      return;
-    }
-    const post = posts.find((p) => p.id === postId);
-    if (!post) return;
+  // ───────────────────────────────────────────────────────────────────
+  // PERF: the handlers below are handed to every PostCard, which is now
+  // wrapped in React.memo. For that to work they must keep the same
+  // identity between renders, so they read the current list through
+  // `postsRef` (kept in sync with `posts` above) instead of closing over
+  // the `posts` array, and are wrapped in useCallback. Behaviour is
+  // unchanged.
+  // ───────────────────────────────────────────────────────────────────
 
-    const prev = post.myReaction;
-
-    setPosts((all) =>
-      all.map((p) => {
-        if (p.id !== postId) return p;
-        const counts = { ...p.reactionCounts };
-        if (prev) counts[prev] = Math.max(0, (counts[prev] || 1) - 1);
-        const next = prev === reactionType ? null : reactionType;
-        if (next) counts[next] = (counts[next] || 0) + 1;
-        return { ...p, myReaction: next, reactionCounts: counts };
-      })
-    );
-
-    try {
-      if (prev) {
-        await supabase
-          .from("post_reactions")
-          .delete()
-          .eq("post_id", postId)
-          .eq("username", currentUser);
+  const handleReaction = useCallback(
+    async (postId, reactionType) => {
+      if (!currentUser || currentUser === "anonymous") {
+        window.dispatchEvent(new CustomEvent("openLogin"));
+        return;
       }
-      if (prev !== reactionType) {
-        await supabase
-          .from("post_reactions")
-          .insert({ post_id: postId, username: currentUser, type: reactionType });
+      const post = postsRef.current.find((p) => p.id === postId);
+      if (!post) return;
 
-        if (post.username && post.username !== currentUser) {
-          notifyUser({
-            recipientUsername: post.username,
-            senderUsername: currentUser,
-            type: "like",
-            message: `${currentUser} reacted to your post`,
-            contentId: postId,
-            contentType: "post",
-          });
+      const prev = post.myReaction;
+
+      setPosts((all) =>
+        all.map((p) => {
+          if (p.id !== postId) return p;
+          const counts = { ...p.reactionCounts };
+          if (prev) counts[prev] = Math.max(0, (counts[prev] || 1) - 1);
+          const next = prev === reactionType ? null : reactionType;
+          if (next) counts[next] = (counts[next] || 0) + 1;
+          return { ...p, myReaction: next, reactionCounts: counts };
+        })
+      );
+
+      try {
+        if (prev) {
+          await supabase
+            .from("post_reactions")
+            .delete()
+            .eq("post_id", postId)
+            .eq("username", currentUser);
         }
+        if (prev !== reactionType) {
+          await supabase
+            .from("post_reactions")
+            .insert({ post_id: postId, username: currentUser, type: reactionType });
+
+          if (post.username && post.username !== currentUser) {
+            notifyUser({
+              recipientUsername: post.username,
+              senderUsername: currentUser,
+              type: "like",
+              message: `${currentUser} reacted to your post`,
+              contentId: postId,
+              contentType: "post",
+            });
+          }
+        }
+      } catch {
+        fetchPosts(true);
       }
-    } catch {
-      fetchPosts(true);
-    }
-  };
+    },
+    [currentUser, fetchPosts]
+  );
 
-  const handleComment = async (postId, text, parentId = null, attachment = null) => {
-    if (!currentUser || currentUser === "anonymous") {
-      window.dispatchEvent(new CustomEvent("openLogin"));
-      return;
-    }
-    if (!text.trim() && !attachment) return;
+  const handleComment = useCallback(
+    async (postId, text, parentId = null, attachment = null) => {
+      if (!currentUser || currentUser === "anonymous") {
+        window.dispatchEvent(new CustomEvent("openLogin"));
+        return;
+      }
+      if (!text.trim() && !attachment) return;
 
-    const post = posts.find((p) => p.id === postId);
-    const parentComment = parentId
-      ? post?.comments.find((c) => c.id === parentId)
-      : null;
+      const post = postsRef.current.find((p) => p.id === postId);
+      const parentComment = parentId
+        ? post?.comments.find((c) => c.id === parentId)
+        : null;
 
-    const { data, error: err } = await supabase
-      .from("post_comments")
-      .insert({
-        post_id: postId,
-        username: currentUser,
-        text: text.trim() || null,
-        parent_comment_id: parentId,
-        attachment_url: attachment?.url || null,
-        attachment_type: attachment?.type || null,
-      })
-      .select()
-      .single();
-    if (err) return;
-    setPosts((all) =>
-      all.map((p) =>
-        p.id === postId
-          ? { ...p, comments: [...p.comments, data], showComments: true }
-          : p
-      )
-    );
-
-    if (
-      parentComment?.username &&
-      parentComment.username !== currentUser
-    ) {
-      notifyUser({
-        recipientUsername: parentComment.username,
-        senderUsername: currentUser,
-        type: "comment",
-        message: `${currentUser} replied to your comment: "${text.trim().slice(0, 60) || (attachment ? (attachment.type === "sticker" ? "🏷️ Sticker" : "🎬 GIF") : "")}"`,
-        contentId: postId,
-        contentType: "post",
-      });
-    }
-
-    if (
-      post?.username &&
-      post.username !== currentUser &&
-      post.username !== parentComment?.username
-    ) {
-      notifyUser({
-        recipientUsername: post.username,
-        senderUsername: currentUser,
-        type: "comment",
-        message: `${currentUser} commented on your post: "${text.trim().slice(0, 60) || (attachment ? (attachment.type === "sticker" ? "🏷️ Sticker" : "🎬 GIF") : "")}"`,
-        contentId: postId,
-        contentType: "post",
-      });
-    }
-
-    if (text.trim()) {
-      extractMentions(text).forEach((mentioned) => {
-        if (
-          mentioned === currentUser ||
-          mentioned === post?.username ||
-          mentioned === parentComment?.username
+      const { data, error: err } = await supabase
+        .from("post_comments")
+        .insert({
+          post_id: postId,
+          username: currentUser,
+          text: text.trim() || null,
+          parent_comment_id: parentId,
+          attachment_url: attachment?.url || null,
+          attachment_type: attachment?.type || null,
+        })
+        .select()
+        .single();
+      if (err) return;
+      setPosts((all) =>
+        all.map((p) =>
+          p.id === postId
+            ? { ...p, comments: [...p.comments, data], showComments: true }
+            : p
         )
-          return;
+      );
+
+      if (
+        parentComment?.username &&
+        parentComment.username !== currentUser
+      ) {
         notifyUser({
-          recipientUsername: mentioned,
+          recipientUsername: parentComment.username,
           senderUsername: currentUser,
-          type: "mention",
-          message: `${currentUser} mentioned you in a comment: "${text.trim().slice(0, 60)}"`,
+          type: "comment",
+          message: `${currentUser} replied to your comment: "${text.trim().slice(0, 60) || (attachment ? (attachment.type === "sticker" ? "🏷️ Sticker" : "🎬 GIF") : "")}"`,
           contentId: postId,
           contentType: "post",
         });
-      });
-    }
-  };
+      }
 
-  const handleCommentReaction = async (postId, commentId, type) => {
-    if (!currentUser || currentUser === "anonymous") {
-      window.dispatchEvent(new CustomEvent("openLogin"));
-      return;
-    }
+      if (
+        post?.username &&
+        post.username !== currentUser &&
+        post.username !== parentComment?.username
+      ) {
+        notifyUser({
+          recipientUsername: post.username,
+          senderUsername: currentUser,
+          type: "comment",
+          message: `${currentUser} commented on your post: "${text.trim().slice(0, 60) || (attachment ? (attachment.type === "sticker" ? "🏷️ Sticker" : "🎬 GIF") : "")}"`,
+          contentId: postId,
+          contentType: "post",
+        });
+      }
 
-    const post = posts.find((p) => p.id === postId);
-    const comment = post?.comments.find((c) => c.id === commentId);
-    if (!comment) return;
+      if (text.trim()) {
+        extractMentions(text).forEach((mentioned) => {
+          if (
+            mentioned === currentUser ||
+            mentioned === post?.username ||
+            mentioned === parentComment?.username
+          )
+            return;
+          notifyUser({
+            recipientUsername: mentioned,
+            senderUsername: currentUser,
+            type: "mention",
+            message: `${currentUser} mentioned you in a comment: "${text.trim().slice(0, 60)}"`,
+            contentId: postId,
+            contentType: "post",
+          });
+        });
+      }
+    },
+    [currentUser]
+  );
 
-    const likedBy = comment.liked_by || [];
-    const dislikedBy = comment.disliked_by || [];
+  const handleCommentReaction = useCallback(
+    async (postId, commentId, type) => {
+      if (!currentUser || currentUser === "anonymous") {
+        window.dispatchEvent(new CustomEvent("openLogin"));
+        return;
+      }
 
-    const isLike = type === "like";
-    const sameList = isLike ? likedBy : dislikedBy;
-    const otherList = isLike ? dislikedBy : likedBy;
-    const alreadyActive = sameList.includes(currentUser);
+      const post = postsRef.current.find((p) => p.id === postId);
+      const comment = post?.comments.find((c) => c.id === commentId);
+      if (!comment) return;
 
-    const nextSameList = alreadyActive
-      ? sameList.filter((u) => u !== currentUser)
-      : [...sameList, currentUser];
-    const nextOtherList = otherList.filter((u) => u !== currentUser);
+      const likedBy = comment.liked_by || [];
+      const dislikedBy = comment.disliked_by || [];
 
-    const nextLikedBy = isLike ? nextSameList : nextOtherList;
-    const nextDislikedBy = isLike ? nextOtherList : nextSameList;
+      const isLike = type === "like";
+      const sameList = isLike ? likedBy : dislikedBy;
+      const otherList = isLike ? dislikedBy : likedBy;
+      const alreadyActive = sameList.includes(currentUser);
 
-    setPosts((all) =>
-      all.map((p) =>
-        p.id !== postId
-          ? p
-          : {
-            ...p,
-            comments: p.comments.map((c) =>
-              c.id === commentId
-                ? { ...c, liked_by: nextLikedBy, disliked_by: nextDislikedBy }
-                : c
-            ),
-          }
-      )
-    );
+      const nextSameList = alreadyActive
+        ? sameList.filter((u) => u !== currentUser)
+        : [...sameList, currentUser];
+      const nextOtherList = otherList.filter((u) => u !== currentUser);
 
-    const { error: err } = await supabase
-      .from("post_comments")
-      .update({ liked_by: nextLikedBy, disliked_by: nextDislikedBy })
-      .eq("id", commentId);
+      const nextLikedBy = isLike ? nextSameList : nextOtherList;
+      const nextDislikedBy = isLike ? nextOtherList : nextSameList;
 
-    if (err) {
-      fetchPosts(true);
-      return;
-    }
+      setPosts((all) =>
+        all.map((p) =>
+          p.id !== postId
+            ? p
+            : {
+              ...p,
+              comments: p.comments.map((c) =>
+                c.id === commentId
+                  ? { ...c, liked_by: nextLikedBy, disliked_by: nextDislikedBy }
+                  : c
+              ),
+            }
+        )
+      );
 
-    if (
-      isLike &&
-      !alreadyActive &&
-      comment.username &&
-      comment.username !== currentUser
-    ) {
-      notifyUser({
-        recipientUsername: comment.username,
-        senderUsername: currentUser,
-        type: "like",
-        message: `${currentUser} liked your comment`,
-        contentId: postId,
-        contentType: "post",
-      });
-    }
-  };
+      const { error: err } = await supabase
+        .from("post_comments")
+        .update({ liked_by: nextLikedBy, disliked_by: nextDislikedBy })
+        .eq("id", commentId);
 
-  const handleSaveComment = async (postId, commentId) => {
-    if (!currentUser || currentUser === "anonymous") {
-      window.dispatchEvent(new CustomEvent("openLogin"));
-      return;
-    }
-    const post = posts.find((p) => p.id === postId);
-    const comment = post?.comments.find((c) => c.id === commentId);
-    if (!comment) return;
+      if (err) {
+        fetchPosts(true);
+        return;
+      }
 
-    const savedBy = comment.saved_by || [];
-    const isSaved = savedBy.includes(currentUser);
-    const nextSavedBy = isSaved
-      ? savedBy.filter((u) => u !== currentUser)
-      : [...savedBy, currentUser];
+      if (
+        isLike &&
+        !alreadyActive &&
+        comment.username &&
+        comment.username !== currentUser
+      ) {
+        notifyUser({
+          recipientUsername: comment.username,
+          senderUsername: currentUser,
+          type: "like",
+          message: `${currentUser} liked your comment`,
+          contentId: postId,
+          contentType: "post",
+        });
+      }
+    },
+    [currentUser, fetchPosts]
+  );
 
-    setPosts((all) =>
-      all.map((p) =>
-        p.id !== postId
-          ? p
-          : {
-            ...p,
-            comments: p.comments.map((c) =>
-              c.id === commentId ? { ...c, saved_by: nextSavedBy } : c,
-            ),
-          },
-      ),
-    );
+  // PERF: these two used to be inline arrows created per post on every
+  // render; as stable callbacks they no longer defeat PostCard's memo.
+  const handleLikeComment = useCallback(
+    (postId, commentId) => handleCommentReaction(postId, commentId, "like"),
+    [handleCommentReaction]
+  );
+  const handleDislikeComment = useCallback(
+    (postId, commentId) => handleCommentReaction(postId, commentId, "dislike"),
+    [handleCommentReaction]
+  );
 
-    const { error: err } = await supabase
-      .from("post_comments")
-      .update({ saved_by: nextSavedBy })
-      .eq("id", commentId);
+  const handleSaveComment = useCallback(
+    async (postId, commentId) => {
+      if (!currentUser || currentUser === "anonymous") {
+        window.dispatchEvent(new CustomEvent("openLogin"));
+        return;
+      }
+      const post = postsRef.current.find((p) => p.id === postId);
+      const comment = post?.comments.find((c) => c.id === commentId);
+      if (!comment) return;
 
-    if (err) fetchPosts(true);
-  };
+      const savedBy = comment.saved_by || [];
+      const isSaved = savedBy.includes(currentUser);
+      const nextSavedBy = isSaved
+        ? savedBy.filter((u) => u !== currentUser)
+        : [...savedBy, currentUser];
 
-  const handleToggleComments = (postId) => {
+      setPosts((all) =>
+        all.map((p) =>
+          p.id !== postId
+            ? p
+            : {
+              ...p,
+              comments: p.comments.map((c) =>
+                c.id === commentId ? { ...c, saved_by: nextSavedBy } : c,
+              ),
+            },
+        ),
+      );
+
+      const { error: err } = await supabase
+        .from("post_comments")
+        .update({ saved_by: nextSavedBy })
+        .eq("id", commentId);
+
+      if (err) fetchPosts(true);
+    },
+    [currentUser, fetchPosts]
+  );
+
+  const handleToggleComments = useCallback((postId) => {
     setPosts((all) =>
       all.map((p) =>
         p.id === postId ? { ...p, showComments: !p.showComments } : p
       )
     );
-  };
+  }, []);
 
-  const handleShare = async (postId) => {
-    if (!currentUser || currentUser === "anonymous") {
-      window.dispatchEvent(new CustomEvent("openLogin"));
-      return;
-    }
-    const post = posts.find((p) => p.id === postId);
-    if (!post) return;
+  const handleShare = useCallback(
+    async (postId) => {
+      if (!currentUser || currentUser === "anonymous") {
+        window.dispatchEvent(new CustomEvent("openLogin"));
+        return;
+      }
+      const post = postsRef.current.find((p) => p.id === postId);
+      if (!post) return;
 
-    setError("");
-    try {
-      const { data, error: err } = await supabase
+      setError("");
+      try {
+        const { data, error: err } = await supabase
+          .from("posts")
+          .insert({
+            username: currentUser,
+            text: `Shared: "${post.text?.slice(0, 120) || ""}"`,
+            image_url: post.image_url || null,
+            image_urls: post.image_urls && post.image_urls.length > 0 ? post.image_urls : null,
+            video_url: post.video_url || null,
+            feeling: post.feeling || null,
+            link: post.link || null,
+            privacy: "public",
+            shared_from: postId,
+          })
+          .select()
+          .single();
+
+        if (err) throw err;
+
+        // CHANGED: dedupe — the realtime INSERT listener may add it too.
+        setPosts((prev) =>
+          prependUnique(prev, {
+            ...data,
+            myReaction: null,
+            reactionCounts: {},
+            comments: [],
+            showComments: false,
+          })
+        );
+
+        fetchViewCounts([data.id]);
+      } catch (err) {
+        console.error("Share to feed failed:", err);
+        setError(
+          err.message ||
+          "Couldn't share this post. Please try again."
+        );
+      }
+    },
+    [currentUser]
+  );
+
+  const handleReportPost = useCallback(
+    async (postId, reason, details) => {
+      const post = postsRef.current.find((p) => p.id === postId);
+
+      const { error: err } = await supabase.from("reports").insert({
+        content_type: "post",
+        content_id: postId,
+        content_title: post?.text?.slice(0, 80) || "Post",
+        content_owner: post?.username || "unknown",
+        reporter_username: currentUser,
+        reason,
+        details: details || null,
+        status: "pending",
+      });
+
+      if (err) throw err;
+    },
+    [currentUser]
+  );
+
+  const handleDeletePost = useCallback(
+    async (postId) => {
+      setPosts((all) => all.filter((p) => p.id !== postId));
+
+      const { error: delErr } = await supabase
         .from("posts")
-        .insert({
-          username: currentUser,
-          text: `Shared: "${post.text?.slice(0, 120) || ""}"`,
-          image_url: post.image_url || null,
-          image_urls: post.image_urls && post.image_urls.length > 0 ? post.image_urls : null,
-          video_url: post.video_url || null,
-          feeling: post.feeling || null,
-          link: post.link || null,
-          privacy: "public",
-          shared_from: postId,
-        })
+        .delete()
+        .eq("id", postId)
+        .eq("username", currentUser);
+
+      if (delErr) {
+        fetchPosts(true);
+      }
+    },
+    [currentUser, fetchPosts]
+  );
+
+  const handleEditPost = useCallback(
+    async (postId, updates) => {
+      const { data, error: editErr } = await supabase
+        .from("posts")
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq("id", postId)
+        .eq("username", currentUser)
         .select()
         .single();
 
-      if (err) throw err;
+      if (editErr) {
+        setError(editErr.message || "Failed to update post.");
+        return;
+      }
 
-      // CHANGED: dedupe — the realtime INSERT listener may add it too.
-      setPosts((prev) =>
-        prependUnique(prev, {
-          ...data,
-          myReaction: null,
-          reactionCounts: {},
-          comments: [],
-          showComments: false,
-        })
+      setPosts((all) =>
+        all.map((p) => (p.id === postId ? { ...p, ...data } : p))
       );
-
-      fetchViewCounts([data.id]);
-    } catch (err) {
-      console.error("Share to feed failed:", err);
-      setError(
-        err.message ||
-        "Couldn't share this post. Please try again."
-      );
-    }
-  };
-
-  const handleReportPost = async (postId, reason, details) => {
-    const post = posts.find((p) => p.id === postId);
-
-    const { error: err } = await supabase.from("reports").insert({
-      content_type: "post",
-      content_id: postId,
-      content_title: post?.text?.slice(0, 80) || "Post",
-      content_owner: post?.username || "unknown",
-      reporter_username: currentUser,
-      reason,
-      details: details || null,
-      status: "pending",
-    });
-
-    if (err) throw err;
-  };
-
-  const handleDeletePost = async (postId) => {
-    setPosts((all) => all.filter((p) => p.id !== postId));
-
-    const { error: delErr } = await supabase
-      .from("posts")
-      .delete()
-      .eq("id", postId)
-      .eq("username", currentUser);
-
-    if (delErr) {
-      fetchPosts(true);
-    }
-  };
-
-  const handleEditPost = async (postId, updates) => {
-    const { data, error: editErr } = await supabase
-      .from("posts")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", postId)
-      .eq("username", currentUser)
-      .select()
-      .single();
-
-    if (editErr) {
-      setError(editErr.message || "Failed to update post.");
-      return;
-    }
-
-    setPosts((all) =>
-      all.map((p) => (p.id === postId ? { ...p, ...data } : p))
-    );
-  };
+    },
+    [currentUser]
+  );
 
   // Profiles = distinct usernames matching the query across posts, reels
   // and videos (only computed in search mode).
@@ -1441,6 +1538,13 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const visibleVideos = videos.filter(
     (v) => !fb.isHidden("video", v.id) && !pfb.isHidden(v.username)
   );
+
+  // PERF: rough heights used to reserve space for the lazily mounted
+  // video card / reels strip (see LazyMount) until they scroll near.
+  const isNarrowScreen =
+    typeof window !== "undefined" && window.innerWidth <= 768;
+  const videoCardMinHeight = isNarrowScreen ? 360 : 520;
+  const reelsStripMinHeight = isNarrowScreen ? 280 : 420;
 
   // NEW: the Post Composer popup. Rendered through a portal into <body>
   // so it sits above the navbar/sidebar and escapes the feed's overflow
@@ -1696,6 +1800,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
                           src={reel.thumbnail}
                           alt=""
                           loading="lazy"
+                          decoding="async"
                           style={{
                             width: "100%",
                             height: "100%",
@@ -1775,6 +1880,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         {visiblePosts.map((post, index) => (
           <React.Fragment key={post.id}>
             <div id={`post-${post.id}`}>
+              {/* PERF: every prop here is now stable between renders
+                  (data, shared useCallback handlers, primitives), so the
+                  memoised PostCard only re-renders when ITS post, view
+                  count or prompt state changes. `fb` is no longer passed
+                  (PostCard never used it). */}
               <PostCard
                 post={post}
                 currentUser={currentUser}
@@ -1785,40 +1895,44 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
                 onDelete={handleDeletePost}
                 onEdit={handleEditPost}
                 onReport={handleReportPost}
-                onLikeComment={(postId, commentId) =>
-                  handleCommentReaction(postId, commentId, "like")
-                }
-                onDislikeComment={(postId, commentId) =>
-                  handleCommentReaction(postId, commentId, "dislike")
-                }
+                onLikeComment={handleLikeComment}
+                onDislikeComment={handleDislikeComment}
                 onSaveComment={handleSaveComment}
                 viewCount={viewCounts[String(post.id)] ?? 0}
                 onView={handlePostView}
-                fb={fb}
                 interestPrompt={inlinePrompt?.postId === post.id}
-                onInterested={() => answerInlinePrompt(post.username, "interested")}
-                onNotInterested={() => answerInlinePrompt(post.username, "not_interested")}
-                onInterestUndo={() => undoInlinePrompt(post.username)}
+                onInterested={handleInterested}
+                onNotInterested={handleNotInterested}
+                onInterestUndo={undoInlinePrompt}
                 onInterestDismiss={dismissInlinePrompt}
               />
             </div>
 
-            {/* CHANGED: no interleaved videos/reels while searching */}
+            {/* CHANGED: no interleaved videos/reels while searching.
+                PERF: both are lazy-mounted — they only render (and only
+                load their data / thumbnails) once they are within ~800px
+                of the viewport. */}
             {!searchQuery && visibleVideos[index] && (
-              <VideoFeedCard
-                video={visibleVideos[index]}
-                onProfileView={maybePromptProfile}
-              />
+              <LazyMount minHeight={videoCardMinHeight}>
+                <VideoFeedCard
+                  video={visibleVideos[index]}
+                  onProfileView={maybePromptProfile}
+                />
+              </LazyMount>
             )}
 
             {!searchQuery && (
-              <ReelsStrip
+              <LazyMount
                 key={`reels-${index}`}
-                startOffset={index * 10}
-                fb={fb}
-                onProfileView={maybePromptProfile}
-                isProfileHidden={pfb.isHidden}
-              />
+                minHeight={reelsStripMinHeight}
+              >
+                <ReelsStrip
+                  startOffset={index * 10}
+                  fb={fb}
+                  onProfileView={maybePromptProfile}
+                  isProfileHidden={pfb.isHidden}
+                />
+              </LazyMount>
             )}
 
             {!searchQuery && index >= 3 && (index - 3) % 6 === 0 && (

@@ -142,6 +142,11 @@ const stubTranslateToHindi = (text) => {
    HLS support — if `src` is an .m3u8 manifest, playback routes through
    hls.js (or native HLS on Safari) instead of setting the <video>'s
    src attribute directly. Plain mp4/webm sources are unaffected.
+
+   PERF: (1) the progress bar is driven through refs + a CSS transform,
+   so the ~4 timeupdate events per second no longer re-render this
+   component; (2) hls.js no longer starts downloading segments the
+   moment a post mounts — it waits until the post is actually on screen.
 ───────────────────────────────────────── */
 const PostVideo = ({ src, inView, onEnded }) => {
   const videoRef = useRef(null);
@@ -150,6 +155,11 @@ const PostVideo = ({ src, inView, onEnded }) => {
   // Holds the active hls.js instance for this video, torn down on
   // unmount or whenever `src` changes.
   const hlsInstanceRef = useRef(null);
+  // PERF: true once hls.js has been told to start loading segments.
+  const hlsStartedRef = useRef(false);
+  // PERF: latest `inView`, readable from effects that don't depend on it.
+  const inViewRef = useRef(inView);
+  inViewRef.current = inView;
   const usingHls = isHlsSource(src);
   const { t } = useT();
 
@@ -167,9 +177,15 @@ const PostVideo = ({ src, inView, onEnded }) => {
 
   // Progress bar state.
   const trackRef = useRef(null);
+  // PERF: played / buffered fills are updated through these refs.
+  const playedRef = useRef(null);
+  const bufferedRef = useRef(null);
+  const barRef = useRef(null);
+  const scrubbingRef = useRef(false);
+  // PERF: `currentTime` state is now only updated while scrubbing (for the
+  // "0:12 / 0:30" label) — normal playback never re-renders.
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [bufferedEnd, setBufferedEnd] = useState(0);
   const [scrubbing, setScrubbing] = useState(false);
 
   // ── Scroll-driven autoplay/pause ──
@@ -247,44 +263,69 @@ const PostVideo = ({ src, inView, onEnded }) => {
     };
   }, []);
 
-  // Keep progress state in sync with the <video> element.
+  // Keep progress in sync with the <video> element.
+  // PERF: played/buffered are written straight to the DOM (CSS transform);
+  // only `duration` (which changes once per video) and, while scrubbing,
+  // `currentTime` are React state.
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
 
     const syncDuration = () =>
       setDuration(isFinite(vid.duration) ? vid.duration : 0);
-    const syncTime = () => setCurrentTime(vid.currentTime || 0);
+
+    const syncPlayed = () => {
+      const d = vid.duration;
+      if (!isFinite(d) || d <= 0) return;
+      if (playedRef.current) {
+        playedRef.current.style.transform = `scaleX(${Math.min(1, vid.currentTime / d)})`;
+      }
+      barRef.current?.setAttribute(
+        "aria-valuenow",
+        String(Math.round(vid.currentTime)),
+      );
+      if (scrubbingRef.current) setCurrentTime(vid.currentTime || 0);
+    };
+
     const syncBuffered = () => {
+      const d = vid.duration;
       const b = vid.buffered;
+      if (!bufferedRef.current || !isFinite(d) || d <= 0) return;
       if (!b || b.length === 0) return;
       // Use the buffered range that contains the playhead.
+      let end = b.end(b.length - 1);
       for (let i = 0; i < b.length; i++) {
         if (
           vid.currentTime >= b.start(i) &&
           vid.currentTime <= b.end(i) + 0.5
         ) {
-          setBufferedEnd(b.end(i));
-          return;
+          end = b.end(i);
+          break;
         }
       }
-      setBufferedEnd(b.end(b.length - 1));
+      bufferedRef.current.style.transform = `scaleX(${Math.min(1, end / d)})`;
     };
+
+    const onTimeUpdate = () => {
+      syncPlayed();
+      syncBuffered();
+    };
+
+    // New source: start the bar from zero.
+    if (playedRef.current) playedRef.current.style.transform = "scaleX(0)";
+    if (bufferedRef.current) bufferedRef.current.style.transform = "scaleX(0)";
 
     vid.addEventListener("loadedmetadata", syncDuration);
     vid.addEventListener("durationchange", syncDuration);
-    vid.addEventListener("timeupdate", syncTime);
+    vid.addEventListener("timeupdate", onTimeUpdate);
     vid.addEventListener("progress", syncBuffered);
-    vid.addEventListener("timeupdate", syncBuffered);
     syncDuration();
-    syncTime();
 
     return () => {
       vid.removeEventListener("loadedmetadata", syncDuration);
       vid.removeEventListener("durationchange", syncDuration);
-      vid.removeEventListener("timeupdate", syncTime);
+      vid.removeEventListener("timeupdate", onTimeUpdate);
       vid.removeEventListener("progress", syncBuffered);
-      vid.removeEventListener("timeupdate", syncBuffered);
     };
   }, [src]);
 
@@ -353,19 +394,25 @@ const PostVideo = ({ src, inView, onEnded }) => {
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
     vid.currentTime = ratio * duration;
     setCurrentTime(ratio * duration);
+    // PERF: move the fill immediately (no state needed).
+    if (playedRef.current) {
+      playedRef.current.style.transform = `scaleX(${ratio})`;
+    }
   };
 
   const onBarPointerDown = (e) => {
     e.stopPropagation(); // don't trigger the wrapper's mute toggle
     e.currentTarget.setPointerCapture?.(e.pointerId);
+    scrubbingRef.current = true;
     setScrubbing(true);
     seekToClientX(e.clientX);
   };
   const onBarPointerMove = (e) => {
-    if (scrubbing) seekToClientX(e.clientX);
+    if (scrubbingRef.current) seekToClientX(e.clientX);
   };
   const onBarPointerUp = (e) => {
     e.currentTarget.releasePointerCapture?.(e.pointerId);
+    scrubbingRef.current = false;
     setScrubbing(false);
   };
   const onBarKeyDown = (e) => {
@@ -386,6 +433,12 @@ const PostVideo = ({ src, inView, onEnded }) => {
   // (or lets Safari's native HLS take over) instead of setting `src`
   // directly, since browsers other than Safari can't play a raw .m3u8
   // URL as a video source.
+  //
+  // PERF: autoStartLoad is OFF, so the manifest is attached but no video
+  // segments are downloaded until the post is on screen (see the effect
+  // below). Previously every post video in the feed started buffering the
+  // moment it mounted, even far below the fold. Forward buffer reduced
+  // from 30s to 10s.
   useEffect(() => {
     const vid = videoRef.current;
 
@@ -393,13 +446,15 @@ const PostVideo = ({ src, inView, onEnded }) => {
       hlsInstanceRef.current.destroy();
       hlsInstanceRef.current = null;
     }
+    hlsStartedRef.current = false;
 
     if (!vid || !usingHls) return;
 
     if (Hls.isSupported()) {
       const hls = new Hls({
-        maxBufferLength: 30,
+        maxBufferLength: 10,
         enableWorker: true,
+        autoStartLoad: false,
       });
       hls.loadSource(src);
       hls.attachMedia(vid);
@@ -409,17 +464,34 @@ const PostVideo = ({ src, inView, onEnded }) => {
         }
       });
       hlsInstanceRef.current = hls;
+
+      // If the post is already on screen when the source is attached,
+      // start right away.
+      if (inViewRef.current) {
+        hlsStartedRef.current = true;
+        hls.startLoad();
+      }
     } else if (vid.canPlayType("application/vnd.apple.mpegurl")) {
       vid.src = src;
     }
 
     return () => {
+      hlsStartedRef.current = false;
       if (hlsInstanceRef.current) {
         hlsInstanceRef.current.destroy();
         hlsInstanceRef.current = null;
       }
     };
   }, [src, usingHls]);
+
+  // PERF: start downloading HLS segments the first time the post is on
+  // screen.
+  useEffect(() => {
+    if (inView && hlsInstanceRef.current && !hlsStartedRef.current) {
+      hlsStartedRef.current = true;
+      hlsInstanceRef.current.startLoad();
+    }
+  }, [inView]);
 
   return (
     <div className="pf-card-video-wrap" ref={wrapRef} onClick={toggleMute}>
@@ -492,6 +564,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
       {/* Progress bar — only rendered once the duration is known. */}
       {duration > 0 && (
         <div
+          ref={barRef}
           className={`pf-vp-bar${scrubbing ? " pf-vp-bar--scrubbing" : ""}`}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={onBarPointerDown}
@@ -512,14 +585,11 @@ const PostVideo = ({ src, inView, onEnded }) => {
             </span>
           )}
           <div className="pf-vp-track" ref={trackRef}>
-            <div
-              className="pf-vp-buffered"
-              style={{ width: `${(bufferedEnd / duration) * 100}%` }}
-            />
-            <div
-              className="pf-vp-played"
-              style={{ width: `${(currentTime / duration) * 100}%` }}
-            />
+            {/* PERF: no inline width — the fills are scaled with a CSS
+                transform set through bufferedRef / playedRef (see
+                PostFeed.perf.css). */}
+            <div className="pf-vp-buffered" ref={bufferedRef} />
+            <div className="pf-vp-played" ref={playedRef} />
           </div>
         </div>
       )}
@@ -554,7 +624,9 @@ const ImageGrid = ({ images, onOpenViewer }) => {
           key={i}
           onClick={() => onOpenViewer(i)}
         >
-          <img src={url} alt={`Image ${i + 1}`} loading="lazy" />
+          {/* PERF: decoding="async" keeps image decoding off the main
+              thread while scrolling. */}
+          <img src={url} alt={`Image ${i + 1}`} loading="lazy" decoding="async" />
           {i === displayCount - 1 && remaining > 0 && (
             <div className="pf-img-grid-more">+{remaining}</div>
           )}
@@ -708,10 +780,12 @@ const PostCard = ({
   viewCount = 0, // this post's total view count, from PostFeed's viewCounts map
   onView, // (postId) => void — called once per mount when the card scrolls into view
   // NEW: inline "Are you interested in this post?" card (see PostFeed.jsx).
+  // PERF: PostFeed now passes the SAME function for every card, and the
+  // card supplies its own author's username when calling them.
   interestPrompt = false, // true while THIS post should show the card
-  onInterested, // () => void — "Interested" tapped
-  onNotInterested, // () => void — "Not interested" tapped
-  onInterestUndo, // () => void — Undo after answering "Interested"
+  onInterested, // (username) => void — "Interested" tapped
+  onNotInterested, // (username) => void — "Not interested" tapped
+  onInterestUndo, // (username) => void — Undo after answering "Interested"
   onInterestDismiss, // () => void — ✕ on the thank-you line
 }) => {
   const [commentText, setCommentText] = useState("");
@@ -798,6 +872,12 @@ const PostCard = ({
   // post is meaningfully on-screen and pause the instant it isn't.
   const [mediaInView, setMediaInView] = useState(false);
 
+  // PERF: becomes true the first time this card comes within ~400px of the
+  // viewport and stays true. The connection lookup + its realtime channel
+  // wait for this, so a long feed no longer opens one query and one
+  // websocket subscription per post the moment it mounts.
+  const [everNear, setEverNear] = useState(false);
+
   useEffect(() => {
     if (!cardRef.current) return;
     const observer = new IntersectionObserver(
@@ -808,6 +888,27 @@ const PostCard = ({
     observer.observe(cardRef.current);
     return () => observer.disconnect();
   }, []);
+
+  // PERF: one-shot "near the viewport" observer (see everNear above).
+  useEffect(() => {
+    const node = cardRef.current;
+    if (!node || everNear) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setEverNear(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setEverNear(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "400px 0px 400px 0px", threshold: 0 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [everNear]);
 
   // Real playback for the attached song. Plays (with sound) while the
   // post is >=50% on screen, pauses when it isn't or while editing. If the
@@ -963,7 +1064,9 @@ const PostCard = ({
   // Load whether the current user has a connection (of any status) with
   // this post's author. Skipped for the author's own posts, since the
   // button never renders there anyway.
+  // PERF: waits for everNear — see the state comment above.
   useEffect(() => {
+    if (!everNear) return;
     if (!post.username || post.username === currentUser) return;
     const userId = localStorage.getItem("userId");
     if (!userId) return;
@@ -1009,7 +1112,7 @@ const PostCard = ({
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [post.username, currentUser]);
+  }, [post.username, currentUser, everNear]);
 
   // Connect / Withdraw-Disconnect — unified with Reels.jsx / Video.jsx:
   //   • self-connect guard
@@ -1579,6 +1682,7 @@ const PostCard = ({
                     alt=""
                     className="pf-link-image"
                     loading="lazy"
+                    decoding="async"
                   />
                 )}
                 <div className="pf-link-bar" />
@@ -1596,12 +1700,14 @@ const PostCard = ({
             card. A direct child of .pf-card (NOT inside .pf-card-body), so
             it sits between the post media and the action bar and picks up
             the card's --pf-card-pad side margin. Replaces the old floating
-            popup. */}
+            popup.
+            PERF: the handlers are shared across all cards, so each call
+            passes this post's author. */}
         {!isEditing && interestPrompt && (
           <InlineInterestPrompt
-            onInterested={onInterested}
-            onNotInterested={onNotInterested}
-            onUndo={onInterestUndo}
+            onInterested={() => onInterested?.(post.username)}
+            onNotInterested={() => onNotInterested?.(post.username)}
+            onUndo={() => onInterestUndo?.(post.username)}
             onDismiss={onInterestDismiss}
           />
         )}
@@ -1888,4 +1994,7 @@ const PostCard = ({
   );
 };
 
-export default PostCard;
+// PERF: memoised, so a change elsewhere in the feed (another post's
+// reaction, a view-count tick, a new "N new" pill) no longer re-renders
+// every post card. PostFeed passes stable callbacks for this to work.
+export default React.memo(PostCard);

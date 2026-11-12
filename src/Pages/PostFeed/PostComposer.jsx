@@ -14,6 +14,8 @@ import { notifyConnections } from "../../utils/notifications";
 // ⚠ Adjust this path to wherever RecordModal lives in your project — in
 // VideoUpload.jsx it is imported as "../RecordModal/RecordModal".
 import RecordModal from "../../Pages/RecordModal/RecordModal";
+// NEW: i18n — t("key") follows the user's language preference (en / hi / mr).
+import useT from "../../i18n";
 
 // NOTE: no cap on image count anymore — ImageGrid/HomeImageGrid already
 // render any number of images fine (4 visible tiles + a "+N" overlay for
@@ -23,12 +25,15 @@ import RecordModal from "../../Pages/RecordModal/RecordModal";
 const MAX_VIDEO_MB = 4096; // adjust as needed — R2 has no per-request size ceiling like Vercel's function body did
 const LINK_PREVIEW_DEBOUNCE_MS = 600;
 
+// `label` is kept for reference; the UI shows t("privacy." + value).
 const PRIVACY_OPTIONS = [
   { value: "public", label: "Public", icon: "🌐" },
   { value: "friends", label: "Friends", icon: "👥" },
   { value: "only_me", label: "Only me", icon: "🔒" },
 ];
 
+// NOTE: these exact strings are what gets saved with the post (and shown in
+// the post header), so they stay English.
 const FEELINGS = [
   "Happy 😊", "Excited 🤩", "Grateful 🙏", "Blessed ✨",
   "Motivated 💪", "Tired 😴", "Loved ❤️", "Proud 🎉",
@@ -260,6 +265,8 @@ const generatePlaceholderThumbnail = (title, portrait) =>
   });
 
 const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
+  const { t } = useT();
+
   // NEW: what is being created — "post" (normal post), "reel" (saved to the
   // reels table) or "video" (saved to the videos table, like the Upload page).
   // "Live / Record" is not a mode: it opens the RecordModal popup instead.
@@ -338,7 +345,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
     setReelSuccess(false);
     if (mode === "reel" || mode === "video") {
       if (imageFiles.length > 0 || gifStickerAttachment || linkUrl) {
-        setError(`A ${mode} is a single video. Remove the photos, GIF/sticker or link first.`);
+        setError(t("err.singleVideo", { kind: t("kind." + mode) }));
         return;
       }
       setShowLinkInput(false);
@@ -353,12 +360,12 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
     setError("");
 
     if (videoFile) {
-      setError("A post can have images or a video, not both. Remove the video first.");
+      setError(t("err.imagesOrVideoRemoveVideo"));
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
     if (gifStickerAttachment) {
-      setError("A post can't combine a GIF/sticker with photos. Remove the GIF/sticker first.");
+      setError(t("err.gifWithPhotos"));
       if (fileRef.current) fileRef.current.value = "";
       return;
     }
@@ -382,25 +389,25 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
     setError("");
 
     if (imageFiles.length > 0) {
-      setError("A post can have images or a video, not both. Remove the images first.");
+      setError(t("err.imagesOrVideoRemoveImages"));
       if (videoRef.current) videoRef.current.value = "";
       return;
     }
     if (gifStickerAttachment) {
-      setError("A post can't combine a GIF/sticker with a video. Remove the GIF/sticker first.");
+      setError(t("err.gifWithVideo"));
       if (videoRef.current) videoRef.current.value = "";
       return;
     }
 
     if (!file.type.startsWith("video/")) {
-      setError("Please select a valid video file.");
+      setError(t("err.invalidVideo"));
       if (videoRef.current) videoRef.current.value = "";
       return;
     }
 
     const sizeMB = file.size / (1024 * 1024);
     if (sizeMB > MAX_VIDEO_MB) {
-      setError(`Video is too large. Max size is ${MAX_VIDEO_MB / 1024}GB.`);
+      setError(t("err.videoTooLarge", { gb: MAX_VIDEO_MB / 1024 }));
       if (videoRef.current) videoRef.current.value = "";
       return;
     }
@@ -428,11 +435,11 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
   const handleGifStickerSelect = ({ url, type }) => {
     setError("");
     if (isMedia) {
-      setError(`GIFs and stickers can't be added to a ${postAs}.`);
+      setError(t("err.gifNotAllowed", { kind: t("kind." + postAs) }));
       return;
     }
     if (imageFiles.length > 0 || videoFile) {
-      setError("A post can't combine a GIF/sticker with photos or a video. Remove those first.");
+      setError(t("err.gifWithMedia"));
       return;
     }
     setGifStickerAttachment({ url, type });
@@ -462,6 +469,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
       setLinkPreview(res.data);
     } catch {
       const domain = parsedUrl.hostname.replace(/^www\./, "");
+      // NOTE: this title is saved with the post, so it stays English.
       setLinkPreview({
         url: parsedUrl.toString(),
         domain,
@@ -539,13 +547,18 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
   const submitVideoContent = async () => {
     const title = mediaTitle.trim() || text.trim().slice(0, 60);
     const description = text.trim() || title;
+    // `label` is used for the notification text other people receive (kept
+    // English); `kindLabel` is the word shown to THIS user in their language.
     const label = isVideo ? "video" : "reel";
+    const kindLabel = t("kind." + label);
 
-    if (!videoFile) throw new Error(`Please choose a video for your ${label}.`);
-    if (!title) throw new Error(`Please add a title for your ${label}.`);
-    if (isVideo && !videoCategory.trim()) throw new Error("Please enter a category.");
+    if (!videoFile) throw new Error(t("err.chooseVideo", { kind: kindLabel }));
+    if (!title) throw new Error(t("err.addTitle", { kind: kindLabel }));
+    if (isVideo && !videoCategory.trim()) throw new Error(t("err.addCategory"));
 
     // Same community-guidelines check the Upload page runs.
+    // The error is tagged with `isModeration` (instead of matching its English
+    // text) so it is still re-thrown after the message is translated.
     try {
       const { isClean, violatingWord } = await checkContent(
         title,
@@ -553,12 +566,12 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
         isVideo ? videoCategory.trim() : "",
       );
       if (!isClean) {
-        throw new Error(
-          `Content violates community guidelines (contains "${violatingWord}"). Please review our Community Guidelines before uploading.`,
-        );
+        const modErr = new Error(t("err.moderation", { word: violatingWord }));
+        modErr.isModeration = true;
+        throw modErr;
       }
     } catch (moderationErr) {
-      if (/community guidelines/i.test(moderationErr?.message || "")) throw moderationErr;
+      if (moderationErr?.isModeration) throw moderationErr;
       console.warn("Moderation check failed, proceeding:", moderationErr);
     }
 
@@ -576,7 +589,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
     // are always 16:9.
     const portrait = isReel && meta.portrait;
     const thumbBlob = capturedBlob || (await generatePlaceholderThumbnail(title, portrait));
-    if (!thumbBlob) throw new Error(`Couldn't create a thumbnail for your ${label}.`);
+    if (!thumbBlob) throw new Error(t("err.thumbnail", { kind: kindLabel }));
     const thumbnailUrl = await uploadThumbnail(thumbBlob, portrait);
 
     const uploaderUsername = currentUser || "anonymous";
@@ -736,7 +749,12 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
 
       resetAfterSuccess();
     } catch (err) {
-      setError(err.message || (isMedia ? `Failed to share ${postAs}. Please try again.` : "Failed to post. Please try again."));
+      setError(
+        err.message ||
+        (isMedia
+          ? t("err.shareFailed", { kind: t("kind." + postAs) })
+          : t("err.postFailed"))
+      );
     } finally {
       setPosting(false);
     }
@@ -745,17 +763,21 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
   const mediaAlreadyAttached = imageFiles.length > 0 || !!videoFile || !!gifStickerAttachment;
 
   const postLabel = posting
-    ? isMedia ? "Sharing…" : "Posting…"
-    : isReel ? "Share Reel" : isVideo ? "Share Video" : "Post";
+    ? isMedia ? t("composer.sharing") : t("composer.posting")
+    : isReel
+      ? t("composer.shareReel")
+      : isVideo
+        ? t("composer.shareVideo")
+        : t("composer.postBtn");
 
   return (
     <div className="pf-composer">
       {/* NEW: Post / Reel / Video / Live switch */}
-      <div className="pf-mode-toggle" role="tablist" aria-label="Create">
+      <div className="pf-mode-toggle" role="tablist" aria-label={t("composer.create")}>
         {[
-          { key: "post", label: "📝 Post" },
-          { key: "reel", label: "🎬 Reel" },
-          { key: "video", label: "📺 Video" },
+          { key: "post", label: `📝 ${t("composer.modePost")}` },
+          { key: "reel", label: `🎬 ${t("composer.modeReel")}` },
+          { key: "video", label: `📺 ${t("composer.modeVideo")}` },
         ].map((m) => (
           <button
             key={m.key}
@@ -777,7 +799,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
           disabled={posting}
         >
           <span className="pf-live-dot" aria-hidden="true" />
-          Live / Record
+          {t("composer.liveRecord")}
         </button>
       </div>
 
@@ -789,7 +811,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
             <input
               type="text"
               className="pf-link-input"
-              placeholder={isVideo ? "Video title" : "Reel title"}
+              placeholder={isVideo ? t("composer.videoTitle") : t("composer.reelTitle")}
               value={mediaTitle}
               onChange={(e) => setMediaTitle(e.target.value)}
               maxLength={100}
@@ -799,7 +821,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
             <input
               type="text"
               className="pf-link-input"
-              placeholder="Category (e.g. Music, Gaming, News)"
+              placeholder={t("composer.category")}
               value={videoCategory}
               onChange={(e) => setVideoCategory(e.target.value)}
               maxLength={40}
@@ -813,24 +835,22 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
             onChange={(e) => setText(e.target.value)}
             placeholder={
               isReel
-                ? "Describe your reel…"
+                ? t("composer.describeReel")
                 : isVideo
-                  ? "Describe your video…"
-                  : `What's on your mind, ${currentUser}?`
+                  ? t("composer.describeVideo")
+                  : t("composer.placeholder", { name: currentUser })
             }
             rows={3}
           />
 
           {isMedia && !videoFile && (
             <p className="pf-reel-hint">
-              {isReel
-                ? "Tap 🎥 below to choose the video for your reel. Reels are short vertical videos and appear in the Reels / Shorts section."
-                : "Tap 🎥 below to choose your video. It will be published in the Videos section with its own title and category."}
+              {isReel ? t("composer.hintReel") : t("composer.hintVideo")}
             </p>
           )}
 
           {feeling && (
-            <p className="pf-feeling-badge">— feeling {feeling}</p>
+            <p className="pf-feeling-badge">— {t("post.feeling")} {feeling}</p>
           )}
 
           {/* Small 🎵 line (same as the post card header) — removable. */}
@@ -852,7 +872,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
           {isMedia && song && (
             <div className="pf-reel-volume">
               <div className="pf-reel-volume-row">
-                <span>🔊 Original video volume</span>
+                <span>🔊 {t("composer.originalVolume")}</span>
                 <b>{Math.round(originalAudioVolume * 100)}%</b>
               </div>
               <input
@@ -868,7 +888,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
           {/* Attached location preview — removable */}
           {locationName && (
             <p className="pf-feeling-badge">
-              📍 at <b>{locationName}</b>{" "}
+              📍 {t("post.at")} <b>{locationName}</b>{" "}
               <span
                 style={{ cursor: "pointer", color: "#b08585", marginLeft: "4px" }}
                 onClick={() => setLocationName(null)}
@@ -886,7 +906,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
                   <button
                     className="pf-img-clear"
                     onClick={() => removeImage(idx)}
-                    aria-label="Remove image"
+                    aria-label={t("post.removeImage")}
                   >
                     ✕
                   </button>
@@ -905,7 +925,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
               <button
                 className="pf-img-clear"
                 onClick={removeVideo}
-                aria-label="Remove video"
+                aria-label={t("composer.removeVideo")}
               >
                 ✕
               </button>
@@ -923,7 +943,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
               <button
                 className="pf-img-clear"
                 onClick={removeGifSticker}
-                aria-label="Remove GIF/sticker"
+                aria-label={t("composer.removeGif")}
               >
                 ✕
               </button>
@@ -934,14 +954,14 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
             <input
               type="url"
               className="pf-link-input"
-              placeholder="Paste a URL…"
+              placeholder={t("composer.pasteUrl")}
               value={linkUrl}
               onChange={(e) => handleLinkInput(e.target.value)}
             />
           )}
 
           {fetchingPreview && !isMedia && (
-            <div className="pf-link-loading">Fetching link preview…</div>
+            <div className="pf-link-loading">{t("composer.fetchingPreview")}</div>
           )}
 
           {!fetchingPreview && linkPreview && !isMedia && (
@@ -974,9 +994,9 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
 
           {reelSuccess && (
             <p className="pf-reel-success">
-              ✅ Your {successKind} is live!{" "}
+              ✅ {successKind === "video" ? t("composer.liveVideo") : t("composer.liveReel")}{" "}
               <a href={successKind === "video" ? "/" : "/reels"}>
-                {successKind === "video" ? "View on Home" : "View in Reels"}
+                {successKind === "video" ? t("composer.viewHome") : t("composer.viewReels")}
               </a>
             </p>
           )}
@@ -1004,7 +1024,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
           {/* Photos aren't available in Reel mode. */}
           <label
             className="pf-attach-btn"
-            title="Photo"
+            title={t("composer.titlePhoto")}
             style={
               isMedia || videoFile || gifStickerAttachment
                 ? { opacity: 0.4, cursor: "not-allowed" }
@@ -1025,7 +1045,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
 
           <label
             className="pf-attach-btn"
-            title={isMedia ? `Choose ${postAs} video` : "Video"}
+            title={isMedia ? t("composer.chooseVideo") : t("composer.modeVideo")}
             style={
               imageFiles.length > 0 || gifStickerAttachment
                 ? { opacity: 0.4, cursor: "not-allowed" }
@@ -1046,14 +1066,14 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
           {/* Links aren't available in Reel mode. */}
           <button
             className="pf-attach-btn"
-            title="Link"
+            title={t("composer.titleLink")}
             onClick={() => setShowLinkInput((v) => !v)}
             disabled={isMedia}
             style={isMedia ? { opacity: 0.4, cursor: "not-allowed" } : {}}
           >🔗</button>
           <button
             className="pf-attach-btn"
-            title="Feeling"
+            title={t("composer.titleFeeling")}
             onClick={() => setShowFeelings((v) => !v)}
           >😊</button>
 
@@ -1062,7 +1082,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
             <button
               type="button"
               className="pf-attach-btn"
-              title="Music"
+              title={t("composer.titleMusic")}
               onClick={() => setShowMusicPicker((v) => !v)}
             >
               🎵
@@ -1082,7 +1102,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
             <button
               type="button"
               className="pf-attach-btn"
-              title="Check in"
+              title={t("composer.titleCheckin")}
               onClick={() => setShowLocationPicker((v) => !v)}
             >
               📍
@@ -1098,12 +1118,15 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
           </div>
 
           {/* Emoji / GIF / Sticker picker. In Reel mode GIF/sticker picks
-              are refused (see handleGifStickerSelect); emoji still works. */}
+              are refused (see handleGifStickerSelect); emoji still works.
+              `data-cmp-trigger` stops the picker's outside-click handler
+              from closing-then-reopening it when this button is tapped. */}
           <div className="pf-attach-wrap">
             <button
               className="pf-attach-btn"
-              title="Emoji, GIFs & stickers"
+              title={t("composer.titlePicker")}
               type="button"
+              data-cmp-trigger
               onClick={() => setShowEmojiPicker((v) => !v)}
               style={mediaAlreadyAttached && !gifStickerAttachment ? { opacity: 0.4 } : {}}
             >
@@ -1111,7 +1134,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
             </button>
             {showEmojiPicker && (
               <CommentMediaPicker
-                onEmojiSelect={(emoji) => setText((t) => t + emoji)}
+                onEmojiSelect={(emoji) => setText((prev) => prev + emoji)}
                 onMediaSelect={handleGifStickerSelect}
                 onClose={() => setShowEmojiPicker(false)}
               />
@@ -1119,7 +1142,9 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
           </div>
 
           {imageFiles.length > 0 && (
-            <span className="pf-image-count">{imageFiles.length} selected</span>
+            <span className="pf-image-count">
+              {t("composer.selected", { n: imageFiles.length })}
+            </span>
           )}
         </div>
 
@@ -1133,7 +1158,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
             >
               {PRIVACY_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
-                  {o.icon} {o.label}
+                  {o.icon} {t("privacy." + o.value)}
                 </option>
               ))}
             </select>

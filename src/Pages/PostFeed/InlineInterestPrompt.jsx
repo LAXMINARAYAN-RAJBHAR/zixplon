@@ -11,7 +11,7 @@ import React, { useState } from "react";
 //   3. the first supported non-English language in the browser/phone
 //      language list (navigator.languages), else
 //   4. English only.
-// Supported codes: mr hi gu bn ta te kn ml pa
+// Supported codes: mr hi gu bn ta te kn ml pa or as ur
 //
 // ⚠ Have a native speaker of each language review these strings before
 // shipping — short UI labels are easy to get subtly wrong.
@@ -94,7 +94,32 @@ const STRINGS = {
     thanks: "ਧੰਨਵਾਦ",
     undo: "ਅਣਡੂ ਕਰੋ",
   },
+  or: {
+    question: "ଏହି ପୋଷ୍ଟରେ ଆପଣଙ୍କର ଆଗ୍ରହ ଅଛି କି?",
+    yes: "ଆଗ୍ରହ ଅଛି",
+    no: "ଆଗ୍ରହ ନାହିଁ",
+    thanks: "ଧନ୍ୟବାଦ",
+    undo: "ପୂର୍ବବତ୍ କରନ୍ତୁ",
+  },
+  as: {
+    question: "আপুনি এই পোষ্টটোত আগ্ৰহী নে?",
+    yes: "আগ্ৰহী",
+    no: "আগ্ৰহী নহয়",
+    thanks: "ধন্যবাদ",
+    undo: "পূৰ্বাৱস্থালৈ ঘূৰাওক",
+  },
+  ur: {
+    question: "کیا آپ کو اس پوسٹ میں دلچسپی ہے؟",
+    yes: "دلچسپی ہے",
+    no: "دلچسپی نہیں ہے",
+    thanks: "شکریہ",
+    undo: "واپس کریں",
+  },
 };
+
+// Right-to-left languages (their text is isolated so it doesn't scramble
+// the " · English" part of the line).
+const RTL_LANGS = new Set(["ur"]);
 
 const baseCode = (code) => String(code || "").toLowerCase().split("-")[0];
 
@@ -118,8 +143,14 @@ const detectRegionalLang = (override) => {
 };
 
 // "<regional> · English", or just English when there is no regional match.
-const both = (regional, key) =>
-  regional ? `${STRINGS[regional][key]} · ${STRINGS.en[key]}` : STRINGS.en[key];
+// RTL text is wrapped in Unicode isolates (U+2067 … U+2069) so it keeps its
+// own direction inside the left-to-right line.
+const both = (regional, key) => {
+  if (!regional) return STRINGS.en[key];
+  const native = STRINGS[regional][key];
+  const shown = RTL_LANGS.has(regional) ? `\u2067${native}\u2069` : native;
+  return `${shown} · ${STRINGS.en[key]}`;
+};
 
 const InlineInterestPrompt = ({ lang, onInterested, onNotInterested, onUndo, onDismiss }) => {
   const [answer, setAnswer] = useState(null); // null | "interested" | "not_interested"

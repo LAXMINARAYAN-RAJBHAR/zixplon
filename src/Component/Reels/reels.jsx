@@ -1930,6 +1930,8 @@ const ReelItemBase = ({ reel, fb }) => {
               text={reel.description}
               maxChars={90}
               toggleClassName="reel_description_toggle"
+              collapseSignal={!isActive}
+              scrollWhenExpanded
             />
           </div>
         </div>

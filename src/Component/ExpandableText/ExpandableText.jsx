@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { linkifyText, closeDanglingBold } from "../../utils/linkify";
 
 /**
@@ -14,6 +14,14 @@ import { linkifyText, closeDanglingBold } from "../../utils/linkify";
  * slicing raw text at maxChars can land in the middle of a **bold**
  * span, leaving one unmatched "**" that would otherwise render as two
  * literal asterisks instead of finishing the bold run cleanly.
+ *
+ * NEW props (both optional, default to the old behaviour):
+ *  - collapseSignal: when this flips to true the text collapses again
+ *    (Reels passes !isActive so a reel is collapsed when it scrolls away).
+ *  - scrollWhenExpanded: when true, the expanded text is put in a
+ *    height-limited, scrollable block with "Show less" below it, so a
+ *    long caption can't overflow the reel. Off by default so PostCard
+ *    and Video are unaffected.
  */
 const ExpandableText = ({
   text,
@@ -23,8 +31,15 @@ const ExpandableText = ({
   hashtagClassName = "expandable-text-hashtag",
   mentionClassName = "expandable-text-mention",
   boldClassName = "",
+  collapseSignal = false,
+  scrollWhenExpanded = false,
 }) => {
   const [expanded, setExpanded] = useState(false);
+
+  // Hooks must run before the early return below.
+  useEffect(() => {
+    if (collapseSignal) setExpanded(false);
+  }, [collapseSignal]);
 
   if (!text) return null;
 
@@ -32,18 +47,28 @@ const ExpandableText = ({
   const rawDisplayText = expanded || !isLong ? text : text.slice(0, maxChars).trimEnd() + "…";
   const displayText = isLong && !expanded ? closeDanglingBold(rawDisplayText) : rawDisplayText;
 
+  const linked = linkifyText(displayText, { hashtagClassName, mentionClassName, boldClassName });
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    setExpanded((v) => !v);
+  };
+
+  const useScrollBlock = scrollWhenExpanded && expanded;
+
   return (
-    <span className={className}>
-      {linkifyText(displayText, { hashtagClassName, mentionClassName, boldClassName })}
+    <span className={className} data-expanded={expanded ? "true" : "false"}>
+      {useScrollBlock ? (
+        <span className="expandable-text-body">{linked}</span>
+      ) : (
+        linked
+      )}
       {isLong && (
         <span
-          className={`expandable-text-toggle ${toggleClassName}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            setExpanded((v) => !v);
-          }}
+          className={`expandable-text-toggle${useScrollBlock ? " expandable-text-toggle--block" : ""} ${toggleClassName}`}
+          onClick={toggle}
         >
-          {expanded ? " Show less" : " Show more"}
+          {expanded ? (useScrollBlock ? "Show less" : " Show less") : " Show more"}
         </span>
       )}
     </span>

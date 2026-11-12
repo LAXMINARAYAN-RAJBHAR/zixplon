@@ -219,14 +219,46 @@
 
 /* ══════════════════════════════════════
    USER INFO (bottom-left)
+   CHANGED: the block now has a right boundary (clears the action rail),
+   a max-height (never grows into the top chips), and is a flex column
+   so the username row stays put while the description scrolls.
 ══════════════════════════════════════ */
 
 .reel_info {
   position: absolute;
   bottom: 55px;
   left: 12px;
+  right: 76px;                     /* clear the action rail */
+  max-height: calc(100% - 140px);  /* never reach the top chips */
+  display: flex;
+  flex-direction: column;
   color: #ffffff;
   z-index: 10;
+}
+
+/* Scrim: fades in only while the caption is expanded.
+   (ExpandableText sets data-expanded="true" on its wrapper.) */
+.reel_info::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  right: -76px;
+  top: -28px;
+  bottom: -55px;
+  background: linear-gradient(
+    to top,
+    rgba(12, 8, 35, 0.92) 0%,
+    rgba(12, 8, 35, 0.7) 65%,
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.reel_info:has([data-expanded="true"])::before {
+  opacity: 1;
 }
 
 .reel_user {
@@ -234,6 +266,7 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 6px;
+  flex-shrink: 0;                  /* username + Connect always visible */
 }
 
 .reel_profile_pic {
@@ -299,10 +332,13 @@
   cursor: not-allowed;
 }
 
+/* CHANGED: max-width: 220px removed (the .reel_info right boundary now
+   limits the width), min-height: 0 added so the flex column can shrink
+   it. The expanded text scrolls inside .expandable-text-body. */
 .reel_description {
+  min-height: 0;
   font-size: 13px;
   font-family: 'Outfit', sans-serif;
-  max-width: 220px;
   line-height: 1.5;
   color: rgba(255,255,255,0.88);
   text-shadow: 0 1px 5px rgba(0,0,0,0.6);
@@ -1030,6 +1066,15 @@ body.reels-open .reel_item   { height: 100dvh; }
     left: 12px;
     max-width: calc(100% - 70px);
   }
+
+  /* action rail is 46px wide + 10px offset on mobile, so the info block
+     can use a little more width */
+  .reel_info {
+    right: 66px;
+  }
+  .reel_info::before {
+    right: -66px;
+  }
 }
 
 /* ══════════════════════════════════════
@@ -1128,6 +1173,10 @@ body.reels-open .reel_item   { height: 100dvh; }
 .reel_report_btn { background: rgba(244,63,94,0.18) !important; border-color: rgba(244,63,94,0.45) !important; }
 .reel_report_btn:hover { background: rgba(244,63,94,0.55) !important; box-shadow: 0 8px 26px rgba(244,63,94,0.45) !important; }
 
+/* ══════════════════════════════════════
+   EXPANDABLE TEXT (Show more / Show less)
+══════════════════════════════════════ */
+
 .expandable-text-toggle {
   color: var(--zx-primary, #dc2626);
   font-weight: 700;
@@ -1138,6 +1187,27 @@ body.reels-open .reel_item   { height: 100dvh; }
 }
 .expandable-text-toggle:hover {
   text-decoration: underline;
+}
+
+/* NEW: expanded caption (only rendered when ExpandableText gets
+   scrollWhenExpanded) — height-limited and scrollable, so a long
+   caption can't overflow the reel. */
+.expandable-text-body {
+  display: block;
+  max-height: 34vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;   /* don't chain into reel snap-scroll */
+  white-space: pre-wrap;          /* keep the caption's line breaks */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.35) transparent;
+  padding-right: 4px;
+}
+
+/* "Show less" sits on its own line below the scrollable text */
+.expandable-text-toggle--block {
+  display: inline-block;
+  margin-top: 4px;
+  margin-left: 0;
 }
 
 .reel_description_toggle {

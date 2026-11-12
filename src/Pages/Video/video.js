@@ -14,7 +14,8 @@ import useNetworkQuality from "../../hooks/useNetworkQuality";
 import { getAdaptiveVideoSrc } from "../../utils/videoQuality";
 import ReportModal from "../../Component/Moderation/ReportModal";
 import ExpandableText from "../../Component/ExpandableText/ExpandableText";
-import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
+// PERF: AutoPlayVideo import removed — the suggestions list no longer
+// mounts a <video> element per suggestion (see SuggestionThumb below).
 import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
 // NEW: attached-song mini player — shown when a video carries `song`
 // ({ title, artist, cover, url }), same component used in PostCard.jsx /
@@ -316,12 +317,16 @@ const exitFullscreen = () => {
 };
 
 // NEW: thumbnail for a suggestion card. Uses the stored thumbnail image
-// when it loads; if the URL is missing or the image fails (e.g. R2 videos
-// with no thumbnail_url), it falls back to showing the first frame of the
-// video itself (metadata-only preload + a #t=0.5 media fragment), and
-// finally to a plain placeholder for HLS manifests, which can't be
-// shown as a still frame this way.
-const SuggestionThumb = ({ thumbnail, src, title }) => {
+// when it loads; if the URL is missing or the image fails, it shows a
+// plain placeholder.
+//
+// PERF: this used to fall back to mounting an <AutoPlayVideo> (a real
+// <video> element fetching the file's first frame) for every suggestion
+// without a thumbnail — i.e. dozens of extra video elements fetching and
+// decoding while the main video was playing. The fallback is now a
+// lightweight placeholder. To get real thumbnails for R2 videos, generate
+// and store `thumbnail_url` when the video is uploaded.
+const SuggestionThumb = ({ thumbnail, title }) => {
   const [imgFailed, setImgFailed] = useState(false);
 
   useEffect(() => {
@@ -336,17 +341,6 @@ const SuggestionThumb = ({ thumbnail, src, title }) => {
         alt={title}
         loading="lazy"
         onError={() => setImgFailed(true)}
-      />
-    );
-  }
-
-  if (src && !isHlsSource(src)) {
-    return (
-      <AutoPlayVideo
-        src={`${src}#t=0.5`}
-        active={false}
-        preloadMode="metadata"
-        className="video_suggestion_thumbnail_img video_suggestion_thumbnail_frame"
       />
     );
   }
@@ -407,6 +401,9 @@ const Video = ({ sideNavbar }) => {
   // "format may not be supported" banner stayed up forever even once
   // playback had clearly succeeded, since nothing ever cleared it in
   // that case — only an actual videoError did.
+  //
+  // PERF: this flag is also what gates the next-video preload below, so
+  // the next clip is only warmed up once THIS one is actually playing.
   const [hasPlayedSuccessfully, setHasPlayedSuccessfully] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
@@ -1621,13 +1618,20 @@ const Video = ({ sideNavbar }) => {
 
   // ── Next-video preloading (NEW) ─────────────────────────────────────
   // Warms the browser's cache for whatever comes next (respecting
-  // autoplay / prev-next navigation) so the transition feels instant
-  // instead of starting a cold fetch the moment the person clicks.
+  // autoplay / prev-next navigation) so the transition feels quicker.
   // - HLS sources: just prefetch the manifest itself (cheap — the actual
   //   segments stream in once hls.js takes over on navigation).
-  // - Plain mp4/webm sources: spin up an off-DOM <video preload="auto">
-  //   so the browser buffers real bytes of the file ahead of time.
+  // - Plain mp4/webm sources: spin up an off-DOM <video> element.
+  //
+  // PERF: two changes. (1) This now waits until the CURRENT video is
+  // actually playing (hasPlayedSuccessfully) so the next clip never
+  // competes with the current one for bandwidth while it is still
+  // starting up / buffering. (2) preload is "metadata" instead of "auto":
+  // it fetches only the file header and first bytes, not the whole next
+  // video. (With +faststart encoded files that is enough for a quick
+  // start.)
   useEffect(() => {
+    if (!hasPlayedSuccessfully) return;
     if (!nextVideo?.src || nextVideo.id === video?.id) return;
 
     const nextSrc = getAdaptiveVideoSrc(
@@ -1643,7 +1647,7 @@ const Video = ({ sideNavbar }) => {
       fetch(nextSrc, { mode: "cors" }).catch(() => { });
     } else {
       const preloadEl = document.createElement("video");
-      preloadEl.preload = "auto";
+      preloadEl.preload = "metadata";
       preloadEl.muted = true;
       preloadEl.style.display = "none";
       preloadEl.src = nextSrc;
@@ -1660,7 +1664,7 @@ const Video = ({ sideNavbar }) => {
         preloadVideoElRef.current = null;
       }
     };
-  }, [nextVideo?.id, nextVideo?.src, video?.id, quality]);
+  }, [nextVideo?.id, nextVideo?.src, video?.id, quality, hasPlayedSuccessfully]);
 
   useEffect(() => {
     const vid = videoRef.current;
@@ -1959,7 +1963,8 @@ const Video = ({ sideNavbar }) => {
               gesture) turns sound on. Also lifted automatically by the
               visitor's next tap/click elsewhere on the page when the
               cause was blocked autoplay. Styled inline so no CSS file
-              change is needed. */}
+              change is needed.
+              PERF: no backdrop blur on mobile. */}
           {autoMuted && (
             <button
               type="button"
@@ -1971,9 +1976,9 @@ const Video = ({ sideNavbar }) => {
                 left: "12px",
                 bottom: isMobile ? "52px" : "56px",
                 zIndex: 31,
-                background: "rgba(12, 8, 35, 0.72)",
-                backdropFilter: "blur(12px)",
-                WebkitBackdropFilter: "blur(12px)",
+                background: isMobile ? "rgba(12, 8, 35, 0.88)" : "rgba(12, 8, 35, 0.72)",
+                backdropFilter: isMobile ? "none" : "blur(12px)",
+                WebkitBackdropFilter: isMobile ? "none" : "blur(12px)",
                 color: "#fff",
                 border: "1px solid rgba(255,255,255,0.25)",
                 borderRadius: "999px",
@@ -2473,7 +2478,6 @@ const Video = ({ sideNavbar }) => {
             >
               <SuggestionThumb
                 thumbnail={suggestion.thumbnail}
-                src={suggestion.src}
                 title={suggestion.title}
               />
             </PreviewThumb>

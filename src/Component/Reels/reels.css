@@ -1172,11 +1172,18 @@ body.reels-open .reel_item   { height: 100dvh; }
   bottom: -6px;
 }
 
+/* PERF: the fill is always full-width and scaled with a transform that
+   Reels.jsx updates through a ref (no React re-render per timeupdate).
+   transform is GPU-composited, unlike animating width. */
 .reel_progress_fill {
+  width: 100%;
   height: 100%;
   background: linear-gradient(90deg, var(--zx-primary), var(--zx-accent2));
   box-shadow: 0 0 8px rgba(220,38,38,0.6);
-  transition: width 0.1s linear;
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: none;
+  will-change: transform;
 }
 
 @media (max-width: 768px) {
@@ -1253,4 +1260,44 @@ body.reels-open .reel_item   { height: 100dvh; }
 }
 .reel_comment_emoji_btn:hover {
   background: rgba(220, 38, 38, 0.08);
+}
+
+/* ══════════════════════════════════════
+   PERF: NO BLUR ON MOBILE
+   backdrop-filter has to be re-computed on every video frame for every
+   element that sits above a playing video, which is very expensive on
+   low/mid-range Android GPUs. On mobile these use solid translucent
+   backgrounds instead. Placed LAST so it wins over the rules above.
+   (The connect button and remix badge keep their own backgrounds — only
+   their blur is removed.)
+══════════════════════════════════════ */
+@media (max-width: 768px) {
+  .reel_action_btn,
+  .reel_playpause_btn,
+  .reel_mute_btn,
+  .reel_top_chip,
+  .reel_connect_btn,
+  .reel_remix_origin_badge,
+  .reel_more_dropdown,
+  .reel_share_toast,
+  .reels_back_btn {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .reel_action_btn,
+  .reel_playpause_btn,
+  .reel_mute_btn,
+  .reel_top_chip,
+  .reels_back_btn {
+    background: rgba(12, 8, 35, 0.78);
+  }
+
+  .reel_more_dropdown {
+    background: rgba(12, 8, 35, 0.97);
+  }
+
+  .reel_share_toast {
+    background: rgba(12, 8, 35, 0.92);
+  }
 }

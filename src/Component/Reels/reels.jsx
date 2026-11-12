@@ -338,7 +338,10 @@ const MoreDropdown = ({
   );
 };
 
-const ReelItem = ({ reel, allReels, fb }) => {
+// PERF: the unused `allReels` prop was removed, and the component is
+// wrapped in React.memo (see ReelItem below the component) so a change in
+// the parent no longer re-renders every reel.
+const ReelItemBase = ({ reel, fb }) => {
   const navigate = useNavigate();
   const videoRef = useRef(null);
   const containerRef = useRef(null);
@@ -351,6 +354,10 @@ const ReelItem = ({ reel, allReels, fb }) => {
   const tapTimeoutRef = useRef(null);
   const muteBtnTimerRef = useRef(null);
   const progressBarRef = useRef(null);
+  // PERF: the progress bar fill is updated directly through this ref
+  // (a CSS transform) instead of React state, so the ~4 timeupdate
+  // events per second no longer re-render the whole reel.
+  const progressFillRef = useRef(null);
   // NEW: holds the active hls.js instance for this reel, torn down on
   // unmount or whenever reel.id/reel.src changes. Same pattern as
   // PostCard.jsx's PostVideo / Video.jsx.
@@ -419,9 +426,15 @@ const ReelItem = ({ reel, allReels, fb }) => {
   const [showMuteBtn, setShowMuteBtn] = useState(true);
   const [showNewBadge, setShowNewBadge] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [progress, setProgress] = useState(0);
-  // NEW: true while this reel is within one screen of the viewport.
+  // PERF: `progress` state removed — see progressFillRef above.
+  // NEW: true while this reel is within half a screen of the viewport.
   const [near, setNear] = useState(false);
+  // PERF: becomes true the first time this reel comes near the viewport
+  // and stays true. Reactions, view count, comments and the connection
+  // channel are only loaded after that, so a page with many reels no
+  // longer fires hundreds of requests and opens dozens of realtime
+  // channels at mount.
+  const [everNear, setEverNear] = useState(false);
   // NEW (feedback prompt): state mirror of isActiveRef — true only while
   // this reel is the one scrolled into view. isActiveRef can't drive a
   // hook's dependencies (refs don't trigger re-renders), so the
@@ -457,14 +470,20 @@ const ReelItem = ({ reel, allReels, fb }) => {
     setShowNewBadge(isNewReel(reel));
   }, [reel.id]);
 
-  // NEW: preload window — only reels within ~1 screen above/below the
-  // viewport buffer; everything else stays idle (preload="none").
+  // NEW: preload window — only reels within ~half a screen above/below
+  // the viewport buffer; everything else stays idle (preload="none").
+  // PERF: rootMargin reduced from 100% to 50%, and the YouTube early
+  // return was removed so YouTube reels also get `near` / `everNear`
+  // (their data loading is gated on it too).
   useEffect(() => {
     const node = containerRef.current;
-    if (!node || isYouTube(reel.src)) return;
+    if (!node) return;
     const observer = new IntersectionObserver(
-      ([entry]) => setNear(entry.isIntersecting),
-      { rootMargin: "100% 0px 100% 0px", threshold: 0 },
+      ([entry]) => {
+        setNear(entry.isIntersecting);
+        if (entry.isIntersecting) setEverNear(true);
+      },
+      { rootMargin: "50% 0px 50% 0px", threshold: 0 },
     );
     observer.observe(node);
     return () => observer.disconnect();
@@ -511,7 +530,9 @@ const ReelItem = ({ reel, allReels, fb }) => {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [showComments]);
 
+  // PERF: gated on everNear — see the state comment above.
   useEffect(() => {
+    if (!everNear) return;
     const loadReactions = async () => {
       const userId = localStorage.getItem("userId");
       const lCount = await fetchCount(reel.id, "reel", "like");
@@ -526,15 +547,17 @@ const ReelItem = ({ reel, allReels, fb }) => {
       setDisliked(!!dislikeData);
     };
     loadReactions();
-  }, [reel.id]);
+  }, [reel.id, everNear]);
 
+  // PERF: gated on everNear.
   useEffect(() => {
+    if (!everNear) return;
     const loadViewCount = async () => {
       const { count } = await supabase.from("views").select("id", { count: "exact", head: true }).match({ content_id: String(reel.id), content_type: "reel" });
       setViewCount(count ?? 0);
     };
     loadViewCount();
-  }, [reel.id]);
+  }, [reel.id, everNear]);
 
   // CHANGED: this loader now also runs for the current user's own reels
   // and simply skips setting state when username === reel.username — but
@@ -542,7 +565,10 @@ const ReelItem = ({ reel, allReels, fb }) => {
   // reels anyway) it still returns early. Now also reads `status` so the
   // button can render its three states (Connect / Requested / ✓
   // Connected) instead of just on/off.
+  // PERF: gated on everNear, so the realtime channel is only opened for
+  // reels the visitor has actually come near.
   useEffect(() => {
+    if (!everNear) return;
     const userId = localStorage.getItem("userId");
     if (!userId) return;
 
@@ -594,7 +620,7 @@ const ReelItem = ({ reel, allReels, fb }) => {
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [reel.username]);
+  }, [reel.username, everNear]);
 
   // CHANGED: now also pulls liked_by / disliked_by / saved_by /
   // parent_comment_id / attachment_url / attachment_type (see
@@ -603,7 +629,9 @@ const ReelItem = ({ reel, allReels, fb }) => {
   // render below, which reverses only the top-level list for
   // newest-first display while keeping each thread's replies in
   // chronological order.
+  // PERF: gated on everNear.
   useEffect(() => {
+    if (!everNear) return;
     const loadComments = async () => {
       const { data } = await supabase
         .from("comments")
@@ -628,18 +656,21 @@ const ReelItem = ({ reel, allReels, fb }) => {
       }
     };
     loadComments();
-  }, [reel.id]);
+  }, [reel.id, everNear]);
 
   useViewTracker({ contentId: reel.id, contentType: "reel", isPlaying });
 
+  // PERF: the progress bar is driven by a ref + CSS transform instead of
+  // setProgress(), so timeupdate no longer triggers a React re-render.
   useEffect(() => {
     if (isYouTube(reel.src)) return;
     const video = videoRef.current;
     if (!video) return;
 
     const handleTimeUpdate = () => {
-      if (video.duration) {
-        setProgress((video.currentTime / video.duration) * 100);
+      const fill = progressFillRef.current;
+      if (video.duration && fill) {
+        fill.style.transform = `scaleX(${video.currentTime / video.duration})`;
       }
     };
 
@@ -671,7 +702,9 @@ const ReelItem = ({ reel, allReels, fb }) => {
 
     if (Hls.isSupported()) {
       const hls = new Hls({
-        maxBufferLength: 30,
+        // PERF: forward buffer reduced from 30s to 10s — reels are short
+        // and several can be near the viewport at once.
+        maxBufferLength: 10,
         enableWorker: true,
         autoStartLoad: false, // started by the `near` effect below
       });
@@ -1393,7 +1426,10 @@ const ReelItem = ({ reel, allReels, fb }) => {
     const clickX = e.clientX - rect.left;
     const pct = Math.min(Math.max(clickX / rect.width, 0), 1);
     video.currentTime = pct * video.duration;
-    setProgress(pct * 100);
+    // PERF: update the fill directly instead of via React state.
+    if (progressFillRef.current) {
+      progressFillRef.current.style.transform = `scaleX(${pct})`;
+    }
   };
 
   const handleLike = async () => {
@@ -1458,9 +1494,14 @@ const ReelItem = ({ reel, allReels, fb }) => {
   // directly, so no <source> child should be rendered at all. Same
   // pattern as PostCard.jsx / Video.jsx.
   const usingHls = isHlsSource(reel.src);
-  const videoPreload = near
+  // PERF: only the active reel preloads the full file. Neighbours load
+  // just metadata (first frame + duration) and everything else stays idle,
+  // so the reel being watched gets the bandwidth.
+  const videoPreload = isActive
     ? (typeof navigator !== "undefined" && navigator.connection?.saveData ? "metadata" : "auto")
-    : "none";
+    : near
+      ? "metadata"
+      : "none";
 
   // NEW: whether the top-left stack has anything to show. The quality
   // chip and "New" badge now live inside the same stack (instead of
@@ -1606,7 +1647,9 @@ const ReelItem = ({ reel, allReels, fb }) => {
             ref={progressBarRef}
             onClick={handleSeek}
           >
-            <div className="reel_progress_fill" style={{ width: `${progress}%` }} />
+            {/* PERF: width is no longer set from state — the fill is
+                scaled via progressFillRef (see reels.css). */}
+            <div className="reel_progress_fill" ref={progressFillRef} />
           </div>
         )}
 
@@ -1896,6 +1939,11 @@ const ReelItem = ({ reel, allReels, fb }) => {
   );
 };
 
+// PERF: memoised so a parent re-render doesn't re-render every reel.
+// (For this to fully pay off, useContentFeedback() should return a
+// memoised `fb` object; otherwise reels still re-render when it changes.)
+const ReelItem = React.memo(ReelItemBase);
+
 const Reels = () => {
   const { id } = useParams();
   const location = useLocation();
@@ -2179,7 +2227,7 @@ const Reels = () => {
 
       <div className="reels_container">
         {visibleReels.map((reel) => (
-          <ReelItem key={reel.id} reel={reel} allReels={visibleReels} fb={fb} />
+          <ReelItem key={reel.id} reel={reel} fb={fb} />
         ))}
       </div>
 

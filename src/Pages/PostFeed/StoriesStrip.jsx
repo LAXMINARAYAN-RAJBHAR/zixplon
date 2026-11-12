@@ -24,6 +24,10 @@ import StoryViewer from "./StoryViewer";
 // CHANGED: StoryCreator can now post several items at once, so
 // handleCreated accepts an ARRAY of new stories (a single story still works).
 //
+// NEW (perf): a video story's preview <video> is only mounted once its card
+// has come near the screen (it used to mount one per video story straight
+// away). Until then — and for HLS stories — the card shows the placeholder.
+//
 // Data comes from the `stories` table and is kept fresh through a
 // realtime subscription.
 // ─────────────────────────────────────────────────────────────────────────
@@ -53,8 +57,34 @@ const StoryTile = ({ group, isOwn, onOpen }) => {
   const s = group.latest;
   const canPreviewVideo = s.media_type === "video" && !isHlsSource(s.media_url);
 
+  // NEW (perf): only mount the preview <video> once this card is near the
+  // screen. One-shot: after it flips to true it stays true.
+  const tileRef = useRef(null);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    if (!canPreviewVideo || near) return;
+    const node = tileRef.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setNear(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setNear(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [canPreviewVideo, near]);
+
   return (
     <button
+      ref={tileRef}
       type="button"
       className="pf-story-card"
       onClick={onOpen}
@@ -63,7 +93,7 @@ const StoryTile = ({ group, isOwn, onOpen }) => {
       <div className="pf-story-card-media">
         {s.media_type === "image" ? (
           <img src={s.media_url} alt="" loading="lazy" draggable={false} />
-        ) : canPreviewVideo ? (
+        ) : canPreviewVideo && near ? (
           <video
             src={`${s.media_url}#t=0.1`}
             preload="metadata"

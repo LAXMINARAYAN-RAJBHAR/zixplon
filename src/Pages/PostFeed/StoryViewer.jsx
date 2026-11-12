@@ -27,6 +27,11 @@ import ReportModal from "../../Component/Moderation/ReportModal";
 //   Own story   👁 count + "Seen by" sheet (views, reactions, replies)
 //   ⋯ menu      own: Delete / Copy link · others: Report / Copy link
 //
+// NEW (perf): the progress bar is no longer React state. It used to call
+// setState on every animation frame (~60×/s) for photos, re-rendering the
+// whole viewer each time. Now the current segment is moved through a ref
+// with a CSS transform (scaleX), so playback causes no re-renders.
+//
 // `groups` is a snapshot taken when the viewer opened:
 //   [{ username, stories: [{ id, username, media_url, media_type, caption,
 //                            created_at, song, ai_generated,
@@ -37,6 +42,9 @@ import ReportModal from "../../Component/Moderation/ReportModal";
 const IMAGE_DURATION_MS = 5000;
 const HOLD_MS = 200;
 const TOAST_MS = 2200;
+
+// NEW (perf): HLS stories keep 10s buffered ahead (hls.js default is 30s).
+const HLS_FORWARD_BUFFER_S = 10;
 
 const REACTIONS = [
   { type: "love", emoji: "❤️", label: "Love" },
@@ -80,7 +88,6 @@ const StoryViewer = ({
   const [data, setData] = useState(groups);
   const [gIdx, setGIdx] = useState(startGroup);
   const [sIdx, setSIdx] = useState(startStory);
-  const [progress, setProgress] = useState(0);
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
 
@@ -106,6 +113,9 @@ const StoryViewer = ({
   const holdTimerRef = useRef(null);
   const heldRef = useRef(false);
   const toastTimerRef = useRef(null);
+  // NEW (perf): the current progress segment's fill element. Moved with a
+  // transform instead of React state (see setBar below).
+  const fillRef = useRef(null);
   // Guards against a reply being sent twice by a double tap / double event.
   const sendingRef = useRef(false);
   const [songSoundId] = useState(() => Symbol("story-song"));
@@ -120,6 +130,12 @@ const StoryViewer = ({
   const hasSound = isVideo || canPlayMusic;
   // NEW: only ever a clean http(s) address, or null.
   const storyLink = story ? normalizeLinkUrl(story.link_url) : null;
+
+  // NEW (perf): set the current segment's fill (0..1) without re-rendering.
+  const setBar = (p) => {
+    const el = fillRef.current;
+    if (el) el.style.transform = `scaleX(${Math.min(1, Math.max(0, p || 0))})`;
+  };
 
   const showToast = (msg) => {
     setToast(msg);
@@ -148,7 +164,7 @@ const StoryViewer = ({
     } else {
       // Already at the very first story — just restart it.
       elapsedRef.current = 0;
-      setProgress(0);
+      setBar(0);
       if (videoRef.current) videoRef.current.currentTime = 0;
     }
   };
@@ -156,7 +172,7 @@ const StoryViewer = ({
   // ── Reset per-story state whenever the story changes ──
   useEffect(() => {
     elapsedRef.current = 0;
-    setProgress(0);
+    setBar(0);
     setPaused(false);
     setMenuOpen(false);
     setReplyText("");
@@ -170,6 +186,7 @@ const StoryViewer = ({
   }, [story?.id]);
 
   // ── Photo timer (pausable) ──
+  // CHANGED (perf): drives the bar through setBar() — no setState per frame.
   useEffect(() => {
     if (!story || story.media_type !== "image" || paused) return;
     let raf;
@@ -178,7 +195,7 @@ const StoryViewer = ({
       elapsedRef.current += now - last;
       last = now;
       const p = Math.min(1, elapsedRef.current / IMAGE_DURATION_MS);
-      setProgress(p);
+      setBar(p);
       if (p >= 1) {
         goNext();
         return;
@@ -191,12 +208,16 @@ const StoryViewer = ({
   }, [story?.id, paused]);
 
   // ── Video: HLS source (plain mp4 uses the src attribute directly) ──
+  // CHANGED (perf): 10s forward buffer instead of hls.js's default 30s.
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid || !isVideo || !isHlsSource(story.media_url)) return;
     let hls;
     if (Hls.isSupported()) {
-      hls = new Hls();
+      hls = new Hls({
+        maxBufferLength: HLS_FORWARD_BUFFER_S,
+        maxMaxBufferLength: HLS_FORWARD_BUFFER_S,
+      });
       hls.loadSource(story.media_url);
       hls.attachMedia(vid);
     } else if (vid.canPlayType("application/vnd.apple.mpegurl")) {
@@ -207,11 +228,12 @@ const StoryViewer = ({
   }, [story?.id]);
 
   // ── Video: progress + auto-advance ──
+  // CHANGED (perf): progress goes through setBar() — no setState.
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid || !isVideo) return;
     const onTime = () => {
-      if (vid.duration) setProgress(vid.currentTime / vid.duration);
+      if (vid.duration) setBar(vid.currentTime / vid.duration);
     };
     const onEnd = () => goNext();
     vid.addEventListener("timeupdate", onTime);
@@ -690,19 +712,33 @@ const StoryViewer = ({
       </button>
 
       <div className="pf-story-stage">
-        {/* Progress segments */}
+        {/* Progress segments.
+            CHANGED (perf): each fill is full-width and scaled with a
+            transform. Finished segments are scaleX(1), upcoming ones
+            scaleX(0), and the current one is moved by setBar() through
+            fillRef — so progress never triggers a React render. The key
+            includes the segment's state so a fill remounts cleanly when it
+            changes state (done / current / upcoming). */}
         <div className="pf-story-bars">
-          {group.stories.map((s, i) => (
-            <div className="pf-story-bar" key={s.id}>
-              <div
-                className="pf-story-bar-fill"
-                style={{
-                  width:
-                    i < sIdx ? "100%" : i === sIdx ? `${progress * 100}%` : "0%",
-                }}
-              />
-            </div>
-          ))}
+          {group.stories.map((s, i) => {
+            const state = i < sIdx ? "done" : i === sIdx ? "current" : "todo";
+            return (
+              <div className="pf-story-bar" key={s.id}>
+                <div
+                  key={state}
+                  ref={state === "current" ? fillRef : null}
+                  className="pf-story-bar-fill"
+                  style={{
+                    width: "100%",
+                    transformOrigin: "left center",
+                    transform: state === "done" ? "scaleX(1)" : "scaleX(0)",
+                    transition: "none",
+                    willChange: state === "current" ? "transform" : undefined,
+                  }}
+                />
+              </div>
+            );
+          })}
         </div>
 
         {/* Header */}

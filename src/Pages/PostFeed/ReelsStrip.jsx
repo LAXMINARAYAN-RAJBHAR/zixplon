@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, memo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import { ThreeDotMenu, ReportModal, shareContent } from "../../Component/Shared/ContentMenu";
@@ -116,8 +116,14 @@ const formatViews = (n) => {
 // NEW (profile prompt): when this card is the strip's active one, the feed is
 // told its author is on screen, so it can ask "Interested in <profile>?"
 // once for new profiles. (The per-reel "Interested / Not interested" items
-// were removed from the ⋮ menu.) ──
-const ReelStripCard = ({
+// were removed from the ⋮ menu.)
+//
+// NEW (perf): wrapped in React.memo, so when the strip re-renders (the
+// active card changes, view counts arrive, a page loads) only the cards
+// whose own props changed re-render. Every callback passed in is stable
+// (useCallback / state setters). `onProfileView` must also be stable —
+// pass a useCallback from PostFeed. ──
+const ReelStripCard = memo(function ReelStripCard({
   reel,
   previewId,
   index,
@@ -130,7 +136,7 @@ const ReelStripCard = ({
   onReport,
   onDeleted,
   onProfileView,
-}) => {
+}) {
   const isOwner = loggedInUsername && reel.username && reel.username === loggedInUsername;
   const cardRef = useRef(null);
   const [hovered, setHovered] = useState(false);
@@ -310,7 +316,7 @@ const ReelStripCard = ({
       )}
     </div>
   );
-};
+});
 
 // ── The strip. Fully self-contained: fetches its own pages, orders each
 // batch, and keeps loading further pages as the user scrolls it
@@ -590,9 +596,11 @@ const ReelsStrip = ({
     }
   };
 
-  const handleDeleted = (dbId) => {
+  // CHANGED (perf): stable identity, so it doesn't defeat React.memo on
+  // the cards.
+  const handleDeleted = useCallback((dbId) => {
     setReels((prev) => prev.filter((r) => r.dbId !== dbId));
-  };
+  }, []);
 
   if (reels.length === 0 && !loading) return null;
 

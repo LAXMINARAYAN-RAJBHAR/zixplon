@@ -20,8 +20,36 @@ import {
 import en from "./locales/en";
 import hi from "./locales/hi";
 import mr from "./locales/mr";
+import bn from "./locales/bn";
+import gu from "./locales/gu";
+import ta from "./locales/ta";
+import te from "./locales/te";
+import kn from "./locales/kn";
+import ml from "./locales/ml";
+import pa from "./locales/pa";
+import or from "./locales/or";
+import asm from "./locales/as"; // `as` is a reserved word, so it is imported as `asm`
+import ur from "./locales/ur";
 
-const LOCALES = { en, hi, mr };
+// Keys MUST match the `code` values in LANGUAGES (utils/languagePreference.js).
+const LOCALES = {
+  en,
+  hi,
+  mr,
+  bn,
+  gu,
+  ta,
+  te,
+  kn,
+  ml,
+  pa,
+  or,
+  as: asm,
+  ur,
+};
+
+// Languages written right-to-left.
+const RTL_LANGS = new Set(["ur"]);
 
 const baseCode = (code) => String(code || "").toLowerCase().split("-")[0];
 
@@ -60,6 +88,14 @@ export const useT = () => {
     () => subscribeLangPreference(() => setLang(resolveLang())),
     []
   );
+
+  // Keep <html lang> and text direction in step with the language
+  // (Urdu is right-to-left).
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.lang = lang;
+    document.documentElement.dir = RTL_LANGS.has(lang) ? "rtl" : "ltr";
+  }, [lang]);
 
   const t = useCallback((key, vars) => translate(lang, key, vars), [lang]);
   return { t, lang };

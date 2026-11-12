@@ -1,13 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import {
+  getLangPreference,
+  subscribeLangPreference,
+} from "../../utils/languagePreference";
 
 // Facebook-style inline "Are you interested in this post?" card.
 // Renders INSIDE the post card (under the media, above the action bar).
 //
 // LANGUAGE: shown as "<regional language> · English". The regional language
 // follows the USER, not a fixed choice:
-//   1. the `lang` prop, if given (e.g. the language saved in the user's
-//      profile / app settings), else
-//   2. localStorage "zx_lang", else
+//   1. the `lang` prop, if given, else
+//   2. the user's saved choice (utils/languagePreference, set by the
+//      <LanguageSelector /> dropdown; "en" = English only), else
 //   3. the first supported non-English language in the browser/phone
 //      language list (navigator.languages), else
 //   4. English only.
@@ -125,12 +129,17 @@ const baseCode = (code) => String(code || "").toLowerCase().split("-")[0];
 
 // Returns a supported NON-English code, or null (→ English only).
 const detectRegionalLang = (override) => {
+  // 1. An explicit choice (prop, or the saved preference) always wins —
+  //    including "en", which means "English only, ignore the device language".
+  const explicit = override || getLangPreference();
+  if (explicit && explicit !== "auto") {
+    const code = baseCode(explicit);
+    if (code === "en") return null;
+    if (STRINGS[code]) return code;
+  }
+
+  // 2. Otherwise follow the phone / browser language list.
   const candidates = [];
-  if (override) candidates.push(override);
-  try {
-    const saved = localStorage.getItem("zx_lang");
-    if (saved) candidates.push(saved);
-  } catch (_) { }
   if (typeof navigator !== "undefined") {
     if (Array.isArray(navigator.languages)) candidates.push(...navigator.languages);
     else if (navigator.language) candidates.push(navigator.language);
@@ -154,6 +163,9 @@ const both = (regional, key) => {
 
 const InlineInterestPrompt = ({ lang, onInterested, onNotInterested, onUndo, onDismiss }) => {
   const [answer, setAnswer] = useState(null); // null | "interested" | "not_interested"
+  // Re-render when the user changes their language preference.
+  const [, bump] = useState(0);
+  useEffect(() => subscribeLangPreference(() => bump((n) => n + 1)), []);
   const regional = detectRegionalLang(lang);
 
   const choose = (value) => {

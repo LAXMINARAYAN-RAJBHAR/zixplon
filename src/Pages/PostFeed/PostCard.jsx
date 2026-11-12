@@ -34,6 +34,8 @@ import { advanceToNextFeedMedia } from "../../utils/autoAdvance";
 // NEW: Facebook-style inline "Are you interested in this post?" card.
 // Lives in the same folder as this file.
 import InlineInterestPrompt from "./InlineInterestPrompt";
+// i18n: t("key") follows the user's language preference (en / hi / mr).
+import useT from "../../i18n";
 
 const REACTIONS = [
   { key: "like", emoji: "👍", label: "Like", color: "#1877f2" },
@@ -51,21 +53,23 @@ const PRIVACY_OPTIONS = [
   { value: "only_me", label: "Only me", icon: "🔒" },
 ];
 
-const timeAgo = (dateStr) => {
+const timeAgo = (dateStr, t) => {
   const diff = (Date.now() - new Date(dateStr)) / 1000;
-  if (diff < 60) return "Just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 60) return t("time.justNow");
+  if (diff < 3600) return t("time.minutesAgo", { n: Math.floor(diff / 60) });
+  if (diff < 86400) return t("time.hoursAgo", { n: Math.floor(diff / 3600) });
+  return t("time.daysAgo", { n: Math.floor(diff / 86400) });
 };
 
 // ── View count formatting — mirrors formatViews() in homePage.js so
 // posts, videos, and reels all display counts the same way. ──
-const formatViews = (n) => {
-  if (!n || n === 0) return "0 views";
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M views";
-  if (n >= 1000) return (n / 1000).toFixed(1) + "K views";
-  return n + " views";
+const formatViews = (n, t) => {
+  let shown;
+  if (!n) shown = "0";
+  else if (n >= 1000000) shown = (n / 1000000).toFixed(1) + "M";
+  else if (n >= 1000) shown = (n / 1000).toFixed(1) + "K";
+  else shown = String(n);
+  return t("post.views", { n: shown });
 };
 
 // Compact count for the Facebook-style action pills and header meta line
@@ -147,6 +151,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
   // unmount or whenever `src` changes.
   const hlsInstanceRef = useRef(null);
   const usingHls = isHlsSource(src);
+  const { t } = useT();
 
   // Muted by default; flips to false the moment an autoplay-with-sound
   // attempt succeeds, or the user taps to unmute.
@@ -441,8 +446,8 @@ const PostVideo = ({ src, inView, onEnded }) => {
         type="button"
         className="pf-card-video-fs-btn"
         onClick={toggleFullscreen}
-        aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
-        title={isFullscreen ? "Exit full screen" : "Full screen"}
+        aria-label={isFullscreen ? t("video.exitFullscreen") : t("video.fullscreen")}
+        title={isFullscreen ? t("video.exitFullscreen") : t("video.fullscreen")}
       >
         {isFullscreen ? (
           <svg
@@ -478,8 +483,8 @@ const PostVideo = ({ src, inView, onEnded }) => {
         type="button"
         className={`pf-card-video-mute-btn ${showMuteHint ? "pf-card-video-mute-btn--flash" : ""}`}
         onClick={toggleMute}
-        aria-label={muted ? "Unmute video" : "Mute video"}
-        title={muted ? "Unmute" : "Mute"}
+        aria-label={muted ? t("video.unmuteVideo") : t("video.muteVideo")}
+        title={muted ? t("video.unmute") : t("video.mute")}
       >
         {muted ? "🔇" : "🔊"}
       </button>
@@ -496,7 +501,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
           onKeyDown={onBarKeyDown}
           role="slider"
           tabIndex={0}
-          aria-label="Seek video"
+          aria-label={t("video.seek")}
           aria-valuemin={0}
           aria-valuemax={Math.round(duration)}
           aria-valuenow={Math.round(currentTime)}
@@ -591,13 +596,14 @@ const PostCommentRow = ({
   const displayText = isTranslated
     ? stubTranslateToHindi(comment.text)
     : comment.text;
+  const { t } = useT();
 
   return (
     <div className={`pf-comment${isReply ? " pf-comment--reply" : ""}`}>
       <Link
         to={`/user/${comment.username}`}
         className="pf-avatar pf-avatar-sm pf-avatar-amber pf-avatar-link"
-        title={`View ${comment.username}'s profile`}
+        title={t("post.viewProfile", { name: comment.username })}
       >
         {(comment.username || "?").slice(0, 2).toUpperCase()}
       </Link>
@@ -611,20 +617,20 @@ const PostCommentRow = ({
           </Link>
           <div className="pf-comment-header-right">
             {comment.created_at && (
-              <span className="pf-comment-time">{timeAgo(comment.created_at)}</span>
+              <span className="pf-comment-time">{timeAgo(comment.created_at, t)}</span>
             )}
             <div className="pf-comment-menu-wrap">
               <span className="pf-comment-menu-btn" onClick={onToggleMenu}>⋯</span>
               {isMenuOpen && (
                 <div className="pf-comment-dropdown">
                   <div className="pf-comment-dropdown-item" onClick={onShare}>
-                    ↪ Share
+                    ↪ {t("comment.share")}
                   </div>
                   <div className="pf-comment-dropdown-item" onClick={onReport}>
-                    🚩 Report
+                    🚩 {t("comment.report")}
                   </div>
                   <div className="pf-comment-dropdown-item" onClick={onSave}>
-                    {iSaved ? "🔖 Unsave" : "🔖 Save"}
+                    {iSaved ? `🔖 ${t("comment.unsave")}` : `🔖 ${t("comment.save")}`}
                   </div>
                 </div>
               )}
@@ -649,7 +655,7 @@ const PostCommentRow = ({
               }`}
             onClick={onLike}
           >
-            👍 Like
+            👍 {t("comment.like")}
           </button>
           {likedBy.length > 0 && (
             <span className="pf-comment-like-count">{likedBy.length}</span>
@@ -660,7 +666,7 @@ const PostCommentRow = ({
               }`}
             onClick={onDislike}
           >
-            👎 Dislike
+            👎 {t("comment.dislike")}
           </button>
           {dislikedBy.length > 0 && (
             <span className="pf-comment-like-count">{dislikedBy.length}</span>
@@ -668,13 +674,13 @@ const PostCommentRow = ({
 
           {!isReply && (
             <button className="pf-comment-reply-btn" onClick={onReplyClick}>
-              Reply
+              {t("comment.reply")}
             </button>
           )}
 
           {displayText && (
             <button className="pf-comment-translate-btn" onClick={onToggleTranslate}>
-              {isTranslated ? "Show original" : "Translate to Hindi"}
+              {isTranslated ? t("comment.showOriginal") : t("comment.translate")}
             </button>
           )}
         </div>
@@ -869,6 +875,7 @@ const PostCard = ({
   );
 
   const navigate = useNavigate();
+  const { t } = useT();
 
   const closePhotoViewer = () => setPhotoViewerData(null);
 
@@ -1211,10 +1218,10 @@ const PostCard = ({
 
   const connectLabel =
     connectionStatus === "accepted"
-      ? "✓ Connected"
+      ? `✓ ${t("post.connected")}`
       : connectionStatus === "pending"
-        ? "Requested"
-        : "Connect";
+        ? t("post.requested")
+        : t("post.connect");
 
   // Build the top-level/reply comment tree. Top-level comments
   // (parent_comment_id null) are reversed for newest-first display; each
@@ -1284,7 +1291,7 @@ const PostCard = ({
           <Link
             to={`/user/${post.username}`}
             className="pf-avatar pf-avatar-green pf-avatar-link"
-            title={`View ${post.username}'s profile`}
+            title={t("post.viewProfile", { name: post.username })}
           >
             {initials}
           </Link>
@@ -1296,7 +1303,7 @@ const PostCard = ({
               {post.feeling && (
                 <span className="pf-card-feeling">
                   {" "}
-                  — feeling {post.feeling}
+                  — {t("post.feeling")} {post.feeling}
                 </span>
               )}
               {/* Facebook-style "— at <place>" check-in, shown alongside
@@ -1304,7 +1311,7 @@ const PostCard = ({
               {post.location_name && (
                 <span className="pf-card-feeling">
                   {" "}
-                  — at <b>{post.location_name}</b>
+                  — {t("post.at")} <b>{post.location_name}</b>
                 </span>
               )}
             </p>
@@ -1312,10 +1319,10 @@ const PostCard = ({
                 first (full date only on desktop), then the view count,
                 then privacy. */}
             <p className="pf-card-time">
-              <span title={fullDate}>{timeAgo(post.created_at)}</span>
+              <span title={fullDate}>{timeAgo(post.created_at, t)}</span>
               <span className="pf-time-full">&nbsp;·&nbsp;{fullDate}</span>
               &nbsp;·&nbsp;
-              <span title={formatViews(viewCount)}>👁 {formatCount(viewCount)}</span>
+              <span title={formatViews(viewCount, t)}>👁 {formatCount(viewCount)}</span>
               {/* Small 🎵 line. Shows 🔇 while the browser is blocking
                   sound; playback is driven by the hidden <audio> +
                   effect further up. */}
@@ -1326,7 +1333,7 @@ const PostCard = ({
                     className="pf-card-song"
                     title={
                       songBlocked
-                        ? "Tap anywhere to enable sound"
+                        ? t("post.enableSound")
                         : `${post.song.title}${post.song.artist ? " · " + post.song.artist : ""}`
                     }
                   >
@@ -1337,7 +1344,7 @@ const PostCard = ({
               )}
               &nbsp;·&nbsp;{PRIVACY_ICON[post.privacy] || "🌐"}
               {post.updated_at && post.updated_at !== post.created_at && (
-                <span> · Edited</span>
+                <span> · {t("post.edited")}</span>
               )}
             </p>
           </div>
@@ -1361,7 +1368,7 @@ const PostCard = ({
               <button
                 className="pf-icon-btn"
                 onClick={() => setShowMenu((v) => !v)}
-                aria-label="Post options"
+                aria-label={t("post.options")}
               >
                 ⋯
               </button>
@@ -1385,12 +1392,12 @@ const PostCard = ({
                           setShowMenu(false);
                         }}
                       >
-                        ✉️ Message {post.username}
+                        ✉️ {t("post.message", { name: post.username })}
                       </button>
                     )}
                   {post.username === currentUser && (
                     <button className="pf-dropdown-item" onClick={startEdit}>
-                      ✏️ Edit post
+                      ✏️ {t("post.edit")}
                     </button>
                   )}
                   {post.username === currentUser && (
@@ -1401,7 +1408,7 @@ const PostCard = ({
                         setShowMenu(false);
                       }}
                     >
-                      🗑️ Delete post
+                      🗑️ {t("post.delete")}
                     </button>
                   )}
                   {post.username !== currentUser && (
@@ -1409,7 +1416,7 @@ const PostCard = ({
                       className="pf-dropdown-item pf-dropdown-danger"
                       onClick={handleReportClick}
                     >
-                      🚩 Report post
+                      🚩 {t("post.report")}
                     </button>
                   )}
                 </div>
@@ -1427,13 +1434,13 @@ const PostCard = ({
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
                 rows={3}
-                placeholder="Edit your post…"
+                placeholder={t("post.editPlaceholder")}
               />
               <div className="pf-attach-wrap" style={{ marginTop: "6px" }}>
                 <button
                   type="button"
                   className="pf-attach-btn"
-                  title="Emoji"
+                  title={t("common.emoji")}
                   onClick={() => setShowEditEmoji((v) => !v)}
                 >
                   🙂
@@ -1455,7 +1462,7 @@ const PostCard = ({
                     <button
                       className="pf-edit-image-remove"
                       onClick={() => removeEditImage(idx)}
-                      aria-label="Remove image"
+                      aria-label={t("post.removeImage")}
                     >
                       ✕
                     </button>
@@ -1483,12 +1490,12 @@ const PostCard = ({
                   gap: "6px",
                 }}
               >
-                <span className="pf-feeling-badge">📍 at {editLocation}</span>
+                <span className="pf-feeling-badge">📍 {t("post.at")} {editLocation}</span>
                 <span
                   style={{ cursor: "pointer", color: "#b08585", fontSize: "12px" }}
                   onClick={() => setEditLocation("")}
                 >
-                  ✕ remove
+                  ✕ {t("common.remove")}
                 </span>
               </div>
             )}
@@ -1501,7 +1508,7 @@ const PostCard = ({
               >
                 {PRIVACY_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
-                    {o.icon} {o.label}
+                    {o.icon} {t("privacy." + o.value)}
                   </option>
                 ))}
               </select>
@@ -1513,7 +1520,7 @@ const PostCard = ({
                 onClick={cancelEdit}
                 disabled={savingEdit}
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 className="pf-post-btn"
@@ -1522,7 +1529,7 @@ const PostCard = ({
                   savingEdit || (!editText.trim() && editImages.length === 0)
                 }
               >
-                {savingEdit ? "Saving…" : "Save changes"}
+                {savingEdit ? t("post.saving") : t("post.saveChanges")}
               </button>
             </div>
           </div>
@@ -1629,7 +1636,7 @@ const PostCard = ({
                   {myReact ? myReact.emoji : "👍"}
                 </span>
                 <span className="pf-action-label">
-                  {myReact ? myReact.label : "Like"}
+                  {myReact ? t("react." + myReact.key) : t("post.like")}
                 </span>
                 {totalReactions > 0 && (
                   <span className="pf-action-count pf-count-pop" key={countPopKey}>
@@ -1661,7 +1668,7 @@ const PostCard = ({
                     <button
                       key={r.key}
                       className="pf-reaction-pick-btn"
-                      title={r.label}
+                      title={t("react." + r.key)}
                       onClick={() => {
                         onReaction(post.id, r.key);
                         setShowPicker(false);
@@ -1687,7 +1694,7 @@ const PostCard = ({
               <span className="pf-action-icon pf-comment-bounce" key={commentBounceKey}>
                 💬
               </span>
-              <span className="pf-action-label">Comment</span>
+              <span className="pf-action-label">{t("post.comment")}</span>
               {totalComments > 0 && (
                 <span className="pf-action-count">{formatCount(totalComments)}</span>
               )}
@@ -1697,7 +1704,7 @@ const PostCard = ({
             <div className="pf-action-wrap" ref={shareRef}>
               <button className="pf-action-btn" onClick={handleShareClick}>
                 <span className="pf-action-icon pf-share-icon">🔁</span>
-                <span className="pf-action-label">Share</span>
+                <span className="pf-action-label">{t("post.share")}</span>
               </button>
               {showShareMenu && (
                 <div className="pf-dropdown pf-dropdown-up">
@@ -1708,10 +1715,10 @@ const PostCard = ({
                       setShowShareMenu(false);
                     }}
                   >
-                    📢 Share to feed
+                    📢 {t("post.shareToFeed")}
                   </button>
                   <button className="pf-dropdown-item" onClick={handleCopyLink}>
-                    {copied ? "✅ Copied!" : "🔗 Copy link"}
+                    {copied ? `✅ ${t("post.copied")}` : `🔗 ${t("post.copyLink")}`}
                   </button>
                 </div>
               )}
@@ -1723,14 +1730,14 @@ const PostCard = ({
         {!isEditing && post.showComments && (
           <div className="pf-comments-section">
             {commentShareToast && (
-              <div className="pf-comment-toast">🔗 Link copied</div>
+              <div className="pf-comment-toast">🔗 {t("comment.linkCopied")}</div>
             )}
             {commentSavedToast && (
-              <div className="pf-comment-toast">🔖 Comment saved</div>
+              <div className="pf-comment-toast">🔖 {t("comment.saved")}</div>
             )}
 
             {topLevelComments.length === 0 ? (
-              <p className="pf-comment-empty">No comments yet. Be the first!</p>
+              <p className="pf-comment-empty">{t("comment.none")}</p>
             ) : (
               topLevelComments.map((c) => (
                 <div className="pf-comment-thread" key={c.id}>
@@ -1764,7 +1771,7 @@ const PostCard = ({
                       </div>
                       <input
                         className="pf-comment-input"
-                        placeholder={`Reply to ${c.username}…`}
+                        placeholder={t("comment.replyPlaceholder", { name: c.username })}
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
                         onKeyDown={(e) => {
@@ -1779,7 +1786,7 @@ const PostCard = ({
                         <button
                           type="button"
                           className="pf-attach-btn"
-                          title="Emoji"
+                          title={t("common.emoji")}
                           data-cmp-trigger
                           onClick={() => setShowReplyEmoji((v) => !v)}
                         >
@@ -1837,8 +1844,8 @@ const PostCard = ({
                 className="pf-comment-input"
                 placeholder={
                   !currentUser || currentUser === "anonymous"
-                    ? "Login to comment…"
-                    : "Write a comment… (Enter to send)"
+                    ? t("comment.loginPlaceholder")
+                    : t("comment.placeholder")
                 }
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
@@ -1854,7 +1861,7 @@ const PostCard = ({
                 <button
                   type="button"
                   className="pf-attach-btn"
-                  title="Emoji"
+                  title={t("common.emoji")}
                   data-cmp-trigger
                   disabled={!currentUser || currentUser === "anonymous"}
                   onClick={() => setShowCommentEmoji((v) => !v)}

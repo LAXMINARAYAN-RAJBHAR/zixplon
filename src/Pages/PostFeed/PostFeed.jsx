@@ -31,6 +31,8 @@ import useProfileFeedback from "../../hooks/useProfileFeedback";
 // popup — it is an inline card inside the post (InlineInterestPrompt, rendered
 // by PostCard). Only the confirmation / Undo toast is still used from here.
 import { ProfileFeedbackToast } from "./ProfilePrompt";
+// i18n: t("key") follows the user's language preference (en / hi / mr).
+import useT from "../../i18n";
 // NEW: server-ranked feed (see feed_ranking.sql). The database returns the
 // next ids: brand-new unseen on top, other unseen next, already-seen last.
 import {
@@ -72,6 +74,7 @@ const PROFILE_PROMPT_GAP_MS = 25000;
 
 const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const location = useLocation();
+  const { t } = useT();
 
   // NEW: the search term from the URL (?q=...). When present, the feed
   // switches from the shuffled "latest posts" mode to a filtered search.
@@ -648,7 +651,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       fetchViewCounts(page.map((p) => p.id));
     } catch (err) {
-      setError(err.message || "Failed to load posts.");
+      setError(err.message || t("feed.loadFailed"));
     } finally {
       // CHANGED: only the newest request clears the loading flags, so an
       // outdated response can't hide the skeleton of a newer one.
@@ -1456,15 +1459,15 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
             className="pf-modal-panel"
             role="dialog"
             aria-modal="true"
-            aria-label="Create post"
+            aria-label={t("feed.createPost")}
           >
             <div className="pf-modal-header">
-              <span className="pf-modal-title">Create post</span>
+              <span className="pf-modal-title">{t("feed.createPost")}</span>
               <button
                 type="button"
                 className="pf-modal-close"
                 onClick={closeComposer}
-                aria-label="Close"
+                aria-label={t("feed.close")}
               >
                 ✕
               </button>
@@ -1512,11 +1515,14 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               fontWeight: 600,
             }}
           >
-            🔍 Results for "{searchQuery}"
+            🔍 {t("search.resultsFor", { q: searchQuery })}
             <span style={{ marginLeft: 8, fontSize: 13, opacity: 0.6 }}>
-              {searchProfiles.length} profiles · {searchReels.length} reels ·{" "}
-              {searchVideos.length} videos · {posts.length}
-              {hasMore ? "+" : ""} posts
+              {t("search.counts", {
+                profiles: searchProfiles.length,
+                reels: searchReels.length,
+                videos: searchVideos.length,
+                posts: `${posts.length}${hasMore ? "+" : ""}`,
+              })}
             </span>
           </div>
         )}
@@ -1535,7 +1541,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
                 {currentUser.slice(0, 2).toUpperCase()}
               </span>
               <span className="pf-compose-trigger-text">
-                What's on your mind, {currentUser}?
+                {t("composer.placeholder", { name: currentUser })}
               </span>
               <span className="pf-compose-trigger-icons" aria-hidden="true">
                 📷 🎥
@@ -1553,7 +1559,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               }}
             >
               <p style={{ color: "#aaa", fontSize: "14px", margin: "0 0 12px" }}>
-                🔒 Please log in to post
+                🔒 {t("feed.loginPrompt")}
               </p>
               <button
                 onClick={() =>
@@ -1570,7 +1576,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
                   cursor: "pointer",
                 }}
               >
-                Login
+                {t("feed.login")}
               </button>
             </div>
           ))}
@@ -1595,7 +1601,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         {error && <p className="pf-error">{error}</p>}
         {postNotFound && (
           <p className="pf-error">
-            That post isn't available anymore — it may have been deleted, or the link is incorrect.
+            {t("feed.notAvailable")}
           </p>
         )}
 
@@ -1603,7 +1609,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         {searchQuery && searchProfiles.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <h3 style={{ fontSize: 15, margin: "0 0 10px", opacity: 0.7 }}>
-              👤 Profiles
+              👤 {t("search.profiles")}
             </h3>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {searchProfiles.map((u) => (
@@ -1640,7 +1646,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         {searchQuery && searchReels.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <h3 style={{ fontSize: 15, margin: "0 0 10px", opacity: 0.7 }}>
-              🎞️ Reels
+              🎞️ {t("search.reels")}
             </h3>
             <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
               {searchReels.map((reel) => (
@@ -1719,7 +1725,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         {searchQuery && searchVideos.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <h3 style={{ fontSize: 15, margin: "0 0 10px", opacity: 0.7 }}>
-              🎬 Videos
+              🎬 {t("search.videos")}
             </h3>
             {searchVideos.map((v) => (
               <VideoFeedCard key={v.id} video={v} />
@@ -1728,12 +1734,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         )}
 
         {searchQuery && searchExtrasLoading && (
-          <p style={{ fontSize: 13, opacity: 0.6 }}>Searching reels and videos…</p>
+          <p style={{ fontSize: 13, opacity: 0.6 }}>{t("search.searching")}</p>
         )}
 
         {searchQuery && posts.length > 0 && (
           <h3 style={{ fontSize: 15, margin: "0 0 10px", opacity: 0.7 }}>
-            📱 Posts
+            📱 {t("search.posts")}
           </h3>
         )}
 
@@ -1741,14 +1747,14 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         {noSearchResults && (
           <div className="pf-empty">
             <span className="pf-empty-icon">🔍</span>
-            <p>No results found for "{searchQuery}"</p>
+            <p>{t("search.noResults", { q: searchQuery })}</p>
           </div>
         )}
 
         {!searchQuery && posts.length === 0 && !loading && (
           <div className="pf-empty">
             <span className="pf-empty-icon">📭</span>
-            <p>You're all caught up. New posts will show up here — or be the first to share something!</p>
+            <p>{t("feed.empty")}</p>
           </div>
         )}
 
@@ -1809,13 +1815,13 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
         {hasMore && (
           <div ref={setSentinelNode} className="pf-scroll-sentinel">
-            {loadingMore && <span className="pf-scroll-loading">Loading more posts…</span>}
+            {loadingMore && <span className="pf-scroll-loading">{t("feed.loadingMore")}</span>}
           </div>
         )}
 
         {!hasMore && posts.length > 0 && (
           <p className="pf-scroll-end">
-            {searchQuery ? "End of results 🎉" : "You're all caught up 🎉"}
+            {searchQuery ? t("feed.endResults") : t("feed.caughtUp")}
           </p>
         )}
       </div>
@@ -1845,7 +1851,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
             boxShadow: "0 6px 20px rgba(220, 38, 38, 0.4)",
           }}
         >
-          ↑ {pendingCount} new
+          ↑ {t("feed.newPill", { n: pendingCount })}
         </button>
       )}
 

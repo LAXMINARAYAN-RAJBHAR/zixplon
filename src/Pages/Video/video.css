@@ -1362,3 +1362,30 @@
   color: #ffffff;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
+
+/* ══════════════════════════════════════
+   PERF: NO BLUR ON MOBILE
+   backdrop-filter has to be re-computed on every video frame for every
+   element sitting above a playing video, which is very expensive on
+   low/mid-range Android GPUs. On mobile these use solid translucent
+   backgrounds instead. Placed LAST so it wins over the rules above.
+   The fullscreen toolbar rules above are more specific, so fullscreen
+   keeps its own look.
+══════════════════════════════════════ */
+@media (max-width: 768px) {
+  .video_controls_bar,
+  .video_frame_btn,
+  .video_more_dropdown {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .video_controls_bar,
+  .video_frame_btn {
+    background: rgba(12, 8, 35, 0.8);
+  }
+
+  .video_more_dropdown {
+    background: rgba(12, 8, 35, 0.97);
+  }
+}

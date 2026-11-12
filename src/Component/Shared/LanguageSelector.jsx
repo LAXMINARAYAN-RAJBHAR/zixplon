@@ -6,12 +6,11 @@ import {
   subscribeLangPreference,
 } from "../../utils/languagePreference";
 
-// Compact language picker: a small "🌐 EN" / "🌐 বাংলা" pill. The real
-// <select> sits invisibly on top of the pill, so tapping it still opens the
-// native dropdown (same behaviour on mobile and desktop) while taking almost
-// no space in the layout.
+// Compact language picker. The real <select> sits invisibly on top of what
+// you see, so tapping it opens the native dropdown (desktop + mobile).
 //
-//   <LanguageSelector />
+//   <LanguageSelector iconOnly />   → just a small 🌐 circle (takes no row)
+//   <LanguageSelector />            → a "🌐 EN ▼" pill
 //
 // Options: Auto (follow the device language), English only, or one of the
 // regional languages.
@@ -26,7 +25,7 @@ const shortLabel = (value) => {
   return lang ? nativeName(lang.label) : "Auto";
 };
 
-const LanguageSelector = ({ className = "" }) => {
+const LanguageSelector = ({ className = "", iconOnly = false }) => {
   const [value, setValue] = useState(getLangPreference);
 
   // Stay in sync if the preference is changed elsewhere.
@@ -40,33 +39,51 @@ const LanguageSelector = ({ className = "" }) => {
     setLangPreference(e.target.value);
   };
 
+  const shell = iconOnly
+    ? {
+        width: 34,
+        height: 34,
+        justifyContent: "center",
+        borderRadius: "50%",
+        fontSize: 17,
+        padding: 0,
+      }
+    : {
+        gap: 5,
+        padding: "3px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+      };
+
   return (
     <label
       className={className}
-      title="Language · भाषा"
+      title={`Language · भाषा — ${shortLabel(value)}`}
       style={{
         position: "relative",
         display: "inline-flex",
         alignItems: "center",
-        gap: 5,
-        padding: "3px 10px",
-        borderRadius: 999,
+        flexShrink: 0,
         border: "1px solid #f3c6c6",
         background: "#fff",
         color: "#7a2e2e",
         fontFamily: "'Nunito', sans-serif",
-        fontSize: 12,
         fontWeight: 700,
         lineHeight: 1.4,
         cursor: "pointer",
         whiteSpace: "nowrap",
+        ...shell,
       }}
     >
       <span aria-hidden="true">🌐</span>
-      <span>{shortLabel(value)}</span>
-      <span aria-hidden="true" style={{ fontSize: 8, opacity: 0.6 }}>
-        ▼
-      </span>
+      {!iconOnly && (
+        <>
+          <span>{shortLabel(value)}</span>
+          <span aria-hidden="true" style={{ fontSize: 8, opacity: 0.6 }}>
+            ▼
+          </span>
+        </>
+      )}
 
       <select
         aria-label="Language"

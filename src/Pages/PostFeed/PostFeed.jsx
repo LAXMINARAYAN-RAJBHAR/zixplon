@@ -31,9 +31,11 @@ import useProfileFeedback from "../../hooks/useProfileFeedback";
 // popup — it is an inline card inside the post (InlineInterestPrompt, rendered
 // by PostCard). Only the confirmation / Undo toast is still used from here.
 import { ProfileFeedbackToast } from "./ProfilePrompt";
-// i18n: t("key") follows the user's language preference (en / hi / mr).
+// i18n: t("key") follows the user's language preference (en / hi / mr / bn /
+// gu / ta / te / kn / ml / pa / or / as / ur).
 import useT from "../../i18n";
-// NEW: language dropdown (Auto / English only / Hindi / Marathi / …).
+// NEW: language picker (Auto / English only / Hindi / Marathi / …).
+// Shown here as a small 🌐 icon (iconOnly) beside the composer trigger.
 // Save the file as src/Component/Shared/LanguageSelector.jsx
 import LanguageSelector from "../../Component/Shared/LanguageSelector";
 // NEW: server-ranked feed (see feed_ranking.sql). The database returns the
@@ -1634,70 +1636,72 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           </div>
         )}
 
-        {/* NEW: language picker — shown at the top of the feed. */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            margin: "10px 0 0",
-          }}
-        >
-          <LanguageSelector />
-        </div>
+        {/* CHANGED: the composer trigger and the language picker now share
+            one row, so the language picker (a small 🌐 icon) adds no extra
+            height. The composer trigger itself is the compact button that
+            opens the composer popup (same popup as Home Hub's
+            Upload -> Post); it is hidden while searching, but the language
+            icon stays available. */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {!searchQuery &&
+              (isLoggedIn ? (
+                <button
+                  type="button"
+                  className="pf-compose-trigger"
+                  onClick={openComposer}
+                >
+                  <span className="pf-avatar">
+                    {currentUser.slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="pf-compose-trigger-text">
+                    {t("composer.placeholder", { name: currentUser })}
+                  </span>
+                  <span className="pf-compose-trigger-icons" aria-hidden="true">
+                    📷 🎥
+                  </span>
+                </button>
+              ) : (
+                <div
+                  style={{
+                    background: "#1a1a1a",
+                    border: "1px solid #333",
+                    borderRadius: "12px",
+                    padding: "20px",
+                    textAlign: "center",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <p style={{ color: "#aaa", fontSize: "14px", margin: "0 0 12px" }}>
+                    🔒 {t("feed.loginPrompt")}
+                  </p>
+                  <button
+                    onClick={() =>
+                      window.dispatchEvent(new CustomEvent("openLogin"))
+                    }
+                    style={{
+                      background: "#ff0000",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "8px 24px",
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {t("feed.login")}
+                  </button>
+                </div>
+              ))}
+          </div>
 
-        {/* CHANGED: the inline composer is replaced by a compact trigger
-            that opens the composer popup (same popup as Home Hub's
-            Upload -> Post). Hidden while searching. */}
-        {!searchQuery &&
-          (isLoggedIn ? (
-            <button
-              type="button"
-              className="pf-compose-trigger"
-              onClick={openComposer}
-            >
-              <span className="pf-avatar">
-                {currentUser.slice(0, 2).toUpperCase()}
-              </span>
-              <span className="pf-compose-trigger-text">
-                {t("composer.placeholder", { name: currentUser })}
-              </span>
-              <span className="pf-compose-trigger-icons" aria-hidden="true">
-                📷 🎥
-              </span>
-            </button>
-          ) : (
-            <div
-              style={{
-                background: "#1a1a1a",
-                border: "1px solid #333",
-                borderRadius: "12px",
-                padding: "20px",
-                textAlign: "center",
-                marginBottom: "16px",
-              }}
-            >
-              <p style={{ color: "#aaa", fontSize: "14px", margin: "0 0 12px" }}>
-                🔒 {t("feed.loginPrompt")}
-              </p>
-              <button
-                onClick={() =>
-                  window.dispatchEvent(new CustomEvent("openLogin"))
-                }
-                style={{
-                  background: "#ff0000",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "8px 24px",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                }}
-              >
-                {t("feed.login")}
-              </button>
-            </div>
-          ))}
+          {/* paddingTop vertically centres the icon against the composer
+              card — tweak the number if it looks off on your layout. */}
+          <div style={{ paddingTop: 16 }}>
+            <LanguageSelector iconOnly />
+          </div>
+        </div>
 
         {/* NEW: Stories strip — sits directly below the composer trigger.
             "Create story" card + one card per person with a live (<24h)

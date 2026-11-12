@@ -33,6 +33,9 @@ import useProfileFeedback from "../../hooks/useProfileFeedback";
 import { ProfileFeedbackToast } from "./ProfilePrompt";
 // i18n: t("key") follows the user's language preference (en / hi / mr).
 import useT from "../../i18n";
+// NEW: language dropdown (Auto / English only / Hindi / Marathi / …).
+// Save the file as src/Component/Shared/LanguageSelector.jsx
+import LanguageSelector from "../../Component/Shared/LanguageSelector";
 // NEW: server-ranked feed (see feed_ranking.sql). The database returns the
 // next ids: brand-new unseen on top, other unseen next, already-seen last.
 import {
@@ -1526,6 +1529,17 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
             </span>
           </div>
         )}
+
+        {/* NEW: language picker — shown at the top of the feed. */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            margin: "10px 0 0",
+          }}
+        >
+          <LanguageSelector />
+        </div>
 
         {/* CHANGED: the inline composer is replaced by a compact trigger
             that opens the composer popup (same popup as Home Hub's

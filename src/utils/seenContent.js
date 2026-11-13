@@ -13,6 +13,10 @@
 //                              a feed, best first, unseen before seen, with
 //                              brand-new unseen items pinned on top.
 //
+// CHANGED: marks are now written through the `mark_seen` database function
+// (see mark_seen.sql) instead of upserting into `feed_seen` directly — the
+// table's row-level security rejected the upsert form (ON CONFLICT).
+//
 // Logged-out visitors get a random device id, so they are tracked too.
 
 import { supabase } from "../config/supabase";
@@ -103,12 +107,10 @@ export const flushSeen = async () => {
 
   flushing = (async () => {
     try {
-      const { error } = await supabase
-        .from("feed_seen")
-        .upsert(toRows(batch), {
-          onConflict: "user_id,content_type,content_id",
-          ignoreDuplicates: true,
-        });
+      // CHANGED: through the mark_seen() database function.
+      const { error } = await supabase.rpc("mark_seen", {
+        p_rows: toRows(batch),
+      });
       if (error) throw error;
     } catch (_) {
       // Put them back; the next flush (or the next page load) retries.
@@ -138,6 +140,9 @@ export const markSeen = (type, id) => {
   if (queuedThisPage.has(key)) return;
   queuedThisPage.add(key);
   loadQueue().push({ t: type, i: String(id), u: getFeedOwnerId() });
+  // CHANGED: write the queue to localStorage right away, so marks survive
+  // even if the tab is killed before the 3-second flush (common on mobile).
+  persistQueue();
   scheduleFlush();
 };
 
@@ -153,16 +158,16 @@ const flushOnExit = () => {
     const url = supabase.supabaseUrl;
     const key = supabase.supabaseKey;
     if (!url || !key) return;
-    fetch(`${url}/rest/v1/feed_seen?on_conflict=user_id,content_type,content_id`, {
+    // CHANGED: calls the mark_seen() function instead of POSTing to the table.
+    fetch(`${url}/rest/v1/rpc/mark_seen`, {
       method: "POST",
       keepalive: true,
       headers: {
         "Content-Type": "application/json",
         apikey: key,
         Authorization: `Bearer ${key}`,
-        Prefer: "resolution=ignore-duplicates,return=minimal",
       },
-      body: JSON.stringify(toRows(q)),
+      body: JSON.stringify({ p_rows: toRows(q) }),
     }).catch(() => { });
   } catch (_) { }
 };

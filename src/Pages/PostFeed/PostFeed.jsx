@@ -63,6 +63,11 @@ const prependUnique = (prev, post) =>
 // video pool.
 const VIDEO_POOL_SIZE = 30;
 
+// NEW (startup speed): how many video slots get a placeholder skeleton
+// while the first videos are still loading (only the first few posts —
+// a skeleton under every post would be a wall of grey boxes).
+const VIDEO_SKELETON_SLOTS = 2;
+
 // NEW: HomeHub's Upload -> Post item opens the composer popup. When the
 // Posts tab is already showing it fires OPEN_COMPOSER_EVENT; when it has
 // to switch tabs first it leaves a timestamp in sessionStorage under
@@ -137,6 +142,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const offsetRef = useRef(0);
   const shuffledPoolRef = useRef([]);
   const [videos, setVideos] = useState([]);
+  // NEW (startup speed): true while at least one video fetch is in flight.
+  // Used to show a skeleton in the first video slots instead of nothing.
+  const [videosLoading, setVideosLoading] = useState(false);
+  const videoInflightRef = useRef(0);
   // NEW: keyset cursors ({ score, id }) for the server-ranked lists.
   const postCursorRef = useRef(null);
   const videoCursorRef = useRef(null);
@@ -477,6 +486,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   // cursor, so there is no offset drift. A video already handed to the
   // feed is never handed out again, and when the database has no more the
   // fetching simply stops (no wrap-around, no repeats).
+  //
+  // CHANGED (startup speed): the videos query and the likes query now run
+  // in PARALLEL (they used to run one after the other), and the likes are
+  // looked up by the ranked ids instead of waiting for the video rows.
+  // `videosLoading` / `videoInflightRef` track in-flight fetches so the
+  // feed can show a skeleton in the first video slots.
   const fetchMoreVideos = useCallback((count) => {
     if (!count) return Promise.resolve();
     const epoch = videoEpochRef.current;
@@ -505,10 +520,19 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           break;
         }
 
-        const { data, error: fetchErr } = await supabase
-          .from("videos")
-          .select("id, short_id, video_url, thumbnail_url, title, channel, username, duration, created_at")
-          .in("id", ranked.ids);
+        // CHANGED: one parallel round trip for the videos AND their likes.
+        const [{ data, error: fetchErr }, { data: likesData }] =
+          await Promise.all([
+            supabase
+              .from("videos")
+              .select("id, short_id, video_url, thumbnail_url, title, channel, username, duration, created_at")
+              .in("id", ranked.ids),
+            supabase
+              .from("likes")
+              .select("content_id")
+              .eq("content_type", "video")
+              .in("content_id", ranked.ids.map(String)),
+          ]);
         if (epoch !== videoEpochRef.current) return;
         if (fetchErr) break;
 
@@ -528,13 +552,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
             created_at: v.created_at || null,
             likes: 0,
           }));
-
-        const { data: likesData } = await supabase
-          .from("likes")
-          .select("content_id")
-          .eq("content_type", "video")
-          .in("content_id", mapped.map((v) => String(v.id)));
-        if (epoch !== videoEpochRef.current) return;
 
         const likesMap = {};
         (likesData || []).forEach((row) => {
@@ -558,6 +575,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       }
     };
 
+    // NEW: count this fetch as in flight (drives the skeleton).
+    videoInflightRef.current += 1;
+    setVideosLoading(true);
+
     // One fetch at a time, so loadMore + realtime inserts can't both
     // fill the pool simultaneously.
     videoFetchChainRef.current = videoFetchChainRef.current
@@ -571,7 +592,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           setVideos((prev) => [...prev, ...batch]);
         }
       })
-      .catch(() => { });
+      .catch(() => { })
+      .finally(() => {
+        videoInflightRef.current = Math.max(0, videoInflightRef.current - 1);
+        if (videoInflightRef.current === 0) setVideosLoading(false);
+      });
 
     return videoFetchChainRef.current;
   }, []);
@@ -656,6 +681,15 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         startFeedSession();
         postCursorRef.current = null;
         setHasMore(true);
+
+        // NEW (startup speed): start loading the first videos NOW, in
+        // parallel with the posts, instead of waiting until the posts have
+        // finished. (This must come after startFeedSession() so the videos
+        // use the new session's seed.) Previously this ran only after the
+        // posts had loaded, adding several sequential round trips before
+        // the first video card could appear.
+        resetVideoState();
+        fetchMoreVideos(PAGE_SIZE);
       }
 
       const ranked = await fetchRankedIds("post", {
@@ -694,10 +728,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       if (reset) {
         setPosts(page);
-        // CHANGED: cancel any in-flight video fetch from the previous
-        // feed and clear the video pool / shown list.
-        resetVideoState();
-        fetchMoreVideos(page.length);
+        // CHANGED: videos were already started above, in parallel with
+        // the posts — nothing to do here any more.
       } else {
         // CHANGED: dedupe when appending. Only ask for as many videos as
         // posts that were actually added, so the two lists stay in step.
@@ -1924,6 +1956,20 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
                 />
               </LazyMount>
             )}
+
+            {/* NEW (startup speed): while the first videos are still being
+                fetched, hold their place with a skeleton (first few slots
+                only) so the page doesn't jump when they appear. */}
+            {!searchQuery &&
+              !visibleVideos[index] &&
+              videosLoading &&
+              index < VIDEO_SKELETON_SLOTS && (
+                <div
+                  className="pf-video-skeleton"
+                  style={{ minHeight: videoCardMinHeight }}
+                  aria-hidden="true"
+                />
+              )}
 
             {!searchQuery && (
               <LazyMount

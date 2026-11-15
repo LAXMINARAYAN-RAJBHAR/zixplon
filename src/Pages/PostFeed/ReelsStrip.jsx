@@ -345,7 +345,12 @@ const ReelsStrip = ({
   const isFirstStrip = startOffset === 0;
   const [reels, setReels] = useState([]);
   const [viewCounts, setViewCounts] = useState({});
-  const [loading, setLoading] = useState(false);
+  // CHANGED (startup speed): starts as true, so the strip's header and a
+  // placeholder card are shown immediately while the first page loads,
+  // instead of the strip being invisible (it returned null) until then.
+  // If the server turns out to have no reels, the strip still disappears
+  // once loading finishes (see the `reels.length === 0 && !loading` check).
+  const [loading, setLoading] = useState(true);
   const cursorRef = useRef(null);
   const loadingRef = useRef(false);
   const trackRef = useRef(null);

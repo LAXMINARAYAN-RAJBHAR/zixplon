@@ -4956,3 +4956,42 @@
 @media (prefers-reduced-motion: reduce) {
   .pf-story-spinner { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   VIDEO SLOT SKELETON (startup speed)
+   APPEND this block to the very bottom of PostFeed.css.
+   Shown by the updated PostFeed.jsx in the first video slots while the
+   first videos are still loading, so the page doesn't jump when the video
+   cards appear. Same card look as .pf-video-card (white, soft shadow).
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-video-skeleton {
+  box-sizing: border-box;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(26, 20, 20, 0.12);
+  background:
+    linear-gradient(110deg, #f1e6e6 30%, #fbf3f3 50%, #f1e6e6 70%);
+  background-size: 200% 100%;
+  animation: pf-video-skeleton-shimmer 1.4s linear infinite;
+}
+
+@keyframes pf-video-skeleton-shimmer {
+  to { background-position: -200% 0; }
+}
+
+@media (max-width: 768px) {
+  /* Edge to edge on phones, like the video cards and posts around it. */
+  .pf-feed .pf-video-skeleton {
+    margin-left: -10px;
+    margin-right: -10px;
+    margin-bottom: 8px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .pf-feed > .pf-video-skeleton { max-width: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-video-skeleton { animation: none; }
+}

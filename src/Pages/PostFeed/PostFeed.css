@@ -4872,3 +4872,52 @@
     background: rgba(124, 58, 237, 0.82);
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   POST VIDEO — LOADING STATE (instead of a plain black box)
+   APPEND this block to the very bottom of PostFeed.css.
+   Works with the updated PostVideo in PostCard.jsx, which adds the
+   `.pf-card-video-wrap--loading` class and the spinner until the first
+   frame is ready.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-card-video-wrap--loading {
+  min-height: 220px;
+  background: linear-gradient(110deg, #1c1c1c 30%, #2a2a2a 50%, #1c1c1c 70%);
+  background-size: 200% 100%;
+  animation: pf-video-shimmer 1.4s linear infinite;
+}
+.pf-card-video-wrap--loading .pf-card-video {
+  background: transparent;
+}
+@keyframes pf-video-shimmer {
+  to { background-position: -200% 0; }
+}
+
+.pf-card-video-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.pf-card-video-spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: pf-video-spin 0.8s linear infinite;
+}
+@keyframes pf-video-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-card-video-wrap--loading,
+  .pf-card-video-spinner {
+    animation: none;
+  }
+}

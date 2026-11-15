@@ -34,7 +34,7 @@ import { advanceToNextFeedMedia } from "../../utils/autoAdvance";
 // NEW: Facebook-style inline "Are you interested in this post?" card.
 // Lives in the same folder as this file.
 import InlineInterestPrompt from "./InlineInterestPrompt";
-// i18n: t("key") follows the user's language preference (en / hi / mr).
+// i18n: t("key") follows the user's language preference (en / hi / mr / …).
 import useT from "../../i18n";
 
 const REACTIONS = [
@@ -115,9 +115,9 @@ const stubTranslateToHindi = (text) => {
 
 /* ─────────────────────────────────────────
    POST VIDEO — feed-style scroll autoplay for uploaded post videos.
-   Unlike Video/Reel/Trending cards, a post video has no separate
-   thumbnail image — only `video_url` — so the video's own first frame
-   IS the thumbnail. Behavior (Instagram/TikTok-feed pattern):
+   A post video may have no separate thumbnail image — only `video_url` —
+   so the video's own first frame is used as the thumbnail. Behavior
+   (Instagram/TikTok-feed pattern):
      • Paused until the post is meaningfully on-screen (`inView`, driven
        by PostCard's IntersectionObserver below).
      • The moment it first enters view, it tries to autoplay WITH
@@ -139,6 +139,12 @@ const stubTranslateToHindi = (text) => {
        video, otherwise (no next item / off-screen / fullscreen) the
        video replays from the start.
 
+   NEW (black-box fix): until the first frame is ready the wrapper shows
+   a dark shimmer + spinner instead of a plain black box, plain mp4/webm
+   sources get "#t=0.001" appended so mobile browsers paint the first
+   frame, and an optional `poster` image (e.g. post.thumbnail_url) is
+   shown while loading.
+
    HLS support — if `src` is an .m3u8 manifest, playback routes through
    hls.js (or native HLS on Safari) instead of setting the <video>'s
    src attribute directly. Plain mp4/webm sources are unaffected.
@@ -148,7 +154,7 @@ const stubTranslateToHindi = (text) => {
    component; (2) hls.js no longer starts downloading segments the
    moment a post mounts — it waits until the post is actually on screen.
 ───────────────────────────────────────── */
-const PostVideo = ({ src, inView, onEnded }) => {
+const PostVideo = ({ src, inView, onEnded, poster }) => {
   const videoRef = useRef(null);
   // Wrapper ref — this is the element that actually goes fullscreen.
   const wrapRef = useRef(null);
@@ -162,6 +168,22 @@ const PostVideo = ({ src, inView, onEnded }) => {
   inViewRef.current = inView;
   const usingHls = isHlsSource(src);
   const { t } = useT();
+
+  // NEW: plain mp4/webm sources get "#t=0.001" so mobile browsers paint
+  // the first frame instead of leaving a black box. HLS sources are fed
+  // to hls.js / Safari directly, so the src attribute stays unset.
+  const mediaSrc = usingHls
+    ? undefined
+    : src && !src.includes("#")
+      ? `${src}#t=0.001`
+      : src;
+
+  // NEW: true once the first frame has loaded (or playback has started).
+  // While false, the wrapper shows a shimmer + spinner instead of black.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(false);
+  }, [src]);
 
   // Muted by default; flips to false the moment an autoplay-with-sound
   // attempt succeeds, or the user taps to unmute.
@@ -428,7 +450,7 @@ const PostVideo = ({ src, inView, onEnded }) => {
   };
 
   // ── HLS playback ──────────────────────────────────────────────────
-  // For a plain mp4/webm `src`, this is a no-op — the <video src={src}>
+  // For a plain mp4/webm `src`, this is a no-op — the <video src>
   // below handles it. For an .m3u8 manifest, hands the element to hls.js
   // (or lets Safari's native HLS take over) instead of setting `src`
   // directly, since browsers other than Safari can't play a raw .m3u8
@@ -494,14 +516,22 @@ const PostVideo = ({ src, inView, onEnded }) => {
   }, [inView]);
 
   return (
-    <div className="pf-card-video-wrap" ref={wrapRef} onClick={toggleMute}>
+    <div
+      className={`pf-card-video-wrap${ready ? "" : " pf-card-video-wrap--loading"}`}
+      ref={wrapRef}
+      onClick={toggleMute}
+    >
       <video
         ref={videoRef}
         // For HLS sources the effect above sets the video's source via
         // hls.js (or vid.src on Safari) directly, so the src attribute
         // is left unset here to avoid the browser trying (and failing)
-        // to fetch the raw .m3u8 as a video file.
-        src={usingHls ? undefined : src}
+        // to fetch the raw .m3u8 as a video file. For plain files,
+        // mediaSrc carries "#t=0.001" so the first frame is painted.
+        src={mediaSrc}
+        poster={poster || undefined}
+        onLoadedData={() => setReady(true)}
+        onPlaying={() => setReady(true)}
         muted={muted}
         // `loop` is removed so the "ended" event fires — handleEnded
         // replays the video itself when there is no next item.
@@ -513,6 +543,14 @@ const PostVideo = ({ src, inView, onEnded }) => {
         disablePictureInPicture
         onContextMenu={(e) => e.preventDefault()}
       />
+
+      {/* NEW: loading indicator shown until the first frame is ready. */}
+      {!ready && (
+        <div className="pf-card-video-loading" aria-hidden="true">
+          <span className="pf-card-video-spinner" />
+        </div>
+      )}
+
       {/* Full screen button — sits just left of the mute button. */}
       <button
         type="button"
@@ -1660,9 +1698,12 @@ const PostCard = ({
               // the moment the post is on-screen and pauses the moment it
               // isn't. `onEnded` scrolls the feed to the next video /
               // post video once this one finishes.
+              // NEW: `poster` shows an image while the video loads, if the
+              // post has a thumbnail_url column (ignored when it doesn't).
               post.video_url && (
                 <PostVideo
                   src={post.video_url}
+                  poster={post.thumbnail_url}
                   inView={mediaInView}
                   onEnded={() => advanceToNextFeedMedia(cardRef.current)}
                 />

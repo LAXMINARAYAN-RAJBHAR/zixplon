@@ -22,9 +22,9 @@
   --zx-radius-sm: 10px;
 }
 
-@keyframes floatInRight {
-  from { opacity: 0; transform: translateX(14px) scale(0.9); }
-  to   { opacity: 1; transform: translateX(0)    scale(1);   }
+@keyframes floatInUp {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
 
 /* ══════════════════════════════════════
@@ -114,11 +114,10 @@
   transition: height 0.32s cubic-bezier(0.4,0,0.2,1);
 }
 
-/* Fade out the floating Like/Dislike/Comment/Share/More stack while
+/* Fade out the bottom Like/Dislike/Comment/Share/More bar while
    comments are open — the sheet already duplicates most of what it
    offers (comment count, closing via the ✕ or a tap on the now-visible
-   top-half video), and leaving the stack visible just clutters the
-   shrunk video area. */
+   top-half video), and the sheet covers that part of the reel anyway. */
 .reel_item--comments-open .reel_actions {
   opacity: 0;
   pointer-events: none;
@@ -129,26 +128,37 @@
 .reel_video::-moz-media-controls-fullscreen-button    { display: none !important; }
 
 /* ══════════════════════════════════════
-   ACTION BAR — right-side floating stack
-   Each button is a glassmorphism card
+   ACTION BAR — CHANGED: bottom section of the reel
+   One horizontal row of round glass buttons sitting between the
+   Play/Pause button (left) and the Mute button (right), just above
+   the progress bar:
+
+       ▶  [👍][👎][💬][↪][⋯]  🔊
+
+   Labels are gone (there is no room for them in a row); the like and
+   comment counts are small badges on the top-right corner of their
+   button instead.
 ══════════════════════════════════════ */
 
 .reel_actions {
   position: absolute;
-  right: 12px;
-  bottom: 100px;
+  left: 62px;               /* 14px gutter + 40px play/pause + 8px gap */
+  right: 62px;              /* same on the mute side */
+  bottom: 18px;
+  height: 40px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 6px;
   z-index: 15;
-  animation: floatInRight 0.3s ease both;
+  animation: floatInUp 0.3s ease both;
 }
 
-/* ── Individual floating button ── */
+/* ── Individual round button ── */
 .reel_action_btn {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   color: #ffffff;
@@ -159,16 +169,18 @@
   letter-spacing: 0.3px;
   gap: 3px;
 
-  /* Size */
-  width: 52px;
-  height: 52px;
+  /* Size: share the row evenly, up to a comfortable maximum */
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 56px;
+  height: 40px;
 
   /* Glassmorphism */
   background: rgba(12, 8, 35, 0.68);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255,255,255,0.20);
-  border-radius: 18px;
+  border-radius: 999px;
 
   box-shadow:
     0 6px 20px rgba(0,0,0,0.40),
@@ -178,6 +190,12 @@
   user-select: none;
   position: relative;
   overflow: visible;
+}
+
+.reel_action_btn .MuiSvgIcon-root {
+  font-size: 20px !important;
+  width: 20px !important;
+  height: 20px !important;
 }
 
 .reel_action_btn:hover {
@@ -211,24 +229,45 @@
   filter: drop-shadow(0 0 6px rgba(255, 212, 0, 0.85));
 }
 
-/* Like count under the icon: pure white so it stays readable */
-.reel_liked .reel_like_count {
+/* ── Count badges (likes / comments) ──
+   Small pill on the top-right corner of the button. Only rendered by
+   the JSX when the count is above zero. */
+.reel_like_count,
+.reel_action_count {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--zx-primary);
+  border: 1px solid rgba(255,255,255,0.45);
   color: #ffffff;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  font-family: 'Nunito', sans-serif;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 14px;
+  text-align: center;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 /* ══════════════════════════════════════
    USER INFO (bottom-left)
-   CHANGED: the block now has a right boundary (clears the action rail),
-   a max-height (never grows into the top chips), and is a flex column
-   so the username row stays put while the description scrolls.
+   CHANGED: the action rail on the right is gone, so the block now
+   spans the full width, and it sits ABOVE the bottom button bar.
+   It still has a max-height (never grows into the top chips) and is a
+   flex column so the username row stays put while the description
+   scrolls.
 ══════════════════════════════════════ */
 
 .reel_info {
   position: absolute;
-  bottom: 55px;
+  bottom: 70px;                    /* clears the bottom button bar */
   left: 12px;
-  right: 76px;                     /* clear the action rail */
+  right: 12px;
   max-height: calc(100% - 140px);  /* never reach the top chips */
   display: flex;
   flex-direction: column;
@@ -242,9 +281,9 @@
   content: "";
   position: absolute;
   left: -12px;
-  right: -76px;
+  right: -12px;
   top: -28px;
-  bottom: -55px;
+  bottom: -70px;
   background: linear-gradient(
     to top,
     rgba(12, 8, 35, 0.92) 0%,
@@ -332,9 +371,8 @@
   cursor: not-allowed;
 }
 
-/* CHANGED: max-width: 220px removed (the .reel_info right boundary now
-   limits the width), min-height: 0 added so the flex column can shrink
-   it. The expanded text scrolls inside .expandable-text-body. */
+/* min-height: 0 lets the flex column shrink it. The expanded text
+   scrolls inside .expandable-text-body. */
 .reel_description {
   min-height: 0;
   font-size: 13px;
@@ -437,10 +475,9 @@
 
 /* ══════════════════════════════════════
    PLAY/PAUSE + MUTE BUTTONS
-   Small circular glass buttons sitting just
-   above the progress bar — Play/Pause on the
-   left, Mute on the right. Both share the
-   same show/hide timer (showMuteBtn) so they
+   Small circular glass buttons at the two ends of the bottom button
+   bar, just above the progress bar — Play/Pause on the left, Mute on
+   the right. Both share the same show/hide timer (showMuteBtn) so they
    fade in/out together.
 ══════════════════════════════════════ */
 
@@ -532,9 +569,9 @@
 
 .reel_like_inner {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
@@ -553,7 +590,7 @@
 
 .reel_like_emoji {
   position: absolute;
-  font-size: 26px;
+  font-size: 22px;
   opacity: 0;
   transform: scale(0.3) rotate(-20deg);
   pointer-events: none;
@@ -881,14 +918,18 @@
 
 /* ══════════════════════════════════════
    MORE DROPDOWN
+   CHANGED: the ⋯ button now lives in the bottom bar, so the menu opens
+   UPWARD (right edge aligned with the button) on desktop as well as
+   mobile, instead of to the left of the old side stack.
 ══════════════════════════════════════ */
 
 .reel_more_btn { position: relative; }
 
 .reel_more_dropdown {
   position: absolute;
-  right: calc(100% + 10px);
-  bottom: 0;
+  right: 0;
+  left: auto;
+  bottom: calc(100% + 10px);
   width: 168px;
   background: rgba(12, 8, 35, 0.92);
   border: 1px solid rgba(220,38,38,0.45);
@@ -900,13 +941,13 @@
   box-shadow:
     0 8px 32px rgba(0,0,0,0.55),
     0 0 0 1px rgba(220,38,38,0.15);
-  animation: dropdownSlideIn 0.18s ease;
+  animation: dropdownSlideUp 0.18s ease;
   overflow: hidden;
 }
 
-@keyframes dropdownSlideIn {
-  from { opacity: 0; transform: translateX(8px) scale(0.96); }
-  to   { opacity: 1; transform: translateX(0)   scale(1);    }
+@keyframes dropdownSlideUp {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
 }
 
 .reel_more_dropdown_item {
@@ -951,7 +992,7 @@
 
 .reel_remix_origin_badge {
   position: absolute;
-  bottom: 130px;
+  bottom: 150px;
   left: 12px;
   display: flex;
   align-items: center;
@@ -1011,12 +1052,20 @@ body.reels-open .reel_item   { height: 100dvh; }
 
   .reel_item { height: 100dvh; }
 
-  /* Slightly smaller floating buttons on mobile */
+  /* CHANGED: the bottom button bar — slightly smaller on mobile.
+     Play/Pause (left) and Mute (right) are 36px, so the action bar
+     leaves 10px gutter + 36px button + 6px gap = 52px on each side. */
+  .reel_actions {
+    left: 52px;
+    right: 52px;
+    bottom: 14px;
+    height: 36px;
+    gap: 4px;
+  }
+
   .reel_action_btn {
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
-    font-size: 9px;
+    height: 36px;
+    max-width: 52px;
     gap: 2px;
   }
 
@@ -1026,34 +1075,31 @@ body.reels-open .reel_item   { height: 100dvh; }
     height: 18px !important;
   }
 
-  .reel_actions { gap: 8px; bottom: 90px; right: 10px; }
+  .reel_like_emoji { font-size: 20px; }
 
-  /* CHANGED: smaller circular play/pause + mute buttons on mobile,
-     still left/right of the progress bar. */
   .reel_playpause_btn,
-  .reel_mute_btn { width: 34px; height: 34px; bottom: 14px; }
+  .reel_mute_btn { width: 36px; height: 36px; bottom: 14px; }
   .reel_playpause_btn { left: 10px; }
   .reel_mute_btn      { right: 10px; }
   .reel_playpause_icon { font-size: 14px; }
+
+  /* the info block sits just above the (shorter) bottom bar */
+  .reel_info {
+    bottom: 64px;
+  }
+  .reel_info::before {
+    bottom: -64px;
+  }
 
   .reel_remix_origin_badge {
     font-size: 10px;
     padding: 4px 10px;
     max-width: 170px;
-    bottom: 120px;
+    bottom: 140px;
   }
 
   .reel_more_dropdown {
-    right: 0;
-    bottom: calc(100% + 8px);
-    left: auto;
     width: 160px;
-    animation: dropdownSlideUp 0.18s ease;
-  }
-
-  @keyframes dropdownSlideUp {
-    from { opacity: 0; transform: translateY(8px) scale(0.96); }
-    to   { opacity: 1; transform: translateY(0)   scale(1);    }
   }
 
   .reel_comment_item--reply { margin-left: 14px; }
@@ -1065,15 +1111,6 @@ body.reels-open .reel_item   { height: 100dvh; }
     top: calc(env(safe-area-inset-top, 0px) + 12px);
     left: 12px;
     max-width: calc(100% - 70px);
-  }
-
-  /* action rail is 46px wide + 10px offset on mobile, so the info block
-     can use a little more width */
-  .reel_info {
-    right: 66px;
-  }
-  .reel_info::before {
-    right: -66px;
   }
 }
 

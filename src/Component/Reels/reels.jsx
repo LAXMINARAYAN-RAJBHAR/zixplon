@@ -1395,8 +1395,8 @@ const ReelItemBase = ({ reel, fb }) => {
   };
 
   // NEW: persistent Play/Pause button click handler — sits to the left
-  // of the progress bar, mirrored on the right by the Mute button. Does
-  // the same play/pause toggle as a single-tap on the video
+  // of the bottom button bar, mirrored on the right by the Mute button.
+  // Does the same play/pause toggle as a single-tap on the video
   // (handleVideoClick's non-double-tap branch) but is always visible
   // (while showMuteBtn is true) instead of only reachable by tapping
   // the video itself. Also resets the same auto-hide timer the mute
@@ -1606,12 +1606,9 @@ const ReelItemBase = ({ reel, fb }) => {
           </div>
         )}
 
-        {/* CHANGED: the old centered "Tap to mute/unmute" pill is now
-            two small circular buttons sitting just above the progress
-            bar — Play/Pause on the left, Mute on the right. Unlike the
-            old pill, these are ALWAYS visible (not tied to the
-            showMuteBtn auto-hide timer) so the controls are reachable
-            at any time, not just for 3s after a tap/seek. */}
+        {/* The two end buttons of the bottom button bar: Play/Pause on
+            the left, Mute on the right (the Like/Dislike/Comment/Share/
+            More bar sits between them — see .reel_actions below). */}
         {!isYouTube(reel.src) && (
           <button
             className="reel_playpause_btn"
@@ -1653,23 +1650,36 @@ const ReelItemBase = ({ reel, fb }) => {
           </div>
         )}
 
+        {/* CHANGED: the action buttons are now a horizontal row in the
+            bottom section of the reel (between Play/Pause and Mute)
+            instead of a vertical stack on the right edge. There is no
+            room for text labels in a row, so Share / More / Comment
+            labels were dropped (each button has a title/aria-label
+            instead), and the like and comment counts are small badges
+            on the corner of their button — only shown when above zero. */}
         <div className="reel_actions">
 
           <div
             className={`reel_action_btn reel_like_btn ${liked ? "reel_liked" : ""}`}
             onClick={handleLike}
+            title="Like"
+            aria-label="Like"
             style={{ opacity: isActing ? 0.6 : 1, pointerEvents: isActing ? "none" : "auto" }}
           >
             <span className="reel_like_inner">
               <ThumbUpOutlinedIcon style={{ color: liked ? "#ff0000" : "white" }} />
-              <span className="reel_like_count">{likeCountLoading ? "..." : likeCount}</span>
             </span>
+            {!likeCountLoading && likeCount > 0 && (
+              <span className="reel_like_count">{likeCount}</span>
+            )}
             <span className="reel_like_emoji">😊</span>
           </div>
 
           <div
             className={`reel_action_btn ${disliked ? "reel_disliked" : ""}`}
             onClick={handleDislike}
+            title="Dislike"
+            aria-label="Dislike"
             style={{ opacity: isActing ? 0.6 : 1, pointerEvents: isActing ? "none" : "auto" }}
           >
             <ThumbDownAltOutlinedIcon style={{ color: disliked ? "#ff0000" : "white" }} />
@@ -1679,22 +1689,31 @@ const ReelItemBase = ({ reel, fb }) => {
             ref={commentBtnRef}
             className="reel_action_btn"
             onClick={() => setShowComments((v) => !v)}
+            title="Comments"
+            aria-label="Comments"
           >
             <ChatBubbleOutlineIcon style={{ color: showComments ? "#ff0000" : "white" }} />
-            <span>{comments.length > 0 ? comments.length : "Comment"}</span>
+            {comments.length > 0 && (
+              <span className="reel_action_count">{comments.length}</span>
+            )}
           </div>
 
-          <div className="reel_action_btn" onClick={handleShare}>
+          <div
+            className="reel_action_btn"
+            onClick={handleShare}
+            title="Share"
+            aria-label="Share"
+          >
             <ReplyIcon style={{ color: "white", transform: "scaleX(-1)" }} />
-            <span>Share</span>
           </div>
 
           <div
             className={`reel_action_btn reel_more_btn ${showMoreMenu ? "reel_more_btn--open" : ""}`}
             onClick={(e) => { e.stopPropagation(); setShowMoreMenu((v) => !v); }}
+            title="More"
+            aria-label="More"
           >
             <MoreHorizIcon style={{ color: "white" }} />
-            <span>More</span>
             {showMoreMenu && (
               <MoreDropdown
                 onRemix={handleRemix}
@@ -1860,7 +1879,8 @@ const ReelItemBase = ({ reel, fb }) => {
         {/* NEW (feedback prompt): shown once when a NEW creator's reel
             comes up after the visitor has already gone through a few
             reels. Hidden while the comment sheet is open so the two
-            never overlap. */}
+            never overlap. CHANGED: the action rail is no longer on the
+            right edge, so the prompt can use the full width. */}
         <FeedbackPrompt
           visible={feedbackPrompt.visible && !showComments}
           kind="reel"
@@ -1874,7 +1894,7 @@ const ReelItemBase = ({ reel, fb }) => {
             feedbackPrompt.dismiss();
             handleNotInterested();
           }}
-          style={{ left: 12, right: 72, bottom: 170 }}
+          style={{ left: 12, right: 12, bottom: 170 }}
         />
 
         {showReportModal && (
@@ -1902,7 +1922,8 @@ const ReelItemBase = ({ reel, fb }) => {
 
         {/* Bottom user info — CHANGED: location, feeling and the song
             card now live in the top-left stack above, so this block is
-            just avatar + username + Connect + description. */}
+            just avatar + username + Connect + description. It sits just
+            above the bottom button bar. */}
         <div className="reel_info">
           <div className="reel_user">
             <Link to={`/user/${reel.username}`}>

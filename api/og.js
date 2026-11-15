@@ -92,7 +92,7 @@ const SITE = "https://zixplon.in";
 const ALLOWED_TYPES = ["post", "reel", "video", "profile"];
 
 // The path of your React profile route, WITHOUT the username.
-const PROFILE_PATH = "/profile";
+const PROFILE_PATH = "/user";
 
 // Ideally replace with a real 1200x630 branded image: put it in /public
 // and change this to `${SITE}/og-fallback.jpg`.
@@ -307,7 +307,7 @@ export default async function handler(req) {
         item?.thumbnail,
         getVideoThumbnailFromCloudinaryUrl(item?.video_url),
       ];
-      url = `${SITE}/feed?post=${id}`;
+      url = `${SITE}/?tab=posts&post=${id}`;
     } else if (type === "profile") {
       const res = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/profiles?username=ilike.${ilikeValue(id)}&select=username,channel_name,about,profile_pic,banner_pic&limit=1`,

@@ -298,7 +298,7 @@ const requestFullscreenOn = (el) => {
 // NEW: checks whether an element actually supports being the fullscreen
 // target (arbitrary-element fullscreen isn't available everywhere — e.g.
 // iOS Safari only supports it on <video> itself), so we know whether to
-// fullscreen our wrapper <div> (keeps our custom overlay controls visible)
+// fullscreen our wrapper <div> (keeps our custom controls visible)
 // or fall back to fullscreening the bare <video> (native controls only).
 const supportsElementFullscreen = (el) =>
   !!(
@@ -436,11 +436,11 @@ const Video = ({ sideNavbar }) => {
   const [showCommentEmoji, setShowCommentEmoji] = useState(false);
   const [showReplyEmoji, setShowReplyEmoji] = useState(false);
 
-  // NEW: lets the person hide the Like/Dislike/Share/Fullscreen row while
-  // in fullscreen (toggled from the ⋮ "More" menu), so the video isn't
-  // partly covered. The "More" button itself always stays visible so they
-  // can bring the row back. Only meaningful in fullscreen — reset below
-  // whenever fullscreen is exited so it doesn't carry over.
+  // NEW: lets the person hide the controls row while in fullscreen
+  // (toggled from the ⋮ "More" menu), so the video isn't partly covered.
+  // The "More" button itself always stays visible so they can bring the
+  // row back. Only meaningful in fullscreen — reset below whenever
+  // fullscreen is exited so it doesn't carry over.
   const [fullscreenActionsHidden, setFullscreenActionsHidden] = useState(false);
 
   // NEW: true only while the video is muted because the browser BLOCKED
@@ -499,11 +499,12 @@ const Video = ({ sideNavbar }) => {
   const loggedInUser = localStorage.getItem("username") || "Guest";
   const controlsTimer = useRef(null);
   const videoRef = useRef(null);
-  // NEW: ref on the wrapper that contains BOTH the <video> and all of our
-  // custom overlay controls (Prev/Autoplay/Next bar, Like/Dislike/Share/
-  // Fullscreen/More stack). Fullscreening THIS element instead of the bare
-  // <video> is what keeps our custom controls visible once fullscreen —
-  // fullscreening the <video> alone only shows the video and native chrome.
+  // NEW: ref on the wrapper that contains the video stage AND the
+  // controls row (Prev/Autoplay/Next + Like/Dislike/Share/Fullscreen/
+  // More) that now sits BELOW the video. Fullscreening THIS element
+  // instead of the bare <video> is what keeps our custom controls
+  // available once fullscreen — fullscreening the <video> alone only
+  // shows the video and native chrome.
   const playerWrapperRef = useRef(null);
   // NEW: holds the active hls.js instance so we can tear it down cleanly
   // whenever the video changes or the component unmounts — hls.js runs
@@ -583,9 +584,7 @@ const Video = ({ sideNavbar }) => {
       // all (guarded below, so this simply no-ops there) — on iOS the
       // native fullscreen video player already rotates with the device
       // on its own. Some Android browsers can also reject the lock call
-      // (e.g. certain manufacturer overrides) — video.css has a CSS-only
-      // rotation fallback for that case (see ":fullscreen" +
-      // "orientation: portrait" rules at the end of the file).
+      // (e.g. certain manufacturer overrides).
       const screenOrientation = window.screen && window.screen.orientation;
       if (screenOrientation && typeof screenOrientation.lock === "function") {
         if (fsActive && isMobile) {
@@ -611,11 +610,11 @@ const Video = ({ sideNavbar }) => {
   }, [isMobile]);
 
   // CHANGED: fullscreens the wrapper <div> (playerWrapperRef) instead of the
-  // bare <video> element, so our custom overlay controls (Prev/Autoplay/
-  // Next + Like/Dislike/Share/Fullscreen/More) stay mounted and visible in
-  // fullscreen — see video.css ":fullscreen" rules for the horizontal
-  // layout applied while in this state. Falls back to fullscreening the
-  // <video> itself only on browsers (iOS Safari) that don't support
+  // bare <video> element, so our custom controls row (Prev/Autoplay/Next +
+  // Like/Dislike/Share/Fullscreen/More) stays mounted and available in
+  // fullscreen — see video.css ".is-fullscreen" rules for the floating
+  // pill layout applied while in this state. Falls back to fullscreening
+  // the <video> itself only on browsers (iOS Safari) that don't support
   // arbitrary-element fullscreen at all.
   const handleFullscreenToggle = (e) => {
     e.stopPropagation();
@@ -1763,355 +1762,376 @@ const Video = ({ sideNavbar }) => {
   const topLevelComments = [...allComments].filter((c) => !c.parentId).reverse();
   const repliesFor = (parentId) => allComments.filter((c) => c.parentId === parentId);
 
+  // NEW: the controls row sits BELOW the video and is always visible in
+  // normal mode. In fullscreen it becomes a floating pill over the video
+  // that fades out when idle (fs-hidden) and can be collapsed to just the
+  // ⋮ button via "Hide controls" (fs-collapsed). See video.css.
+  const controlsRowClass = [
+    "video_controls_row",
+    isFullscreen ? (overlayVisible ? "fs-visible" : "fs-hidden") : "",
+    isFullscreen && fullscreenActionsHidden ? "fs-collapsed" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div className="video">
       <div className="videoPostSection">
         <div
-          className="video_player_wrapper"
+          className={`video_player_wrapper${isFullscreen ? " is-fullscreen" : ""}`}
           ref={playerWrapperRef}
           onMouseMove={handleMouseMove}
           onMouseEnter={handleMouseMove}
           onTouchStart={handleVideoAreaTap}
         >
-          <div
-            className={`video_controls_bar ${overlayVisible ? "visible" : "hidden"}`}
-          >
-            <button
-              className="video_nav_btn"
-              onClick={() => navigate(`/video/${prevVideo.id}`, { state: navState })}
-            >
-              ⏮ Prev
-            </button>
-            <div className="video_autoplay_toggle">
-              <span>Autoplay</span>
+          {/* ── The video "stage": dark rounded box with the <video> and
+              everything that genuinely belongs ON the picture (quality
+              badge, errors, double-tap layer, heart, unmute pill,
+              feedback prompt). ── */}
+          <div className="video_stage">
+            {video.src?.includes("cloudinary.com") && (
               <div
-                className={`toggle_switch ${autoPlay ? "on" : "off"}`}
-                onClick={() => setAutoPlay(!autoPlay)}
-              >
-                <div className="toggle_knob" />
-              </div>
-            </div>
-            <button
-              className="video_nav_btn"
-              onClick={() => navigate(`/video/${nextVideo.id}`, { state: navState })}
-            >
-              Next ⏭
-            </button>
-          </div>
-
-          {video.src?.includes("cloudinary.com") && (
-            <div
-              style={{
-                position: "absolute",
-                top: "12px",
-                left: "12px",
-                background: "rgba(0,0,0,0.65)",
-                color: "#fff",
-                fontSize: "12px",
-                fontWeight: 700,
-                padding: "4px 10px",
-                borderRadius: "999px",
-                zIndex: 5,
-                opacity: overlayVisible ? 1 : 0,
-                transition: "opacity 0.3s ease",
-                pointerEvents: "none",
-                fontFamily: "'Nunito', sans-serif",
-                letterSpacing: "0.3px",
-              }}
-            >
-              {QUALITY_LABELS[quality]}
-            </div>
-          )}
-
-          {isUnsupportedFormat(video.src) && !videoError && !hasPlayedSuccessfully && (
-            <div
-              style={{
-                background: "#ff4444",
-                color: "white",
-                padding: "10px 16px",
-                borderRadius: "6px",
-                marginBottom: "8px",
-                fontSize: "14px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <span>
-                ⚠️ <strong>{formatName}</strong> format may not be supported.
-              </span>
-              <button
-                onClick={() => setVideoError(false)}
                 style={{
-                  background: "none",
-                  border: "1px solid white",
-                  color: "white",
-                  cursor: "pointer",
-                  borderRadius: "4px",
-                  padding: "2px 10px",
-                  marginLeft: "12px",
+                  position: "absolute",
+                  top: "12px",
+                  left: "12px",
+                  background: "rgba(0,0,0,0.65)",
+                  color: "#fff",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  padding: "4px 10px",
+                  borderRadius: "999px",
+                  zIndex: 5,
+                  opacity: overlayVisible ? 1 : 0,
+                  transition: "opacity 0.3s ease",
+                  pointerEvents: "none",
+                  fontFamily: "'Nunito', sans-serif",
+                  letterSpacing: "0.3px",
                 }}
               >
-                ✕
-              </button>
-            </div>
-          )}
+                {QUALITY_LABELS[quality]}
+              </div>
+            )}
 
-          {videoError && (
-            <div
-              style={{
-                background: "#ff8800",
-                color: "white",
-                padding: "10px 16px",
-                borderRadius: "6px",
-                marginBottom: "8px",
-                fontSize: "14px",
-              }}
+            {isUnsupportedFormat(video.src) && !videoError && !hasPlayedSuccessfully && (
+              <div
+                style={{
+                  background: "#ff4444",
+                  color: "white",
+                  padding: "10px 16px",
+                  borderRadius: "6px",
+                  marginBottom: "8px",
+                  fontSize: "14px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <span>
+                  ⚠️ <strong>{formatName}</strong> format may not be supported.
+                </span>
+                <button
+                  onClick={() => setVideoError(false)}
+                  style={{
+                    background: "none",
+                    border: "1px solid white",
+                    color: "white",
+                    cursor: "pointer",
+                    borderRadius: "4px",
+                    padding: "2px 10px",
+                    marginLeft: "12px",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {videoError && (
+              <div
+                style={{
+                  background: "#ff8800",
+                  color: "white",
+                  padding: "10px 16px",
+                  borderRadius: "6px",
+                  marginBottom: "8px",
+                  fontSize: "14px",
+                }}
+              >
+                ⚠️ This video could not be played. Please try a different format.
+              </div>
+            )}
+
+            <video
+              ref={videoRef}
+              key={video.id}
+              controls
+              autoPlay
+              muted={false}
+              playsInline
+              // REMOVED: crossOrigin="anonymous" — this was forcing the
+              // browser to fetch the video in CORS mode, which requires R2
+              // to send a matching Access-Control-Allow-Origin header on
+              // every GET request. R2 isn't configured for that the way
+              // Cloudinary was, so every single video request was being
+              // blocked before playback could even start — this is what
+              // produced the universal "This video could not be played"
+              // error across ALL videos, old and new. crossOrigin is only
+              // needed for pixel-level access (e.g. drawing frames to a
+              // <canvas>), which nothing in this component does — plain
+              // <video controls> playback doesn't require it at all.
+              controlsList="nodownload noplaybackrate"
+              onContextMenu={(e) => e.preventDefault()}
+              className="video_youtube_video"
+              onPlay={() => setIsVideoPlaying(true)}
+              onPause={() => setIsVideoPlaying(false)}
+              // NEW: onPlaying fires only once the browser has actually
+              // resumed/started rendering frames (not just attempted to,
+              // like onPlay can) — the most reliable "this is genuinely
+              // decoding" signal available, which is what clears the
+              // extension-based format warning below.
+              onPlaying={() => setHasPlayedSuccessfully(true)}
+              onEnded={handleVideoEnd}
+              onError={handleVideoError}
+              preload={
+                typeof navigator !== "undefined" && navigator.connection?.saveData
+                  ? "metadata"
+                  : "auto"
+              }
+              poster={video.thumbnail}
             >
-              ⚠️ This video could not be played. Please try a different format.
-            </div>
-          )}
+              {/* CHANGED: for HLS sources, the effect above sets .src (or
+                  hands the element to hls.js) directly — no <source>
+                  child is rendered so it can't conflict with that.
+                  Non-HLS sources keep working exactly as before. */}
+              {!usingHls && (
+                <source
+                  src={getAdaptiveVideoSrc(
+                    video.src && video.src.includes("cloudinary.com")
+                      ? video.src.replace(/\.(webm|mov|avi|mkv)(\?.*)?$/i, ".mp4")
+                      : video.src,
+                    quality,
+                  )}
+                  type="video/mp4"
+                />
+              )}
+              Your browser does not support the video tag.
+            </video>
 
-          <video
-            ref={videoRef}
-            key={video.id}
-            controls
-            autoPlay
-            muted={false}
-            playsInline
-            // REMOVED: crossOrigin="anonymous" — this was forcing the
-            // browser to fetch the video in CORS mode, which requires R2
-            // to send a matching Access-Control-Allow-Origin header on
-            // every GET request. R2 isn't configured for that the way
-            // Cloudinary was, so every single video request was being
-            // blocked before playback could even start — this is what
-            // produced the universal "This video could not be played"
-            // error across ALL videos, old and new. crossOrigin is only
-            // needed for pixel-level access (e.g. drawing frames to a
-            // <canvas>), which nothing in this component does — plain
-            // <video controls> playback doesn't require it at all.
-            controlsList="nodownload noplaybackrate"
-            onContextMenu={(e) => e.preventDefault()}
-            className="video_youtube_video"
-            onPlay={() => setIsVideoPlaying(true)}
-            onPause={() => setIsVideoPlaying(false)}
-            // NEW: onPlaying fires only once the browser has actually
-            // resumed/started rendering frames (not just attempted to,
-            // like onPlay can) — the most reliable "this is genuinely
-            // decoding" signal available, which is what clears the
-            // extension-based format warning below.
-            onPlaying={() => setHasPlayedSuccessfully(true)}
-            onEnded={handleVideoEnd}
-            onError={handleVideoError}
-            preload={
-              typeof navigator !== "undefined" && navigator.connection?.saveData
-                ? "metadata"
-                : "auto"
-            }
-            poster={video.thumbnail}
-          >
-            {/* CHANGED: for HLS sources, the effect above sets .src (or
-                hands the element to hls.js) directly — no <source>
-                child is rendered so it can't conflict with that.
-                Non-HLS sources keep working exactly as before. */}
-            {!usingHls && (
-              <source
-                src={getAdaptiveVideoSrc(
-                  video.src && video.src.includes("cloudinary.com")
-                    ? video.src.replace(/\.(webm|mov|avi|mkv)(\?.*)?$/i, ".mp4")
-                    : video.src,
-                  quality,
-                )}
-                type="video/mp4"
+            {/* NEW: hidden audio element for the attached song — playback
+                is entirely driven by the sync effect above, so this
+                element is never played/paused directly from JSX. */}
+            {video.song && (
+              <audio
+                ref={songAudioRef}
+                src={video.song.url}
+                loop
+                preload="auto"
+                style={{ display: "none" }}
               />
             )}
-            Your browser does not support the video tag.
-          </video>
 
-          {/* NEW: hidden audio element for the attached song — playback
-              is entirely driven by the sync effect above, so this
-              element is never played/paused directly from JSX. */}
-          {video.song && (
-            <audio
-              ref={songAudioRef}
-              src={video.song.url}
-              loop
-              preload="auto"
-              style={{ display: "none" }}
-            />
-          )}
+            {/* Double-tap-to-like overlay — sits above the video, below the
+                  unmute pill. A single tap/click toggles play/pause; a
+                  double tap/click likes the video and pops a heart
+                  animation at the tap point. */}
+            <div className="video_tap_overlay" onClick={handleOverlayClick} />
 
-          {/* Double-tap-to-like overlay — sits above the video, below the
-                controls bar & floating action buttons. A single tap/click
-                toggles play/pause; a double tap/click likes the video and
-                pops a heart animation at the tap point. */}
-          <div className="video_tap_overlay" onClick={handleOverlayClick} />
-
-          {showHeartBurst && (
-            <div
-              key={heartBurstKey}
-              className="video_heart_burst"
-              style={{ left: heartBurstPos.x, top: heartBurstPos.y }}
-            >
-              ❤️
-            </div>
-          )}
-
-          {/* NEW: shown only while the video is muted because the
-              browser blocked unmuted autoplay, or because another card
-              took over the page's sound. Tapping it (a real user
-              gesture) turns sound on. Also lifted automatically by the
-              visitor's next tap/click elsewhere on the page when the
-              cause was blocked autoplay. Styled inline so no CSS file
-              change is needed.
-              PERF: no backdrop blur on mobile. */}
-          {autoMuted && (
-            <button
-              type="button"
-              aria-label="Unmute"
-              data-sound-toggle
-              onClick={handleUnmuteClick}
-              style={{
-                position: "absolute",
-                left: "12px",
-                bottom: isMobile ? "52px" : "56px",
-                zIndex: 31,
-                background: isMobile ? "rgba(12, 8, 35, 0.88)" : "rgba(12, 8, 35, 0.72)",
-                backdropFilter: isMobile ? "none" : "blur(12px)",
-                WebkitBackdropFilter: isMobile ? "none" : "blur(12px)",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.25)",
-                borderRadius: "999px",
-                padding: "7px 14px",
-                fontSize: "12px",
-                fontWeight: 800,
-                fontFamily: "'Nunito', sans-serif",
-                letterSpacing: "0.2px",
-                cursor: "pointer",
-                boxShadow: "0 6px 20px rgba(0,0,0,0.4)",
-              }}
-            >
-              🔇 Tap to unmute
-            </button>
-          )}
-
-          {/* NEW (feedback prompt): shown once when a NEW creator's video
-              comes up after the visitor has already gone through a few
-              videos. Sits above the "Tap to unmute" pill and clear of the
-              right-hand action stack. */}
-          <FeedbackPrompt
-            visible={feedbackPrompt.visible}
-            kind="video"
-            creator={video.channel || channelUsername}
-            onDismiss={feedbackPrompt.dismiss}
-            onInterested={handlePromptInterested}
-            onNotInterested={handlePromptNotInterested}
-            style={{
-              left: 12,
-              right: isMobile ? 64 : 84,
-              bottom: isMobile ? 96 : 100,
-            }}
-          />
-
-          <div
-            className={`video_frame_actions${isMobile ? " mobile-visible" : ""}${isFullscreen && fullscreenActionsHidden ? " actions-hidden" : ""
-              }`}
-          >
-            {!(isFullscreen && fullscreenActionsHidden) && (
-              <>
-                <div
-                  className={`video_frame_btn video_like_btn ${liked ? "video_liked" : ""}`}
-                  onClick={handleLike}
-                  title="Like"
-                >
-                  <span className="video_like_inner">
-                    <ThumbUpOutlinedIcon
-                      fontSize="small"
-                      style={{ color: liked ? "#ff0000" : "white" }}
-                    />
-                    <span>{likeCount}</span>
-                  </span>
-                  <span className="video_like_emoji">😊</span>
-                </div>
-
-                <div
-                  className={`video_frame_btn ${disliked ? "active" : ""}`}
-                  onClick={handleDislike}
-                  title="Dislike"
-                >
-                  <ThumbDownAltOutlinedIcon fontSize="small" />
-                </div>
-
-                <div
-                  className="video_frame_btn"
-                  onClick={handleShare}
-                  title="Share"
-                >
-                  <ReplyIcon fontSize="small" style={{ transform: "scaleX(-1)" }} />
-                  <span>Share</span>
-                </div>
-
-                <div
-                  className={`video_frame_btn ${isFullscreen ? "active" : ""}`}
-                  onClick={handleFullscreenToggle}
-                  title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-                >
-                  {isFullscreen ? (
-                    <FullscreenExitIcon fontSize="small" />
-                  ) : (
-                    <FullscreenIcon fontSize="small" />
-                  )}
-                </div>
-              </>
+            {showHeartBurst && (
+              <div
+                key={heartBurstKey}
+                className="video_heart_burst"
+                style={{ left: heartBurstPos.x, top: heartBurstPos.y }}
+              >
+                ❤️
+              </div>
             )}
 
-            {/* The "More" (⋮) button always stays visible — even when the
-                  rest of the row is hidden in fullscreen — so there's always
-                  a way to bring the row back. */}
-            <div
-              className="video_frame_more_wrap"
-              ref={moreMenuRef}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div
-                className="video_frame_btn"
-                onClick={() => setShowMoreMenu((v) => !v)}
-                title="More"
+            {/* NEW: shown only while the video is muted because the
+                browser blocked unmuted autoplay, or because another card
+                took over the page's sound. Tapping it (a real user
+                gesture) turns sound on. Also lifted automatically by the
+                visitor's next tap/click elsewhere on the page when the
+                cause was blocked autoplay. Styled inline so no CSS file
+                change is needed.
+                PERF: no backdrop blur on mobile. */}
+            {autoMuted && (
+              <button
+                type="button"
+                aria-label="Unmute"
+                data-sound-toggle
+                onClick={handleUnmuteClick}
+                style={{
+                  position: "absolute",
+                  left: "12px",
+                  bottom: isMobile ? "52px" : "56px",
+                  zIndex: 31,
+                  background: isMobile ? "rgba(12, 8, 35, 0.88)" : "rgba(12, 8, 35, 0.72)",
+                  backdropFilter: isMobile ? "none" : "blur(12px)",
+                  WebkitBackdropFilter: isMobile ? "none" : "blur(12px)",
+                  color: "#fff",
+                  border: "1px solid rgba(255,255,255,0.25)",
+                  borderRadius: "999px",
+                  padding: "7px 14px",
+                  fontSize: "12px",
+                  fontWeight: 800,
+                  fontFamily: "'Nunito', sans-serif",
+                  letterSpacing: "0.2px",
+                  cursor: "pointer",
+                  boxShadow: "0 6px 20px rgba(0,0,0,0.4)",
+                }}
               >
-                <MoreVertIcon fontSize="small" />
-              </div>
+                🔇 Tap to unmute
+              </button>
+            )}
 
-              {showMoreMenu && (
-                <div className="video_more_dropdown">
-                  {/* NEW: only offered in fullscreen — lets the person hide
-                        the whole Like/Dislike/Share/Fullscreen row so it
-                        doesn't sit over the video, keeping only this ⋮ button
-                        around to bring it back. */}
-                  {isFullscreen && (
+            {/* NEW (feedback prompt): shown once when a NEW creator's video
+                comes up after the visitor has already gone through a few
+                videos. Sits above the "Tap to unmute" pill. The action
+                buttons no longer float over the video, so it can use the
+                full width. */}
+            <FeedbackPrompt
+              visible={feedbackPrompt.visible}
+              kind="video"
+              creator={video.channel || channelUsername}
+              onDismiss={feedbackPrompt.dismiss}
+              onInterested={handlePromptInterested}
+              onNotInterested={handlePromptNotInterested}
+              style={{
+                left: 12,
+                right: 12,
+                bottom: isMobile ? 96 : 100,
+              }}
+            />
+          </div>
+
+          {/* ── CONTROLS ROW — BELOW the video (normal flow) ──
+              Left/top : Prev | Autoplay | Next
+              Right/bottom : Like, Dislike, Share, Fullscreen, ⋮ More
+              In fullscreen this row floats over the video as a pill
+              (see video.css ".is-fullscreen .video_controls_row"). */}
+          <div className={controlsRowClass}>
+            <div className="video_controls_bar">
+              <button
+                className="video_nav_btn"
+                onClick={() => navigate(`/video/${prevVideo.id}`, { state: navState })}
+              >
+                ⏮ Prev
+              </button>
+              <div className="video_autoplay_toggle">
+                <span>Autoplay</span>
+                <div
+                  className={`toggle_switch ${autoPlay ? "on" : "off"}`}
+                  onClick={() => setAutoPlay(!autoPlay)}
+                >
+                  <div className="toggle_knob" />
+                </div>
+              </div>
+              <button
+                className="video_nav_btn"
+                onClick={() => navigate(`/video/${nextVideo.id}`, { state: navState })}
+              >
+                Next ⏭
+              </button>
+            </div>
+
+            <div className="video_frame_actions">
+              {!(isFullscreen && fullscreenActionsHidden) && (
+                <>
+                  <div
+                    className={`video_frame_btn video_like_btn ${liked ? "video_liked" : ""}`}
+                    onClick={handleLike}
+                    title="Like"
+                  >
+                    <span className="video_like_inner">
+                      {/* Icon colour now comes from CSS (inherits the
+                          button's text colour), so it reads correctly on
+                          the light bar below the video AND on the dark
+                          fullscreen pill. */}
+                      <ThumbUpOutlinedIcon fontSize="small" />
+                      <span>{likeCount}</span>
+                    </span>
+                    <span className="video_like_emoji">😊</span>
+                  </div>
+
+                  <div
+                    className={`video_frame_btn ${disliked ? "active" : ""}`}
+                    onClick={handleDislike}
+                    title="Dislike"
+                  >
+                    <ThumbDownAltOutlinedIcon fontSize="small" />
+                  </div>
+
+                  <div
+                    className="video_frame_btn"
+                    onClick={handleShare}
+                    title="Share"
+                  >
+                    <ReplyIcon fontSize="small" style={{ transform: "scaleX(-1)" }} />
+                    <span>Share</span>
+                  </div>
+
+                  <div
+                    className={`video_frame_btn ${isFullscreen ? "active" : ""}`}
+                    onClick={handleFullscreenToggle}
+                    title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                  >
+                    {isFullscreen ? (
+                      <FullscreenExitIcon fontSize="small" />
+                    ) : (
+                      <FullscreenIcon fontSize="small" />
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* The "More" (⋮) button always stays visible — even when the
+                    rest of the row is hidden in fullscreen — so there's always
+                    a way to bring the row back. */}
+              <div
+                className="video_frame_more_wrap"
+                ref={moreMenuRef}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div
+                  className="video_frame_btn"
+                  onClick={() => setShowMoreMenu((v) => !v)}
+                  title="More"
+                >
+                  <MoreVertIcon fontSize="small" />
+                </div>
+
+                {showMoreMenu && (
+                  <div className="video_more_dropdown">
+                    {/* NEW: only offered in fullscreen — lets the person hide
+                          the controls so they don't sit over the video, keeping
+                          only this ⋮ button around to bring them back. */}
+                    {isFullscreen && (
+                      <div
+                        className="video_more_dropdown_item"
+                        onClick={() => {
+                          setFullscreenActionsHidden((v) => !v);
+                          setShowMoreMenu(false);
+                        }}
+                      >
+                        {fullscreenActionsHidden ? "👁 Show controls" : "🙈 Hide controls"}
+                      </div>
+                    )}
+                    {/* CHANGED (feedback): Interested / Not interested were
+                        removed from this menu — they now come from the
+                        first-time-creator prompt (<FeedbackPrompt /> above). */}
                     <div
                       className="video_more_dropdown_item"
                       onClick={() => {
-                        setFullscreenActionsHidden((v) => !v);
                         setShowMoreMenu(false);
+                        setShowReportModal(true);
                       }}
                     >
-                      {fullscreenActionsHidden ? "👁 Show controls" : "🙈 Hide controls"}
+                      🚩 Report
                     </div>
-                  )}
-                  {/* CHANGED (feedback): Interested / Not interested were
-                      removed from this menu — they now come from the
-                      first-time-creator prompt (<FeedbackPrompt /> above). */}
-                  <div
-                    className="video_more_dropdown_item"
-                    onClick={() => {
-                      setShowMoreMenu(false);
-                      setShowReportModal(true);
-                    }}
-                  >
-                    🚩 Report
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>

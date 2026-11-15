@@ -67,17 +67,26 @@
 
 /* ══════════════════════════════════════
    VIDEO PLAYER WRAPPER
+   .video_player_wrapper  = outer box (fullscreen target). Holds BOTH the
+                            video "stage" and the controls row below it.
+   .video_stage           = the dark rounded box with the <video> in it.
+   .video_controls_row    = Prev/Autoplay/Next + Like/Dislike/Share/
+                            Fullscreen/More — normal flow, BELOW the video.
 ══════════════════════════════════════ */
 .video_youtube { width: 100%; }
 
 .video_player_wrapper {
+  position: relative;
+  scroll-margin-top: 64px;
+}
+
+.video_stage {
   position: relative;
   border: 2px solid var(--zx-border);
   border-radius: 16px;
   overflow: hidden;
   background: #0d0d1a;
   box-shadow: 0 8px 40px rgba(220,38,38,0.20);
-  scroll-margin-top: 64px;
 }
 
 .video_youtube_video {
@@ -89,69 +98,60 @@
 }
 
 /* ══════════════════════════════════════
-   FLOATING CONTROLS BAR  — centred top pill
-   Prev  |  Autoplay toggle  |  Next
+   CONTROLS ROW — sits under the video
+   Desktop: one line. Prev/Autoplay/Next on the left,
+            action buttons on the right.
+   Mobile : two lines (see the ≤768px block).
 ══════════════════════════════════════ */
-.video_controls_bar {
-  position: absolute;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
+.video_controls_row {
+  position: relative;
   z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  margin-top: 10px;
+}
+
+/* ── Prev | Autoplay | Next pill ── */
+.video_controls_bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-
-  background: rgba(12, 8, 35, 0.68);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255,255,255,0.16);
+  padding: 5px 8px;
+  background: var(--zx-surface);
+  border: 2px solid var(--zx-border);
   border-radius: 999px;
-  box-shadow:
-    0 6px 28px rgba(0,0,0,0.45),
-    0 0 0 1px rgba(220,38,38,0.22),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-
-  transition: opacity 0.3s, visibility 0.3s;
+  box-shadow: var(--zx-shadow2);
   white-space: nowrap;
-  pointer-events: auto;
+  box-sizing: border-box;
 }
 
-.video_controls_bar.visible {
-  opacity: 1;
-  visibility: visible;
-  animation: floatInTop 0.25s ease both;
-}
-.video_controls_bar.hidden {
-  opacity: 0;
-  visibility: hidden;
-}
-
-/* ── Prev / Next pill buttons inside the bar ── */
+/* ── Prev / Next pill buttons ── */
 .video_nav_btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  background: rgba(255,255,255,0.10);
-  color: #fff;
-  border: 1px solid rgba(255,255,255,0.22);
-  padding: 5px 16px;
+  min-height: 34px;
+  background: var(--zx-surface2);
+  color: var(--zx-primary);
+  border: 1px solid var(--zx-border);
+  padding: 6px 16px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   font-family: 'Nunito', sans-serif;
   font-weight: 800;
   cursor: pointer;
-  transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s;
   user-select: none;
 }
 
 .video_nav_btn:hover {
-  background: rgba(220,38,38,0.62);
-  border-color: rgba(239,68,68,0.72);
-  box-shadow: 0 0 18px rgba(220,38,38,0.55);
-  transform: scale(1.06);
+  background: var(--zx-primary);
+  border-color: var(--zx-primary);
+  color: #fff;
 }
 .video_nav_btn:active { transform: scale(0.95); }
 
@@ -160,9 +160,9 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #fff;
+  color: var(--zx-text2);
   font-family: 'Nunito', sans-serif;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   padding: 0 4px;
   user-select: none;
@@ -179,9 +179,9 @@
 }
 .toggle_switch.on {
   background: var(--zx-primary2);
-  box-shadow: 0 0 10px rgba(220,38,38,0.60);
+  box-shadow: 0 0 10px rgba(220,38,38,0.35);
 }
-.toggle_switch.off { background: rgba(255,255,255,0.22); }
+.toggle_switch.off { background: rgba(122,58,58,0.28); }
 
 .toggle_knob {
   position: absolute;
@@ -229,92 +229,67 @@
 }
 
 /* ══════════════════════════════════════
-   FLOATING LIKE / DISLIKE / SHARE
-   Right-side vertical stack (glassmorphism)
-   — styled to match Reels (reels.css)
+   ACTION BUTTONS — Like / Dislike / Share / Fullscreen / More
+   Horizontal row of pills under the video.
 ══════════════════════════════════════ */
 .video_frame_actions {
-  position: absolute;
-  right: 14px;
-  bottom: 72px;
-  z-index: 30;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
   gap: 8px;
-
-  /* hidden by default on desktop — shown on hover */
-  opacity: 0;
-  transition: opacity 0.25s;
-  pointer-events: none;
 }
 
-.video_player_wrapper:hover .video_frame_actions {
-  opacity: 1;
-  pointer-events: auto;
-  animation: floatInRight 0.25s ease both;
-}
-
-/* Mobile: always visible class added via JSX */
-.video_frame_actions.mobile-visible {
-  opacity: 1 !important;
-  pointer-events: auto !important;
-  animation: floatInRight 0.3s ease both;
-}
-
-/* ── Individual floating button ── */
+/* ── Individual action button ── */
 .video_frame_btn {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  width: 52px;
-  height: 52px;
+  gap: 6px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0 14px;
+  box-sizing: border-box;
 
-  background: rgba(12, 8, 35, 0.68);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  color: #fff;
-  border: 1px solid rgba(255,255,255,0.20);
-  border-radius: 18px;
+  background: var(--zx-surface);
+  color: var(--zx-text2);
+  border: 2px solid var(--zx-border);
+  border-radius: 999px;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 12px;
   font-family: 'Nunito', sans-serif;
   font-weight: 800;
   letter-spacing: 0.3px;
+  box-shadow: var(--zx-shadow2);
 
-  box-shadow:
-    0 6px 20px rgba(0,0,0,0.40),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-
-  transition: background 0.2s, border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.15s, box-shadow 0.2s;
   position: relative;
   overflow: visible;
   user-select: none;
+  flex-shrink: 0;
 }
 
 .video_frame_btn:hover {
-  background: rgba(220,38,38,0.62);
-  border-color: rgba(239,68,68,0.72);
-  box-shadow: 0 8px 26px rgba(220,38,38,0.55);
-  transform: scale(1.09) translateY(-2px);
+  background: var(--zx-surface2);
+  border-color: var(--zx-primary);
+  color: var(--zx-primary);
+  transform: translateY(-1px);
 }
-.video_frame_btn:active { transform: scale(0.93); }
+.video_frame_btn:active { transform: scale(0.94); }
 
 /* active / liked */
 .video_frame_btn.active,
 .video_frame_btn.video_liked {
-  background: rgba(220,38,38,0.72) !important;
-  border-color: rgba(239,68,68,0.90) !important;
-  box-shadow:
-    0 0 22px rgba(220,38,38,0.65),
-    inset 0 1px 0 rgba(255,255,255,0.12) !important;
+  background: var(--zx-primary) !important;
+  border-color: var(--zx-primary) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 16px rgba(220,38,38,0.35) !important;
 }
 
 .video_frame_btn span {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1;
-  margin-top: 1px;
 }
 
 /* ── Like animation ── */
@@ -322,9 +297,9 @@
 
 .video_like_inner {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   transition: opacity 0.2s, transform 0.2s;
 }
 
@@ -343,7 +318,7 @@
 
 .video_like_emoji {
   position: absolute;
-  font-size: 26px;
+  font-size: 24px;
   opacity: 0;
   transform: scale(0.3) rotate(-20deg);
   pointer-events: none;
@@ -359,36 +334,28 @@
 
 /* ══════════════════════════════════════
    THREE-DOTS (⋮) MORE MENU
-   The dropdown is a real floating panel: absolutely positioned
-   relative to the ⋮ button wrapper, with its own background, so it
-   never pushes the Like/Dislike/Share buttons around.
+   Floating panel anchored to the ⋮ button wrapper. Opens DOWNWARD in
+   normal mode (the row is under the video) and UPWARD in fullscreen.
 ══════════════════════════════════════ */
 .video_frame_more_wrap {
   position: relative;
 }
 
 .video_more_dropdown {
-  position: absolute !important;
-  top: auto !important;
-  bottom: 0 !important;
-  left: auto !important;
-  right: calc(100% + 8px) !important;
-  transform: none !important;
-  margin: 0 !important;
-  width: 170px;
-  min-width: 0;
+  position: absolute;
+  top: calc(100% + 8px);
+  bottom: auto;
+  right: 0;
+  left: auto;
+  width: 180px;
   max-height: 60vh;
   overflow-y: auto;
   padding: 6px 0;
-  background: rgba(12, 8, 35, 0.92);
-  border: 1px solid rgba(220, 38, 38, 0.45);
-  border-radius: 16px;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  box-shadow:
-    0 8px 32px rgba(0,0,0,0.55),
-    0 0 0 1px rgba(220,38,38,0.15);
-  z-index: 50;
+  background: var(--zx-surface);
+  border: 2px solid var(--zx-border);
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(220,38,38,0.18);
+  z-index: 60;
 }
 
 .video_more_dropdown_item {
@@ -396,17 +363,18 @@
   font-family: 'Nunito', sans-serif;
   font-size: 13px;
   font-weight: 800;
-  color: #fff;
+  color: var(--zx-text2);
   cursor: pointer;
   white-space: nowrap;
   text-align: left;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 .video_more_dropdown_item:not(:last-child) {
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid var(--zx-border);
 }
 .video_more_dropdown_item:hover {
-  background: rgba(255,255,255,0.08);
+  background: var(--zx-surface2);
+  color: var(--zx-primary);
 }
 
 /* ══════════════════════════════════════
@@ -939,9 +907,8 @@
     padding: 8px 12px;
   }
 
-  /* taller than before so the 5-button stack fits inside the player */
   .video_youtube_video { height: 260px; border-radius: 0; }
-  .video_player_wrapper { border-radius: 0; }
+  .video_stage { border-radius: 0; }
 
   .youtube_video_About {
     width: 100% !important;
@@ -957,54 +924,38 @@
   .next_video_preview { border-radius: 10px; }
   .videoSuggestionsBlock { border-radius: 10px; }
 
-  /* ── Controls bar: compact floating pill ── */
+  /* ── Controls row: two stacked lines under the video ──
+       line 1: Prev | Autoplay | Next   (full width)
+       line 2: Like Dislike Share Fullscreen More (full width) */
+  .video_controls_row {
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 0 10px;
+  }
+
   .video_controls_bar {
-    top: 8px;
-    gap: 6px;
-    padding: 4px 8px;
+    width: 100%;
+    justify-content: space-between;
   }
 
-  .video_nav_btn {
-    padding: 4px 12px;
-    font-size: 10px;
-    gap: 3px;
-  }
-
-  .video_autoplay_toggle { font-size: 9px; gap: 5px; }
-
-  .toggle_switch { width: 28px; height: 16px; border-radius: 8px; }
-  .toggle_knob   { width: 11px; height: 11px; top: 2px; }
-  .toggle_switch.on  .toggle_knob { left: 14px; }
-  .toggle_switch.off .toggle_knob { left: 2px;  }
-
-  /* ── Frame actions: sized close to Reels (46px there) ── */
   .video_frame_actions {
-    right: 8px;
-    bottom: 40px;
-    gap: 4px;
+    width: 100%;
+    justify-content: space-between;
+    gap: 6px;
   }
 
   .video_frame_btn {
-    width: 40px;
+    min-width: 40px;
     height: 40px;
-    border-radius: 14px;
-    font-size: 9px;
-    gap: 2px;
-  }
-
-  .video_frame_btn span {
-    font-size: 9px;
-  }
-
-  .video_frame_btn .MuiSvgIcon-root {
-    font-size: 18px !important;
-    width: 18px !important;
-    height: 18px !important;
+    padding: 0 12px;
   }
 
   .video_like_emoji { font-size: 22px; }
 
-  .video_more_dropdown { width: 160px; }
+  .video_more_dropdown { width: 170px; }
   .video_more_dropdown_item { padding: 9px 12px; font-size: 12px; }
 
   /* leave the native controls strip at the bottom tappable */
@@ -1026,235 +977,177 @@
   .youtube_video_ProfileBlock_left { gap: 8px; }
   .youtubePostProfileName          { font-size: 13px; }
 
-  .video_controls_bar { top: 6px; gap: 5px; padding: 3px 7px; }
-  .video_nav_btn      { padding: 3px 9px; font-size: 9px; }
-  .video_autoplay_toggle { font-size: 8px; gap: 4px; }
+  .video_nav_btn { padding: 6px 14px; font-size: 12px; }
 
-  .toggle_switch { width: 24px; height: 14px; border-radius: 7px; }
-  .toggle_knob   { width: 10px; height: 10px; top: 2px; }
-  .toggle_switch.on  .toggle_knob { left: 12px; }
-  .toggle_switch.off .toggle_knob { left: 2px;  }
-
-  /* same size as the 768px block, so small phones match Reels too */
-  .video_frame_actions { right: 8px; bottom: 40px; gap: 4px; }
-
-  .video_frame_btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 14px;
-    font-size: 9px;
-  }
-
-  .video_frame_btn span {
-    font-size: 9px;
-  }
-
-  .video_frame_btn .MuiSvgIcon-root {
-    font-size: 18px !important;
-    width: 18px !important;
-    height: 18px !important;
-  }
+  .video_frame_actions { gap: 4px; }
+  .video_frame_btn { padding: 0 10px; }
 
   .video_heart_burst { font-size: 40px; }
 }
 
 /* ══════════════════════════════════════
    FULLSCREEN MODE
-   Video.jsx fullscreens .video_player_wrapper (not the bare <video>),
-   so the whole overlay tree stays visible. The right-side vertical
-   stack becomes a horizontal toolbar at the bottom centre.
-   Placed late in the file so it wins over desktop AND mobile rules.
+   Video.jsx fullscreens .video_player_wrapper and adds the
+   ".is-fullscreen" class to it (driven by the isFullscreen state), so
+   these rules do NOT depend on the :fullscreen pseudo-class. (A selector
+   list containing a pseudo-class the browser doesn't know, such as
+   ":-moz-full-screen" in Chrome, is dropped entirely — a class avoids that.)
+
+   In fullscreen the controls row leaves normal flow and floats over the
+   bottom of the video as one dark glass pill, just above the native
+   control strip. It fades out when idle (".fs-hidden").
 ══════════════════════════════════════ */
-.video_player_wrapper:fullscreen,
-.video_player_wrapper:-webkit-full-screen,
-.video_player_wrapper:-moz-full-screen,
-.video_player_wrapper:-ms-fullscreen {
+.video_player_wrapper.is-fullscreen {
   width: 100vw;
   height: 100vh;
   max-width: 100vw;
-  border: none;
-  border-radius: 0;
   background: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.video_player_wrapper:fullscreen .video_youtube_video,
-.video_player_wrapper:-webkit-full-screen .video_youtube_video,
-.video_player_wrapper:-moz-full-screen .video_youtube_video,
-.video_player_wrapper:-ms-fullscreen .video_youtube_video {
+.video_player_wrapper.is-fullscreen .video_stage {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.video_player_wrapper.is-fullscreen .video_youtube_video {
   width: 100%;
   height: 100%;
   border-radius: 0;
 }
 
-/* Top pill (Prev / Autoplay / Next) */
-.video_player_wrapper:fullscreen .video_controls_bar,
-.video_player_wrapper:-webkit-full-screen .video_controls_bar,
-.video_player_wrapper:-moz-full-screen .video_controls_bar,
-.video_player_wrapper:-ms-fullscreen .video_controls_bar {
-  top: 22px;
-  gap: 10px;
-  padding: 8px 14px;
+.video_player_wrapper.is-fullscreen .video_tap_overlay {
+  bottom: 44px;
 }
 
-.video_player_wrapper:fullscreen .video_nav_btn,
-.video_player_wrapper:-webkit-full-screen .video_nav_btn,
-.video_player_wrapper:-moz-full-screen .video_nav_btn,
-.video_player_wrapper:-ms-fullscreen .video_nav_btn {
-  padding: 7px 18px;
-  font-size: 12px;
-}
-
-/* Like / Dislike / Share / Fullscreen / More — horizontal toolbar */
-.video_player_wrapper:fullscreen .video_frame_actions,
-.video_player_wrapper:-webkit-full-screen .video_frame_actions,
-.video_player_wrapper:-moz-full-screen .video_frame_actions,
-.video_player_wrapper:-ms-fullscreen .video_frame_actions {
-  flex-direction: row;
-  align-items: center;
-  right: auto;
-  bottom: 28px;
+/* The floating pill */
+.video_player_wrapper.is-fullscreen .video_controls_row {
+  position: absolute;
   left: 50%;
+  bottom: 56px;
   transform: translateX(-50%);
-  gap: 10px;
-  opacity: 1 !important;
-  pointer-events: auto !important;
-  background: rgba(12, 8, 35, 0.68);
+  width: auto;
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 8px 14px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(12, 8, 35, 0.72);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255,255,255,0.16);
   border-radius: 999px;
-  padding: 8px 14px;
   box-shadow:
     0 6px 28px rgba(0,0,0,0.45),
     0 0 0 1px rgba(220,38,38,0.22),
     inset 0 1px 0 rgba(255,255,255,0.08);
+  transition: opacity 0.3s, visibility 0.3s;
+}
+
+.video_player_wrapper.is-fullscreen .video_controls_row.fs-visible {
+  opacity: 1;
+  visibility: visible;
   animation: floatInBottom 0.25s ease both;
 }
+.video_player_wrapper.is-fullscreen .video_controls_row.fs-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
 
-/* Collapsed state — only the ⋮ button is rendered */
-.video_player_wrapper:fullscreen .video_frame_actions.actions-hidden,
-.video_player_wrapper:-webkit-full-screen .video_frame_actions.actions-hidden,
-.video_player_wrapper:-moz-full-screen .video_frame_actions.actions-hidden,
-.video_player_wrapper:-ms-fullscreen .video_frame_actions.actions-hidden {
+/* "Hide controls" from the ⋮ menu: only the ⋮ button stays */
+.video_player_wrapper.is-fullscreen .video_controls_row.fs-collapsed {
   padding: 6px 8px;
-  opacity: 0.65 !important;
+  opacity: 0.65;
 }
-.video_player_wrapper:fullscreen .video_frame_actions.actions-hidden:hover,
-.video_player_wrapper:-webkit-full-screen .video_frame_actions.actions-hidden:hover,
-.video_player_wrapper:-moz-full-screen .video_frame_actions.actions-hidden:hover,
-.video_player_wrapper:-ms-fullscreen .video_frame_actions.actions-hidden:hover {
-  opacity: 1 !important;
+.video_player_wrapper.is-fullscreen .video_controls_row.fs-collapsed:hover {
+  opacity: 1;
+}
+.video_player_wrapper.is-fullscreen .video_controls_row.fs-collapsed .video_controls_bar {
+  display: none;
 }
 
-/* Buttons: plain icon+label pairs inside the pill */
-.video_player_wrapper:fullscreen .video_frame_btn,
-.video_player_wrapper:-webkit-full-screen .video_frame_btn,
-.video_player_wrapper:-moz-full-screen .video_frame_btn,
-.video_player_wrapper:-ms-fullscreen .video_frame_btn {
-  flex-direction: row;
+/* Prev | Autoplay | Next — flat inside the pill */
+.video_player_wrapper.is-fullscreen .video_controls_bar {
   width: auto;
-  height: auto;
-  min-width: 40px;
-  padding: 6px 10px;
-  gap: 6px;
+  padding: 0;
+  gap: 10px;
   background: transparent;
   border: none;
   box-shadow: none;
-  border-radius: 999px;
 }
 
-.video_player_wrapper:fullscreen .video_frame_btn:hover,
-.video_player_wrapper:-webkit-full-screen .video_frame_btn:hover,
-.video_player_wrapper:-moz-full-screen .video_frame_btn:hover,
-.video_player_wrapper:-ms-fullscreen .video_frame_btn:hover {
+.video_player_wrapper.is-fullscreen .video_nav_btn {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.22);
+  color: #fff;
+  padding: 7px 18px;
+}
+.video_player_wrapper.is-fullscreen .video_nav_btn:hover {
+  background: rgba(220,38,38,0.62);
+  border-color: rgba(239,68,68,0.72);
+}
+
+.video_player_wrapper.is-fullscreen .video_autoplay_toggle {
+  color: #fff;
+}
+.video_player_wrapper.is-fullscreen .toggle_switch.off {
+  background: rgba(255,255,255,0.22);
+}
+
+/* Action buttons — plain icon+label pairs */
+.video_player_wrapper.is-fullscreen .video_frame_actions {
+  width: auto;
+  gap: 6px;
+}
+
+.video_player_wrapper.is-fullscreen .video_frame_btn {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 10px;
+  background: transparent;
+  color: #fff;
+  border: none;
+  box-shadow: none;
+}
+.video_player_wrapper.is-fullscreen .video_frame_btn:hover {
   background: rgba(220,38,38,0.55);
+  color: #fff;
   transform: scale(1.05);
 }
-
-.video_player_wrapper:fullscreen .video_frame_btn.active,
-.video_player_wrapper:fullscreen .video_frame_btn.video_liked,
-.video_player_wrapper:-webkit-full-screen .video_frame_btn.active,
-.video_player_wrapper:-webkit-full-screen .video_frame_btn.video_liked,
-.video_player_wrapper:-moz-full-screen .video_frame_btn.active,
-.video_player_wrapper:-moz-full-screen .video_frame_btn.video_liked,
-.video_player_wrapper:-ms-fullscreen .video_frame_btn.active,
-.video_player_wrapper:-ms-fullscreen .video_frame_btn.video_liked {
+.video_player_wrapper.is-fullscreen .video_frame_btn.active,
+.video_player_wrapper.is-fullscreen .video_frame_btn.video_liked {
   background: rgba(220,38,38,0.65) !important;
   box-shadow: 0 0 16px rgba(220,38,38,0.55) !important;
 }
 
-.video_player_wrapper:fullscreen .video_frame_btn .MuiSvgIcon-root,
-.video_player_wrapper:-webkit-full-screen .video_frame_btn .MuiSvgIcon-root,
-.video_player_wrapper:-moz-full-screen .video_frame_btn .MuiSvgIcon-root,
-.video_player_wrapper:-ms-fullscreen .video_frame_btn .MuiSvgIcon-root {
-  font-size: 20px !important;
-  width: 20px !important;
-  height: 20px !important;
-}
-
-.video_player_wrapper:fullscreen .video_frame_btn span,
-.video_player_wrapper:-webkit-full-screen .video_frame_btn span,
-.video_player_wrapper:-moz-full-screen .video_frame_btn span,
-.video_player_wrapper:-ms-fullscreen .video_frame_btn span {
-  font-size: 12px;
-  margin-top: 0;
-}
-
-.video_player_wrapper:fullscreen .video_like_inner,
-.video_player_wrapper:-webkit-full-screen .video_like_inner,
-.video_player_wrapper:-moz-full-screen .video_like_inner,
-.video_player_wrapper:-ms-fullscreen .video_like_inner {
-  flex-direction: row;
-  gap: 6px;
-}
-
-/* ⋮ dropdown in fullscreen: toolbar is at the bottom, so open upward */
-.video_player_wrapper:fullscreen .video_more_dropdown,
-.video_player_wrapper:-webkit-full-screen .video_more_dropdown,
-.video_player_wrapper:-moz-full-screen .video_more_dropdown,
-.video_player_wrapper:-ms-fullscreen .video_more_dropdown {
-  bottom: calc(100% + 10px) !important;
-  right: 0 !important;
+/* ⋮ dropdown in fullscreen: dark, and opens upward */
+.video_player_wrapper.is-fullscreen .video_more_dropdown {
+  top: auto;
+  bottom: calc(100% + 12px);
+  right: 0;
   width: 190px;
-  font-size: 13px;
+  background: rgba(12, 8, 35, 0.95);
+  border: 1px solid rgba(220, 38, 38, 0.45);
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.55),
+    0 0 0 1px rgba(220,38,38,0.15);
 }
-
-.video_player_wrapper:fullscreen .video_more_dropdown_item,
-.video_player_wrapper:-webkit-full-screen .video_more_dropdown_item,
-.video_player_wrapper:-moz-full-screen .video_more_dropdown_item,
-.video_player_wrapper:-ms-fullscreen .video_more_dropdown_item {
+.video_player_wrapper.is-fullscreen .video_more_dropdown_item {
+  color: #fff;
   padding: 10px 14px;
   font-size: 13px;
 }
-
-/* Room above the toolbar so the tap-to-like layer doesn't swallow taps */
-.video_player_wrapper:fullscreen .video_tap_overlay,
-.video_player_wrapper:-webkit-full-screen .video_tap_overlay,
-.video_player_wrapper:-moz-full-screen .video_tap_overlay,
-.video_player_wrapper:-ms-fullscreen .video_tap_overlay {
-  bottom: 64px;
+.video_player_wrapper.is-fullscreen .video_more_dropdown_item:not(:last-child) {
+  border-bottom-color: rgba(255,255,255,0.06);
 }
-
-/* ══════════════════════════════════════
-   FULLSCREEN — FORCE LANDSCAPE ON MOBILE (CSS fallback)
-   Only applies if screen.orientation.lock() didn't rotate the device.
-══════════════════════════════════════ */
-@media (max-width: 768px) and (orientation: portrait) {
-  .video_player_wrapper:fullscreen,
-  .video_player_wrapper:-webkit-full-screen,
-  .video_player_wrapper:-moz-full-screen,
-  .video_player_wrapper:-ms-fullscreen {
-    position: fixed;
-    top: 0;
-    left: 100%;
-    width: 100vh;
-    height: 100vw;
-    transform-origin: top left;
-    transform: rotate(90deg);
-  }
+.video_player_wrapper.is-fullscreen .video_more_dropdown_item:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
 }
 
 /* ══════════════════════════════════════
@@ -1348,9 +1241,8 @@
 }
 
 /* ══════════════════════════════════════
-   BRIGHTER LIKE ICON WHEN LIKED
-   The JSX sets the icon colour inline (#ff0000), which blended into the
-   red active button — !important overrides it with bright gold.
+   LIKED STATE ICON
+   Bright gold thumb on the red "liked" pill so it stands out.
 ══════════════════════════════════════ */
 .video_frame_btn.video_liked .MuiSvgIcon-root {
   color: #ffd400 !important;
@@ -1361,31 +1253,4 @@
 .video_frame_btn.video_liked .video_like_inner span {
   color: #ffffff;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-}
-
-/* ══════════════════════════════════════
-   PERF: NO BLUR ON MOBILE
-   backdrop-filter has to be re-computed on every video frame for every
-   element sitting above a playing video, which is very expensive on
-   low/mid-range Android GPUs. On mobile these use solid translucent
-   backgrounds instead. Placed LAST so it wins over the rules above.
-   The fullscreen toolbar rules above are more specific, so fullscreen
-   keeps its own look.
-══════════════════════════════════════ */
-@media (max-width: 768px) {
-  .video_controls_bar,
-  .video_frame_btn,
-  .video_more_dropdown {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
-  .video_controls_bar,
-  .video_frame_btn {
-    background: rgba(12, 8, 35, 0.8);
-  }
-
-  .video_more_dropdown {
-    background: rgba(12, 8, 35, 0.97);
-  }
 }

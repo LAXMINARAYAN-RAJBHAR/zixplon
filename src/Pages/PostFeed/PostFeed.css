@@ -4921,3 +4921,38 @@
     animation: none;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   STORY VIEWER — VIDEO LOADING SPINNER
+   APPEND this block to the very bottom of PostFeed.css.
+   Shown by the updated StoryViewer.jsx until a video story's first
+   frame is ready (it sits inside .pf-story-media, below the tap layer,
+   so taps and holds still work while it spins).
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-story-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.pf-story-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: pf-story-spin 0.8s linear infinite;
+}
+
+@keyframes pf-story-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-story-spinner { animation: none; }
+}

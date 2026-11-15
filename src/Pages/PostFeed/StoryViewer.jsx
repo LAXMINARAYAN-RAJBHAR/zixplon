@@ -32,6 +32,11 @@ import ReportModal from "../../Component/Moderation/ReportModal";
 // whole viewer each time. Now the current segment is moved through a ref
 // with a CSS transform (scaleX), so playback causes no re-renders.
 //
+// NEW (black-box fix): a video story used to show an empty black stage
+// until it had loaded. Now plain mp4/webm stories get "#t=0.001" appended
+// (so mobile browsers paint the first frame) and a spinner shows over the
+// stage until the first frame is ready.
+//
 // `groups` is a snapshot taken when the viewer opened:
 //   [{ username, stories: [{ id, username, media_url, media_type, caption,
 //                            created_at, song, ai_generated,
@@ -90,6 +95,9 @@ const StoryViewer = ({
   const [sIdx, setSIdx] = useState(startStory);
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
+  // NEW: true once the current video story has its first frame (or has
+  // started playing). While false, a spinner is shown over the stage.
+  const [mediaReady, setMediaReady] = useState(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -130,6 +138,16 @@ const StoryViewer = ({
   const hasSound = isVideo || canPlayMusic;
   // NEW: only ever a clean http(s) address, or null.
   const storyLink = story ? normalizeLinkUrl(story.link_url) : null;
+
+  // NEW: plain mp4/webm stories get "#t=0.001" so mobile browsers paint the
+  // first frame instead of an empty black stage. HLS sources are attached
+  // through hls.js / Safari, so their src attribute stays unset.
+  const videoSrc =
+    !story || !isVideo || isHlsSource(story.media_url)
+      ? undefined
+      : story.media_url.includes("#")
+        ? story.media_url
+        : `${story.media_url}#t=0.001`;
 
   // NEW (perf): set the current segment's fill (0..1) without re-rendering.
   const setBar = (p) => {
@@ -176,6 +194,7 @@ const StoryViewer = ({
     setPaused(false);
     setMenuOpen(false);
     setReplyText("");
+    setMediaReady(false); // NEW: show the loading spinner for the next video
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 
@@ -809,13 +828,24 @@ const StoryViewer = ({
             <video
               key={story.id}
               ref={videoRef}
-              src={isHlsSource(story.media_url) ? undefined : story.media_url}
+              // NEW: videoSrc carries "#t=0.001" for plain files so the
+              // first frame is painted; HLS sources stay unset (hls.js).
+              src={videoSrc}
+              onLoadedData={() => setMediaReady(true)}
+              onPlaying={() => setMediaReady(true)}
               playsInline
               preload="auto"
               onContextMenu={(e) => e.preventDefault()}
             />
           ) : (
             <img key={story.id} src={story.media_url} alt="" draggable={false} />
+          )}
+
+          {/* NEW: loading spinner until the first video frame is ready. */}
+          {isVideo && !mediaReady && (
+            <div className="pf-story-loading" aria-hidden="true">
+              <span className="pf-story-spinner" />
+            </div>
           )}
         </div>
 

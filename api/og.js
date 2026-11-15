@@ -91,8 +91,15 @@ async function fetchWithTimeout(url, options, timeoutMs = FETCH_TIMEOUT_MS) {
 const SITE = "https://zixplon.in";
 const ALLOWED_TYPES = ["post", "reel", "video", "profile"];
 
-// The path of your React profile route, WITHOUT the username.
+// CHANGED: the path of the React profile route, WITHOUT the username.
+// The app links profiles as /user/<username> (was "/profile", which
+// doesn't exist in the app, so shared profile links landed on a dead page).
 const PROFILE_PATH = "/user";
+
+// CHANGED: where a shared post opens. The app shows posts on the Posts tab
+// of the home page, and PostFeed reads ?post=<id> to scroll to / highlight
+// it. (Was "/feed?post=<id>", which isn't a route in the app.)
+const POSTS_TAB_URL = `${SITE}/?tab=posts`;
 
 // Ideally replace with a real 1200x630 branded image: put it in /public
 // and change this to `${SITE}/og-fallback.jpg`.
@@ -231,12 +238,24 @@ async function probeImage(imageUrl) {
 
 const short = (v) => (typeof v === "string" ? (v.length > 220 ? v.slice(0, 220) + "…(" + v.length + " chars)" : v) : v ?? null);
 
+// NEW: JSON response used by ?debug=1 when something goes wrong, so the
+// real cause is visible instead of silently falling back to the home page.
+const debugJson = (obj) =>
+  new Response(JSON.stringify(obj, null, 2), {
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+  });
+
 export default async function handler(req) {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type");
   const id = searchParams.get("id");
   const debug = searchParams.get("debug") === "1";
 
+  // NOTE: Edge functions read RUNTIME environment variables. Names that start
+  // with REACT_APP_ are normally only baked into the browser bundle at build
+  // time, so make sure SUPABASE_URL and SUPABASE_ANON_KEY (no prefix) are set
+  // in your hosting dashboard (Vercel -> Project -> Settings -> Environment
+  // Variables) and redeploy.
   const SUPABASE_URL = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
   const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
 
@@ -267,6 +286,25 @@ export default async function handler(req) {
   // The pretty URL people actually share (rewritten to this function).
   const shareUrl = `${SITE}/s/${type}/${encodeURIComponent(id)}`;
 
+  // NEW: without these two values every lookup below would fail and every
+  // link would quietly redirect to the home page. Say so loudly instead.
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error(
+      "og handler: SUPABASE_URL / SUPABASE_ANON_KEY are not set for this deployment."
+    );
+    if (debug) {
+      return debugJson({
+        error: "Missing environment variables",
+        hasSupabaseUrl: !!SUPABASE_URL,
+        hasSupabaseAnonKey: !!SUPABASE_ANON_KEY,
+        fix: "Add SUPABASE_URL and SUPABASE_ANON_KEY (no REACT_APP_ prefix) to your hosting environment variables, then redeploy.",
+      });
+    }
+    return new Response(fallbackHtml(type, genericFallbackUrl, shareUrl), {
+      headers: notFoundHeaders,
+    });
+  }
+
   const sbHeaders = {
     apikey: SUPABASE_ANON_KEY,
     Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
@@ -289,8 +327,9 @@ export default async function handler(req) {
       const item = data?.[0];
 
       // Never leak "friends" / "only_me" posts into a public preview.
+      // CHANGED: falls back to the Posts tab (was /feed, which isn't a route).
       if (!item || (item.privacy && item.privacy !== "public")) {
-        return new Response(fallbackHtml(type, `${SITE}/feed`, shareUrl), {
+        return new Response(fallbackHtml(type, POSTS_TAB_URL, shareUrl), {
           headers: notFoundHeaders,
         });
       }
@@ -307,7 +346,9 @@ export default async function handler(req) {
         item?.thumbnail,
         getVideoThumbnailFromCloudinaryUrl(item?.video_url),
       ];
-      url = `${SITE}/?tab=posts&post=${id}`;
+      // CHANGED: opens the Posts tab and highlights this post
+      // (PostFeed reads ?tab=posts&post=<id>).
+      url = `${SITE}/?tab=posts&post=${encodeURIComponent(item.id ?? id)}`;
     } else if (type === "profile") {
       const res = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/profiles?username=ilike.${ilikeValue(id)}&select=username,channel_name,about,profile_pic,banner_pic&limit=1`,
@@ -332,6 +373,7 @@ export default async function handler(req) {
         item.banner_pic,
         `https://ui-avatars.com/api/?name=${encodeURIComponent(item.username)}&background=7c3aed&color=fff&size=600`,
       ];
+      // CHANGED: PROFILE_PATH is now "/user" (the app's real profile route).
       url = `${SITE}${PROFILE_PATH}/${encodeURIComponent(item.username)}`;
       card = "summary"; // square avatar
     } else {
@@ -383,25 +425,21 @@ export default async function handler(req) {
 
     // ?debug=1 → JSON report instead of HTML.
     if (debug) {
-      return new Response(
-        JSON.stringify(
-          {
-            type,
-            id,
-            usedFallback: !picked,
-            originalImage: picked,
-            originalImageCheck: picked ? await probeImage(picked) : null,
-            chosenImage: image,
-            imageCheck: await probeImage(image),
-            candidates: candidates.map(short),
-            description,
-            note: "WhatsApp usually skips images over ~300 KB. data: URLs are never usable.",
-          },
-          null,
-          2
-        ),
-        { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } }
-      );
+      return debugJson({
+        type,
+        id,
+        // NEW: where the browser will be sent — check this first when a
+        // shared link opens the wrong page.
+        redirectsTo: url,
+        usedFallback: !picked,
+        originalImage: picked,
+        originalImageCheck: picked ? await probeImage(picked) : null,
+        chosenImage: image,
+        imageCheck: await probeImage(image),
+        candidates: candidates.map(short),
+        description,
+        note: "WhatsApp usually skips images over ~300 KB. data: URLs are never usable.",
+      });
     }
 
     const commentId = searchParams.get("comment");
@@ -417,6 +455,15 @@ export default async function handler(req) {
     );
   } catch (err) {
     console.error("og handler error:", err);
+    // NEW: with ?debug=1 show the real error instead of silently falling back.
+    if (debug) {
+      return debugJson({
+        error: String(err?.message || err),
+        type,
+        id,
+        hint: "A 4xx/5xx from Supabase, a timeout, or a bad id. The visitor was being sent to the home page because of this.",
+      });
+    }
     return new Response(fallbackHtml(type, genericFallbackUrl, shareUrl), {
       headers: notFoundHeaders,
     });

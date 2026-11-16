@@ -14,14 +14,18 @@ import "./DoubleTapHint.css";
 //   active      true while the hint is allowed to show (e.g. the item is
 //               playing and not already liked). When it turns false the
 //               hint disappears immediately.
-//
-// How often it shows is controlled by DOUBLE_TAP_HINT_MAX_SHOWS below. The
-// number of hints already shown is remembered in localStorage, so people who
-// have seen it a few times aren't nagged forever.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Set to Infinity to show the hint on EVERY video/reel, or 0 to turn it off.
-export const DOUBLE_TAP_HINT_MAX_SHOWS = 5;
+// How many hints a device sees in total before they stop.
+//   Infinity → show on EVERY video / reel (default)
+//   5        → only the first 5 items ever, then never again
+//   0        → turned off
+// The running total is kept in localStorage under STORAGE_KEY; it is only
+// read/written when this is a finite number.
+export const DOUBLE_TAP_HINT_MAX_SHOWS = Infinity;
+
+// Set to true to log what the hint is deciding in the browser console.
+const DEBUG = false;
 
 const STORAGE_KEY = "zixplon_double_tap_hint_count";
 const SHOW_MS = 2800; // keep in sync with the dtHintFade duration in the CSS
@@ -38,37 +42,55 @@ const writeCount = (n) => {
   try {
     localStorage.setItem(STORAGE_KEY, String(n));
   } catch {
-    /* storage unavailable — hint simply isn't remembered */
+    /* storage unavailable — the total simply isn't remembered */
   }
 };
 
 const DoubleTapHint = ({ contentKey, active }) => {
   const [visible, setVisible] = useState(false);
-  const shownForKeyRef = useRef(null);
-  const timerRef = useRef(null);
+  // The last item we already decided to show the hint for, so pausing /
+  // resuming the same video (or scrolling a reel away and back) does not
+  // replay it.
+  const decidedKeyRef = useRef(null);
 
+  // 1) DECIDE whether to show the hint now.
   useEffect(() => {
+    if (DEBUG) {
+      console.log("[DoubleTapHint] decide", {
+        active,
+        contentKey,
+        alreadyDecided: decidedKeyRef.current === contentKey,
+        count: readCount(),
+        max: DOUBLE_TAP_HINT_MAX_SHOWS,
+      });
+    }
+
     // Not allowed right now (paused, already liked, comments open, ...)
     if (!active) {
-      clearTimeout(timerRef.current);
       setVisible(false);
       return;
     }
 
     // Already shown for this video/reel — don't replay it.
-    if (shownForKeyRef.current === contentKey) return;
+    if (decidedKeyRef.current === contentKey) return;
 
-    const count = readCount();
+    const limited = Number.isFinite(DOUBLE_TAP_HINT_MAX_SHOWS);
+    const count = limited ? readCount() : 0;
     if (count >= DOUBLE_TAP_HINT_MAX_SHOWS) return;
 
-    shownForKeyRef.current = contentKey;
-    writeCount(count + 1);
+    decidedKeyRef.current = contentKey;
+    if (limited) writeCount(count + 1);
     setVisible(true);
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setVisible(false), SHOW_MS);
   }, [active, contentKey]);
 
-  useEffect(() => () => clearTimeout(timerRef.current), []);
+  // 2) HIDE it again after the animation has finished. This is a separate
+  //    effect with its own cleanup, so the timer is always re-created
+  //    correctly (including when React StrictMode re-runs effects in dev).
+  useEffect(() => {
+    if (!visible) return;
+    const timer = setTimeout(() => setVisible(false), SHOW_MS);
+    return () => clearTimeout(timer);
+  }, [visible, contentKey]);
 
   if (!visible) return null;
 

@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { supabase } from "../../config/supabase";
 import { Room, RoomEvent } from "livekit-client";
+// NEW: shimmer skeleton styles (.fs-sk / .fs-live-card / .fs-live-row),
+// used below while the first list of live streams loads.
+// Adjust the path if Live and Shared are not sibling folders.
+import "../Shared/FeedSkeletons.css";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // useLivePreview — mirrors the useHoverPreview pattern used for Videos/Reels
@@ -244,6 +248,9 @@ const LiveCard = ({ stream: s, onSelect }) => {
 // Shows a list of currently-live streams; click one to watch.
 const LiveBrowser = ({ currentUser }) => {
   const [streams, setStreams] = useState([]);
+  // NEW: true once the FIRST fetch has returned, so "No one is live right
+  // now" is never shown while the list is still loading.
+  const [loaded, setLoaded] = useState(false);
   const [activeRoom, setActiveRoom] = useState(null);
 
   useEffect(() => {
@@ -254,6 +261,7 @@ const LiveBrowser = ({ currentUser }) => {
         .eq("is_live", true)
         .order("started_at", { ascending: false });
       setStreams(data || []);
+      setLoaded(true);
     };
     fetchLive();
     const interval = setInterval(fetchLive, 8000);
@@ -311,17 +319,29 @@ const LiveBrowser = ({ currentUser }) => {
         </span>
       </div>
 
-      {streams.length === 0 && (
-        <p style={{ color: "#8b84c4", fontSize: "13px" }}>
-          No one is live right now.
-        </p>
-      )}
+      {/* CHANGED: skeleton until the first fetch finishes. The real
+          "Live Now" heading above stays visible so the page doesn't jump. */}
+      {!loaded ? (
+        <div className="fs-live-row" aria-hidden="true">
+          {[1, 2, 3].map((n) => (
+            <div className="fs-sk fs-live-card" key={n} />
+          ))}
+        </div>
+      ) : (
+        <>
+          {streams.length === 0 && (
+            <p style={{ color: "#8b84c4", fontSize: "13px" }}>
+              No one is live right now.
+            </p>
+          )}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "16px" }}>
-        {streams.map((s) => (
-          <LiveCard key={s.id} stream={s} onSelect={setActiveRoom} />
-        ))}
-      </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "16px" }}>
+            {streams.map((s) => (
+              <LiveCard key={s.id} stream={s} onSelect={setActiveRoom} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 };

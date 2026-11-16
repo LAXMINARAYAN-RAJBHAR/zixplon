@@ -1,0 +1,54 @@
+/* Self-contained: does not depend on PostFeed.css */
+
+@keyframes fs-shimmer {
+  to { background-position: -200% 0; }
+}
+
+.fs-sk {
+  background: linear-gradient(110deg, #f1e6e6 30%, #fbf3f3 50%, #f1e6e6 70%);
+  background-size: 200% 100%;
+  animation: fs-shimmer 1.4s linear infinite;
+  border-radius: 8px;
+}
+.fs-line { height: 12px; }
+
+/* ── Live Now ── */
+.fs-live { margin-bottom: 0; }
+.fs-live-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.fs-live-badge { width: 24px; height: 24px; border-radius: 6px; }
+.fs-live-row { display: flex; gap: 16px; overflow: hidden; }
+.fs-live-card { width: 220px; height: 140px; border-radius: 10px; flex-shrink: 0; }
+
+/* ── People you may know ── */
+.fs-people {
+  background: #fff;
+  border: 2px solid #fbd5d5;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+  box-sizing: border-box;
+}
+.fs-people-row { display: flex; gap: 10px; margin-top: 14px; overflow: hidden; }
+.fs-people-tile {
+  width: 132px;
+  flex-shrink: 0;
+  padding: 14px 10px;
+  border: 1px solid #fbd5d5;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+}
+.fs-people-avatar { width: 56px; height: 56px; border-radius: 50%; }
+.fs-people-btn { width: 80%; height: 30px; border-radius: 999px; margin-top: 4px; }
+
+@media (max-width: 768px) {
+  .fs-live-card { width: 180px; height: 112px; }
+  .fs-people-tile { width: 112px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-sk { animation: none; }
+}

@@ -1879,25 +1879,21 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               />
             </div>
 
-            {/* No interleaved videos/reels while searching. Both are
-                lazy-mounted. */}
+            {/* Real video card, lazy-mounted, with a skeleton until it mounts */}
+            {!searchQuery && visibleVideos[index] && (
+              <LazyMount minHeight={videoCardMinHeight} placeholder={<VideoSkeleton />}>
+                <VideoFeedCard
+                  video={visibleVideos[index]}
+                  onProfileView={maybePromptProfile}
+                />
+              </LazyMount>
+            )}
+
+            {/* While the first videos are still being fetched */}
             {!searchQuery &&
               !visibleVideos[index] &&
               videosLoading &&
               index < VIDEO_SKELETON_SLOTS && <VideoSkeleton />}
-
-            {/* While the first videos are still being fetched, hold their
-                place with a skeleton (first few slots only). */}
-            {!searchQuery &&
-              !visibleVideos[index] &&
-              videosLoading &&
-              index < VIDEO_SKELETON_SLOTS && (
-                <div
-                  className="pf-video-skeleton"
-                  style={{ minHeight: videoCardMinHeight }}
-                  aria-hidden="true"
-                />
-              )}
 
             {/* CHANGED: reels strip shows a skeleton until it mounts. */}
             {!searchQuery && (

@@ -4,6 +4,9 @@ import { supabase } from "../../config/supabase";
 import { notifyUser } from "../../utils/notifications";
 // Live presence (same source the Messages panel uses for its green/red dots).
 import { usePresence } from "../../context/PresenceContext";
+// NEW: shimmer skeleton shown while the first strip's data loads.
+// Adjust the path if Messages and Shared are not sibling folders.
+import { PeopleSkeleton } from "../Shared/FeedSkeletons";
 import "./SuggestedConnections.css";
 
 // "People you may know" strip. The button on every card is a TOGGLE that
@@ -218,7 +221,14 @@ const SuggestedConnections = ({
   }, [currentUser]);
 
   // Logged-out visitors never see suggestions.
-  if (!currentUser || !data) return null;
+  if (!currentUser) return null;
+
+  // CHANGED: while the data loads, the FIRST strip in the feed shows a
+  // skeleton. Later strips (slot > 0) and the inbox variant render nothing
+  // until data arrives, as before.
+  if (!data) {
+    return variant === "feed" && slot === 0 ? <PeopleSkeleton /> : null;
+  }
 
   const excludeSet = new Set(exclude || data.hide);
   const dismissedSet = new Set(dismissed);

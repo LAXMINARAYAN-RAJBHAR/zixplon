@@ -1774,3 +1774,51 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ══════════════════════════════════════
+   HOMEPAGE SKELETON
+══════════════════════════════════════ */
+.zx-sk {
+  background: linear-gradient(90deg, #f2ded8 25%, #fdf1ef 50%, #f2ded8 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: 6px;
+}
+.zx-sk-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+/* cards keep their real shape but lose hover effects while loading */
+.zx-sk-cardShell,
+.zx-sk-cardShell:hover {
+  transform: none;
+  border-color: var(--zx-border);
+  box-shadow: var(--zx-shadow2);
+  cursor: default;
+}
+
+.zx-sk-trendingCard {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300px;
+  height: 300px;
+  border-radius: var(--zx-radius);
+  overflow: hidden;
+  border: 2px solid var(--zx-border);
+  background: var(--zx-surface);
+  box-shadow: 0 12px 40px rgba(30, 19, 21, 0.14);
+}
+@media (max-width: 768px) {
+  .zx-sk-trendingCard { width: 220px; height: 220px; }
+}
+@media (max-width: 360px) {
+  .zx-sk-trendingCard { width: 190px; height: 190px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zx-sk { animation: none; }
+}

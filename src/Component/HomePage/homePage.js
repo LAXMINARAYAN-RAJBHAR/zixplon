@@ -1577,6 +1577,138 @@ const SkeletonCard = () => (
   </div>
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// HomePageSkeleton — loading placeholder mirroring the "All" feed:
+// Trending carousel -> Post row -> Shorts row -> Video row.
+// Reuses the real grid classes so existing breakpoints apply; only the card
+// COUNT differs, mirroring ROW_SIZES_DESKTOP / ROW_SIZES_MOBILE.
+// ─────────────────────────────────────────────────────────────────────────────
+const SkBlock = ({ className = "", style }) => (
+  <div className={"zx-sk " + className} style={style} />
+);
+
+const TrendingSkeleton = ({ isMobile }) => {
+  const cardOffset = isMobile ? 130 : 230;
+  const slots = isMobile ? [-1, 0, 1] : [-2, -1, 0, 1, 2];
+  return (
+    <div className="zx-dramatic-trending" aria-hidden="true">
+      <div className="zx-dramatic-trending-label">
+        <SkBlock className="zx-sk-badge" />
+        <SkBlock style={{ width: 110, height: 16, borderRadius: 6 }} />
+      </div>
+      <div className="zx-dramatic-stage" style={{ cursor: "default" }}>
+        {slots.map((offset) => {
+          const abs = Math.abs(offset);
+          return (
+            <div
+              key={offset}
+              className="zx-sk-trendingCard"
+              style={{
+                transform: `translate(-50%, -50%) translateX(${offset * cardOffset}px) scale(${offset === 0 ? 1 : Math.max(0.62, 1 - abs * 0.16)
+                  })`,
+                zIndex: 10 - abs,
+                opacity: 1 - abs * 0.24,
+              }}
+            >
+              <SkBlock style={{ position: "absolute", inset: 0, borderRadius: 0 }} />
+            </div>
+          );
+        })}
+      </div>
+      <div className="zx-dramatic-controls">
+        <div className="zx-dramatic-dots">
+          {[...Array(6)].map((_, i) => (
+            <SkBlock key={i} style={{ width: i === 0 ? 22 : 8, height: 8, borderRadius: 5 }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RowHeaderSkeleton = () => (
+  <div className="homePage_postsSectionHeader">
+    <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <SkBlock className="zx-sk-badge" />
+      <SkBlock style={{ width: 80, height: 15, borderRadius: 6 }} />
+    </span>
+  </div>
+);
+
+const PostCardSkeleton = () => (
+  <div className="homePage_postCard zx-sk-cardShell" style={{ pointerEvents: "none" }}>
+    <div className="homePage_postThumbWrap">
+      <SkBlock style={{ position: "absolute", inset: 0, borderRadius: 0 }} />
+    </div>
+    <div className="homePage_postMeta">
+      <SkBlock style={{ height: 13, width: "90%", marginBottom: 6 }} />
+      <SkBlock style={{ height: 13, width: "60%", marginBottom: 12 }} />
+      <div className="homePage_postFooter">
+        <SkBlock style={{ height: 12, width: "35%" }} />
+        <SkBlock style={{ height: 12, width: "40%" }} />
+      </div>
+    </div>
+  </div>
+);
+
+const ShortCardSkeleton = () => (
+  <div className="homePage_shortCard">
+    <div className="homePage_shortThumbnail" style={{ border: "none" }}>
+      <SkBlock style={{ position: "absolute", inset: 0, borderRadius: 0 }} />
+    </div>
+    <SkBlock style={{ height: 11, width: "90%", marginTop: 8 }} />
+    <SkBlock style={{ height: 10, width: "55%", marginTop: 5 }} />
+  </div>
+);
+
+const VideoCardSkeleton = () => (
+  <div className="youtube_thumbnailBox zx-sk-cardShell" style={{ pointerEvents: "none" }}>
+    <div className="youtube_thumbnailWrapper">
+      <SkBlock style={{ position: "absolute", inset: 0, borderRadius: 0 }} />
+    </div>
+    <div className="youtubeTitleBox">
+      <SkBlock style={{ height: 13, width: "95%" }} />
+      <SkBlock style={{ height: 13, width: "65%" }} />
+      <div className="youtube_videoMetaRow">
+        <div className="youtubeBoxProfile">
+          <SkBlock style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0 }} />
+          <SkBlock style={{ height: 12, width: 70 }} />
+        </div>
+        <SkBlock style={{ height: 11, width: 90 }} />
+      </div>
+    </div>
+  </div>
+);
+
+const HomePageSkeleton = ({ isMobile, showTrending = true }) => {
+  const sizes = isMobile ? ROW_SIZES_MOBILE : ROW_SIZES_DESKTOP;
+  const rounds = isMobile ? 2 : 1; // mobile rows are tiny, so repeat to fill the screen
+  return (
+    <div role="status" aria-busy="true" aria-label="Loading content">
+      {showTrending && <TrendingSkeleton isMobile={isMobile} />}
+      {[...Array(rounds)].map((_, r) => (
+        <React.Fragment key={r}>
+          <div className="homePage_postsSection" aria-hidden="true">
+            <RowHeaderSkeleton />
+            <div className="homePage_postsGrid">
+              {[...Array(sizes.post)].map((_, i) => <PostCardSkeleton key={i} />)}
+            </div>
+          </div>
+          <div className="homePage_shortsSection" aria-hidden="true">
+            <RowHeaderSkeleton />
+            <div className="homePage_shortsRow">
+              {[...Array(sizes.reel)].map((_, i) => <ShortCardSkeleton key={i} />)}
+            </div>
+          </div>
+          <div className="youtube_VideoGrid" aria-hidden="true">
+            {[...Array(sizes.video)].map((_, i) => <VideoCardSkeleton key={i} />)}
+          </div>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
 const SectionLabel = ({ color, bg, text, count }) => (
   <div
     style={{
@@ -4780,33 +4912,36 @@ const HomePage = ({ sideNavbar }) => {
           />
         )}
 
-        {!searchActive && (
-          <DramaticTrendingCarousel
-            dbVideos={allVideos}
-            dbReels={allReels}
-            onVideoClick={(v, trendingList) => {
-              incrementView(String(v.id), "video");
-              const trendingVideoIds = trendingList
-                .filter((t) => t._type !== "reel")
-                .map((t) => String(t.id));
-              navigate(`/video/${v.id}`, {
-                state: { trendingIds: trendingVideoIds, fromTrending: true },
-              });
-            }}
-            onReelClick={(r, trendingList) => {
-              const trendingReelIds = trendingList
-                .filter((t) => t._type === "reel")
-                .map((t) => String(t.id));
-              navigate("/reels/" + r.id, {
-                state: {
-                  clickedReel: r,
-                  trendingIds: trendingReelIds,
-                  fromTrending: true,
-                },
-              });
-            }}
-          />
-        )}
+        {!searchActive &&
+          (dbLoading && dbVideos.length === 0 && dbReels.length === 0 ? (
+            <TrendingSkeleton isMobile={isMobile} />
+          ) : (
+            <DramaticTrendingCarousel
+              dbVideos={allVideos}
+              dbReels={allReels}
+              onVideoClick={(v, trendingList) => {
+                incrementView(String(v.id), "video");
+                const trendingVideoIds = trendingList
+                  .filter((t) => t._type !== "reel")
+                  .map((t) => String(t.id));
+                navigate(`/video/${v.id}`, {
+                  state: { trendingIds: trendingVideoIds, fromTrending: true },
+                });
+              }}
+              onReelClick={(r, trendingList) => {
+                const trendingReelIds = trendingList
+                  .filter((t) => t._type === "reel")
+                  .map((t) => String(t.id));
+                navigate("/reels/" + r.id, {
+                  state: {
+                    clickedReel: r,
+                    trendingIds: trendingReelIds,
+                    fromTrending: true,
+                  },
+                });
+              }}
+            />
+          ))}
 
         {!searchActive && (
           <div ref={liveBrowserRef} style={{ marginBottom: "28px" }}>
@@ -4822,11 +4957,8 @@ const HomePage = ({ sideNavbar }) => {
           (selectedOption === "All" ? (
             <>
               {dbLoading && contentRows.length === 0 && (
-                <div className="youtube_VideoGrid">
-                  {[...Array(4)].map((_, i) => (
-                    <SkeletonCard key={i} />
-                  ))}
-                </div>
+                // trending skeleton is already rendered above, so skip it here
+                <HomePageSkeleton isMobile={isMobile} showTrending={false} />
               )}
               {!dbLoading && contentRows.length === 0 ? (
                 <div

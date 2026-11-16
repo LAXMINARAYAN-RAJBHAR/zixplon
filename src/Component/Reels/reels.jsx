@@ -63,6 +63,7 @@ import useFeedbackPrompt, { FeedbackPrompt } from "../../hooks/useFeedbackPrompt
 // by the notify_on_subscribe / notify_on_connect_accept DB triggers —
 // client-side calls for all of these were removed since they duplicated
 // the triggers' own notifications. See connection_request_migration.sql.
+import DoubleTapHint from "../Shared/DoubleTapHint";
 
 const getVideoType = (src) => {
   if (!src) return "video/mp4";
@@ -1557,6 +1558,12 @@ const ReelItemBase = ({ reel, fb }) => {
 
         {!isYouTube(reel.src) && showIcon && <div className="reel_play_icon">{isPlaying ? "▶" : "⏸"}</div>}
         {!isYouTube(reel.src) && showHeartBurst && <div className="reel_heart_burst">❤️</div>}
+        {!isYouTube(reel.src) && (
+          <DoubleTapHint
+            contentKey={reel.id}
+            active={isActive && isPlaying && !liked && !showComments}
+          />
+        )}
 
         {/* CHANGED: ONE top-left stack that holds everything that used
             to be scattered around the reel — the "✨ New" badge and

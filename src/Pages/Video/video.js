@@ -72,6 +72,8 @@ import useFeedbackPrompt, { FeedbackPrompt } from "../../hooks/useFeedbackPrompt
 //    timezone marker, we now treat it as UTC before parsing. Strings
 //    that already carry a "Z" or a numeric offset (i.e. a proper
 //    `timestamptz` column) pass through unchanged.
+import DoubleTapHint from "../../Component/Shared/DoubleTapHint";
+
 const timeAgo = (dateStr) => {
   if (!dateStr) return "";
 
@@ -1946,6 +1948,10 @@ const Video = ({ sideNavbar }) => {
                 ❤️
               </div>
             )}
+            <DoubleTapHint
+              contentKey={id}
+              active={hasPlayedSuccessfully && isVideoPlaying && !liked}
+            />
 
             {/* NEW: shown only while the video is muted because the
                 browser blocked unmuted autoplay, or because another card

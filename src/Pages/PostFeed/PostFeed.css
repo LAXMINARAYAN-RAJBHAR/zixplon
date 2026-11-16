@@ -5093,3 +5093,37 @@
   .pf-feed > .pf-vsk { max-width: none; }
   .pf-vsk-pad { padding: 0 12px; }
 }
+
+/* ── Live Now + People you may know skeletons ── */
+.pf-lsk { margin-bottom: 28px; }
+.pf-lsk-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.pf-lsk-badge { width: 24px; height: 24px; border-radius: 6px; }
+.pf-lsk-row { display: flex; gap: 10px; overflow: hidden; }
+.pf-lsk-card { width: 180px; height: 110px; border-radius: 12px; flex-shrink: 0; }
+
+.pf-psk {
+  background: var(--zx-surface);
+  border: 2px solid var(--zx-border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.pf-psk-row { display: flex; gap: 10px; margin-top: 14px; overflow: hidden; }
+.pf-psk-tile {
+  width: 130px;
+  flex-shrink: 0;
+  padding: 14px 10px;
+  border: 1px solid var(--zx-border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.pf-psk-avatar { width: 56px; height: 56px; border-radius: 50%; }
+.pf-psk-btn { width: 80%; height: 30px; border-radius: 999px; margin-top: 4px; }
+
+@media (max-width: 768px) {
+  .pf-lsk-card { width: 150px; height: 96px; }
+  .pf-psk-tile { width: 112px; }
+}

@@ -85,6 +85,38 @@ const PostSkeleton = ({ withMedia = true }) => (
   </div>
 );
 
+// "Live Now" section: header + a row of live cards
+export const LiveSkeleton = () => (
+  <div className="pf-lsk" aria-hidden="true">
+    <div className="pf-lsk-head">
+      <div className="pf-sk pf-lsk-badge" />
+      <div className="pf-sk pf-sk-line" style={{ width: 90 }} />
+    </div>
+    <div className="pf-lsk-row">
+      {[1, 2, 3].map((n) => (
+        <div className="pf-sk pf-lsk-card" key={n} />
+      ))}
+    </div>
+  </div>
+);
+
+// "People you may know": bordered card with a row of profile tiles
+export const PeopleSkeleton = () => (
+  <div className="pf-psk" aria-hidden="true">
+    <div className="pf-sk pf-sk-line" style={{ width: 150, height: 11 }} />
+    <div className="pf-psk-row">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <div className="pf-psk-tile" key={n}>
+          <div className="pf-sk pf-psk-avatar" />
+          <div className="pf-sk pf-sk-line" style={{ width: "70%", height: 11 }} />
+          <div className="pf-sk pf-sk-line" style={{ width: "45%", height: 9 }} />
+          <div className="pf-sk pf-psk-btn" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 // Skeleton shaped like VideoFeedCard: header, title, 16:9 thumb, pills.
 const VideoSkeleton = () => (
   <div className="pf-vsk" aria-hidden="true">
@@ -1850,9 +1882,9 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
             {/* No interleaved videos/reels while searching. Both are
                 lazy-mounted. */}
             {!searchQuery &&
-  !visibleVideos[index] &&
-  videosLoading &&
-  index < VIDEO_SKELETON_SLOTS && <VideoSkeleton />}
+              !visibleVideos[index] &&
+              videosLoading &&
+              index < VIDEO_SKELETON_SLOTS && <VideoSkeleton />}
 
             {/* While the first videos are still being fetched, hold their
                 place with a skeleton (first few slots only). */}

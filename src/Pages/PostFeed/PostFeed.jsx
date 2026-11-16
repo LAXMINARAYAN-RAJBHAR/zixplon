@@ -223,6 +223,9 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   // Keyset cursors ({ score, id }) for the server-ranked lists.
   const postCursorRef = useRef(null);
   const videoCursorRef = useRef(null);
+  // NEW: offset used by the "newest videos" fallback when the ranking
+  // call fails or returns nothing.
+  const videoFallbackOffsetRef = useRef(0);
   // New posts / videos from other people are held here and shown behind a
   // "↑ N new" pill.
   const pendingPostsRef = useRef([]);
@@ -506,6 +509,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
   // Videos come from the server ranking (get_feed_ids), paged with a keyset
   // cursor. The videos query and the likes query run in parallel.
+  // CHANGED: if the ranking call fails or returns nothing, fall back to
+  // the newest videos so the feed still shows video cards.
   const fetchMoreVideos = useCallback((count) => {
     if (!count) return Promise.resolve();
     const epoch = videoEpochRef.current;
@@ -517,21 +522,43 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         !videosExhaustedRef.current &&
         attempts++ < 2
       ) {
-        let ranked;
+        let ranked = null;
         try {
           ranked = await fetchRankedIds("video", {
             limit: VIDEO_POOL_SIZE,
             cursor: videoCursorRef.current,
             seedOffset: 1000,
           });
-        } catch (_) {
-          break; // try again on the next call
+        } catch (e) {
+          console.error("video rank failed", e);
         }
         if (epoch !== videoEpochRef.current) return;
 
-        if (ranked.ids.length === 0) {
-          videosExhaustedRef.current = true;
-          break;
+        // Fallback: ranking failed or returned nothing -> newest videos.
+        if (!ranked || ranked.ids.length === 0) {
+          const from = videoFallbackOffsetRef.current;
+          const { data: rows, error: fbErr } = await supabase
+            .from("videos")
+            .select("id")
+            .order("created_at", { ascending: false })
+            .range(from, from + VIDEO_POOL_SIZE - 1);
+          if (epoch !== videoEpochRef.current) return;
+          if (fbErr) {
+            console.error("video fallback failed", fbErr);
+            break;
+          }
+
+          const ids = (rows || []).map((r) => String(r.id));
+          videoFallbackOffsetRef.current += ids.length;
+          if (ids.length === 0) {
+            videosExhaustedRef.current = true;
+            break;
+          }
+          ranked = {
+            ids,
+            next: videoCursorRef.current,
+            done: ids.length < VIDEO_POOL_SIZE,
+          };
         }
 
         const [{ data, error: fetchErr }, { data: likesData }] =
@@ -547,11 +574,14 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               .in("content_id", ranked.ids.map(String)),
           ]);
         if (epoch !== videoEpochRef.current) return;
-        if (fetchErr) break;
+        if (fetchErr) {
+          console.error("videos query failed", fetchErr);
+          break;
+        }
 
         const byId = new Map((data || []).map((v) => [String(v.id), v]));
         const mapped = ranked.ids
-          .map((id) => byId.get(id))
+          .map((id) => byId.get(String(id)))
           .filter(Boolean)
           .map((v) => ({
             id: v.id,
@@ -603,7 +633,9 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           setVideos((prev) => [...prev, ...batch]);
         }
       })
-      .catch(() => { })
+      .catch((e) => {
+        console.error("video fetch chain failed", e);
+      })
       .finally(() => {
         videoInflightRef.current = Math.max(0, videoInflightRef.current - 1);
         if (videoInflightRef.current === 0) setVideosLoading(false);
@@ -617,6 +649,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     videoEpochRef.current += 1;
     videoPoolRef.current = [];
     videoCursorRef.current = null;
+    videoFallbackOffsetRef.current = 0;
     videosExhaustedRef.current = false;
     shownVideoIdsRef.current = new Set();
     pendingPostsRef.current = [];

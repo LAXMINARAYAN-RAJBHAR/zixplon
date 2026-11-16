@@ -1254,3 +1254,18 @@
   color: #ffffff;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
+
+/* ══════════════════════════════════════
+   ROW ORDER — action buttons FIRST, Prev | Autoplay | Next SECOND
+   Visual order only (the JSX is unchanged).
+   Mobile : action row on top, nav pill underneath.
+   Desktop: action buttons on the left, nav pill on the right.
+══════════════════════════════════════ */
+.video_frame_actions {
+  order: -1;
+}
+
+/* Keep the original order inside the fullscreen pill */
+.video_player_wrapper.is-fullscreen .video_frame_actions {
+  order: 0;
+}

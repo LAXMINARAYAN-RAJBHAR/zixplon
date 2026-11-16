@@ -17,36 +17,26 @@ import { markSeen, fetchRankedIds } from "../../utils/seenContent";
 const PAGE_SIZE = 10;
 const LOAD_MORE_THRESHOLD_PX = 300;
 
-// NEW (duplicate fix): when a page turns out to be mostly reels that are
-// already shown (in this strip or in another strip), keep scanning until at
-// least this many NEW reels were found (or the whole table was scanned).
+// When a page turns out to be mostly reels that are already shown (in this
+// strip or in another strip), keep scanning until at least this many NEW
+// reels were found (or the whole table was scanned).
 const MIN_NEW_PER_LOAD = 6;
 // Safety cap on pages scanned in one load.
 const MAX_PAGES_PER_LOAD = 6;
 
-// NEW (newest on top): the FIRST strip in the feed asks the server to pin
-// the newest unseen (<24h) reels at its front; the other strips don't pin.
-
-// NEW (duplicate fix): ids of reels currently shown by ANY strip on the
-// page. Each strip claims what it loads and releases it when it unmounts
-// (the feed unmounts everything on refresh), so two strips never show the
-// same reel at the same time.
+// ids of reels currently shown by ANY strip on the page. Each strip claims
+// what it loads and releases it when it unmounts, so two strips never show
+// the same reel at the same time.
 const claimedReelIds = new Set();
 
-// NEW: how many cards the strip plays through on its own (each time a clip
-// ends) before handing off to the next item in the feed. The strip wraps
-// around forever, so without a cap it would never let go. Touching the
-// strip resets the counter.
+// How many cards the strip plays through on its own (each time a clip
+// ends) before handing off to the next item in the feed.
 const MAX_AUTO_ADVANCE = 4;
 
-// NEW: card width in px. Change this one number to resize the cards.
-// (Previously ~140px in the stylesheet; now 170px.)
+// Card width in px. Change this one number to resize the cards.
 const CARD_WIDTH = 170;
 
-// NEW: size overrides, injected with the strip. Higher specificity
-// (.pf-reels-strip ...) means they win over the existing stylesheet
-// without editing it. Once you're happy, you can move these into your
-// CSS file and delete this block.
+// Size overrides, injected with the strip.
 const CARD_SIZE_CSS = `
 .pf-reels-strip .pf-reel-card {
   width: ${CARD_WIDTH}px;
@@ -61,10 +51,6 @@ const CARD_SIZE_CSS = `
 `;
 
 // Also carries song / location / feeling / audio mix / etc.
-// These ride along in the `clickedReel` handoff to /reels, so a reel
-// opened from the strip keeps its song, location and feeling instead of
-// losing them. (The rows come from `select("*")`, so no query change is
-// needed — the columns just have to exist on the reels table.)
 const mapReelRow = (r) => ({
   id: "db_" + r.id,
   dbId: r.id,
@@ -92,37 +78,7 @@ const formatViews = (n) => {
   return String(n);
 };
 
-// ── One reel card in the strip. Desktop hovers-to-preview (the clip
-// plays over the thumbnail, sound-first, with the attached song in sync
-// and a mute button); touch screens just show the static thumbnail (or
-// the video's own first frame if no thumbnail exists) and rely on the
-// tap to open the reel. Carries a three-dots menu (Share, Go to
-// Profile, Report, and owner-only Delete) — matching the video/reel
-// cards on the Home feed. The hover logic lives in <PreviewThumb>.
-//
-// NEW: scroll-into-view autoplay. Each card reports to the strip
-// whether it's ≥60% on screen; the strip picks ONE card (the leftmost
-// visible one) as `autoplay`, and only that card plays a muted looping
-// clip over its thumbnail — so a row of several visible reels never
-// decodes several videos at once. Hovering a card (desktop) hands
-// control to PreviewThumb's own sound-first preview instead.
-//
-// NEW: a card that is ≥60% on screen is remembered as "seen".
-//
-// NEW (auto-advance): when the autoplaying clip ends, `onEnded` asks the
-// strip to move on (next card, or the next feed item). If it returns
-// false, AutoPlayVideo replays the clip.
-//
-// NEW (profile prompt): when this card is the strip's active one, the feed is
-// told its author is on screen, so it can ask "Interested in <profile>?"
-// once for new profiles. (The per-reel "Interested / Not interested" items
-// were removed from the ⋮ menu.)
-//
-// NEW (perf): wrapped in React.memo, so when the strip re-renders (the
-// active card changes, view counts arrive, a page loads) only the cards
-// whose own props changed re-render. Every callback passed in is stable
-// (useCallback / state setters). `onProfileView` must also be stable —
-// pass a useCallback from PostFeed. ──
+// ── One reel card in the strip (wrapped in React.memo). ──
 const ReelStripCard = memo(function ReelStripCard({
   reel,
   previewId,
@@ -141,17 +97,14 @@ const ReelStripCard = memo(function ReelStripCard({
   const cardRef = useRef(null);
   const [hovered, setHovered] = useState(false);
 
-  // NEW: report this card's visibility up to the strip. IntersectionObserver
-  // with the default (viewport) root already accounts for the strip's own
-  // horizontal overflow clipping, so a card half scrolled out of the
-  // track reports a low ratio and isn't treated as visible.
+  // Report this card's visibility up to the strip.
   useEffect(() => {
     const node = cardRef.current;
     if (!node || !reel.src) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         const visible = entry.isIntersecting && entry.intersectionRatio >= 0.6;
-        // NEW: remember it, so the next refresh shows unseen reels first.
+        // Remember it, so the next refresh shows unseen reels first.
         if (visible) markSeen("reel", reel.dbId);
         onVisibilityChange(previewId, index, visible);
       },
@@ -164,7 +117,7 @@ const ReelStripCard = memo(function ReelStripCard({
     };
   }, [previewId, index, reel.src, reel.dbId, onVisibilityChange]);
 
-  // NEW (profile prompt): this card is the one the user is looking at.
+  // This card is the one the user is looking at.
   useEffect(() => {
     if (autoplay && reel.username && onProfileView) onProfileView(reel.username);
   }, [autoplay, reel.username, onProfileView]);
@@ -228,11 +181,9 @@ const ReelStripCard = memo(function ReelStripCard({
   // one AND the pointer isn't on it (hover has its own preview).
   const showAutoplay = autoplay && !hovered && !!reel.src;
 
-  // NEW (auto-advance): only the autoplaying card may move the strip on.
-  // Returning false makes AutoPlayVideo replay the clip.
+  // Only the autoplaying card may move the strip on.
   const handleEnded = () => (showAutoplay ? onEnded(cardRef.current) : false);
 
-  // NEW: text for the 🎵 line.
   const songLabel =
     typeof reel.song === "string"
       ? reel.song
@@ -270,12 +221,6 @@ const ReelStripCard = memo(function ReelStripCard({
           />
         )}
 
-        {/* CHANGED: one always-mounted video per card (no more mounting
-            a fresh <video> when autoplay starts). It preloads once the
-            card is within ~400px of the screen, plays muted while this
-            card is the strip's active one, and cross-fades in over the
-            thumbnail only when actually playing — so no buffering is
-            ever visible. With no thumbnail it shows its own first frame. */}
         {reel.src ? (
           <AutoPlayVideo
             src={reel.src}
@@ -305,10 +250,6 @@ const ReelStripCard = memo(function ReelStripCard({
       >
         @{reel.user}
       </Link>
-      {/* NEW: small 🎵 line (same idea as the post card header) — shown
-          only when the reel carries a song. Handles both shapes the
-          column has been used with: an object ({ title, artist }) or a
-          plain string. */}
       {songLabel && (
         <div className="pf-reel-song" title={songLabel}>
           🎵 {songLabel}
@@ -318,22 +259,8 @@ const ReelStripCard = memo(function ReelStripCard({
   );
 });
 
-// ── The strip. Fully self-contained: fetches its own pages, orders each
-// batch, and keeps loading further pages as the user scrolls it
-// horizontally. Owns its own report modal so a report from any card in
-// this strip has somewhere to render.
-//
-// CHANGED (server ranking): each strip asks the database for its next
-// reels (get_feed_ids): unseen before seen, brand-new unseen reels pinned
-// on top in the FIRST strip (startOffset 0), a different shuffle per strip
-// and per session. Pages use a keyset cursor, so there is no offset drift
-// and no wrap-around. Reels another strip already shows are skipped.
-//
-// NEW (feedback): optional `fb` prop (from useContentFeedback in PostFeed) —
-// reels hidden through an earlier "Not interested" stay hidden.
-// NEW (profile prompt): `onProfileView(username)` is called for the author of
-// the strip's active reel; `isProfileHidden(username)` hides reels from
-// profiles answered "Not interested" in the profile prompt. ──
+// ── The strip. Fully self-contained: fetches its own pages and keeps
+// loading further pages as the user scrolls it horizontally. ──
 const ReelsStrip = ({
   startOffset = 0,
   wrapAround = true,
@@ -345,40 +272,23 @@ const ReelsStrip = ({
   const isFirstStrip = startOffset === 0;
   const [reels, setReels] = useState([]);
   const [viewCounts, setViewCounts] = useState({});
-  // CHANGED (startup speed): starts as true, so the strip's header and a
-  // placeholder card are shown immediately while the first page loads,
-  // instead of the strip being invisible (it returned null) until then.
-  // If the server turns out to have no reels, the strip still disappears
-  // once loading finishes (see the `reels.length === 0 && !loading` check).
+  // Starts as true, so the header and skeleton cards show immediately
+  // while the first page loads. If the server has no reels, the strip
+  // disappears once loading finishes.
   const [loading, setLoading] = useState(true);
   const cursorRef = useRef(null);
   const loadingRef = useRef(false);
   const trackRef = useRef(null);
-  // NEW (auto-advance): root element of the strip (used as the anchor when
-  // handing off to the next feed item) and how many cards we've advanced
-  // on our own since the user last touched the strip.
   const stripRef = useRef(null);
   const autoAdvancedRef = useRef(0);
   const loggedInUsername = localStorage.getItem("username") || "";
 
-  // NEW (server ranking):
-  //  - cursorRef: keyset cursor for the next page from the server.
-  //  - doneRef: the server has no more reels for this strip.
-  //  - ownIdsRef: ids this strip shows (also claimed in claimedReelIds).
-  //  - epochRef: bumped on unmount so an in-flight load from a dead mount
-  //    (React StrictMode, or a quick unmount) is dropped.
   const doneRef = useRef(false);
   const ownIdsRef = useRef(new Set());
   const epochRef = useRef(0);
 
-  // Unique per-strip id, so preview ids stay unique even when several
-  // strips are on screen — the shared sound arbiter tells previews apart
-  // by id.
   const stripIdRef = useRef(Math.random().toString(36).slice(2));
 
-  // NEW: scroll-autoplay bookkeeping. visibleRef maps previewId -> card
-  // index for every card currently ≥60% on screen; activeKey is the
-  // leftmost of those, i.e. the one card allowed to autoplay.
   const visibleRef = useRef(new Map());
   const [activeKey, setActiveKey] = useState(null);
 
@@ -397,11 +307,8 @@ const ReelsStrip = ({
     setActiveKey(bestKey);
   }, []);
 
-  // NEW (auto-advance): a clip in the strip ended. Scroll the strip so the
-  // next card becomes the leftmost visible one (which makes it the
-  // autoplaying card). After MAX_AUTO_ADVANCE cards, or at the end of the
-  // loaded cards, hand off to the next video / post video in the feed.
-  // Returns true if it moved on, false if the clip should just replay.
+  // A clip in the strip ended. Scroll to the next card, or hand off to the
+  // next feed item after MAX_AUTO_ADVANCE cards.
   const handleCardEnded = useCallback((cardEl) => {
     const track = trackRef.current;
     const next = cardEl?.nextElementSibling;
@@ -451,9 +358,6 @@ const ReelsStrip = ({
     }
   };
 
-  // Takes the full prefixed ids (e.g. "db_123") end-to-end, matching
-  // how Reels.jsx / ReelItem identify content everywhere else (likes,
-  // views, comments). Views are written with the prefixed content_id.
   const fetchViewCountsFor = useCallback(async (fullIds) => {
     if (!fullIds || fullIds.length === 0) return;
     try {
@@ -475,7 +379,7 @@ const ReelsStrip = ({
       }
       setViewCounts((prev) => ({ ...prev, ...counts }));
     } catch (_) {
-      /* view counts are a nice-to-have — never block the strip on this */
+      /* view counts are a nice-to-have */
     }
   }, []);
 
@@ -514,11 +418,8 @@ const ReelsStrip = ({
           break;
         }
 
-        // Reserve reels BEFORE fetching them: check-and-claim happen in the
-        // same step, so two strips that load at the same time can never take
-        // the same reel. (Claiming only after the fetch — as before — let
-        // every strip see "nothing taken yet" and fetch the same top reels.)
-        // If this strip is unmounted meanwhile, its cleanup releases them.
+        // Reserve reels BEFORE fetching them, so two strips loading at the
+        // same time can never take the same reel.
         const wanted = [];
         for (const id of ranked.ids) {
           if (ownIdsRef.current.has(id) || claimedReelIds.has(id)) continue;
@@ -540,7 +441,7 @@ const ReelsStrip = ({
             .in("id", wanted);
           if (dead()) return;
           if (error) {
-            release(wanted); // let another strip (or a retry) take them
+            release(wanted);
             break;
           }
           rows = data || [];
@@ -578,9 +479,6 @@ const ReelsStrip = ({
   useEffect(() => {
     loadPage();
 
-    // Cleanup runs on unmount (and on StrictMode's dev double-mount):
-    // release this strip's claims and reset it so a fresh mount starts
-    // clean, and invalidate any load still in flight.
     return () => {
       epochRef.current += 1;
       loadingRef.current = false;
@@ -601,8 +499,6 @@ const ReelsStrip = ({
     }
   };
 
-  // CHANGED (perf): stable identity, so it doesn't defeat React.memo on
-  // the cards.
   const handleDeleted = useCallback((dbId) => {
     setReels((prev) => prev.filter((r) => r.dbId !== dbId));
   }, []);
@@ -629,8 +525,6 @@ const ReelsStrip = ({
         className="pf-reels-strip-track"
         ref={trackRef}
         onScroll={handleScroll}
-        // NEW (auto-advance): the user is driving the strip themselves —
-        // give them a fresh run of auto-advanced cards.
         onPointerDown={() => {
           autoAdvancedRef.current = 0;
         }}
@@ -655,13 +549,19 @@ const ReelsStrip = ({
             />
           );
         })}
-        {loading && (
-          <div className="pf-reel-card pf-reel-card-loading">
-            <div className="pf-reel-thumb-wrap pf-reel-thumb-placeholder">
-              …
+
+        {/* CHANGED: shimmer skeleton cards instead of one grey "…" card.
+            4 on the first load, 1 while loading more. Keep the
+            `pf-reel-card-loading` class — handleCardEnded uses it so the
+            strip never auto-advances onto a skeleton. */}
+        {loading &&
+          (reels.length === 0 ? [1, 2, 3, 4] : [1]).map((n) => (
+            <div className="pf-reel-card pf-reel-card-loading" key={`sk-${n}`}>
+              <div className="pf-reel-thumb-wrap pf-sk" />
+              <div className="pf-sk pf-sk-line" style={{ width: "80%", marginTop: 8 }} />
+              <div className="pf-sk pf-sk-line" style={{ width: "45%", height: 10, marginTop: 6 }} />
             </div>
-          </div>
-        )}
+          ))}
       </div>
 
       <ReportModal

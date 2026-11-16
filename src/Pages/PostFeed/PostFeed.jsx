@@ -7,39 +7,30 @@ import PostComposer from "./PostComposer";
 import PostCard from "./PostCard";
 import ReelsStrip from "./ReelsStrip";
 import VideoFeedCard from "./VideoFeedCard";
-// NEW: Stories strip (Create story + people's stories) shown above the
+// Stories strip (Create story + people's stories) shown above the
 // composer trigger at the top of the Posts feed.
 import StoriesStrip from "./StoriesStrip";
-// NEW: same live-streams browser the Home page shows (🔴 Live section).
-// ⚠ Adjust this path to wherever LiveViewer lives in your project —
-// HomePage imports it as "../Live/LiveViewer", so from the PostFeed
-// folder it is probably this:
+// Same live-streams browser the Home page shows (🔴 Live section).
+// ⚠ Adjust this path to wherever LiveViewer lives in your project.
 import LiveBrowser from "../../Component/Live/LiveViewer";
 import SideNavbar from "../../Component/SideNavbar/sideNavbar";
-// NEW: shared preloading, buffer-hiding video — used for search-result
+// Shared preloading, buffer-hiding video — used for search-result
 // reels that have no thumbnail, so they only load once near the screen.
 import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
 import { notifyConnections, notifyUser } from "../../utils/notifications";
 import { extractMentions } from "../../utils/linkify";
 import SuggestedConnections from "../../Component/Messages/SuggestedConnections";
-// NEW (feedback): Interested / Not interested for posts, videos and reels.
+// Interested / Not interested for posts, videos and reels.
 import useContentFeedback, { FeedbackToast } from "../../hooks/useContentFeedback";
-// NEW: profile-level "Interested / Not interested" feedback (replaces the
-// per-post items that used to live in each post's ⋯ menu).
+// Profile-level "Interested / Not interested" feedback.
 import useProfileFeedback from "../../hooks/useProfileFeedback";
-// CHANGED: the "Interested in <profile>?" question is no longer a floating
-// popup — it is an inline card inside the post (InlineInterestPrompt, rendered
-// by PostCard). Only the confirmation / Undo toast is still used from here.
+// Only the confirmation / Undo toast is used from here.
 import { ProfileFeedbackToast } from "./ProfilePrompt";
-// i18n: t("key") follows the user's language preference (en / hi / mr / bn /
-// gu / ta / te / kn / ml / pa / or / as / ur).
+// i18n: t("key") follows the user's language preference.
 import useT from "../../i18n";
-// NEW: language picker (Auto / English only / Hindi / Marathi / …).
-// Shown here as a small 🌐 icon (iconOnly) beside the composer trigger.
-// Save the file as src/Component/Shared/LanguageSelector.jsx
+// Language picker (small 🌐 icon beside the composer trigger).
 import LanguageSelector from "../../Component/Shared/LanguageSelector";
-// NEW: server-ranked feed (see feed_ranking.sql). The database returns the
-// next ids: brand-new unseen on top, other unseen next, already-seen last.
+// Server-ranked feed (see feed_ranking.sql).
 import {
   markSeen,
   flushSeen,
@@ -47,49 +38,102 @@ import {
   fetchRankedIds,
 } from "../../utils/seenContent";
 
-// NEW (duplicate fix): append `next` to `prev`, skipping any post whose id
-// is already in `prev`. Used everywhere posts are added to the list.
+// Append `next` to `prev`, skipping any post whose id is already in `prev`.
 const mergeUnique = (prev, next) => {
   const seen = new Set(prev.map((p) => p.id));
   return [...prev, ...next.filter((p) => !seen.has(p.id))];
 };
 
-// NEW (duplicate fix): put `post` at the top unless it's already in the list
-// (e.g. the realtime INSERT event and handleNewPost both add your own post).
+// Put `post` at the top unless it's already in the list.
 const prependUnique = (prev, post) =>
   prev.some((p) => p.id === post.id) ? prev : [post, ...prev];
 
-// NEW: how many videos are fetched (then ordered) per refill of the
-// video pool.
+// How many videos are fetched (then ordered) per refill of the video pool.
 const VIDEO_POOL_SIZE = 30;
 
-// NEW (startup speed): how many video slots get a placeholder skeleton
-// while the first videos are still loading (only the first few posts —
-// a skeleton under every post would be a wall of grey boxes).
+// How many video slots get a placeholder skeleton while the first videos
+// are still loading.
 const VIDEO_SKELETON_SLOTS = 2;
 
-// NEW: HomeHub's Upload -> Post item opens the composer popup. When the
-// Posts tab is already showing it fires OPEN_COMPOSER_EVENT; when it has
-// to switch tabs first it leaves a timestamp in sessionStorage under
-// OPEN_COMPOSER_FLAG (this component isn't mounted yet to hear an event),
-// which is picked up on mount. The timestamp keeps a stale flag from
-// popping the composer open much later.
+// HomeHub's Upload -> Post item opens the composer popup.
 const OPEN_COMPOSER_EVENT = "zx:open-composer";
 const OPEN_COMPOSER_FLAG = "zx:open-composer";
 const OPEN_COMPOSER_FLAG_MAX_AGE_MS = 5000;
 
-// NEW: minimum time between two "Interested in <profile>?" cards, so
-// scrolling through many new profiles doesn't nag.
+// Minimum time between two "Interested in <profile>?" cards.
 const PROFILE_PROMPT_GAP_MS = 25000;
 
+// NEW: skeleton shaped like a PostCard — header, text, media, action pills.
+// Styles live in PostFeed.skeleton.css (append it to PostFeed.css).
+const PostSkeleton = ({ withMedia = true }) => (
+  <div className="pf-sk-card" aria-hidden="true">
+    <div className="pf-sk-header">
+      <div className="pf-sk pf-sk-avatar" />
+      <div className="pf-sk-meta">
+        <div className="pf-sk pf-sk-line" style={{ width: "35%" }} />
+        <div className="pf-sk pf-sk-line" style={{ width: "22%", height: 10 }} />
+      </div>
+    </div>
+    <div className="pf-sk pf-sk-line" style={{ width: "92%" }} />
+    <div className="pf-sk pf-sk-line" style={{ width: "68%" }} />
+    {withMedia && <div className="pf-sk pf-sk-media" />}
+    <div className="pf-sk-actions">
+      <div className="pf-sk pf-sk-pill" />
+      <div className="pf-sk pf-sk-pill" />
+      <div className="pf-sk pf-sk-pill" />
+    </div>
+  </div>
+);
+
+// Skeleton shaped like VideoFeedCard: header, title, 16:9 thumb, pills.
+const VideoSkeleton = () => (
+  <div className="pf-vsk" aria-hidden="true">
+    <div className="pf-sk-header pf-vsk-pad">
+      <div className="pf-sk pf-sk-avatar" />
+      <div className="pf-sk-meta">
+        <div className="pf-sk pf-sk-line" style={{ width: "35%" }} />
+        <div className="pf-sk pf-sk-line" style={{ width: "25%", height: 10 }} />
+      </div>
+    </div>
+    <div className="pf-vsk-pad">
+      <div className="pf-sk pf-sk-line" style={{ width: "75%" }} />
+    </div>
+    <div className="pf-sk pf-vsk-thumb" />
+    <div className="pf-sk-actions pf-vsk-pad">
+      <div className="pf-sk pf-sk-pill" />
+      <div className="pf-sk pf-sk-pill" />
+      <div className="pf-sk pf-sk-pill" />
+    </div>
+  </div>
+);
+
+// NEW: skeleton for the reels strip, shown by LazyMount until the real
+// strip is near the screen.
+const ReelsStripSkeleton = () => (
+  <div className="pf-reels-strip" aria-hidden="true">
+    <div className="pf-reels-strip-header">
+      <div className="pf-sk pf-sk-line" style={{ width: 90 }} />
+    </div>
+    <div className="pf-reels-strip-track">
+      {[1, 2, 3, 4].map((n) => (
+        <div className="pf-reel-card pf-reel-card-loading" key={n}>
+          <div className="pf-reel-thumb-wrap pf-sk" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 // PERF: renders its children only once the placeholder is within
-// `rootMargin` of the viewport, then keeps them mounted. Used for the
-// video card and the reels strip that follow every post — each of those
-// loads its own data and renders its own thumbnails/video previews, so
-// mounting dozens of them up front (one pair per post) is a major source
-// of lag. Until mounted, the placeholder reserves `minHeight` so the page
-// doesn't jump much when they appear.
-const LazyMount = ({ minHeight = 320, rootMargin = "800px 0px", children }) => {
+// `rootMargin` of the viewport, then keeps them mounted.
+// CHANGED: optional `placeholder` shown (inside the reserved space) until
+// then, instead of an empty box.
+const LazyMount = ({
+  minHeight = 320,
+  rootMargin = "800px 0px",
+  placeholder = null,
+  children,
+}) => {
   const ref = useRef(null);
   const [show, setShow] = useState(false);
 
@@ -116,7 +160,7 @@ const LazyMount = ({ minHeight = 320, rootMargin = "800px 0px", children }) => {
 
   return (
     <div ref={ref} style={show ? undefined : { minHeight }}>
-      {show ? children : null}
+      {show ? children : placeholder}
     </div>
   );
 };
@@ -125,8 +169,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const location = useLocation();
   const { t } = useT();
 
-  // NEW: the search term from the URL (?q=...). When present, the feed
-  // switches from the shuffled "latest posts" mode to a filtered search.
+  // The search term from the URL (?q=...).
   const searchQuery =
     new URLSearchParams(location.search).get("q")?.trim() || "";
 
@@ -142,39 +185,25 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const offsetRef = useRef(0);
   const shuffledPoolRef = useRef([]);
   const [videos, setVideos] = useState([]);
-  // NEW (startup speed): true while at least one video fetch is in flight.
-  // Used to show a skeleton in the first video slots instead of nothing.
+  // true while at least one video fetch is in flight.
   const [videosLoading, setVideosLoading] = useState(false);
   const videoInflightRef = useRef(0);
-  // NEW: keyset cursors ({ score, id }) for the server-ranked lists.
+  // Keyset cursors ({ score, id }) for the server-ranked lists.
   const postCursorRef = useRef(null);
   const videoCursorRef = useRef(null);
-  // NEW: new posts / videos that arrive live from other people are held
-  // here and shown behind a "↑ N new" pill, so the page never jumps
-  // while you're reading. Your own posts still go straight to the top.
+  // New posts / videos from other people are held here and shown behind a
+  // "↑ N new" pill.
   const pendingPostsRef = useRef([]);
   const pendingVideosRef = useRef([]);
   const [pendingCount, setPendingCount] = useState(0);
 
-  // NEW: video pool + helpers.
-  //  - videoPoolRef: videos fetched and ordered, waiting to be shown.
-  //  - videoFetchChainRef: serialises fetchMoreVideos calls so loadMore
-  //    and realtime inserts can't fill the pool twice at the same time.
-  //  - videoEpochRef: bumped whenever the feed resets or a search
-  //    starts, so an in-flight video fetch from the old feed is dropped.
-  //  - shownVideoIdsRef: every video already handed to the feed this
-  //    session, so the same video is never shown twice.
-  //  - videosExhaustedRef: the whole catalogue has been walked once —
-  //    stop fetching instead of wrapping around and repeating videos.
   const videoPoolRef = useRef([]);
   const videoFetchChainRef = useRef(Promise.resolve());
   const videoEpochRef = useRef(0);
   const shownVideoIdsRef = useRef(new Set());
   const videosExhaustedRef = useRef(false);
 
-  // NEW: request counter — lets fetchPosts ignore a slow, outdated
-  // response (e.g. results for "hulk" arriving after a newer search for
-  // "thor") instead of letting it overwrite the newer results.
+  // Request counter — lets fetchPosts ignore a slow, outdated response.
   const fetchSeqRef = useRef(0);
 
   // Search-mode extras: reels + uploaded videos matching the query.
@@ -185,17 +214,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const currentUser = currentUserProp || "anonymous";
   const isLoggedIn = !!currentUser && currentUser !== "anonymous";
 
-  // NEW (feedback): one instance serves posts, videos and reels. It's
-  // passed down to ReelsStrip (PostCard no longer receives it — it never
-  // used it, and passing a fresh object each render would defeat memo).
+  // One instance serves posts, videos and reels.
   const fb = useContentFeedback();
 
-  // ────────────── NEW: PROFILE "INTERESTED?" INLINE CARD ──────────────
-  // The first time a post from a profile you haven't connected with (and
-  // haven't answered for) is on screen, an inline card inside THAT post
-  // asks ONCE about that PROFILE. "Not interested" hides that profile's
-  // posts and videos from the feed (with Undo), "Interested" is remembered.
-  // Own posts, connected people, and search results never prompt.
+  // ────────────── PROFILE "INTERESTED?" INLINE CARD ──────────────
   const pfb = useProfileFeedback(currentUser);
   const [connectedUsers, setConnectedUsers] = useState(() => new Set());
   const [connectionsLoaded, setConnectionsLoaded] = useState(false);
@@ -204,14 +226,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   const [profileToast, setProfileToast] = useState(null);
   const postsRef = useRef([]);
   const liveRef = useRef({});
-  // true while a question card is waiting for an answer (so a second post
-  // doesn't open another card at the same time).
   const promptOpenRef = useRef(false);
   const lastPromptAtRef = useRef(0);
 
   useEffect(() => { postsRef.current = posts; }, [posts]);
-  // Latest values for handlePostView, which must keep a stable identity
-  // (PostCard re-arms its view tracking whenever onView changes).
+  // Latest values for handlePostView, which must keep a stable identity.
   liveRef.current = {
     isLoggedIn,
     currentUser,
@@ -221,8 +240,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     pfb,
   };
 
-  // Everyone you already have a connection (pending or accepted) with, in
-  // either direction — they're not "new" profiles.
+  // Everyone you already have a connection (pending or accepted) with.
   useEffect(() => {
     setConnectionsLoaded(false);
     if (!isLoggedIn) {
@@ -265,12 +283,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   useEffect(() => { loadingMoreRef.current = loadingMore; }, [loadingMore]);
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
 
-  // ────────────── NEW: POST COMPOSER POPUP ──────────────
-  //  - composerMounted: becomes true the first time the popup opens and
-  //    stays true, so PostComposer is never unmounted by closing. Closing
-  //    only hides it (CSS), which keeps a half-written draft and any
-  //    in-flight upload alive.
-  //  - composerOpen: drives the pop-in / pop-out animation.
+  // ────────────── POST COMPOSER POPUP ──────────────
   const [composerMounted, setComposerMounted] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
 
@@ -397,14 +410,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     } catch (_) { }
   }, []);
 
-  // CHANGED: ask "Interested in <profile>?" via an inline card inside the
-  // post that just appeared on screen. Only posts have such a card, so a
-  // call without a postId (videos / reels) is ignored. Safe to call as often
-  // as you like: it only fires for a logged-in user, outside search, for a
-  // profile that is not your own, not connected with you, not answered or
-  // snoozed yet, while no other card is waiting for an answer and at least
-  // PROFILE_PROMPT_GAP_MS after the previous one. Stable identity (reads
-  // everything through refs) so child cards don't re-arm their tracking.
+  // Ask "Interested in <profile>?" via an inline card inside the post that
+  // just appeared on screen. Stable identity (reads everything via refs).
   const maybePromptProfile = useCallback((author, postId) => {
     if (!postId) return;
     const live = liveRef.current;
@@ -420,14 +427,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     setInlinePrompt({ postId, username: author });
   }, []);
 
-  // NEW: PostCard calls this once per card when it is ~60% on screen. It
-  // still counts the view, remembers the post as seen, and offers the
-  // inline profile card for the post's author.
+  // PostCard calls this once per card when it is ~60% on screen.
   const handlePostView = useCallback(
     (postId) => {
       incrementView(postId);
-      // NEW: remember it, so this post is never shown again after a refresh.
-      // (Posts opened from a search result don't count as "seen" in the feed.)
+      // Remember it, so this post is never shown again after a refresh.
       if (!liveRef.current.searchQuery) markSeen("post", postId);
 
       const post = postsRef.current.find((p) => p.id === postId);
@@ -436,13 +440,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     [incrementView, maybePromptProfile]
   );
 
-  // The inline card was answered.
-  //  - "not_interested": the profile's posts are about to be hidden, so the
-  //    card goes with them; the bottom toast gives the Undo.
-  //  - "interested": the card stays and switches itself to its own
-  //    thank-you + Undo state; we just free the "waiting for an answer" lock.
-  // PERF: stable identity (reads pfb through liveRef) so the same handlers
-  // can be handed to every PostCard without breaking React.memo.
   const answerInlinePrompt = useCallback((username, value) => {
     liveRef.current.pfb.set(username, value);
     promptOpenRef.current = false;
@@ -452,8 +449,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     }
   }, []);
 
-  // PERF: the per-post wrappers are shared; PostCard passes its own
-  // author's username when it calls them.
   const handleInterested = useCallback(
     (username) => answerInlinePrompt(username, "interested"),
     [answerInlinePrompt]
@@ -463,35 +458,22 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     [answerInlinePrompt]
   );
 
-  // Undo from the card's own thank-you state ("Interested" case).
   const undoInlinePrompt = useCallback((username) => {
     liveRef.current.pfb.clear(username);
   }, []);
 
-  // ✕ on the card's thank-you line.
   const dismissInlinePrompt = useCallback(() => {
     promptOpenRef.current = false;
     setInlinePrompt(null);
   }, []);
 
-  // Undo from the bottom toast ("Not interested" case).
   const undoProfileFeedback = () => {
     if (profileToast) pfb.clear(profileToast.username);
     setProfileToast(null);
   };
 
-  // CHANGED: videos now come from the server ranking (get_feed_ids):
-  // brand-new unseen videos first, then other unseen, then seen — a
-  // different shuffle every session. Pages are fetched with a keyset
-  // cursor, so there is no offset drift. A video already handed to the
-  // feed is never handed out again, and when the database has no more the
-  // fetching simply stops (no wrap-around, no repeats).
-  //
-  // CHANGED (startup speed): the videos query and the likes query now run
-  // in PARALLEL (they used to run one after the other), and the likes are
-  // looked up by the ranked ids instead of waiting for the video rows.
-  // `videosLoading` / `videoInflightRef` track in-flight fetches so the
-  // feed can show a skeleton in the first video slots.
+  // Videos come from the server ranking (get_feed_ids), paged with a keyset
+  // cursor. The videos query and the likes query run in parallel.
   const fetchMoreVideos = useCallback((count) => {
     if (!count) return Promise.resolve();
     const epoch = videoEpochRef.current;
@@ -520,7 +502,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           break;
         }
 
-        // CHANGED: one parallel round trip for the videos AND their likes.
         const [{ data, error: fetchErr }, { data: likesData }] =
           await Promise.all([
             supabase
@@ -567,7 +548,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           .filter((v) => !known.has(String(v.id)))
           .map((v) => ({ ...v, likes: likesMap[String(v.id)] ?? 0 }));
 
-        // Already in ranked order — just queue them.
         videoPoolRef.current = videoPoolRef.current.concat(fresh);
 
         videoCursorRef.current = ranked.next;
@@ -575,12 +555,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       }
     };
 
-    // NEW: count this fetch as in flight (drives the skeleton).
+    // Count this fetch as in flight (drives the skeleton).
     videoInflightRef.current += 1;
     setVideosLoading(true);
 
-    // One fetch at a time, so loadMore + realtime inserts can't both
-    // fill the pool simultaneously.
+    // One fetch at a time.
     videoFetchChainRef.current = videoFetchChainRef.current
       .then(async () => {
         if (epoch !== videoEpochRef.current) return;
@@ -601,7 +580,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     return videoFetchChainRef.current;
   }, []);
 
-  // NEW: reset all video bookkeeping (feed reset or a search starting).
+  // Reset all video bookkeeping (feed reset or a search starting).
   const resetVideoState = useCallback(() => {
     videoEpochRef.current += 1;
     videoPoolRef.current = [];
@@ -615,18 +594,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   }, []);
 
   const fetchPosts = useCallback(async (reset = false) => {
-    // NEW: each call gets a ticket; only the newest ticket may update state.
+    // Each call gets a ticket; only the newest ticket may update state.
     const seq = ++fetchSeqRef.current;
-    // NEW (duplicate fix): true once a newer fetch has started. Checked after
-    // EVERY await, BEFORE touching offsetRef / shuffledPoolRef, so an
-    // outdated call can no longer pollute the shared pool.
     const stale = () => seq !== fetchSeqRef.current;
 
     try {
-      // ────────────── NEW: SEARCH MODE ──────────────
-      // When a search query is present, skip the shuffled pool entirely
-      // and fetch matching posts straight from the DB, newest first,
-      // paginated by PAGE_SIZE.
+      // ────────────── SEARCH MODE ──────────────
       if (searchQuery) {
         if (reset) {
           offsetRef.current = 0;
@@ -649,17 +622,15 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           .order("created_at", { ascending: false })
           .range(offset, offset + PAGE_SIZE - 1);
 
-        // NEW: a newer search/fetch started while this one was in flight.
         if (stale()) return;
         if (fetchErr) throw fetchErr;
 
         const page = (data || []).map(enrichPost);
         offsetRef.current += page.length;
         setHasMore(page.length === PAGE_SIZE);
-        // CHANGED: dedupe when appending.
         setPosts((prev) => (reset ? page : mergeUnique(prev, page)));
 
-        // CHANGED: also invalidate any in-flight / queued feed videos.
+        // Also invalidate any in-flight / queued feed videos.
         resetVideoState();
 
         fetchViewCounts(page.map((p) => p.id));
@@ -667,27 +638,19 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       }
 
       // ────────────── NORMAL FEED (server-ranked) ──────────────
-      // The database decides the order (see feed_ranking.sql): brand-new
-      // unseen posts pinned on top, then other unseen, then already-seen,
-      // with a fresh shuffle every session. We get ids + a keyset cursor,
-      // then load the full rows (reactions, comments) for just those ids.
       if (reset) {
         offsetRef.current = 0;
         shuffledPoolRef.current = [];
-        // Make sure everything seen so far is saved, then start a new
-        // session (new seed + new "seen before" cut-off).
+        // Save everything seen so far, then start a new session.
         await flushSeen();
         if (stale()) return;
         startFeedSession();
         postCursorRef.current = null;
         setHasMore(true);
 
-        // NEW (startup speed): start loading the first videos NOW, in
-        // parallel with the posts, instead of waiting until the posts have
-        // finished. (This must come after startFeedSession() so the videos
-        // use the new session's seed.) Previously this ran only after the
-        // posts had loaded, adding several sequential round trips before
-        // the first video card could appear.
+        // Start loading the first videos NOW, in parallel with the posts.
+        // (Must come after startFeedSession() so the videos use the new
+        // session's seed.)
         resetVideoState();
         fetchMoreVideos(PAGE_SIZE);
       }
@@ -728,11 +691,8 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       if (reset) {
         setPosts(page);
-        // CHANGED: videos were already started above, in parallel with
-        // the posts — nothing to do here any more.
       } else {
-        // CHANGED: dedupe when appending. Only ask for as many videos as
-        // posts that were actually added, so the two lists stay in step.
+        // Only ask for as many videos as posts that were actually added.
         const before = postsRef.current;
         const merged = mergeUnique(before, page);
         setPosts((prev) => mergeUnique(prev, page));
@@ -743,8 +703,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     } catch (err) {
       setError(err.message || t("feed.loadFailed"));
     } finally {
-      // CHANGED: only the newest request clears the loading flags, so an
-      // outdated response can't hide the skeleton of a newer one.
+      // Only the newest request clears the loading flags.
       if (seq === fetchSeqRef.current) {
         setLoading(false);
         setLoadingMore(false);
@@ -752,8 +711,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     }
   }, [enrichPost, fetchMoreVideos, resetVideoState, searchQuery]);
 
-  // Search mode: also look up reels and uploaded videos (YouTube is
-  // intentionally NOT searched here). Posts are handled by fetchPosts.
+  // Search mode: also look up reels and uploaded videos.
   useEffect(() => {
     if (!searchQuery) {
       setSearchReels([]);
@@ -792,8 +750,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
         if (cancelled) return;
 
-        // Reels: DB rows matched on text columns; also catch tag matches
-        // (tags is an array, so it's filtered client-side from recent reels).
+        // Reels: DB rows matched on text columns; also catch tag matches.
         let reels = reelsRes.data || [];
         if (!reelsRes.error) {
           const { data: recent } = await supabase
@@ -870,9 +827,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
   const loadMore = useCallback(() => {
     if (loadingMoreRef.current || !hasMoreRef.current) return;
-    // CHANGED (duplicate fix): lock IMMEDIATELY. The ref used to be updated
-    // only by an effect after the next render, so the IntersectionObserver
-    // could fire twice before the lock took effect.
+    // Lock IMMEDIATELY so the observer can't fire twice.
     loadingMoreRef.current = true;
     setLoadingMore(true);
     fetchPosts(false);
@@ -880,15 +835,11 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
   const handleRealtimeInsert = useCallback(
     async (payload) => {
-      // NEW: while searching, don't inject unrelated new posts into
-      // the filtered results.
       if (searchQuery) return;
 
       const newId = payload.new?.id;
       if (!newId) return;
 
-      // NEW (duplicate fix): if handleNewPost already added this post
-      // (your own upload), don't fetch + add it again.
       if (postsRef.current.some((p) => p.id === newId)) return;
 
       const { data, error: fetchErr } = await supabase
@@ -905,12 +856,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
       const enrichedPost = enrichPost(data);
 
-      // Already in the list? (the post may have been added while the
-      // fetch above was in flight.)
       if (postsRef.current.some((p) => p.id === newId)) return;
 
       if (data.username === currentUser) {
-        // Your own post: straight to the top, as before.
+        // Your own post: straight to the top.
         setPosts((prev) => prependUnique(prev, enrichedPost));
         fetchMoreVideos(1);
         fetchViewCounts([newId]);
@@ -927,9 +876,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     [enrichPost, fetchMoreVideos, searchQuery, currentUser]
   );
 
-  // NEW: a video uploaded while the feed is open goes straight to the top
-  // of the video list (it pairs with the first post). Needs Realtime to be
-  // enabled for the `videos` table in Supabase.
+  // A video uploaded while the feed is open is held behind the pill.
   const handleVideoInsert = useCallback(
     (payload) => {
       if (searchQuery) return;
@@ -951,7 +898,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         likes: 0,
       };
 
-      // Hold it behind the "↑ N new" pill (applied by applyPending).
       if (pendingVideosRef.current.some((x) => String(x.id) === key)) return;
       pendingVideosRef.current = [...pendingVideosRef.current, v];
       setPendingCount(
@@ -961,8 +907,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     [searchQuery]
   );
 
-  // NEW: the "↑ N new" pill — put everything that arrived on top, newest
-  // first, and scroll to the top.
+  // The "↑ N new" pill — put everything that arrived on top and scroll up.
   const applyPending = useCallback(() => {
     const newPosts = pendingPostsRef.current;
     const newVideos = pendingVideosRef.current;
@@ -986,14 +931,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     if (newVideos.length > 0) {
       const keys = new Set(newVideos.map((v) => String(v.id)));
       keys.forEach((k) => shownVideoIdsRef.current.add(k));
-      // If any of them was already queued in the pool, drop that copy.
       videoPoolRef.current = videoPoolRef.current.filter(
         (x) => !keys.has(String(x.id))
       );
       setVideos((prev) => {
         const have = new Set(prev.map((x) => String(x.id)));
         const add = newVideos.filter((v) => !have.has(String(v.id)));
-        // newest first
         return [...add.reverse(), ...prev];
       });
     }
@@ -1002,8 +945,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   }, [fetchMoreVideos]);
 
   useEffect(() => {
-    // NEW: show the skeleton again whenever the query changes
-    // (fetchPosts changes identity when searchQuery changes).
+    // Show the skeleton again whenever the query changes.
     setLoading(true);
     setError("");
     fetchPosts(true);
@@ -1061,8 +1003,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
     setHighlightedPostId(sharedPostId);
 
-    // NEW: while searching, don't add the shared post into the filtered
-    // results (it may not match the query).
     if (searchQuery) return;
 
     const ensurePostLoaded = async () => {
@@ -1115,7 +1055,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   }, [posts, highlightedPostId]);
 
   const handleNewPost = async (post) => {
-    // CHANGED: dedupe — the realtime INSERT listener may add it too.
     setPosts((prev) => prependUnique(prev, post));
     fetchViewCounts([post.id]);
 
@@ -1140,20 +1079,16 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     });
   };
 
-  // NEW: the popup's onPost — pop the composer out first, then run the
-  // normal new-post handling (feed insert + notifications).
+  // The popup's onPost — pop the composer out first, then run the normal
+  // new-post handling.
   const handlePostFromComposer = async (post) => {
     closeComposer();
     await handleNewPost(post);
   };
 
   // ───────────────────────────────────────────────────────────────────
-  // PERF: the handlers below are handed to every PostCard, which is now
-  // wrapped in React.memo. For that to work they must keep the same
-  // identity between renders, so they read the current list through
-  // `postsRef` (kept in sync with `posts` above) instead of closing over
-  // the `posts` array, and are wrapped in useCallback. Behaviour is
-  // unchanged.
+  // PERF: handlers handed to every PostCard keep a stable identity, so
+  // React.memo on PostCard works.
   // ───────────────────────────────────────────────────────────────────
 
   const handleReaction = useCallback(
@@ -1365,8 +1300,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     [currentUser, fetchPosts]
   );
 
-  // PERF: these two used to be inline arrows created per post on every
-  // render; as stable callbacks they no longer defeat PostCard's memo.
   const handleLikeComment = useCallback(
     (postId, commentId) => handleCommentReaction(postId, commentId, "like"),
     [handleCommentReaction]
@@ -1452,7 +1385,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
         if (err) throw err;
 
-        // CHANGED: dedupe — the realtime INSERT listener may add it too.
         setPosts((prev) =>
           prependUnique(prev, {
             ...data,
@@ -1560,10 +1492,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     searchReels.length === 0 &&
     searchVideos.length === 0;
 
-  // NEW (feedback): hide anything marked "Not interested". Not applied in
-  // search mode, so people can still find what they search for. Videos are
-  // paired with posts by index, so the video list is filtered separately.
-  // NEW: profiles answered "Not interested" are hidden too (posts + videos).
+  // Hide anything marked "Not interested" (not applied in search mode).
   const visiblePosts = searchQuery
     ? posts
     : posts.filter(
@@ -1573,19 +1502,14 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
     (v) => !fb.isHidden("video", v.id) && !pfb.isHidden(v.username)
   );
 
-  // PERF: rough heights used to reserve space for the lazily mounted
-  // video card / reels strip (see LazyMount) until they scroll near.
+  // Rough heights used to reserve space for the lazily mounted video card /
+  // reels strip until they scroll near.
   const isNarrowScreen =
     typeof window !== "undefined" && window.innerWidth <= 768;
   const videoCardMinHeight = isNarrowScreen ? 360 : 520;
   const reelsStripMinHeight = isNarrowScreen ? 280 : 420;
 
-  // NEW: the Post Composer popup. Rendered through a portal into <body>
-  // so it sits above the navbar/sidebar and escapes the feed's overflow
-  // and the `.pf-feed > *` / `.pf-feed .pf-composer` layout rules. It is
-  // included in both the loading and the loaded return below, so opening
-  // it from Home (which mounts this feed fresh) pops in immediately
-  // instead of waiting for the skeleton to finish.
+  // The Post Composer popup (portal into <body>).
   const composerModal =
     composerMounted && isLoggedIn
       ? createPortal(
@@ -1623,20 +1547,21 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
       )
       : null;
 
+  // CHANGED: loading screen is now a skeleton shaped like the real feed
+  // (composer, stories, then post cards).
   if (loading) {
     return (
       <>
         <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
-          {[1, 2, 3].map((i) => (
-            <div className="pf-skeleton" key={i}>
-              <div className="pf-skeleton-avatar" />
-              <div className="pf-skeleton-lines">
-                <div className="pf-skeleton-line" style={{ width: "40%" }} />
-                <div className="pf-skeleton-line" style={{ width: "70%" }} />
-                <div className="pf-skeleton-line" style={{ width: "55%" }} />
-              </div>
-            </div>
-          ))}
+          <div className="pf-sk pf-sk-composer" aria-hidden="true" />
+          <div className="pf-sk-stories" aria-hidden="true">
+            {[1, 2, 3, 4].map((i) => (
+              <div className="pf-sk pf-sk-story" key={i} />
+            ))}
+          </div>
+          <PostSkeleton />
+          <PostSkeleton withMedia={false} />
+          <PostSkeleton />
         </div>
         {composerModal}
       </>
@@ -1668,12 +1593,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           </div>
         )}
 
-        {/* CHANGED: the composer trigger and the language picker now share
-            one row, so the language picker (a small 🌐 icon) adds no extra
-            height. The composer trigger itself is the compact button that
-            opens the composer popup (same popup as Home Hub's
-            Upload -> Post); it is hidden while searching, but the language
-            icon stays available. */}
+        {/* The composer trigger and the language picker share one row. */}
         <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             {!searchQuery &&
@@ -1728,22 +1648,15 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               ))}
           </div>
 
-          {/* paddingTop vertically centres the icon against the composer
-              card — tweak the number if it looks off on your layout. */}
           <div style={{ paddingTop: 16 }}>
             <LanguageSelector iconOnly />
           </div>
         </div>
 
-        {/* NEW: Stories strip — sits directly below the composer trigger.
-            "Create story" card + one card per person with a live (<24h)
-            story. Hidden while searching. Logged-out visitors can still
-            watch stories; "Create story" prompts login. */}
+        {/* Stories strip — hidden while searching. */}
         {!searchQuery && <StoriesStrip currentUser={currentUser} />}
 
-        {/* NEW: Live streams — the same 🔴 Live section the Home page
-            shows (LiveBrowser). Sits between Stories and the suggested
-            connections, and is hidden while searching, like Stories. */}
+        {/* Live streams — hidden while searching. */}
         {!searchQuery && (
           <div style={{ marginBottom: "28px" }}>
             <LiveBrowser currentUser={isLoggedIn ? currentUser : ""} />
@@ -1818,11 +1731,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
                       border: "1px solid #f3c6c6",
                     }}
                   >
-                    {/* CHANGED: was a <video preload="metadata"> per result
-                        (up to 40 at once). Now a plain thumbnail when there
-                        is one, otherwise AutoPlayVideo, which only loads
-                        once the card is near the screen and only fetches
-                        metadata. */}
                     <div
                       style={{
                         position: "relative",
@@ -1916,11 +1824,6 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         {visiblePosts.map((post, index) => (
           <React.Fragment key={post.id}>
             <div id={`post-${post.id}`}>
-              {/* PERF: every prop here is now stable between renders
-                  (data, shared useCallback handlers, primitives), so the
-                  memoised PostCard only re-renders when ITS post, view
-                  count or prompt state changes. `fb` is no longer passed
-                  (PostCard never used it). */}
               <PostCard
                 post={post}
                 currentUser={currentUser}
@@ -1944,22 +1847,15 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
               />
             </div>
 
-            {/* CHANGED: no interleaved videos/reels while searching.
-                PERF: both are lazy-mounted — they only render (and only
-                load their data / thumbnails) once they are within ~800px
-                of the viewport. */}
-            {!searchQuery && visibleVideos[index] && (
-              <LazyMount minHeight={videoCardMinHeight}>
-                <VideoFeedCard
-                  video={visibleVideos[index]}
-                  onProfileView={maybePromptProfile}
-                />
-              </LazyMount>
-            )}
+            {/* No interleaved videos/reels while searching. Both are
+                lazy-mounted. */}
+            {!searchQuery &&
+  !visibleVideos[index] &&
+  videosLoading &&
+  index < VIDEO_SKELETON_SLOTS && <VideoSkeleton />}
 
-            {/* NEW (startup speed): while the first videos are still being
-                fetched, hold their place with a skeleton (first few slots
-                only) so the page doesn't jump when they appear. */}
+            {/* While the first videos are still being fetched, hold their
+                place with a skeleton (first few slots only). */}
             {!searchQuery &&
               !visibleVideos[index] &&
               videosLoading &&
@@ -1971,10 +1867,12 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
                 />
               )}
 
+            {/* CHANGED: reels strip shows a skeleton until it mounts. */}
             {!searchQuery && (
               <LazyMount
                 key={`reels-${index}`}
                 minHeight={reelsStripMinHeight}
+                placeholder={<ReelsStripSkeleton />}
               >
                 <ReelsStrip
                   startOffset={index * 10}
@@ -1991,9 +1889,10 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
           </React.Fragment>
         ))}
 
+        {/* CHANGED: "loading more" shows a post skeleton. */}
         {hasMore && (
           <div ref={setSentinelNode} className="pf-scroll-sentinel">
-            {loadingMore && <span className="pf-scroll-loading">{t("feed.loadingMore")}</span>}
+            {loadingMore && <PostSkeleton withMedia={false} />}
           </div>
         )}
 
@@ -2004,9 +1903,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         )}
       </div>
 
-      {/* NEW (feedback): one toast for the whole feed, so the message and
-          Undo survive the hidden card unmounting. */}
-      {/* NEW: "↑ N new" pill for live posts / videos from other people. */}
+      {/* "↑ N new" pill for live posts / videos from other people. */}
       {!searchQuery && pendingCount > 0 && (
         <button
           type="button"
@@ -2033,18 +1930,17 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
         </button>
       )}
 
+      {/* One toast for the whole feed. */}
       <FeedbackToast fb={fb} />
 
-      {/* CHANGED: the floating "Interested in <profile>?" popup is gone —
-          the question now lives inline inside the post (PostCard). Only
-          the confirmation / Undo toast for "Not interested" remains. */}
+      {/* Confirmation / Undo toast for "Not interested". */}
       <ProfileFeedbackToast
         toast={profileToast}
         onUndo={undoProfileFeedback}
         onClose={() => setProfileToast(null)}
       />
 
-      {/* NEW: Post Composer popup (portal into <body>). */}
+      {/* Post Composer popup (portal into <body>). */}
       {composerModal}
     </>
   );

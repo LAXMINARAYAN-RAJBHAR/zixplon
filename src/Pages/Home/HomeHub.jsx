@@ -23,7 +23,7 @@ const UPLOAD_ROUTES = {
   video: "/videoUpload",
 };
 
-// NEW: Upload -> Post opens the Post Composer as a popup, owned by
+// Upload -> Post opens the Post Composer as a popup, owned by
 // PostFeed (so the new post still goes through PostFeed's handleNewPost:
 // feed insert + notifications + mentions). These two names must match
 // the ones at the top of PostFeed.jsx.
@@ -48,8 +48,13 @@ const TAB_DEFS = {
   },
   posts: {
     icon: NewspaperOutlinedIcon,
-    render: ({ sideNavbar, currentUser }) => (
-      <PostFeed sideNavbar={sideNavbar} currentUser={currentUser} />
+    // CHANGED: the side navbar is hidden on the Posts tab (App.js skips
+    // rendering <SideNavbar /> and zeroes the content margin). PostFeed
+    // adds its own 275px left margin whenever `sideNavbar` is truthy, so
+    // we always pass false here — that gives it the `sidebar-closed`
+    // class (margin-left: 0) and the feed centres on the full-width page.
+    render: ({ currentUser }) => (
+      <PostFeed sideNavbar={false} currentUser={currentUser} />
     ),
   },
   utility: {
@@ -289,10 +294,9 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
     return true;
   };
 
-  // CHANGED: Upload -> Post now pops the Post Composer open as a popup
-  // (owned by PostFeed) instead of scrolling an inline composer into
-  // view. From the Posts tab it fires an event; from any other tab it
-  // leaves a short-lived flag and switches to Posts, whose PostFeed
+  // Upload -> Post pops the Post Composer open as a popup (owned by
+  // PostFeed). From the Posts tab it fires an event; from any other tab
+  // it leaves a short-lived flag and switches to Posts, whose PostFeed
   // opens the popup as soon as it mounts.
   const handleUploadPost = () => {
     if (!requireLogin()) return;
@@ -319,7 +323,9 @@ const HomeHub = ({ sideNavbar, currentUser }) => {
       <div
         className={
           "hh-tabbar" +
-          (sideNavbar ? " sidebar-open" : "") +
+          // The sidebar is hidden on Posts, so never mark the bar as
+          // "sidebar-open" there.
+          (sideNavbar && activeTab !== "posts" ? " sidebar-open" : "") +
           // Home tab renders homePage_options above this bar — push down.
           // Posts/Utility have no chip row — sit right under the Navbar.
           (activeTab === "home" ? " hh-tabbar-below-options" : "")

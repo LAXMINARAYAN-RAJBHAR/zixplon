@@ -13,7 +13,6 @@ import StoriesStrip from "./StoriesStrip";
 // Same live-streams browser the Home page shows (🔴 Live section).
 // ⚠ Adjust this path to wherever LiveViewer lives in your project.
 import LiveBrowser from "../../Component/Live/LiveViewer";
-import SideNavbar from "../../Component/SideNavbar/sideNavbar";
 // Shared preloading, buffer-hiding video — used for search-result
 // reels that have no thumbnail, so they only load once near the screen.
 import AutoPlayVideo from "../../Component/Shared/AutoPlayVideo";
@@ -197,7 +196,7 @@ const LazyMount = ({
   );
 };
 
-const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
+const PostFeed = ({ currentUser: currentUserProp }) => {
   const location = useLocation();
   const { t } = useT();
 
@@ -1617,7 +1616,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
   if (loading) {
     return (
       <>
-        <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
+        <div className="pf-feed">
           <div className="pf-sk pf-sk-composer" aria-hidden="true" />
           <div className="pf-sk-stories" aria-hidden="true">
             {[1, 2, 3, 4].map((i) => (
@@ -1635,7 +1634,7 @@ const PostFeed = ({ sideNavbar, currentUser: currentUserProp }) => {
 
   return (
     <>
-      <div className={`pf-feed${!sideNavbar ? " sidebar-closed" : ""}`}>
+      <div className="pf-feed">
         {/* Search banner shown only while a query is active */}
         {searchQuery && (
           <div

@@ -25,7 +25,6 @@ import ContactSupport from "./Pages/ContactSupport/contactSupport";
 import ReportProblem from "./Pages/ReportProblem/reportProblem";
 import { supabase } from "./config/supabase";
 import BottomNav from "./Component/BottomNav/BottomNav";
-import PostFeed from "./Pages/PostFeed/PostFeed";
 import {
   AboutPage,
   PrivacyPolicyPage,
@@ -33,18 +32,18 @@ import {
   CommunityGuidelinesPage,
   AdvertisePage,
 } from "./Pages/ZixplonPages";
-import LikedVideos      from "./Pages/LikedVideos/LikedVideos";
-import YourVideos       from "./Pages/YourVideos/YourVideos";
-import WatchLater       from "./Pages/WatchLater/WatchLater";
-import History          from "./Pages/History/History";
+import LikedVideos from "./Pages/LikedVideos/LikedVideos";
+import YourVideos from "./Pages/YourVideos/YourVideos";
+import WatchLater from "./Pages/WatchLater/WatchLater";
+import History from "./Pages/History/History";
 import SubscriptionFeed from "./Pages/SubscriptionFeed/SubscriptionFeed";
-import Playlist         from "./Pages/Playlist/Playlist";
-import YourClips        from "./Pages/YourClips/YourClips";
-import SideNavbar       from "./Component/SideNavbar/sideNavbar";
+import Playlist from "./Pages/Playlist/Playlist";
+import YourClips from "./Pages/YourClips/YourClips";
+import SideNavbar from "./Component/SideNavbar/sideNavbar";
 import LoginOptionsModal from "./Component/LoginOptionsModal/LoginOptionsModal";
-import AdminPanel       from "./Pages/AdminPanel/AdminPanel";
-import LiveBrowser      from "./Component/Live/LiveViewer";
-import MessagesPanel    from "./Pages/Messages/MessagesPanel";
+import AdminPanel from "./Pages/AdminPanel/AdminPanel";
+import LiveBrowser from "./Component/Live/LiveViewer";
+import MessagesPanel from "./Pages/Messages/MessagesPanel";
 import { PresenceProvider } from "./context/PresenceContext";
 // NEW: voice calling. CallProvider owns the call state, the incoming-call
 // ringtone/notification and the full-screen call overlay, so calls ring on
@@ -293,8 +292,8 @@ const AdminFab = () => (
 function App() {
   const location = useLocation();
   const [appReady, setAppReady] = useState(() =>
-  ["/about", "/privacy-policy", "/terms-and-conditions"].includes(window.location.pathname)
-);
+    ["/about", "/privacy-policy", "/terms-and-conditions"].includes(window.location.pathname)
+  );
   const [sideNavbar, setSideNavbar] = useState(false);
   const [currentUser, setCurrentUser] = useState(
     localStorage.getItem("username") || null,
@@ -359,7 +358,7 @@ function App() {
 
   // ── Supabase warmup ──
   useEffect(() => {
-    supabase.from("videos").select("id").limit(1).then(() => {});
+    supabase.from("videos").select("id").limit(1).then(() => { });
   }, []);
 
   // ── Global listener: opens the Messages panel from anywhere (sidebar,
@@ -642,38 +641,38 @@ function App() {
 
   // ── Mobile back-button exit logic ─────────────────────────────────────────
   useEffect(() => {
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if (!isMobile) return;
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (!isMobile) return;
 
-  // ── Don't touch history if an OAuth redirect hash/code is still present ──
-  const hasAuthPayload =
-    window.location.hash.includes("access_token") ||
-    window.location.hash.includes("error") ||
-    new URLSearchParams(window.location.search).has("code");
-  if (hasAuthPayload) return;
+    // ── Don't touch history if an OAuth redirect hash/code is still present ──
+    const hasAuthPayload =
+      window.location.hash.includes("access_token") ||
+      window.location.hash.includes("error") ||
+      new URLSearchParams(window.location.search).has("code");
+    if (hasAuthPayload) return;
 
-  const isHome = location.pathname === "/";
-  if (!isHome) {
-    backPressedOnce.current = false;
-    setShowExitToast(false);
-    clearTimeout(exitToastTimer.current);
-    return;
-  }
+    const isHome = location.pathname === "/";
+    if (!isHome) {
+      backPressedOnce.current = false;
+      setShowExitToast(false);
+      clearTimeout(exitToastTimer.current);
+      return;
+    }
 
-  window.history.pushState({ zixplonExit: true }, "", "/");
+    window.history.pushState({ zixplonExit: true }, "", "/");
 
     const handlePopState = (e) => {
-  // MessagesPanel owns the back-stack whenever it's open. This needs to
-  // check showMessagesPanelRef (not just e.state.mpDepth) because the
-  // *closing* pop (depth 1 -> 0) lands on App's own "/" history entry,
-  // which has no mpDepth on it at all — only the ref tells us the panel
-  // was still open when this pop happened.
-  if (
-    showMessagesPanelRef.current ||
-    (e.state && Object.prototype.hasOwnProperty.call(e.state, "mpDepth"))
-  ) {
-    return;
-  }
+      // MessagesPanel owns the back-stack whenever it's open. This needs to
+      // check showMessagesPanelRef (not just e.state.mpDepth) because the
+      // *closing* pop (depth 1 -> 0) lands on App's own "/" history entry,
+      // which has no mpDepth on it at all — only the ref tells us the panel
+      // was still open when this pop happened.
+      if (
+        showMessagesPanelRef.current ||
+        (e.state && Object.prototype.hasOwnProperty.call(e.state, "mpDepth"))
+      ) {
+        return;
+      }
 
       if (backPressedOnce.current) {
         clearTimeout(exitToastTimer.current);
@@ -707,16 +706,23 @@ function App() {
   // ──────────────────────────────────────────────────────────────────────────
 
   const isUtilityTab =
-  location.pathname === "/" &&
-  new URLSearchParams(location.search).get("tab") === "utility";
+    location.pathname === "/" &&
+    new URLSearchParams(location.search).get("tab") === "utility";
 
-// NEW: "/install" added so the PWA install page has no footer.
-const hideFooter =
-  ["/youtube", "/local-player", "/videoUpload", "/install"].includes(location.pathname) ||
-  location.pathname.startsWith("/reels") ||
-  location.pathname.endsWith("/upload") ||
-  location.pathname.startsWith("/utility") ||
-  isUtilityTab;
+  // NEW: the Posts tab is "/" with ?tab=posts. The side navbar is hidden
+  // there and the content-shift margin is zeroed so the feed uses the
+  // full page width. (Pathname alone can't tell Home and Posts apart.)
+  const isPostsTab =
+    location.pathname === "/" &&
+    new URLSearchParams(location.search).get("tab") === "posts";
+
+  // NEW: "/install" added so the PWA install page has no footer.
+  const hideFooter =
+    ["/youtube", "/local-player", "/videoUpload", "/install"].includes(location.pathname) ||
+    location.pathname.startsWith("/reels") ||
+    location.pathname.endsWith("/upload") ||
+    location.pathname.startsWith("/utility") ||
+    isUtilityTab;
 
   // Don't stack the auto-login modal on top of the dedicated signup/login page
   const shouldShowLoginModal =
@@ -744,94 +750,95 @@ const hideFooter =
           for calls automatically on login/logout. It renders the call
           overlay itself, above everything else on the page. */}
       <CallProvider currentUser={currentUser}>
-      <div
-        className="App"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          minHeight: "100vh",
-          backgroundColor: "#f0f4ff",
-          width: "100%",
-        }}
-      >
-        <ScrollToTop />
+        <div
+          className="App"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            minHeight: "100vh",
+            backgroundColor: "#f0f4ff",
+            width: "100%",
+          }}
+        >
+          <ScrollToTop />
 
-        {/* Mobile exit toast */}
-        <ExitToast visible={showExitToast} />
+          {/* Mobile exit toast */}
+          <ExitToast visible={showExitToast} />
 
-        {/* NEW: "New version available — Refresh" banner. Checks
+          {/* NEW: "New version available — Refresh" banner. Checks
             /version.json on load, every 5 minutes, and whenever the tab
             regains focus; only appears after a new deploy. */}
-        <UpdateNotifier />
+          <UpdateNotifier />
 
-        {/* Auto login detect: Google One Tap tries first (silent, no click
+          {/* Auto login detect: Google One Tap tries first (silent, no click
             needed); if it can't be shown, this modal is the fallback */}
-        {shouldShowLoginModal && (
-          <LoginOptionsModal onDismiss={handleDismissLoginModal} />
-        )}
+          {shouldShowLoginModal && (
+            <LoginOptionsModal onDismiss={handleDismissLoginModal} />
+          )}
 
-        {/* NEW: Password recovery modal — takes priority over the login
+          {/* NEW: Password recovery modal — takes priority over the login
             modal / username setup so a user coming in from a reset-email
             link sees the "set new password" form immediately, on top of
             whatever page they landed on. */}
-        {showResetPassword && (
-          <ResetPassword setResetModal={setShowResetPassword} />
-        )}
+          {showResetPassword && (
+            <ResetPassword setResetModal={setShowResetPassword} />
+          )}
 
-        {/* Username setup prompt — shown when a logged-in user still has
+          {/* Username setup prompt — shown when a logged-in user still has
             an auto-generated fallback username (e.g. "user_41859fe2").
             Takes priority over the Messages panel so a user can't hide
             behind chat while leaving their username unset. */}
-        {currentUser && needsUsernameSetup && (
-          <UsernameSetupModal
-            onComplete={() => {
-              markUsernameSetupComplete();
-              window.location.reload();
-            }}
-          />
-        )}
+          {currentUser && needsUsernameSetup && (
+            <UsernameSetupModal
+              onComplete={() => {
+                markUsernameSetupComplete();
+                window.location.reload();
+              }}
+            />
+          )}
 
-        {/* Floating Messages panel — opened via the "openMessages" custom
+          {/* Floating Messages panel — opened via the "openMessages" custom
             event (sidebar click, a post's "Message" option, etc). Renders
             on top of whatever page is currently active, without navigating
             away or unmounting it. */}
-        {showMessagesPanel && (
-          <MessagesPanel
-            initialUsername={messagesActiveUser}
-            onClose={() => setShowMessagesPanel(false)}
-          />
-        )}
+          {showMessagesPanel && (
+            <MessagesPanel
+              initialUsername={messagesActiveUser}
+              onClose={() => setShowMessagesPanel(false)}
+            />
+          )}
 
-        {/* Floating Admin Panel shortcut — only visible to admins.
+          {/* Floating Admin Panel shortcut — only visible to admins.
             See useIsAdmin() above and src/hooks/useIsAdmin.js. */}
-        {currentUser && isAdmin && <AdminFab />}
+          {currentUser && isAdmin && <AdminFab />}
 
-        <Navbar
-          currentUser={currentUser}
-          setCurrentUser={setCurrentUser}
-          setSideNavbarFunc={setSideNavbar}
-          sideNavbar={sideNavbar}
-        />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#f0f4ff" }}>
-          <SideNavbar sideNavbar={sideNavbar} />
+          <Navbar
+            currentUser={currentUser}
+            setCurrentUser={setCurrentUser}
+            setSideNavbarFunc={setSideNavbar}
+            sideNavbar={sideNavbar}
+          />
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#f0f4ff" }}>
+            {/* CHANGED: the side navbar is not rendered on the Posts tab. */}
+            {!isPostsTab && <SideNavbar sideNavbar={sideNavbar} />}
 
-          {/* ── FIX: content-shift wrapper ──
+            {/* ── FIX: content-shift wrapper ──
               Reserves left space for the sidebar so page content never
-              renders underneath it. Sidebar is now ALWAYS visible on
-              desktop (275px expanded / 72px collapsed icon-only strip),
-              so this must never be 0 except on mobile, where the sidebar
-              itself is display:none (handled by the .zx-content-shift
-              media query in App.css). */}
-          <div
-            className="zx-content-shift"
-            style={{
-              marginLeft: sideNavbar ? "275px" : "72px",
-              transition: "margin-left 0.2s ease",
-              minHeight: "calc(100vh - 56px)",
-            }}
-          >
-            <Routes>
-              {/* FIX: "/" now renders the merged HomeHub — Home feed and
+              renders underneath it. Sidebar is ALWAYS visible on desktop
+              (275px expanded / 72px collapsed icon-only strip) EXCEPT on
+              the Posts tab, where it is hidden and this margin is 0.
+              On mobile the sidebar is display:none (handled by the
+              .zx-content-shift media query in App.css). */}
+            <div
+              className="zx-content-shift"
+              style={{
+                marginLeft: isPostsTab ? "0px" : sideNavbar ? "275px" : "72px",
+                transition: "margin-left 0.2s ease",
+                minHeight: "calc(100vh - 56px)",
+              }}
+            >
+              <Routes>
+                {/* FIX: "/" now renders the merged HomeHub — Home feed and
                   Posts as in-page sub-tabs (?tab=home / ?tab=posts), with
                   Upload as a button inside that tab bar rather than its
                   own nav entry. See src/Pages/Home/HomeHub.jsx.
@@ -839,64 +846,63 @@ const hideFooter =
                   Upload/comment/react actions) uses the SAME auth state
                   as the rest of the app instead of reading localStorage
                   independently. */}
-              <Route path="/"               element={<HomeHub sideNavbar={sideNavbar} currentUser={currentUser} />} />
-              <Route path="/video/:id"      element={<Video sideNavbar={sideNavbar} />} />
-              <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} />} />
-              <Route path="/videoUpload"    element={<VideoUpload />} />
-              <Route path="/:id/upload"     element={<VideoUpload />} />
-              <Route path="/signup"         element={<SignUp />} />
-              <Route path="/reels"          element={<Reels />} />
-              <Route path="/reels/:id"      element={<Reels />} />
-              <Route path="/search"         element={<SearchResults />} />
-              <Route path="/notifications"  element={<Notifications currentUser={currentUser} />} />
+                <Route path="/" element={<HomeHub sideNavbar={sideNavbar} currentUser={currentUser} />} />
+                <Route path="/video/:id" element={<Video sideNavbar={sideNavbar} />} />
+                <Route path="/user/:username" element={<Profile sideNavbar={sideNavbar} />} />
+                <Route path="/videoUpload" element={<VideoUpload />} />
+                <Route path="/:id/upload" element={<VideoUpload />} />
+                <Route path="/signup" element={<SignUp />} />
+                <Route path="/reels" element={<Reels />} />
+                <Route path="/reels/:id" element={<Reels />} />
+                <Route path="/search" element={<SearchResults />} />
+                <Route path="/notifications" element={<Notifications currentUser={currentUser} />} />
 
-              <Route path="/history"        element={<History      currentUser={currentUser} sideNavbar={sideNavbar} />} />
-              <Route path="/playlist"       element={<Playlist     currentUser={currentUser} sideNavbar={sideNavbar} />} />
-              <Route path="/your-videos"    element={<YourVideos   currentUser={currentUser} sideNavbar={sideNavbar} />} />
-              <Route path="/watch-later"    element={<WatchLater   currentUser={currentUser} sideNavbar={sideNavbar} />} />
-              <Route path="/liked-videos"   element={<LikedVideos  currentUser={currentUser} sideNavbar={sideNavbar} />} />
-              <Route path="/your-clips"     element={<YourClips    currentUser={currentUser} sideNavbar={sideNavbar} />} />
-              <Route path="/subscription"   element={<SubscriptionFeed currentUser={currentUser} sideNavbar={sideNavbar} />} />
+                <Route path="/history" element={<History currentUser={currentUser} sideNavbar={sideNavbar} />} />
+                <Route path="/playlist" element={<Playlist currentUser={currentUser} sideNavbar={sideNavbar} />} />
+                <Route path="/your-videos" element={<YourVideos currentUser={currentUser} sideNavbar={sideNavbar} />} />
+                <Route path="/watch-later" element={<WatchLater currentUser={currentUser} sideNavbar={sideNavbar} />} />
+                <Route path="/liked-videos" element={<LikedVideos currentUser={currentUser} sideNavbar={sideNavbar} />} />
+                <Route path="/your-clips" element={<YourClips currentUser={currentUser} sideNavbar={sideNavbar} />} />
+                <Route path="/subscription" element={<SubscriptionFeed currentUser={currentUser} sideNavbar={sideNavbar} />} />
 
-              <Route path="/live-tv"        element={<LiveTVPage sideNavbar={sideNavbar} />} />
-              <Route path="/local-player"   element={<LocalMediaPlayer sideNavbar={sideNavbar} />} />
-              <Route path="/terms-and-conditions"  element={<TermsAndConditions />} />
-              <Route path="/feedback"              element={<Feedback />} />
-              <Route path="/help"                  element={<Help />} />
-              <Route path="/contact"               element={<ContactSupport />} />
-              <Route path="/report"                element={<ReportProblem />} />
-              <Route path="/about"                 element={<AboutPage />} />
-              <Route path="/privacy-policy"        element={<PrivacyPolicyPage />} />
-              <Route path="/dmca"                  element={<DmcaPage />} />
-              <Route path="/community-guidelines"  element={<CommunityGuidelinesPage />} />
-              <Route path="/advertise"             element={<AdvertisePage />} />
-              {/* FIX: /feed is now folded into HomeHub as the "Posts"
+                <Route path="/live-tv" element={<LiveTVPage sideNavbar={sideNavbar} />} />
+                <Route path="/local-player" element={<LocalMediaPlayer sideNavbar={sideNavbar} />} />
+                <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+                <Route path="/feedback" element={<Feedback />} />
+                <Route path="/help" element={<Help />} />
+                <Route path="/contact" element={<ContactSupport />} />
+                <Route path="/report" element={<ReportProblem />} />
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                <Route path="/dmca" element={<DmcaPage />} />
+                <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
+                <Route path="/advertise" element={<AdvertisePage />} />
+                {/* FIX: /feed is now folded into HomeHub as the "Posts"
                   sub-tab. Old bookmarks/shared links to /feed still work
                   — they're redirected straight to /?tab=posts instead of
                   rendering a separate standalone page. */}
-              <Route path="/feed"                  element={<FeedRedirect />} />
-              <Route path="/admin"                 element={<AdminPanel />} />
-              <Route path="/live"                  element={<LiveBrowser currentUser={currentUser} />} />
-              <Route path="/foryou"                element={<ExploreGrid />} />
-              <Route path="/signup"                element={<SignUp />} />
-              <Route path="/signin"                element={<SignInPage />} />
-              <Route path="/utility"               element={<div style={{ paddingTop: 80 }}><UtilityPage /></div>} />
-              <Route path="/utility/recharge"      element={<RechargeForm />} />
-              <Route path="/utility/electricity"   element={<BillPaymentForm />} />
-              <Route path="/utility/history"       element={<TransactionHistory />} />
-              {/* NEW: hashtag pages — /tag/:tag. Linked from every
+                <Route path="/feed" element={<FeedRedirect />} />
+                <Route path="/admin" element={<AdminPanel />} />
+                <Route path="/live" element={<LiveBrowser currentUser={currentUser} />} />
+                <Route path="/foryou" element={<ExploreGrid />} />
+                <Route path="/signin" element={<SignInPage />} />
+                <Route path="/utility" element={<div style={{ paddingTop: 80 }}><UtilityPage /></div>} />
+                <Route path="/utility/recharge" element={<RechargeForm />} />
+                <Route path="/utility/electricity" element={<BillPaymentForm />} />
+                <Route path="/utility/history" element={<TransactionHistory />} />
+                {/* NEW: hashtag pages — /tag/:tag. Linked from every
                   #hashtag rendered via ExpandableText/linkifyText. */}
-              <Route path="/tag/:tag"              element={<HashtagPage sideNavbar={sideNavbar} currentUser={currentUser} />} />
-              {/* NEW: shareable PWA install page. Share this link:
+                <Route path="/tag/:tag" element={<HashtagPage sideNavbar={sideNavbar} currentUser={currentUser} />} />
+                {/* NEW: shareable PWA install page. Share this link:
                   https://zixplon-tawny.vercel.app/install */}
-              <Route path="/install"               element={<InstallPage />} />
-            </Routes>
+                <Route path="/install" element={<InstallPage />} />
+              </Routes>
+            </div>
           </div>
-        </div>
 
-        <BottomNav currentUser={currentUser} />
-        {!hideFooter && <Footer sideNavbar={sideNavbar} />}
-      </div>
+          <BottomNav currentUser={currentUser} />
+          {!hideFooter && <Footer sideNavbar={sideNavbar} />}
+        </div>
       </CallProvider>
     </PresenceProvider>
   );

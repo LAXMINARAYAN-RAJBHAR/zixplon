@@ -29,7 +29,6 @@
 /* ── Feed wrapper ── */
 .pf-feed {
   padding: 70px 24px 80px;
-  margin-left: 275px;
   /* FIX: removed width: calc(100% - 275px) which was causing overflow.
      Let the block naturally fill the remaining horizontal space. */
   overflow-x: hidden;
@@ -39,11 +38,6 @@
   box-sizing: border-box;
   min-height: 100vh;
   transition: margin-left 0.3s ease;
-}
-
-/* ── Sidebar closed state ── */
-.pf-feed.sidebar-closed {
-  margin-left: 0;
 }
 
 /* ── Inner content constrained for readability ── */

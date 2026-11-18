@@ -91,6 +91,7 @@ import InstallPage from "./Pages/Install/InstallPage";
 // bundle's BUILD_ID (src/buildInfo.js) with /version.json on the server;
 // both are written by scripts/generate-version.cjs on every build.
 import UpdateNotifier from "./Component/Shared/UpdateNotifier";
+import OfflineBanner from "./Component/Shared/OfflineBanner";
 
 // ── FeedRedirect ──────────────────────────────────────────────────────────
 // FIX: old links to /feed?post=<id> — from the navbar's post-notification
@@ -901,6 +902,7 @@ function App() {
           </div>
 
           <BottomNav currentUser={currentUser} />
+          <OfflineBanner />
           {!hideFooter && <Footer sideNavbar={sideNavbar} />}
         </div>
       </CallProvider>

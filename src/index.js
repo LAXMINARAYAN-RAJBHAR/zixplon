@@ -42,3 +42,21 @@ if ("serviceWorker" in navigator) {
       .catch((err) => console.log("Zixplon SW failed:", err));
   });
 }
+
+if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register(`${process.env.PUBLIC_URL}/service-worker.js`)
+      .then((reg) => {
+        reg.addEventListener("updatefound", () => {
+          const sw = reg.installing;
+          sw?.addEventListener("statechange", () => {
+            if (sw.state === "installed" && navigator.serviceWorker.controller) {
+              window.dispatchEvent(new CustomEvent("zx:sw-update", { detail: sw }));
+            }
+          });
+        });
+      })
+      .catch(console.error);
+  });
+}

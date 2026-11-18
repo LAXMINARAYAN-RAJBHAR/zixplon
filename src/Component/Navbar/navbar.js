@@ -623,16 +623,17 @@ const Navbar = ({
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    localStorage.removeItem("username");
-    localStorage.removeItem("email");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("profilePic");
-    localStorage.removeItem("about");
-    setCurrentUser(null);
-    setNavbarModal(false);
-    navigate("/");
-  };
+  await supabase.auth.signOut();
+  if ("caches" in window) await caches.delete("api-cache"); // NEW
+  localStorage.removeItem("username");
+  localStorage.removeItem("email");
+  localStorage.removeItem("userId");
+  localStorage.removeItem("profilePic");
+  localStorage.removeItem("about");
+  setCurrentUser(null);
+  setNavbarModal(false);
+  navigate("/");
+};
 
   // ── FIXED: stable callbacks so Login never remounts ──
   const setLoginModal = useCallback(() => setLogin(false), []);

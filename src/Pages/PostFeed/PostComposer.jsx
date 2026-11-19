@@ -8,8 +8,6 @@ import { uploadToR2, buildTransformUrl, uploadVideoToR2 } from "../../utils/medi
 import { getInitials } from "../../utils/initials";
 // NEW (Reel mode): same moderation + connection-notification helpers the
 // Upload page (VideoUpload.jsx) uses when it saves a reel.
-import { checkContent } from "../../Component/Moderation/useModerationFilter";
-import { notifyConnections } from "../../utils/notifications";
 // NEW (Live / Record): the same record/go-live popup the Upload page uses.
 // ⚠ Adjust this path to wherever RecordModal lives in your project — in
 // VideoUpload.jsx it is imported as "../RecordModal/RecordModal".
@@ -642,17 +640,6 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
         .single();
       if (reelError) throw new Error(reelError.message);
       saved = data;
-    }
-
-    try {
-      await notifyConnections(uploaderUsername, {
-        type: label,
-        message: `${uploaderUsername} uploaded a new ${label}: "${title}"`,
-        contentId: saved.id,
-        contentType: label,
-      });
-    } catch (notifyErr) {
-      console.warn("Notification failed:", notifyErr);
     }
 
     return saved;

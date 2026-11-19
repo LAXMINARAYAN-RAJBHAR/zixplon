@@ -2161,3 +2161,72 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   LOADING SKELETONS (inbox list + open chat)
+   ══════════════════════════════════════════════════════════════════════ */
+@keyframes mp-sk-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.mp-sk {
+  background: linear-gradient(
+    90deg,
+    var(--zx-border) 25%,
+    var(--zx-bg) 50%,
+    var(--zx-border) 75%
+  );
+  background-size: 400px 100%;
+  animation: mp-sk-shimmer 1.4s infinite linear;
+  border-radius: 6px;
+}
+
+/* Inbox rows — same spacing as .mp-convo-item, but not interactive */
+.mp-sk-convo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--zx-border);
+  pointer-events: none;
+}
+.mp-sk-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.mp-sk-convo-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* Chat bubbles — same alignment as .mp-bubble-row / .mine */
+.mp-sk-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.mp-sk-row {
+  display: flex;
+  justify-content: flex-start;
+}
+.mp-sk-row.mine {
+  justify-content: flex-end;
+}
+.mp-sk-bubble {
+  max-width: 70%;
+  border-radius: 14px 14px 14px 4px;
+}
+.mp-sk-bubble.mine {
+  border-radius: 14px 14px 4px 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-sk { animation: none; }
+}

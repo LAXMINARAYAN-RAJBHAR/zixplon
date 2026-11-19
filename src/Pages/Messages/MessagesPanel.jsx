@@ -332,6 +332,63 @@ const UploadProgressBar = ({ progress, status }) => (
   </div>
 );
 
+// ── Loading skeletons ─────────────────────────────────────────────────────
+// InboxSkeleton mirrors .mp-convo-item rows; ChatSkeleton mirrors a column of
+// alternating received/sent bubbles. Both only show on a cold load (no device
+// cache yet), since cached inbox/messages paint instantly.
+const MpSk = ({ className = "", style }) => (
+  <div className={"mp-sk " + className} style={style} />
+);
+
+const INBOX_SK_NAME_W = [58, 72, 50, 66, 80, 54, 68];
+const INBOX_SK_MSG_W = [82, 64, 90, 55, 74, 86, 60];
+
+const InboxSkeleton = ({ rows = 7 }) => (
+  <div role="status" aria-busy="true" aria-label="Loading conversations">
+    {Array.from({ length: rows }).map((_, i) => (
+      <div className="mp-sk-convo" key={i} aria-hidden="true">
+        <MpSk className="mp-sk-avatar" />
+        <div className="mp-sk-convo-meta">
+          <MpSk
+            style={{ height: 12, width: `${INBOX_SK_NAME_W[i % INBOX_SK_NAME_W.length]}%` }}
+          />
+          <MpSk
+            style={{ height: 10, width: `${INBOX_SK_MSG_W[i % INBOX_SK_MSG_W.length]}%` }}
+          />
+        </div>
+        <MpSk style={{ height: 9, width: 24 }} />
+      </div>
+    ))}
+  </div>
+);
+
+const CHAT_SK_BUBBLES = [
+  { mine: false, w: 150, h: 34 },
+  { mine: false, w: 210, h: 52 },
+  { mine: true, w: 120, h: 34 },
+  { mine: true, w: 190, h: 52 },
+  { mine: false, w: 100, h: 34 },
+  { mine: true, w: 200, h: 34 },
+  { mine: false, w: 170, h: 34 },
+];
+
+const ChatSkeleton = () => (
+  <div className="mp-sk-chat" role="status" aria-busy="true" aria-label="Loading messages">
+    {CHAT_SK_BUBBLES.map((b, i) => (
+      <div
+        key={i}
+        className={"mp-sk-row" + (b.mine ? " mine" : "")}
+        aria-hidden="true"
+      >
+        <MpSk
+          className={"mp-sk-bubble" + (b.mine ? " mine" : "")}
+          style={{ width: b.w, height: b.h }}
+        />
+      </div>
+    ))}
+  </div>
+);
+
 // ── NEW (location sharing): map card shown inside a message bubble. ──
 // Uses OpenStreetMap's free embed (no API key). The iframe is
 // pointer-events:none (see CSS) so the whole card acts as one link that
@@ -2831,7 +2888,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           .from("direct_messages")
           .update({ attachment_size: 1 })
           .eq("id", cur.id)
-          .then(() => {});
+          .then(() => { });
       }
     },
     [],
@@ -3556,19 +3613,19 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     })),
     ...(!normalizedSearch
       ? groups.map((g) => ({
-          kind: "group",
-          key: `g-${g.id}`,
-          time: g.lastMessage?.created_at || g.created_at,
-          data: g,
-        }))
+        kind: "group",
+        key: `g-${g.id}`,
+        time: g.lastMessage?.created_at || g.created_at,
+        data: g,
+      }))
       : []),
     ...(!normalizedSearch
       ? broadcastLists.map((b) => ({
-          kind: "broadcast",
-          key: `b-${b.id}`,
-          time: b.last_sent_at || b.created_at,
-          data: b,
-        }))
+        kind: "broadcast",
+        key: `b-${b.id}`,
+        time: b.last_sent_at || b.created_at,
+        data: b,
+      }))
       : []),
   ].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
 
@@ -3832,7 +3889,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
               )}
 
               {loadingConvos ? (
-                <p className="mp-empty">Loading…</p>
+                <InboxSkeleton />
               ) : conversations.length === 0 &&
                 groups.length === 0 &&
                 broadcastLists.length === 0 &&
@@ -3969,10 +4026,10 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                       </span>
                       <span
                         className={`mp-chat-status ${otherTyping
-                            ? "typing"
-                            : onlineUsers.has(activeUsername)
-                              ? "online"
-                              : "offline"
+                          ? "typing"
+                          : onlineUsers.has(activeUsername)
+                            ? "online"
+                            : "offline"
                           }`}
                       >
                         {otherTyping
@@ -4070,7 +4127,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                       </button>
                     )}
                     {loadingMessages ? (
-                      <p className="mp-empty">Loading messages…</p>
+                      <ChatSkeleton />
                     ) : visibleMessages.length === 0 && !otherTyping ? (
                       <p className="mp-empty">No messages yet. Say hello!</p>
                     ) : (
@@ -4204,7 +4261,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                                 text: m.text || undefined,
                                                 url:
                                                   m.attachment_url &&
-                                                  m.attachment_type !== "call"
+                                                    m.attachment_type !== "call"
                                                     ? m.attachment_url
                                                     : undefined,
                                               });
@@ -4281,8 +4338,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
                               <div
                                 className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""} ${m.attachment_type === "voice"
-                                    ? "mp-bubble-has-voice"
-                                    : ""
+                                  ? "mp-bubble-has-voice"
+                                  : ""
                                   } ${m.attachment_type === "sticker"
                                     ? "mp-bubble-sticker-wrap"
                                     : ""
@@ -4519,8 +4576,8 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                                       key={emoji}
                                       type="button"
                                       className={`mp-reaction-pill ${users.includes(currentUser)
-                                          ? "mine-reacted"
-                                          : ""
+                                        ? "mine-reacted"
+                                        : ""
                                         }`}
                                       onClick={() => toggleReaction(m, emoji)}
                                       title={users.join(", ")}

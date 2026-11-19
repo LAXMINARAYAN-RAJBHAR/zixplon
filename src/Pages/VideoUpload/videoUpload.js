@@ -643,12 +643,12 @@ const VideoUpload = () => {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Connection notifications on upload now go through the SHARED helper
-  // (src/utils/notifications.js) instead of a locally duplicated copy —
-  // see notifyConnections(...) calls inside handleSubmit below. This keeps
-  // the UUID-vs-username connection resolution logic in exactly one place
-  // so future fixes (RLS issues, resolution edge cases, etc.) don't have
-  // to be made twice and can't silently drift apart between call sites.
+  // NOTE: follower notifications for new videos / reels are NOT sent from
+  // this page. The database triggers on `videos` / `reels`
+  // (trg_notify_subscribers_on_video_upload / _reel_upload) already notify
+  // every follower on insert; sending them here as well used to notify each
+  // follower twice. Only the "someone remixed / used your reel" notices
+  // below are sent from the client, since the triggers don't know about them.
   // ─────────────────────────────────────────────────────────────────────────
 
   const notifyRemixedCreator = async (title, contentId) => {
@@ -759,13 +759,11 @@ const VideoUpload = () => {
           original_audio_volume: song ? originalAudioVolume : 1,
         };
 
-        const { data: newVideo, error: videoError } = await supabase
+        // Followers are notified by the database trigger on insert.
+        const { error: videoError } = await supabase
           .from("videos")
-          .insert([videoPayload])
-          .select()
-          .single();
+          .insert([videoPayload]);
         if (videoError) throw new Error(videoError.message);
-
       } else {
         const reelPayload = {
           title:       inputField.title,
@@ -800,9 +798,10 @@ const VideoUpload = () => {
           .single();
         if (reelError) throw new Error(reelError.message);
 
+        // Followers are notified by the database trigger on insert; these
+        // two only notify the ORIGINAL creator for remix / feature reels.
         if (featureMode === "remix") await notifyRemixedCreator(inputField.title, newReel.id);
         else if (featureMode)        await notifyFeatureCreator(inputField.title, newReel.id);
-
       }
 
       setSaving(false);

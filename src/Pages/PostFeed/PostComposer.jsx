@@ -6,8 +6,12 @@ import MusicPicker from "../../Component/Shared/MusicPicker";
 import LocationPicker from "../../Component/Shared/LocationPicker";
 import { uploadToR2, buildTransformUrl, uploadVideoToR2 } from "../../utils/mediaUpload";
 import { getInitials } from "../../utils/initials";
-// NEW (Reel mode): same moderation + connection-notification helpers the
-// Upload page (VideoUpload.jsx) uses when it saves a reel.
+// NEW (Reel mode): same moderation helper the Upload page (VideoUpload.jsx)
+// uses when it saves a reel.
+// NOTE: follower notifications for reels / videos are sent by the database
+// triggers (trg_notify_subscribers_on_reel_upload / _video_upload), so
+// nothing is sent from here — doing both used to notify every follower twice.
+import { checkContent } from "../../Component/Moderation/useModerationFilter";
 // NEW (Live / Record): the same record/go-live popup the Upload page uses.
 // ⚠ Adjust this path to wherever RecordModal lives in your project — in
 // VideoUpload.jsx it is imported as "../RecordModal/RecordModal".
@@ -542,11 +546,14 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
   // Reel  → `reels` table (same payload as the Upload page's reel mode).
   // Video → `videos` table (same payload as the Upload page's video mode,
   //         including the required category).
+  //
+  // Follower notifications are NOT sent from here: the database triggers
+  // on `reels` / `videos` already notify every follower on insert.
   const submitVideoContent = async () => {
     const title = mediaTitle.trim() || text.trim().slice(0, 60);
     const description = text.trim() || title;
-    // `label` is used for the notification text other people receive (kept
-    // English); `kindLabel` is the word shown to THIS user in their language.
+    // `label` is used in error text; `kindLabel` is the word shown to THIS
+    // user in their language.
     const label = isVideo ? "video" : "reel";
     const kindLabel = t("kind." + label);
 

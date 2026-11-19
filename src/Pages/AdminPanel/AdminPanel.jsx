@@ -5,6 +5,8 @@ import "./AdminPanel.css";
 import "./AdminPanelUsersStatus.css";
 // NEW: styles for the Installs tab (PWA install stats).
 import "./AdminPanelInstalls.css";
+// NEW: styles for the upgrade components (pager, modal, bulk bar, etc.).
+import "./AdminPanelUpgrades.css";
 import { supabase } from "../../config/supabase";
 import { Link } from "react-router-dom";
 // SheetJS — generates the .xlsx workbook entirely client-side and
@@ -31,6 +33,16 @@ import {
   WidthType,
 } from "docx";
 import ReportPreviewModal from "./ReportPreviewModal";
+// NEW: upgrade components
+import AdminReportsPanel from "./AdminReportsPanel";
+import AdminUsersTab from "./AdminUsersTab";
+import AdminLoginsTable from "./AdminLoginsTable";
+import AdminUserDetail from "./AdminUserDetail";
+import AdminAnalyticsTab from "./AdminAnalyticsTab";
+import AdminAuditTab from "./AdminAuditTab";
+import AdminContentTab from "./AdminContentTab";
+import { BarChart } from "./AdminCharts";
+import { logAdminAction, fetchMyRole, notifyNewReport, fetchAllRows } from "./adminHelpers";
 
 // ── Root admin(s) ────────────────────────────────────────────────────────────
 // Hardcoded fallback so the app can never be locked out even if the
@@ -39,12 +51,12 @@ import ReportPreviewModal from "./ReportPreviewModal";
 // never be removed via the Admins tab or deleted via the Users tab.
 const ADMIN_EMAILS = ["laxminarayan.rajbhar@gmail.com"];
 
-// NEW: a user counts as "online" if their site_visits row heartbeat
+// A user counts as "online" if their site_visits row heartbeat
 // (sent every ~20s by useVisitTracking.js) was updated within this window.
 // 60s = three missed heartbeats before someone flips to Offline.
 const ONLINE_WINDOW_MS = 60 * 1000;
 
-// NEW: Visitors tab paging + date filter. Supabase caps a single request at
+// Visitors tab paging + date filter. Supabase caps a single request at
 // 1,000 rows, so we load in pages and use exact COUNT queries for the totals.
 const VISITS_PAGE = 300;
 const VISIT_RANGES = [
@@ -65,7 +77,7 @@ const visitRangeStart = (key) => {
   return null;
 };
 
-// ── NEW: IP → approximate location ───────────────────────────────────────────
+// ── IP → approximate location ────────────────────────────────────────────────
 // The Logins/Users data only contains each user's last IP address, so the
 // location shown is derived from that IP (city/region/country level — it is
 // approximate, and can point to the ISP's hub rather than the user's exact
@@ -75,8 +87,8 @@ const visitRangeStart = (key) => {
 // cached in localStorage for 7 days so each IP is only looked up once.
 //
 // NOTE: this sends your users' IP addresses to a third-party service from
-// the admin's browser. If you'd rather not, do the lookup inside
-// api/user-login-info.js instead and return a `last_location` field.
+// the admin's browser. If the API route returns `last_geo` per user (see the
+// patch guide, step 16) those results are used first and this is only a fallback.
 const GEO_CACHE_KEY = "zx_admin_ip_geo_v1";
 const GEO_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const GEO_CONCURRENCY = 4;
@@ -147,25 +159,6 @@ const geoText = (g) => {
   return parts.filter((p, i) => parts.indexOf(p) === i).join(", ");
 };
 
-const STATUS_COLORS = {
-  pending: { bg: "#fff7ed", color: "#f97316", border: "#fed7aa" },
-  reviewed: { bg: "#eff6ff", color: "#3b82f6", border: "#bfdbfe" },
-  removed: { bg: "#fef2f2", color: "#ef4444", border: "#fecaca" },
-  dismissed: { bg: "#f0fdf4", color: "#22c55e", border: "#bbf7d0" },
-};
-
-const REASON_LABELS = {
-  inappropriate: "🔞 Inappropriate",
-  spam: "📢 Spam",
-  hate_speech: "🚫 Hate Speech",
-  violence: "⚠️ Violence",
-  misinformation: "❌ Misinformation",
-  copyright: "©️ Copyright",
-  harassment: "😡 Harassment",
-  child_safety: "🛡️ Child Safety",
-  other: "📝 Other",
-};
-
 // Truncates long free-text fields (post text, comment text, user-agent
 // strings) so a single row never blows out a table's column width in
 // either export.
@@ -208,6 +201,9 @@ const downloadBlob = (blob, filename) => {
   a.remove();
   URL.revokeObjectURL(url);
 };
+
+// A report that still needs a decision.
+const isOpenReport = (r) => r.status === "pending" || r.status === "reviewed";
 
 const AdminPanel = () => {
   const currentUser = localStorage.getItem("username") || "";
@@ -274,6 +270,21 @@ const AdminPanel = () => {
 
   const isAdmin = isHardcodedAdmin || isDbAdmin;
 
+  // ── NEW: role (root / admin / moderator) ────────────────────────────────
+  // NOTE: this only hides buttons in the UI. Enforce the same rule in the
+  // /api routes (reject role === "moderator") so it can't be bypassed.
+  const [role, setRole] = useState(null);
+  useEffect(() => {
+    if (!isAdmin) return;
+    if (isHardcodedAdmin) {
+      setRole("root");
+      return;
+    }
+    fetchMyRole().then((r) => setRole(r || "admin"));
+  }, [isAdmin, isHardcodedAdmin]);
+  const isRootAdmin = role === "root";
+  const canDestroy = role === "root" || role === "admin"; // moderators: review reports only
+
   const [reports, setReports] = useState([]);
   const [bannedWords, setBannedWords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -286,26 +297,29 @@ const AdminPanel = () => {
   const [previewReport, setPreviewReport] = useState(null);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
-  // NEW: merged export menu state (Full report / Logins only × Excel / Word / PDF)
+  // Merged export menu state (Full report / Logins only × Excel / Word / PDF)
   const [exportingWord, setExportingWord] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exportScope, setExportScope] = useState("all"); // "all" | "logins"
   const [visits, setVisits] = useState([]);
   const [visitsLoading, setVisitsLoading] = useState(false);
   const [visitsLoaded, setVisitsLoaded] = useState(false);
-  // NEW: date filter, exact counts (null until loaded) and "load more" state
+  // Date filter, exact counts (null until loaded) and "load more" state
   const [visitRange, setVisitRange] = useState("all");
   const [visitsTotal, setVisitsTotal] = useState(null);
   const [visitsLoggedIn, setVisitsLoggedIn] = useState(null);
   const [visitsLoadingMore, setVisitsLoadingMore] = useState(false);
-  // NEW: hide visits whose duration is 0s (left before the first ~20s
+  // NEW: whole-range aggregates from the admin_visit_stats() RPC
+  // (unique sessions + avg. duration over ALL visits, not just loaded rows).
+  const [visitAgg, setVisitAgg] = useState(null);
+  // Hide visits whose duration is 0s (left before the first ~20s
   // heartbeat — bots / instant bounces). Filtered in the DATABASE via the
   // generated `duration_seconds` column, so the cards, the counts and the
   // table all agree. `zeroHidden` = how many are currently hidden.
   const [hideZeroVisits, setHideZeroVisits] = useState(true);
   const [zeroHidden, setZeroHidden] = useState(null);
 
-  // ── NEW: "Installs" tab state (PWA install stats) ───────────────────────
+  // ── "Installs" tab state (PWA install stats) ────────────────────────────
   // Filled by the pwa_install_stats() Supabase function (admin-only).
   const [installStats, setInstallStats] = useState(null);
   const [installsLoading, setInstallsLoading] = useState(false);
@@ -318,6 +332,7 @@ const AdminPanel = () => {
   const [adminsLoaded, setAdminsLoaded] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [newAdminPassword, setNewAdminPassword] = useState("");
+  const [newAdminRole, setNewAdminRole] = useState("admin"); // NEW
   const [grantLoading, setGrantLoading] = useState(false);
   const [revokingEmail, setRevokingEmail] = useState(null);
 
@@ -338,19 +353,31 @@ const AdminPanel = () => {
   const [userRows, setUserRows] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersLoaded, setUsersLoaded] = useState(false);
-  const [userSearch, setUserSearch] = useState("");
   const [moderatingId, setModeratingId] = useState(null); // userId currently being acted on
   const [removeContentMap, setRemoveContentMap] = useState({}); // userId -> bool, "also delete content" checkbox state
-  // NEW: lowercase usernames that currently have a fresh site_visits heartbeat.
+  // Lowercase usernames that currently have a fresh site_visits heartbeat.
   const [onlineUsernames, setOnlineUsernames] = useState(new Set());
-  // NEW: total registered users for the header counter (cheap head-count query).
+  // Total registered users for the header counter (cheap head-count query).
   const [profilesTotal, setProfilesTotal] = useState(null);
+  // NEW: user detail modal
+  const [detailUser, setDetailUser] = useState(null);
 
-  // NEW: IP → location cache shared by the Users and Logins tabs.
+  // IP → location cache shared by the Users and Logins tabs.
   //   ipGeo            — ip -> { city, region, country, cc } | { failed: true }
   //   geoAttemptedRef  — IPs already queued this session (prevents re-fetch loops)
   const [ipGeo, setIpGeo] = useState(() => readGeoCache());
   const geoAttemptedRef = React.useRef(new Set());
+
+  // ── NEW: header toggles ──────────────────────────────────────────────────
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => localStorage.getItem("zx_admin_sound") !== "0");
+  const soundRef = React.useRef(soundOn); // lets the realtime callback read the latest value
+  soundRef.current = soundOn;
+
+  // ── NEW: banned words search + bulk import ───────────────────────────────
+  const [wordSearch, setWordSearch] = useState("");
+  const [bulkWords, setBulkWords] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   // ── "Home Hub" tab state ─────────────────────────────────────────────────
   // Controls which tabs show in HomeHub.jsx's tab bar (Home/Posts/Utility)
@@ -395,8 +422,9 @@ const AdminPanel = () => {
 
     const channel = supabase
       .channel("admin-reports")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "reports" }, () => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "reports" }, (payload) => {
         fetchReports();
+        if (soundRef.current) notifyNewReport(payload.new); // NEW: sound + desktop notification
       })
       .subscribe();
     return () => supabase.removeChannel(channel);
@@ -410,14 +438,30 @@ const AdminPanel = () => {
       .update({ status, admin_note: adminNote || null, reviewed_at: new Date().toISOString() })
       .eq("id", reportId);
     if (!error) {
+      const rep = reports.find((r) => r.id === reportId);
       setReports((prev) => prev.map((r) => r.id === reportId ? { ...r, status, admin_note: adminNote } : r));
+      // NEW: audit log
+      logAdminAction(
+        `report_${status}`,
+        "report",
+        rep ? `${rep.content_type}: ${rep.content_title}` : String(reportId),
+        adminNote,
+        { report_id: reportId },
+      );
       showToast(`Report marked as ${status}`);
     }
     setActionLoading(null);
   };
 
+  // CHANGED: asks for confirmation, writes an audit-log entry and returns
+  // true when the content was actually deleted.
   const deleteContent = async (report) => {
+    if (!window.confirm(
+      `Delete this ${report.content_type}?\n\n"${report.content_title}" by @${report.content_owner}\n\nThis cannot be undone.`,
+    )) return false;
+
     setActionLoading(report.id + "delete");
+    let ok = false;
     try {
       if (report.content_type === "message") {
         const { error } = await supabase
@@ -434,41 +478,77 @@ const AdminPanel = () => {
           .eq("id", report.content_id);
         if (error) throw error;
         await updateReportStatus(report.id, "removed", "Message deleted by admin");
-        showToast(`✅ Message deleted and report closed`);
-        setActionLoading(null);
-        return;
+      } else {
+        const table = report.content_type === "reel" ? "reels"
+          : report.content_type === "video" ? "videos"
+            : "posts";
+        const rawId = String(report.content_id).replace("db_", "");
+        const { error } = await supabase.from(table).delete().eq("id", rawId);
+        if (error) throw error;
+        await updateReportStatus(report.id, "removed", "Content deleted by admin");
       }
-
-      const table = report.content_type === "reel" ? "reels"
-        : report.content_type === "video" ? "videos"
-          : "posts";
-
-      const rawId = String(report.content_id).replace("db_", "");
-      await supabase.from(table).delete().eq("id", rawId);
-      await updateReportStatus(report.id, "removed", "Content deleted by admin");
-      showToast(`✅ Content deleted and report closed`);
+      logAdminAction(
+        "delete_content",
+        "content",
+        `${report.content_type}: ${report.content_title} (@${report.content_owner})`,
+        "from report",
+        { report_id: report.id },
+      );
+      showToast("✅ Content deleted and report closed");
+      ok = true;
     } catch (e) {
       showToast("❌ Failed to delete content");
     }
     setActionLoading(null);
+    return ok;
   };
 
-  // NEW: bans the account that uploaded/owns the reported content,
-  // directly from a report card. Resolves the target purely by
-  // username (report.content_owner) — the server looks up the actual
-  // auth user id via the profiles table. Does NOT delete their content;
-  // use the existing "Delete Content" button for the reported item, or
-  // the Users tab for a full content wipe.
+  // NEW: grouped card — delete the content once, then close every other
+  // open report that was filed against the same content.
+  const deleteGroup = async (g) => {
+    const ok = await deleteContent(g.first);
+    if (!ok) return;
+    for (const r of g.reports.filter((x) => x.id !== g.first.id && isOpenReport(x))) {
+      await updateReportStatus(r.id, "removed", "Content deleted by admin");
+    }
+  };
+
+  // NEW: dismiss / mark-reviewed every open report in a grouped card.
+  const setGroupStatus = async (g, status) => {
+    for (const r of g.reports.filter(isOpenReport)) await updateReportStatus(r.id, status);
+  };
+
+  // NEW: saves the ban reason. Looks the user id up by username when only a
+  // username is known (e.g. banning from a report card).
+  const recordBan = async (userId, username, reason) => {
+    let id = userId;
+    if (!id && username) {
+      const { data } = await supabase.from("profiles").select("id").eq("username", username).maybeSingle();
+      id = data?.id;
+    }
+    if (id) {
+      await supabase.rpc("record_ban", { p_user_id: id, p_username: username || null, p_reason: reason || "" });
+    }
+  };
+
+  // CHANGED: bans the account that uploaded/owns the reported content,
+  // directly from a report card, now with a reason (saved in the audit log
+  // and the ban list). Resolves the target purely by username
+  // (report.content_owner) — the server looks up the actual auth user id via
+  // the profiles table. Does NOT delete their content.
   const banUploaderFromReport = async (report) => {
     if (!report.content_owner) return;
-    const confirmed = window.confirm(
-      `Ban @${report.content_owner}? They will no longer be able to log in. This does not delete their existing content.`,
+    const reason = window.prompt(
+      `Ban @${report.content_owner}? They will no longer be able to log in. Existing content is NOT deleted.\n\nReason (saved in the audit log):`,
+      "",
     );
-    if (!confirmed) return;
+    if (reason === null) return; // cancelled
 
     setActionLoading(report.id + "ban");
     try {
-      await callModerateUser({ action: "ban", username: report.content_owner });
+      await callModerateUser({ action: "ban", username: report.content_owner, reason });
+      await recordBan(null, report.content_owner, reason);
+      logAdminAction("ban_user", "user", `@${report.content_owner}`, reason, { from_report: report.id });
       showToast(`🚫 @${report.content_owner} has been banned`);
     } catch (e) {
       showToast(`❌ ${e.message}`);
@@ -489,6 +569,7 @@ const AdminPanel = () => {
     if (!error && data) {
       setBannedWords((prev) => [data, ...prev]);
       setNewWord("");
+      logAdminAction("add_banned_word", "word", word);
       showToast(`"${word}" added to banned list`);
     } else {
       showToast("Word already exists or error occurred");
@@ -504,7 +585,34 @@ const AdminPanel = () => {
       return;
     }
     setBannedWords((prev) => prev.filter((w) => w.id !== id));
+    logAdminAction("remove_banned_word", "word", word);
     showToast(`"${word}" removed`);
+  };
+
+  // NEW: paste a list (one per line or comma-separated) and add them all at once.
+  const importBannedWords = async () => {
+    const words = [...new Set(bulkWords.split(/[\n,]+/).map((w) => w.trim().toLowerCase()).filter(Boolean))];
+    const existing = new Set(bannedWords.map((w) => (w.word || "").toLowerCase()));
+    const fresh = words.filter((w) => !existing.has(w));
+    if (!fresh.length) {
+      showToast("No new words to add");
+      return;
+    }
+    setWordSaving(true);
+    const { data, error } = await supabase
+      .from("banned_words")
+      .insert(fresh.map((word) => ({ word, added_by: currentUser })))
+      .select();
+    if (error) {
+      showToast(`❌ ${error.message}`);
+    } else {
+      setBannedWords((prev) => [...(data || []), ...prev]);
+      setBulkWords("");
+      setBulkOpen(false);
+      logAdminAction("bulk_add_banned_words", "word", `${(data || []).length} words`);
+      showToast(`✅ Added ${(data || []).length} words`);
+    }
+    setWordSaving(false);
   };
 
   // ── Visitors tab ─────────────────────────────────────────────────────────────
@@ -512,10 +620,12 @@ const AdminPanel = () => {
   // NOTE: always call as fetchVisits() or fetchVisits("7d") — never pass it
   // straight to onClick, or the click event would be used as the range.
   //
-  // CHANGED: when `hideZero` is on, visits with duration_seconds = 0 are
-  // excluded in the DATABASE query (page + both counts), so the cards, the
-  // "Showing X of Y" line and the table all agree. A fourth, unfiltered
-  // count is only used to tell the admin how many were hidden.
+  // When `hideZero` is on, visits with duration_seconds = 0 are excluded in
+  // the DATABASE query (page + both counts), so the cards, the "Showing X of Y"
+  // line and the table all agree. A fourth, unfiltered count is only used to
+  // tell the admin how many were hidden. CHANGED: a fifth call, the
+  // admin_visit_stats() RPC, supplies unique sessions + avg. duration for the
+  // WHOLE range (falls back to loaded rows if the SQL hasn't been run).
   const fetchVisits = async (range = visitRange, hideZero = hideZeroVisits) => {
     setVisitsLoading(true);
     const since = visitRangeStart(range);
@@ -525,7 +635,7 @@ const AdminPanel = () => {
       return hideZero ? q.gt("duration_seconds", 0) : q;
     };
 
-    const [pageRes, totalRes, loggedInRes, allRes] = await Promise.all([
+    const [pageRes, totalRes, loggedInRes, allRes, aggRes] = await Promise.all([
       scoped(supabase.from("site_visits").select("*"))
         .order("started_at", { ascending: false })
         .range(0, VISITS_PAGE - 1),
@@ -536,6 +646,7 @@ const AdminPanel = () => {
       hideZero
         ? inRange(supabase.from("site_visits").select("id", { count: "exact", head: true }))
         : Promise.resolve(null),
+      supabase.rpc("admin_visit_stats", { p_since: since, p_hide_zero: hideZero }),
     ]);
 
     // Column missing (the duration_seconds SQL hasn't been run yet)?
@@ -550,6 +661,7 @@ const AdminPanel = () => {
     if (!pageRes.error && pageRes.data) setVisits(pageRes.data);
     setVisitsTotal(totalRes.error ? null : totalRes.count);
     setVisitsLoggedIn(loggedInRes.error ? null : loggedInRes.count);
+    setVisitAgg(aggRes && !aggRes.error ? aggRes.data : null);
     setZeroHidden(
       hideZero && allRes && !allRes.error && !totalRes.error
         ? Math.max(0, allRes.count - totalRes.count)
@@ -565,7 +677,7 @@ const AdminPanel = () => {
     fetchVisits(range);
   };
 
-  // NEW: flips the "Hide 0s visits" checkbox and reloads with the new value.
+  // Flips the "Hide 0s visits" checkbox and reloads with the new value.
   const toggleHideZeroVisits = () => {
     const next = !hideZeroVisits;
     setHideZeroVisits(next);
@@ -602,25 +714,38 @@ const AdminPanel = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // Total / logged-in / guests come from exact COUNT queries (whole date range).
-  // Unique sessions and avg. duration can only be computed from loaded rows.
+  // NEW: auto-refresh Reports / Visitors every 30s when the header toggle is on.
+  useEffect(() => {
+    if (!isAdmin || !autoRefresh) return;
+    const id = setInterval(() => {
+      if (activeTab === "reports") fetchReports();
+      if (activeTab === "visitors") fetchVisits();
+    }, 30000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, autoRefresh, activeTab, visitRange, hideZeroVisits]);
+
+  // Total / logged-in / guests / unique sessions / avg. duration come from
+  // exact database aggregates over the whole date range (CHANGED). If the
+  // admin_visit_stats() SQL hasn't been run, unique sessions and avg. duration
+  // fall back to the loaded rows only.
   const visitStats = React.useMemo(() => {
-    const totalVisits = visitsTotal ?? visits.length;
-    const uniqueSessions = new Set(visits.map((v) => v.session_id)).size;
-    const loggedIn = visitsLoggedIn ?? visits.filter((v) => !!v.username).length;
+    const totalVisits = visitAgg?.total ?? visitsTotal ?? visits.length;
+    const uniqueSessions = visitAgg?.unique_sessions ?? new Set(visits.map((v) => v.session_id)).size;
+    const loggedIn = visitAgg?.logged_in ?? visitsLoggedIn ?? visits.filter((v) => !!v.username).length;
     const guests = Math.max(0, totalVisits - loggedIn);
     const durationsSec = visits.map((v) => {
       const start = new Date(v.started_at).getTime();
       const last = new Date(v.last_active_at).getTime();
       return Math.max(0, (last - start) / 1000);
     });
-    const avgDurationSec = durationsSec.length
-      ? durationsSec.reduce((a, b) => a + b, 0) / durationsSec.length
-      : 0;
+    const avgDurationSec =
+      visitAgg?.avg_seconds ??
+      (durationsSec.length ? durationsSec.reduce((a, b) => a + b, 0) / durationsSec.length : 0);
     return { totalVisits, uniqueSessions, loggedIn, guests, avgDurationSec };
-  }, [visits, visitsTotal, visitsLoggedIn]);
+  }, [visits, visitsTotal, visitsLoggedIn, visitAgg]);
 
-  // ── NEW: Installs tab — PWA install stats ──────────────────────────────────
+  // ── Installs tab — PWA install stats ───────────────────────────────────────
   // Calls the admin-only pwa_install_stats() Supabase function. The raw
   // pwa_installs table is insert-only for the public, so it cannot be read
   // directly from the browser.
@@ -684,6 +809,12 @@ const AdminPanel = () => {
         email,
         password: newAdminPassword || undefined,
       });
+      // NEW: only root can hand out the moderator role (enforced in SQL too).
+      if (isRootAdmin && newAdminRole === "moderator") {
+        const { error } = await supabase.rpc("set_admin_role", { p_email: email, p_role: "moderator" });
+        if (error) showToast(`⚠️ Admin granted, but role not set: ${error.message}`);
+      }
+      logAdminAction("grant_admin", "admin", email, "", { role: newAdminRole });
       showToast(
         r.createdAccount
           ? `✅ Account created & admin granted for ${email}`
@@ -691,6 +822,7 @@ const AdminPanel = () => {
       );
       setNewAdminEmail("");
       setNewAdminPassword("");
+      setNewAdminRole("admin");
       fetchAdmins();
     } catch (e) {
       showToast(`❌ ${e.message}`);
@@ -704,6 +836,7 @@ const AdminPanel = () => {
     try {
       await callManageAdmin({ action: "remove", email });
       setAdmins((prev) => prev.filter((a) => a.email !== email));
+      logAdminAction("remove_admin", "admin", email);
       showToast(`"${email}" removed from admins`);
     } catch (e) {
       showToast(`❌ ${e.message}`);
@@ -711,11 +844,23 @@ const AdminPanel = () => {
     setRevokingEmail(null);
   };
 
+  // NEW: seeds the location cache from `last_geo` when the API returns it
+  // (server-side lookup, patch guide step 16). Harmless if it doesn't.
+  const seedGeo = (users) =>
+    setIpGeo((prev) => {
+      const n = { ...prev };
+      (users || []).forEach((u) => {
+        if (u.last_ip && u.last_geo && !n[u.last_ip]) n[u.last_ip] = { t: Date.now(), ...u.last_geo };
+      });
+      return n;
+    });
+
   // ── Logins tab: login method + last login + IP/device per user ─────────────
   const fetchLogins = async () => {
     setLoginsLoading(true);
     try {
       const [{ users }] = await Promise.all([callUserLoginInfo(), fetchOnlineUsers()]);
+      seedGeo(users);
       setLoginRows(users || []);
     } catch (e) {
       showToast(`❌ ${e.message}`);
@@ -734,12 +879,13 @@ const AdminPanel = () => {
   const ensureLoginRows = async () => {
     if (loginRows.length) return loginRows;
     const { users } = await callUserLoginInfo();
+    seedGeo(users);
     setLoginRows(users || []);
     setLoginsLoaded(true);
     return users || [];
   };
 
-  // NEW: location text for exports. Empty string when the IP hasn't been
+  // Location text for exports. Empty string when the IP hasn't been
   // looked up yet (open the Logins/Users tab first so lookups can run).
   const exportLocation = (ip) => {
     if (!ip) return "";
@@ -862,8 +1008,8 @@ const AdminPanel = () => {
     setExportingLoginsPdf(false);
   };
 
-  // ── Users tab: search + ban/unban/delete + online status ───────────────────
-  // NEW: reads which usernames have a site_visits heartbeat within the last
+  // ── Users tab: ban/unban/delete + online status ────────────────────────────
+  // Reads which usernames have a site_visits heartbeat within the last
   // ONLINE_WINDOW_MS. Same direct-client read the Visitors tab already uses.
   const fetchOnlineUsers = async () => {
     const since = new Date(Date.now() - ONLINE_WINDOW_MS).toISOString();
@@ -881,6 +1027,7 @@ const AdminPanel = () => {
     setUsersLoading(true);
     try {
       const [{ users }] = await Promise.all([callUserLoginInfo(), fetchOnlineUsers()]);
+      seedGeo(users);
       setUserRows(users || []);
     } catch (e) {
       showToast(`❌ ${e.message}`);
@@ -896,9 +1043,8 @@ const AdminPanel = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // CHANGED: online status + header total now load as soon as the admin panel
-  // opens and refresh every 20s on EVERY tab (header counter), not only on
-  // Users / Logins.
+  // Online status + header total load as soon as the admin panel opens and
+  // refresh every 20s on EVERY tab (header counter), not only on Users / Logins.
   useEffect(() => {
     if (!isAdmin) return;
     fetchOnlineUsers();
@@ -913,7 +1059,7 @@ const AdminPanel = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
-  // NEW: look up the location of every not-yet-known IP shown on the Users /
+  // Look up the location of every not-yet-known IP shown on the Users /
   // Logins tabs (max GEO_CONCURRENCY requests at a time). Already-cached and
   // already-attempted IPs are skipped, so this is cheap to re-run.
   useEffect(() => {
@@ -938,12 +1084,12 @@ const AdminPanel = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, userRows, loginRows]);
 
-  // NEW: persist successful lookups so reopening the panel is instant.
+  // Persist successful lookups so reopening the panel is instant.
   useEffect(() => {
     writeGeoCache(ipGeo);
   }, [ipGeo]);
 
-  // NEW: what to show in the UI for an IP's location.
+  // What to show in the UI for an IP's location.
   const geoLabelFor = (ip) => {
     if (!ip) return "—";
     if (isPrivateIp(ip)) return "Local network";
@@ -960,10 +1106,13 @@ const AdminPanel = () => {
     setRemoveContentMap((prev) => ({ ...prev, [userId]: !prev[userId] }));
   };
 
-  const banUser = async (user) => {
+  // CHANGED: takes an optional reason (collected by AdminUsersTab), saves it
+  // to the ban list and writes an audit-log entry.
+  const banUser = async (user, reason = "") => {
+    const label = user.username ? `@${user.username}` : user.email;
+    const wipe = !!removeContentMap[user.id];
     const confirmed = window.confirm(
-      `Ban ${user.username ? `@${user.username}` : user.email}? They will no longer be able to log in.${removeContentMap[user.id] ? " Their videos, reels, and posts will ALSO be permanently deleted." : ""
-      }`,
+      `Ban ${label}? They will no longer be able to log in.${wipe ? " Their videos, reels, and posts will ALSO be permanently deleted." : ""}`,
     );
     if (!confirmed) return;
 
@@ -973,10 +1122,13 @@ const AdminPanel = () => {
         action: "ban",
         userId: user.id,
         username: user.username,
-        removeContent: !!removeContentMap[user.id],
+        removeContent: wipe,
+        reason,
       });
+      await recordBan(user.id, user.username, reason);
+      logAdminAction("ban_user", "user", label, reason, { removeContent: wipe });
       setUserRows((prev) => prev.map((u) => (u.id === user.id ? { ...u, is_banned: true } : u)));
-      showToast(`🚫 ${user.username ? `@${user.username}` : user.email} banned`);
+      showToast(`🚫 ${label} banned`);
     } catch (e) {
       showToast(`❌ ${e.message}`);
     }
@@ -984,11 +1136,14 @@ const AdminPanel = () => {
   };
 
   const unbanUser = async (user) => {
+    const label = user.username ? `@${user.username}` : user.email;
     setModeratingId(user.id);
     try {
       await callModerateUser({ action: "unban", userId: user.id, username: user.username });
+      await supabase.rpc("clear_ban", { p_user_id: user.id });
+      logAdminAction("unban_user", "user", label);
       setUserRows((prev) => prev.map((u) => (u.id === user.id ? { ...u, is_banned: false } : u)));
-      showToast(`✅ ${user.username ? `@${user.username}` : user.email} unbanned`);
+      showToast(`✅ ${label} unbanned`);
     } catch (e) {
       showToast(`❌ ${e.message}`);
     }
@@ -996,12 +1151,14 @@ const AdminPanel = () => {
   };
 
   const deleteUserAccount = async (user) => {
+    const label = user.username ? `@${user.username}` : user.email;
     const wipeContent = !!removeContentMap[user.id];
     const confirmed = window.confirm(
-      `Permanently delete the account for ${user.username ? `@${user.username}` : user.email}? This cannot be undone.${wipeContent ? " Their videos, reels, and posts will ALSO be permanently deleted." : " Their existing content will be kept but no longer tied to a valid login."
+      `Permanently delete the account for ${label}? This cannot be undone.${wipeContent ? " Their videos, reels, and posts will ALSO be permanently deleted." : " Their existing content will be kept but no longer tied to a valid login."
       }`,
     );
     if (!confirmed) return;
+    const reason = window.prompt("Reason (saved in the audit log, optional):", "") ?? "";
 
     setModeratingId(user.id);
     try {
@@ -1011,34 +1168,76 @@ const AdminPanel = () => {
         username: user.username,
         removeContent: wipeContent,
       });
+      await supabase.rpc("clear_ban", { p_user_id: user.id });
+      logAdminAction("delete_account", "user", label, reason, { removeContent: wipeContent });
       setUserRows((prev) => prev.filter((u) => u.id !== user.id));
-      showToast(`🗑️ Account deleted`);
+      showToast("🗑️ Account deleted");
     } catch (e) {
       showToast(`❌ ${e.message}`);
     }
     setModeratingId(null);
   };
 
-  // NEW: search now also matches the user's location (e.g. "mumbai").
-  const normalizedUserSearch = userSearch.trim().toLowerCase();
-  const filteredUserRows = normalizedUserSearch
-    ? userRows.filter(
-      (u) =>
-        (u.username || "").toLowerCase().includes(normalizedUserSearch) ||
-        (u.email || "").toLowerCase().includes(normalizedUserSearch) ||
-        exportLocation(u.last_ip).toLowerCase().includes(normalizedUserSearch),
-    )
-    : userRows;
+  // NEW: bulk ban / unban (sequential, so one failure doesn't stop the rest).
+  const bulkBan = async (users, reason) => {
+    if (!window.confirm(`Ban ${users.length} users? They will no longer be able to log in.`)) return;
+    let ok = 0;
+    for (const u of users) {
+      try {
+        await callModerateUser({ action: "ban", userId: u.id, username: u.username, reason });
+        await recordBan(u.id, u.username, reason);
+        setUserRows((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_banned: true } : x)));
+        ok++;
+      } catch (e) {
+        showToast(`❌ ${u.username || u.email}: ${e.message}`);
+      }
+    }
+    logAdminAction("bulk_ban", "user", `${ok} users`, reason, { users: users.map((u) => u.username || u.email) });
+    showToast(`🚫 ${ok} of ${users.length} banned`);
+  };
 
-  // NEW: online helpers for the Users + Logins tabs.
+  const bulkUnban = async (users) => {
+    let ok = 0;
+    for (const u of users) {
+      try {
+        await callModerateUser({ action: "unban", userId: u.id, username: u.username });
+        await supabase.rpc("clear_ban", { p_user_id: u.id });
+        setUserRows((prev) => prev.map((x) => (x.id === u.id ? { ...x, is_banned: false } : x)));
+        ok++;
+      } catch (e) {
+        showToast(`❌ ${u.username || u.email}: ${e.message}`);
+      }
+    }
+    logAdminAction("bulk_unban", "user", `${ok} users`, "", { users: users.map((u) => u.username || u.email) });
+    showToast(`✅ ${ok} of ${users.length} unbanned`);
+  };
+
+  // Online helpers for the Users + Logins tabs.
   const isUserOnline = (u) =>
     !!u.username && onlineUsernames.has(u.username.toLowerCase());
-  const onlineCount = userRows.filter(isUserOnline).length;
 
-  // NEW: header counter values. Total uses the full user list once the Users
+  // Header counter values. Total uses the full user list once the Users
   // tab has loaded it (so both numbers always agree), otherwise a quick count.
   const headerOnline = onlineUsernames.size;
   const headerTotal = usersLoaded ? userRows.length : profilesTotal;
+
+  // NEW: top countries for the Analytics tab, built from the IP lookups above.
+  // (Must stay above the early returns below — it's a hook.)
+  const countryCounts = React.useMemo(() => {
+    const src = userRows.length ? userRows : loginRows;
+    const m = {};
+    src.forEach((r) => {
+      const g = r.last_ip && ipGeo[r.last_ip];
+      if (g && !g.failed && g.country) {
+        const k = `${flagEmoji(g.cc)} ${g.country}`.trim();
+        m[k] = (m[k] || 0) + 1;
+      }
+    });
+    return Object.entries(m)
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+  }, [userRows, loginRows, ipGeo]);
 
   // ── Home Hub tab: fetch / toggle / reorder ──────────────────────────────
   const fetchHubTabs = async () => {
@@ -1156,31 +1355,22 @@ const AdminPanel = () => {
   };
 
   // ── Shared export data fetcher (full-report Excel/Word/PDF export) ─────────
+  // CHANGED: every table is read in pages of 1,000 (fetchAllRows), so exports
+  // are no longer silently cut off at Supabase's 1,000-row request limit.
+  // If a table has no `id` column, pass another one, e.g.
+  // fetchAllRows("views", "viewed_at").
   const fetchExportData = async () => {
-    const [
-      { data: profiles, error: profilesErr },
-      { data: videos, error: videosErr },
-      { data: reels, error: reelsErr },
-      { data: posts, error: postsErr },
-      { data: postComments, error: postCommentsErr },
-      { data: postReactions, error: postReactionsErr },
-      { data: likes, error: likesErr },
-      { data: views, error: viewsErr },
-    ] = await Promise.all([
-      supabase.from("profiles").select("*"),
-      supabase.from("videos").select("*"),
-      supabase.from("reels").select("*"),
-      supabase.from("posts").select("*"),
-      supabase.from("post_comments").select("*"),
-      supabase.from("post_reactions").select("*"),
-      supabase.from("likes").select("*"),
-      supabase.from("views").select("*"),
-    ]);
-
-    const firstError =
-      profilesErr || videosErr || reelsErr || postsErr ||
-      postCommentsErr || postReactionsErr || likesErr || viewsErr;
-    if (firstError) throw firstError;
+    const [profiles, videos, reels, posts, postComments, postReactions, likes, views] =
+      await Promise.all([
+        fetchAllRows("profiles"),
+        fetchAllRows("videos"),
+        fetchAllRows("reels"),
+        fetchAllRows("posts"),
+        fetchAllRows("post_comments"),
+        fetchAllRows("post_reactions"),
+        fetchAllRows("likes"),
+        fetchAllRows("views"),
+      ]);
 
     let loginByUsername = new Map();
     try {
@@ -1468,6 +1658,7 @@ const AdminPanel = () => {
   const runExport = (format) => {
     setExportMenuOpen(false);
     const full = exportScope === "all";
+    logAdminAction("export_report", "export", `${full ? "full" : "logins"} · ${format}`); // NEW
     if (format === "xlsx") return full ? exportToExcel() : exportLoginsToExcel();
     if (format === "docx") return full ? exportToWord() : exportLoginsToWord();
     return full ? exportToPDF() : exportLoginsToPDF();
@@ -1492,11 +1683,15 @@ const AdminPanel = () => {
     );
   }
 
-  const filteredReports = reports.filter((r) => filterStatus === "all" ? true : r.status === filterStatus);
   const pendingCount = reports.filter((r) => r.status === "pending").length;
 
-  // NEW: widest platform bar = 100% (guards against divide-by-zero)
+  // Widest platform bar = 100% (guards against divide-by-zero)
   const platformMax = Math.max(1, ...((installStats?.by_platform || []).map((p) => p.devices)));
+
+  // NEW: banned words filtered by the search box
+  const shownWords = bannedWords.filter((w) =>
+    (w.word || "").toLowerCase().includes(wordSearch.trim().toLowerCase()),
+  );
 
   return (
     <div className="admin_panel">
@@ -1518,52 +1713,86 @@ const AdminPanel = () => {
         />
       )}
 
+      {/* NEW: user detail modal (opened from the Users tab) */}
+      {detailUser && (
+        <AdminUserDetail
+          user={detailUser}
+          locationLabel={geoLabelFor(detailUser.last_ip)}
+          onClose={() => setDetailUser(null)}
+        />
+      )}
+
       <div className="admin_header">
         <div>
-          {/* NEW: live online / total counter next to the title */}
+          {/* Live online / total counter + role next to the title */}
           <div className="admin_title_row">
             <h1 className="admin_title">🛡️ Admin Panel</h1>
             <span className="admin_online_pill" title="Logged-in users active in the last 60 seconds">
               🟢 {headerOnline} online · {headerTotal ?? "…"} total
             </span>
+            {role && <span className="admin_role_pill">{role}</span>}
           </div>
           <p className="admin_subtitle">ZIXPLON Content Moderation</p>
         </div>
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          {/* Merged export: pick scope (Full report / Logins only), then format. */}
-          <div className="admin_export_menu_wrap">
-            <button
-              className="admin_export_btn"
-              onClick={() => setExportMenuOpen((o) => !o)}
-              disabled={exportingAny}
-            >
-              {exportingAny ? "⏳ Exporting..." : "⬇ Export Report ▾"}
-            </button>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+          {/* NEW: auto-refresh + new-report alerts */}
+          <label className="admin_toggle_chip" title="Refresh Reports / Visitors every 30 seconds">
+            <input type="checkbox" checked={autoRefresh} onChange={() => setAutoRefresh((v) => !v)} />
+            Auto-refresh
+          </label>
+          <label className="admin_toggle_chip" title="Sound + desktop notification for new reports">
+            <input
+              type="checkbox"
+              checked={soundOn}
+              onChange={() => {
+                const next = !soundOn;
+                setSoundOn(next);
+                localStorage.setItem("zx_admin_sound", next ? "1" : "0");
+                if (next && "Notification" in window && Notification.permission === "default") {
+                  Notification.requestPermission();
+                }
+              }}
+            />
+            Alerts
+          </label>
 
-            {exportMenuOpen && (
-              <>
-                <div className="admin_export_menu_backdrop" onClick={() => setExportMenuOpen(false)} />
-                <div className="admin_export_menu">
-                  <div className="admin_export_scope">
-                    <button className={exportScope === "all" ? "active" : ""} onClick={() => setExportScope("all")}>
-                      Full report
-                    </button>
-                    <button className={exportScope === "logins" ? "active" : ""} onClick={() => setExportScope("logins")}>
-                      Logins only
-                    </button>
+          {/* Merged export: pick scope (Full report / Logins only), then format.
+              Hidden for moderators — exports contain emails and IPs. */}
+          {canDestroy && (
+            <div className="admin_export_menu_wrap">
+              <button
+                className="admin_export_btn"
+                onClick={() => setExportMenuOpen((o) => !o)}
+                disabled={exportingAny}
+              >
+                {exportingAny ? "⏳ Exporting..." : "⬇ Export Report ▾"}
+              </button>
+
+              {exportMenuOpen && (
+                <>
+                  <div className="admin_export_menu_backdrop" onClick={() => setExportMenuOpen(false)} />
+                  <div className="admin_export_menu">
+                    <div className="admin_export_scope">
+                      <button className={exportScope === "all" ? "active" : ""} onClick={() => setExportScope("all")}>
+                        Full report
+                      </button>
+                      <button className={exportScope === "logins" ? "active" : ""} onClick={() => setExportScope("logins")}>
+                        Logins only
+                      </button>
+                    </div>
+                    <button className="admin_export_item" onClick={() => runExport("xlsx")}>📗 Excel (.xlsx)</button>
+                    <button className="admin_export_item" onClick={() => runExport("docx")}>📘 Word (.docx)</button>
+                    <button className="admin_export_item" onClick={() => runExport("pdf")}>📕 PDF (.pdf)</button>
+                    <p className="admin_export_hint">
+                      {exportScope === "all"
+                        ? "Users, videos, reels, posts, comments, reactions, likes and views."
+                        : "Username, email, login method, last login, IP, location and device."}
+                    </p>
                   </div>
-                  <button className="admin_export_item" onClick={() => runExport("xlsx")}>📗 Excel (.xlsx)</button>
-                  <button className="admin_export_item" onClick={() => runExport("docx")}>📘 Word (.docx)</button>
-                  <button className="admin_export_item" onClick={() => runExport("pdf")}>📕 PDF (.pdf)</button>
-                  <p className="admin_export_hint">
-                    {exportScope === "all"
-                      ? "Users, videos, reels, posts, comments, reactions, likes and views."
-                      : "Username, email, login method, last login, IP, location and device."}
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
+                </>
+              )}
+            </div>
+          )}
           <Link to="/" className="admin_back_btn">← Back to ZIXPLON</Link>
         </div>
       </div>
@@ -1590,27 +1819,49 @@ const AdminPanel = () => {
         <button className={`admin_tab ${activeTab === "words" ? "active" : ""}`} onClick={() => setActiveTab("words")}>
           🔤 Banned Words ({bannedWords.length})
         </button>
+        {/* NEW: browse / delete any video, reel or post */}
+        <button className={`admin_tab ${activeTab === "content" ? "active" : ""}`} onClick={() => setActiveTab("content")}>
+          🎬 Content
+        </button>
         <button className={`admin_tab ${activeTab === "visitors" ? "active" : ""}`} onClick={() => setActiveTab("visitors")}>
           📈 Visitors
         </button>
-        {/* NEW: PWA install stats. See pwa_install_stats() in Supabase. */}
-        <button className={`admin_tab ${activeTab === "installs" ? "active" : ""}`} onClick={() => setActiveTab("installs")}>
-          📲 Installs
+        {/* NEW: charts — visits, sessions, signups, installs, top pages, top countries */}
+        <button className={`admin_tab ${activeTab === "analytics" ? "active" : ""}`} onClick={() => setActiveTab("analytics")}>
+          📊 Analytics
         </button>
-        <button className={`admin_tab ${activeTab === "admins" ? "active" : ""}`} onClick={() => setActiveTab("admins")}>
-          👑 Admins {admins.length > 0 && <span className="admin_badge" style={{ background: "#7c3aed" }}>{admins.length}</span>}
-        </button>
-        <button className={`admin_tab ${activeTab === "logins" ? "active" : ""}`} onClick={() => setActiveTab("logins")}>
-          🔐 Logins
-        </button>
-        {/* NEW: ban/unban/delete any user account. See api/moderate-user.js. */}
-        <button className={`admin_tab ${activeTab === "users" ? "active" : ""}`} onClick={() => setActiveTab("users")}>
-          👥 Users
-        </button>
-        {/* NEW: show/hide/reorder HomeHub.jsx's Home/Posts/Utility tabs. */}
-        <button className={`admin_tab ${activeTab === "hub" ? "active" : ""}`} onClick={() => setActiveTab("hub")}>
-          🏠 Home Hub
-        </button>
+        {/* Everything below is hidden from moderators (PII / destructive tools). */}
+        {canDestroy && (
+          <button className={`admin_tab ${activeTab === "installs" ? "active" : ""}`} onClick={() => setActiveTab("installs")}>
+            📲 Installs
+          </button>
+        )}
+        {canDestroy && (
+          <button className={`admin_tab ${activeTab === "admins" ? "active" : ""}`} onClick={() => setActiveTab("admins")}>
+            👑 Admins {admins.length > 0 && <span className="admin_badge" style={{ background: "#7c3aed" }}>{admins.length}</span>}
+          </button>
+        )}
+        {canDestroy && (
+          <button className={`admin_tab ${activeTab === "logins" ? "active" : ""}`} onClick={() => setActiveTab("logins")}>
+            🔐 Logins
+          </button>
+        )}
+        {canDestroy && (
+          <button className={`admin_tab ${activeTab === "users" ? "active" : ""}`} onClick={() => setActiveTab("users")}>
+            👥 Users
+          </button>
+        )}
+        {canDestroy && (
+          <button className={`admin_tab ${activeTab === "hub" ? "active" : ""}`} onClick={() => setActiveTab("hub")}>
+            🏠 Home Hub
+          </button>
+        )}
+        {/* NEW: who did what, and why */}
+        {canDestroy && (
+          <button className={`admin_tab ${activeTab === "audit" ? "active" : ""}`} onClick={() => setActiveTab("audit")}>
+            📜 Audit Log
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -1619,118 +1870,28 @@ const AdminPanel = () => {
           <p>Loading...</p>
         </div>
       ) : activeTab === "reports" ? (
-        <>
-          <div className="admin_filter_row">
-            {["all", "pending", "reviewed", "removed", "dismissed"].map((s) => (
-              <button
-                key={s}
-                className={`admin_filter_btn ${filterStatus === s ? "active" : ""}`}
-                onClick={() => setFilterStatus(s)}
-              >
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-                {s !== "all" && <span className="admin_filter_count">{reports.filter((r) => r.status === s).length}</span>}
-              </button>
-            ))}
-          </div>
-
-          {filteredReports.length === 0 ? (
-            <div className="admin_empty">
-              <div style={{ fontSize: "48px" }}>✅</div>
-              <p>No {filterStatus === "all" ? "" : filterStatus} reports</p>
-            </div>
-          ) : (
-            <div className="admin_reports_list">
-              {filteredReports.map((report) => {
-                const sc = STATUS_COLORS[report.status] || STATUS_COLORS.pending;
-                return (
-                  <div key={report.id} className="admin_report_card">
-                    <div className="admin_report_header">
-                      <div className="admin_report_meta">
-                        <span className="admin_report_type">{report.content_type.toUpperCase()}</span>
-                        <span className="admin_report_reason">{REASON_LABELS[report.reason] || report.reason}</span>
-                        <span className="admin_report_status" style={{ background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>
-                          {report.status}
-                        </span>
-                      </div>
-                      <span className="admin_report_time">
-                        {new Date(report.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    </div>
-
-                    <div className="admin_report_content">
-                      <div className="admin_report_field">
-                        <span className="admin_report_field_label">Content</span>
-                        <span className="admin_report_field_value">"{report.content_title}"</span>
-                      </div>
-                      <div className="admin_report_field">
-                        <span className="admin_report_field_label">Uploader</span>
-                        <span className="admin_report_field_value">@{report.content_owner}</span>
-                      </div>
-                      <div className="admin_report_field">
-                        <span className="admin_report_field_label">Reported by</span>
-                        <span className="admin_report_field_value">@{report.reporter_username}</span>
-                      </div>
-                      {report.details && (
-                        <div className="admin_report_field">
-                          <span className="admin_report_field_label">Details</span>
-                          <span className="admin_report_field_value admin_report_details">{report.details}</span>
-                        </div>
-                      )}
-                      {report.admin_note && (
-                        <div className="admin_report_field">
-                          <span className="admin_report_field_label">Admin note</span>
-                          <span className="admin_report_field_value" style={{ color: "#7c3aed", fontWeight: 700 }}>{report.admin_note}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {(report.status === "pending" || report.status === "reviewed") && (
-                      <div className="admin_report_actions">
-                        <button
-                          className="admin_action_btn admin_action_btn--view"
-                          onClick={() => setPreviewReport(report)}
-                        >
-                          ▶ View Content
-                        </button>
-                        <button
-                          className="admin_action_btn admin_action_btn--delete"
-                          onClick={() => deleteContent(report)}
-                          disabled={!!actionLoading}
-                        >
-                          {actionLoading === report.id + "delete" ? "Deleting..." : "🗑️ Delete Content"}
-                        </button>
-                        {/* NEW: bans the reported content's owner outright. */}
-                        <button
-                          className="admin_action_btn admin_action_btn--delete"
-                          onClick={() => banUploaderFromReport(report)}
-                          disabled={!!actionLoading}
-                        >
-                          {actionLoading === report.id + "ban" ? "Banning..." : "🚫 Ban Uploader"}
-                        </button>
-                        <button
-                          className="admin_action_btn admin_action_btn--dismiss"
-                          onClick={() => updateReportStatus(report.id, "dismissed")}
-                          disabled={!!actionLoading}
-                        >
-                          {actionLoading === report.id + "dismissed" ? "..." : "✓ Dismiss"}
-                        </button>
-                        {report.status === "pending" && (
-                          <button
-                            className="admin_action_btn admin_action_btn--review"
-                            onClick={() => updateReportStatus(report.id, "reviewed")}
-                            disabled={!!actionLoading}
-                          >
-                            {actionLoading === report.id + "reviewed" ? "..." : "👁 Mark Reviewed"}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
+        <AdminReportsPanel
+          reports={reports}
+          filterStatus={filterStatus}
+          setFilterStatus={setFilterStatus}
+          actionLoading={actionLoading}
+          canDestroy={canDestroy}
+          onPreview={setPreviewReport}
+          onDeleteGroup={deleteGroup}
+          onSetStatusGroup={setGroupStatus}
+          onBanUploader={banUploaderFromReport}
+        />
+      ) : activeTab === "analytics" ? (
+        <AdminAnalyticsTab
+          hideZero={hideZeroVisits}
+          installPerDay={installStats?.per_day || []}
+          countries={countryCounts}
+          showToast={showToast}
+        />
+      ) : activeTab === "content" ? (
+        <AdminContentTab canDestroy={canDestroy} showToast={showToast} />
+      ) : activeTab === "audit" && canDestroy ? (
+        <AdminAuditTab showToast={showToast} />
       ) : activeTab === "visitors" ? (
         <div className="admin_visitors_section">
           {visitsLoading ? (
@@ -1751,7 +1912,7 @@ const AdminPanel = () => {
                   </button>
                 ))}
 
-                {/* NEW: ignore visits that lasted 0s (left before the first
+                {/* Ignore visits that lasted 0s (left before the first
                     ~20s heartbeat). Inline styles, so no CSS file change. */}
                 <label
                   title="Hide visits that ended before the first ~20s heartbeat (bots / instant bounces)"
@@ -1801,7 +1962,8 @@ const AdminPanel = () => {
                   ({VISIT_RANGES.find((r) => r.key === visitRange)?.label.toLowerCase()}).
                   Duration is accurate to within ~20s (heartbeat interval).
                   {hideZeroVisits && zeroHidden != null && ` ${zeroHidden} visits under ~20s (0s) are hidden.`}
-                  {visits.length < visitStats.totalVisits &&
+                  {/* Only true when the admin_visit_stats() SQL hasn't been run. */}
+                  {!visitAgg && visits.length < visitStats.totalVisits &&
                     ` Unique sessions and avg. duration are based on the ${visits.length} loaded visits; the other three cards cover all ${visitStats.totalVisits}.`}
                 </p>
                 <button className="admin_add_word_btn" onClick={() => fetchVisits()} disabled={visitsLoading}>
@@ -1861,8 +2023,8 @@ const AdminPanel = () => {
             </>
           )}
         </div>
-      ) : activeTab === "installs" ? (
-        /* ── NEW: Installs Tab — PWA install stats ── */
+      ) : activeTab === "installs" && canDestroy ? (
+        /* ── Installs Tab — PWA install stats ── */
         <div className="admin_visitors_section">
           {installsLoading ? (
             <div className="admin_loading">
@@ -1929,28 +2091,15 @@ const AdminPanel = () => {
 
               <div className="admin_installs_card">
                 <h3 className="admin_installs_card_title">Installs per day (last 30 days)</h3>
-                {(installStats.per_day || []).length === 0 ? (
-                  <p className="admin_words_hint">No installs recorded in the last 30 days</p>
-                ) : (
-                  <div className="admin_visits_table_wrap">
-                    <table className="admin_visits_table">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Installs</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(installStats.per_day || []).map((d) => (
-                          <tr key={d.day}>
-                            <td>{new Date(d.day).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
-                            <td>{d.installs}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                {/* CHANGED: chart instead of a table. per_day looks newest-first,
+                    so it is reversed to read oldest → newest left to right. */}
+                <BarChart
+                  data={[...(installStats.per_day || [])].reverse().map((d) => ({
+                    label: new Date(d.day).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+                    value: d.installs,
+                  }))}
+                  emptyText="No installs recorded in the last 30 days"
+                />
               </div>
 
               <div className="admin_installs_card">
@@ -1995,7 +2144,7 @@ const AdminPanel = () => {
             </>
           )}
         </div>
-      ) : activeTab === "admins" ? (
+      ) : activeTab === "admins" && canDestroy ? (
         <div className="admin_admins_section">
           <div className="admin_grant_card">
             <h3 className="admin_grant_title">Grant admin access</h3>
@@ -2003,6 +2152,7 @@ const AdminPanel = () => {
               Enter an email to make that person an admin. If they don't have an
               account yet, set a password too and one will be created for them —
               leave it blank if they already have an account.
+              {isRootAdmin && " Moderators can review reports and browse content, but can't ban, delete or manage admins."}
             </p>
             <div className="admin_grant_row">
               <input
@@ -2021,6 +2171,18 @@ const AdminPanel = () => {
                 onChange={(e) => setNewAdminPassword(e.target.value)}
                 disabled={grantLoading}
               />
+              {/* NEW: only root can choose the moderator role */}
+              {isRootAdmin && (
+                <select
+                  className="admin_hub_audience_select"
+                  value={newAdminRole}
+                  onChange={(e) => setNewAdminRole(e.target.value)}
+                  disabled={grantLoading}
+                >
+                  <option value="admin">Admin</option>
+                  <option value="moderator">Moderator</option>
+                </select>
+              )}
               <button className="admin_add_word_btn" onClick={grantAdmin} disabled={grantLoading}>
                 {grantLoading ? "Granting..." : "+ Grant Admin"}
               </button>
@@ -2048,6 +2210,8 @@ const AdminPanel = () => {
                       {(a.root || ADMIN_EMAILS.includes(a.email)) && (
                         <span className="admin_admin_root_badge">ROOT</span>
                       )}
+                      {/* NEW: shown when the API's list returns the role column */}
+                      {a.role === "moderator" && <span className="admin_role_pill">moderator</span>}
                     </div>
                     {a.added_by && (
                       <div className="admin_admin_meta">
@@ -2070,7 +2234,7 @@ const AdminPanel = () => {
             </div>
           )}
         </div>
-      ) : activeTab === "logins" ? (
+      ) : activeTab === "logins" && canDestroy ? (
         <div className="admin_visitors_section">
           {loginsLoading ? (
             <div className="admin_loading">
@@ -2101,176 +2265,41 @@ const AdminPanel = () => {
                   <p>No login data found</p>
                 </div>
               ) : (
-                <div className="admin_visits_table_wrap">
-                  <table className="admin_visits_table">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>User</th>
-                        <th>Status</th>
-                        <th>Login Method</th>
-                        <th>Last Login</th>
-                        <th>Last IP</th>
-                        <th>Location</th>
-                        <th>Last Device</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loginRows.map((r, index) => {
-                        const isOnline = isUserOnline(r);
-                        return (
-                          <tr key={r.id}>
-                            <td>
-                              {/* descending serial: newest/top row gets the highest number */}
-                              <span className="admin_user_serial">{loginRows.length - index}</span>
-                            </td>
-                            <td>{r.username ? `@${r.username}` : r.email}</td>
-                            <td>
-                              <span className={`admin_user_status ${isOnline ? "online" : "offline"}`}>
-                                <span className="admin_user_status_dot" />
-                                {isOnline ? "Online" : "Offline"}
-                              </span>
-                            </td>
-                            <td>{(r.providers || []).join(", ")}</td>
-                            <td>{r.last_sign_in_at ? new Date(r.last_sign_in_at).toLocaleString("en-IN") : "Never"}</td>
-                            <td>{r.last_ip || "—"}</td>
-                            {/* NEW: approximate location from the IP */}
-                            <td className="admin_user_location_cell" title={r.last_ip ? `IP: ${r.last_ip}` : ""}>
-                              {geoLabelFor(r.last_ip)}
-                            </td>
-                            <td className="admin_visits_path" title={r.last_device || ""}>
-                              {truncate(r.last_device, 40) || "—"}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      ) : activeTab === "users" ? (
-        /* ── Users Tab: ban / unban / delete any account + online status ── */
-        <div className="admin_users_mgmt_section">
-          {usersLoading ? (
-            <div className="admin_loading">
-              <div className="admin_spinner" />
-              <p>Loading users...</p>
-            </div>
-          ) : (
-            <>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
-                <input
-                  type="text"
-                  className="admin_word_input"
-                  style={{ maxWidth: "280px" }}
-                  placeholder="Search by username, email or location..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
+                /* CHANGED: filters, sorting, search and paging live in this component */
+                <AdminLoginsTable
+                  rows={loginRows}
+                  isUserOnline={isUserOnline}
+                  geoLabelFor={geoLabelFor}
+                  exportLocation={exportLocation}
                 />
-                {/* NEW: live online count */}
-                <span className="admin_words_hint admin_users_online_summary" style={{ margin: 0 }}>
-                  🟢 {onlineCount} online · {userRows.length} total
-                </span>
-                <button className="admin_add_word_btn" onClick={fetchUsers} disabled={usersLoading}>
-                  ↻ Refresh
-                </button>
-              </div>
-
-              {filteredUserRows.length === 0 ? (
-                <div className="admin_empty">
-                  <div style={{ fontSize: "48px" }}>👥</div>
-                  <p>No users found</p>
-                </div>
-              ) : (
-                <div className="admin_users_mgmt_list">
-                  {filteredUserRows.map((u, index) => {
-                    const isRoot = ADMIN_EMAILS.includes((u.email || "").toLowerCase());
-                    const busy = moderatingId === u.id;
-                    const isOnline = isUserOnline(u);
-                    return (
-                      <div key={u.id} className="admin_user_mgmt_row">
-                        <div className="admin_user_mgmt_left">
-                          {/* NEW: serial number */}
-                          <div className="admin_user_serial">{index + 1}</div>
-
-                          <div className="admin_user_mgmt_info">
-                            <div className="admin_user_mgmt_name">
-                              {u.username ? `@${u.username}` : u.email}
-                              {isRoot && <span className="admin_admin_root_badge">ROOT</span>}
-                              {u.is_banned && <span className="admin_user_banned_badge">BANNED</span>}
-                              {/* NEW: online / offline indicator */}
-                              <span className={`admin_user_status ${isOnline ? "online" : "offline"}`}>
-                                <span className="admin_user_status_dot" />
-                                {isOnline ? "Online" : "Offline"}
-                              </span>
-                            </div>
-                            <div className="admin_admin_meta">
-                              {u.email} · {(u.providers || []).join(", ")}
-                              {u.last_sign_in_at
-                                ? ` · last login ${new Date(u.last_sign_in_at).toLocaleDateString("en-IN")}`
-                                : " · never logged in"}
-                            </div>
-                            {/* NEW: approximate location from the user's last IP */}
-                            <div
-                              className="admin_admin_meta admin_user_location"
-                              title={u.last_ip ? `IP: ${u.last_ip}` : "No IP recorded"}
-                            >
-                              📍 {geoLabelFor(u.last_ip)}
-                            </div>
-                          </div>
-                        </div>
-
-                        {!isRoot && (
-                          <div className="admin_user_mgmt_actions">
-                            <label className="admin_user_remove_content_label">
-                              <input
-                                type="checkbox"
-                                checked={!!removeContentMap[u.id]}
-                                onChange={() => toggleRemoveContent(u.id)}
-                                disabled={busy}
-                              />
-                              also delete their content
-                            </label>
-                            <div style={{ display: "flex", gap: "8px" }}>
-                              {u.is_banned ? (
-                                <button
-                                  className="admin_action_btn admin_action_btn--dismiss"
-                                  onClick={() => unbanUser(u)}
-                                  disabled={busy}
-                                >
-                                  {busy ? "..." : "✓ Unban"}
-                                </button>
-                              ) : (
-                                <button
-                                  className="admin_action_btn admin_action_btn--delete"
-                                  onClick={() => banUser(u)}
-                                  disabled={busy}
-                                >
-                                  {busy ? "..." : "🚫 Ban"}
-                                </button>
-                              )}
-                              <button
-                                className="admin_action_btn admin_action_btn--delete"
-                                onClick={() => deleteUserAccount(u)}
-                                disabled={busy}
-                              >
-                                {busy ? "..." : "🗑️ Delete Account"}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
               )}
             </>
           )}
         </div>
-      ) : activeTab === "hub" ? (
+      ) : activeTab === "users" && canDestroy ? (
+        /* ── Users Tab: ban / unban / delete any account + online status ──
+           CHANGED: filters, paging, bulk ban/unban and the detail view live
+           in AdminUsersTab. */
+        <AdminUsersTab
+          rows={userRows}
+          loading={usersLoading}
+          onRefresh={fetchUsers}
+          isUserOnline={isUserOnline}
+          geoLabelFor={geoLabelFor}
+          exportLocation={exportLocation}
+          rootEmails={ADMIN_EMAILS}
+          canDestroy={canDestroy}
+          moderatingId={moderatingId}
+          removeContentMap={removeContentMap}
+          toggleRemoveContent={toggleRemoveContent}
+          onBan={banUser}
+          onUnban={unbanUser}
+          onDelete={deleteUserAccount}
+          onBulkBan={bulkBan}
+          onBulkUnban={bulkUnban}
+          onOpenDetail={setDetailUser}
+        />
+      ) : activeTab === "hub" && canDestroy ? (
         /* ── Home Hub Tab: show/hide/reorder HomeHub.jsx's tabs ── */
         <div className="admin_hub_section">
           <p className="admin_words_hint">
@@ -2338,16 +2367,20 @@ const AdminPanel = () => {
                         <option value="guests_only">Guests only</option>
                       </select>
 
+                      {/* CHANGED: saves on blur / Enter instead of on every keystroke
+                          (typing "50" used to fire two requests: 5, then 50). */}
                       <div className="admin_hub_rollout">
                         <input
                           type="number"
                           min="0"
                           max="100"
                           className="admin_hub_rollout_input"
-                          value={t.rollout_percent ?? 100}
+                          key={`${t.key}-${t.rollout_percent ?? 100}`}
+                          defaultValue={t.rollout_percent ?? 100}
                           disabled={busy}
-                          onChange={(e) => setHubTabRollout(t, parseInt(e.target.value, 10))}
-                          title="Percent of matching viewers who see this tab"
+                          onBlur={(e) => setHubTabRollout(t, parseInt(e.target.value, 10))}
+                          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                          title="Percent of matching viewers who see this tab (press Enter or click away to save)"
                         />
                         <span className="admin_hub_rollout_pct">%</span>
                       </div>
@@ -2456,8 +2489,39 @@ const AdminPanel = () => {
           </div>
           <p className="admin_words_hint">These words are automatically blocked at upload time. Case-insensitive.</p>
 
+          {/* NEW: search + paste-a-list import */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              className="admin_word_input"
+              style={{ maxWidth: 260 }}
+              placeholder="Search banned words..."
+              value={wordSearch}
+              onChange={(e) => setWordSearch(e.target.value)}
+            />
+            <button className="admin_add_word_btn" onClick={() => setBulkOpen((o) => !o)}>
+              {bulkOpen ? "Cancel" : "📋 Paste a list"}
+            </button>
+          </div>
+          {bulkOpen && (
+            <>
+              <textarea
+                className="admin_bulk_words"
+                placeholder="One word or phrase per line, or comma-separated"
+                value={bulkWords}
+                onChange={(e) => setBulkWords(e.target.value)}
+              />
+              <button
+                className="admin_add_word_btn"
+                onClick={importBannedWords}
+                disabled={wordSaving || !bulkWords.trim()}
+              >
+                {wordSaving ? "Importing..." : "Import words"}
+              </button>
+            </>
+          )}
+
           <div className="admin_words_grid">
-            {bannedWords.map((w) => (
+            {shownWords.map((w) => (
               <div key={w.id} className="admin_word_chip">
                 <span className="admin_word_text">{w.word}</span>
                 <button className="admin_word_remove" onClick={() => removeBannedWord(w.id, w.word)} title="Remove">×</button>

@@ -1,0 +1,161 @@
+/* Styles for the admin upgrade components. Import after AdminPanel.css. */
+
+.admin_pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 0 4px;
+  flex-wrap: wrap;
+}
+.admin_pager .admin_add_word_btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+.admin_chart_scroll { overflow-x: auto; max-width: 100%; }
+
+.admin_audit_action {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--zx-surface2);
+  border: 1px solid var(--zx-border);
+  color: var(--zx-text2);
+  font-family: 'Nunito', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+/* Reports */
+.admin_report_count {
+  background: #f43f5e;
+  color: #fff;
+  font-family: 'Nunito', sans-serif;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.admin_offender_badge {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #c2410c;
+  font-family: 'Nunito', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+/* Users */
+.admin_bulk_bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  background: var(--zx-surface2);
+  border: 2px dashed var(--zx-border);
+  border-radius: 12px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  color: var(--zx-text);
+}
+.admin_name_link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--zx-border);
+  text-underline-offset: 3px;
+}
+.admin_name_link:hover { color: var(--zx-primary); text-decoration-color: var(--zx-primary); }
+
+/* Modal (user detail) */
+.admin_modal_backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(26, 20, 20, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 60px 12px 24px;
+  overflow-y: auto;
+}
+.admin_modal {
+  width: 100%;
+  max-width: 560px;
+  background: var(--zx-surface);
+  border: 2px solid var(--zx-border);
+  border-radius: var(--zx-radius);
+  padding: 18px 20px 22px;
+  box-shadow: var(--zx-shadow);
+}
+.admin_modal_head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin_ban_note {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 700;
+}
+.admin_modal .admin_stats { display: grid; grid-template-columns: repeat(3, 1fr); }
+
+/* Header extras */
+.admin_role_pill {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #f5f3ff;
+  border: 2px solid #ddd6fe;
+  color: #6d28d9;
+  font-family: 'Nunito', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+.admin_toggle_chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--zx-text2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.admin_toggle_chip input { accent-color: var(--zx-primary); }
+
+/* Banned words bulk import */
+.admin_bulk_words {
+  width: 100%;
+  min-height: 90px;
+  padding: 11px 16px;
+  border: 2px solid var(--zx-border);
+  border-radius: 12px;
+  background: var(--zx-surface);
+  color: var(--zx-text);
+  font-size: 14px;
+  font-family: 'Outfit', sans-serif;
+  resize: vertical;
+  outline: none;
+}
+.admin_bulk_words:focus { border-color: var(--zx-primary); }
+
+@media (max-width: 768px) {
+  .admin_bulk_words { font-size: 16px; }
+  .admin_modal .admin_stats { grid-template-columns: repeat(2, 1fr); }
+}

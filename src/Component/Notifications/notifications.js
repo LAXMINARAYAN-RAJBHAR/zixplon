@@ -18,6 +18,10 @@
 // same connection_request row back from the DB — still with its original
 // type — and the Accept/Decline buttons would reappear even though the
 // connection had already been actioned.
+//
+// FIX: reel notifications now open the right reel. Reel routes use the
+// "db_" prefix (/reels/db_<uuid>), but the notification stores the raw
+// reel id, so the old link (/reels/<uuid>) never matched.
 
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -34,6 +38,8 @@ const TYPE_ICON = {
   comment: "💬",
   connection: "🔔",
   upload: "🎬",
+  reel: "🎞️",
+  post: "📝",
   mention: "📣",
   connection_request: "🤝",
   connection_accepted: "✅",
@@ -52,13 +58,17 @@ const timeAgo = (iso) => {
 };
 
 const destinationFor = (n) => {
+  if (!n.content_id) return null;
+  const id = String(n.content_id);
+
   switch (n.content_type) {
     case "video":
-      return `/video/${n.content_id}`;
+      return `/video/${id}`;
     case "reel":
-      return `/reels/${n.content_id}`;
+      // FIX: reel routes use the "db_" prefix everywhere else in the app
+      return `/reels/${id.startsWith("db_") ? id : "db_" + id}`;
     case "post":
-      return `/?tab=posts&post=${n.content_id}`;
+      return `/?tab=posts&post=${id}`;
     default:
       // connection_request / connection_accepted notifications have
       // content_type: "connection" — there's nowhere sensible to

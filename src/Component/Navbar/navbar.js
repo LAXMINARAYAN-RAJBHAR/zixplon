@@ -771,16 +771,19 @@ const Navbar = ({
   };
 
   const handleNotificationClick = (n) => {
-    markOneRead(n.id);
-    setShowNotifications(false);
-    if (!n.contentId || !n.contentType) return;
-    if (n.contentType === "reel") navigate(`/reels/${n.contentId}`);
-    else if (n.contentType === "video") navigate(`/video/${n.contentId}`);
-    else if (n.contentType === "post") navigate(`/feed?post=${n.contentId}`);
-    // connection_request / connection_accepted notifications carry
-    // content_type: "connection" — nothing to navigate to, so this
-    // intentionally falls through and just marks the item read.
-  };
+  markOneRead(n.id);
+  setShowNotifications(false);
+  if (!n.contentId || !n.contentType) return;
+
+  const id = String(n.contentId);
+  if (n.contentType === "reel") {
+    navigate(`/reels/${id.startsWith("db_") ? id : "db_" + id}`);
+  } else if (n.contentType === "video") {
+    navigate(`/video/${id}`);
+  } else if (n.contentType === "post") {
+    navigate(`/feed?post=${id}`);
+  }
+};
 
   // NEW: accept a pending connection request from the bell dropdown.
   // n.contentId holds the connections.id (set by the notify_on_subscribe

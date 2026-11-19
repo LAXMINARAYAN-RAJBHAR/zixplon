@@ -225,6 +225,11 @@ const PostFeed = ({ currentUser: currentUserProp }) => {
   // NEW: offset used by the "newest videos" fallback when the ranking
   // call fails or returns nothing.
   const videoFallbackOffsetRef = useRef(0);
+  // NEW: the post a notification / shared link points to (?post=<id>).
+  // It is loaded separately from the ranked feed, so it is remembered
+  // here and re-added when the feed resets — otherwise the feed's
+  // setPosts(page) can wipe it before the page scrolls to it.
+  const sharedPostRef = useRef(null);
   // New posts / videos from other people are held here and shown behind a
   // "↑ N new" pill.
   const pendingPostsRef = useRef([]);
@@ -754,7 +759,14 @@ const PostFeed = ({ currentUser: currentUserProp }) => {
       setHasMore(!ranked.done);
 
       if (reset) {
-        setPosts(page);
+        // CHANGED: keep the post a notification / shared link points to
+        // (loaded separately by ensurePostLoaded) at the top, instead of
+        // wiping it when the ranked page replaces the list.
+        setPosts(
+          sharedPostRef.current
+            ? prependUnique(page, sharedPostRef.current)
+            : page
+        );
       } else {
         // Only ask for as many videos as posts that were actually added.
         const before = postsRef.current;
@@ -1061,6 +1073,8 @@ const PostFeed = ({ currentUser: currentUserProp }) => {
     const params = new URLSearchParams(location.search);
     const sharedPostId = params.get("post");
     if (!sharedPostId) {
+      // CHANGED: forget the shared post when the link no longer has one.
+      sharedPostRef.current = null;
       setPostNotFound(false);
       return;
     }
@@ -1087,6 +1101,9 @@ const PostFeed = ({ currentUser: currentUserProp }) => {
       setPostNotFound(false);
 
       const enrichedPost = enrichPost(data);
+
+      // CHANGED: remember it so a later feed reset keeps it.
+      sharedPostRef.current = enrichedPost;
 
       setPosts((current) => {
         if (current.some((p) => String(p.id) === String(sharedPostId)))

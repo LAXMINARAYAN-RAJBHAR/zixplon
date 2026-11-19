@@ -8,7 +8,6 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { supabase } from "../../config/supabase";
 import RecordModal from "../RecordModal/RecordModal";
 import { checkContent } from "../../Component/Moderation/useModerationFilter";
-import { notifyConnections } from "../../utils/notifications";
 import { uploadToR2, buildTransformUrl, uploadVideoToR2 } from "../../utils/mediaUpload";
 import MusicPicker from "../../Component/Shared/MusicPicker";
 import LocationPicker from "../../Component/Shared/LocationPicker";
@@ -767,12 +766,6 @@ const VideoUpload = () => {
           .single();
         if (videoError) throw new Error(videoError.message);
 
-        await notifyConnections(uploaderUsername, {
-          type: "video",
-          message: `${uploaderUsername} uploaded a new video: "${inputField.title}"`,
-          contentId: newVideo.id,
-          contentType: "video",
-        });
       } else {
         const reelPayload = {
           title:       inputField.title,
@@ -810,12 +803,6 @@ const VideoUpload = () => {
         if (featureMode === "remix") await notifyRemixedCreator(inputField.title, newReel.id);
         else if (featureMode)        await notifyFeatureCreator(inputField.title, newReel.id);
 
-        await notifyConnections(uploaderUsername, {
-          type: "reel",
-          message: `${uploaderUsername} uploaded a new reel: "${inputField.title}"`,
-          contentId: newReel.id,
-          contentType: "reel",
-        });
       }
 
       setSaving(false);

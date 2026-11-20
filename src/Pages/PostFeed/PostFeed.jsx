@@ -36,6 +36,7 @@ import {
   startFeedSession,
   fetchRankedIds,
 } from "../../utils/seenContent";
+import SafeImage from "../../Component/Shared/SafeImage";
 
 // Append `next` to `prev`, skipping any post whose id is already in `prev`.
 const mergeUnique = (prev, next) => {
@@ -974,13 +975,25 @@ const PostFeed = ({ currentUser: currentUserProp }) => {
         likes: 0,
       };
 
+      // Your own upload goes straight to the top (like your own posts).
+      if (v.username === currentUser) {
+        shownVideoIdsRef.current.add(key);
+        videoPoolRef.current = videoPoolRef.current.filter(
+          (x) => String(x.id) !== key
+        );
+        setVideos((prev) =>
+          prev.some((x) => String(x.id) === key) ? prev : [v, ...prev]
+        );
+        return;
+      }
+
       if (pendingVideosRef.current.some((x) => String(x.id) === key)) return;
       pendingVideosRef.current = [...pendingVideosRef.current, v];
       setPendingCount(
         pendingPostsRef.current.length + pendingVideosRef.current.length
       );
     },
-    [searchQuery]
+    [searchQuery, currentUser]
   );
 
   // The "↑ N new" pill — put everything that arrived on top and scroll up.
@@ -1821,11 +1834,10 @@ const PostFeed = ({ currentUser: currentUserProp }) => {
                       }}
                     >
                       {reel.thumbnail ? (
-                        <img
+                        <SafeImage
                           src={reel.thumbnail}
                           alt=""
-                          loading="lazy"
-                          decoding="async"
+                          hideOnFail
                           style={{
                             width: "100%",
                             height: "100%",

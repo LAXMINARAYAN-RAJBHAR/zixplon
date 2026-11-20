@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import SafeImage from "../../Component/Shared/SafeImage";
 import EmojiPicker from "./EmojiPicker";
 import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
 import ExpandableText from "../../Component/ExpandableText/ExpandableText";
@@ -664,7 +665,11 @@ const ImageGrid = ({ images, onOpenViewer }) => {
         >
           {/* PERF: decoding="async" keeps image decoding off the main
               thread while scrolling. */}
-          <img src={url} alt={`Image ${i + 1}`} loading="lazy" decoding="async" />
+          <SafeImage
+            src={url}
+            alt={`Image ${i + 1}`}
+            fallbackStyle={{ width: "100%", height: "100%" }}
+          />
           {i === displayCount - 1 && remaining > 0 && (
             <div className="pf-img-grid-more">+{remaining}</div>
           )}
@@ -749,10 +754,11 @@ const PostCommentRow = ({
         </div>
 
         {comment.attachment_url && (
-          <img
+          <SafeImage
             src={comment.attachment_url}
             alt={comment.attachment_type === "sticker" ? "sticker" : "GIF"}
             className={`pf-comment-media${comment.attachment_type === "sticker" ? " pf-comment-media--sticker" : ""}`}
+            hideOnFail
           />
         )}
         {displayText && <p className="pf-comment-text">{displayText}</p>}
@@ -1013,7 +1019,6 @@ const PostCard = ({
     [],
   );
 
-  const navigate = useNavigate();
   const { t } = useT();
 
   const closePhotoViewer = () => setPhotoViewerData(null);
@@ -1718,13 +1723,7 @@ const PostCard = ({
                 className="pf-link-preview"
               >
                 {post.link.image && (
-                  <img
-                    src={post.link.image}
-                    alt=""
-                    className="pf-link-image"
-                    loading="lazy"
-                    decoding="async"
-                  />
+                  <SafeImage src={post.link.image} alt="" className="pf-link-image" hideOnFail />
                 )}
                 <div className="pf-link-bar" />
                 <div className="pf-link-body">

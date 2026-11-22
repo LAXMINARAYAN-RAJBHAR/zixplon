@@ -9,6 +9,7 @@ import {
 } from "../../utils/mediaUpload";
 import { normalizeLinkUrl } from "../../utils/safeUrl";
 import { loadRecents, saveRecent } from "../../utils/recentMedia";
+import StoryCamera from "./StoryCamera";
 import {
   TEXT_BACKGROUNDS,
   LAYOUTS,
@@ -63,6 +64,20 @@ const FILTERS = [
   { id: "image", label: "Photos" },
   { id: "video", label: "Videos" },
 ];
+
+// Laptops / desktops get the in-app webcam; phones and tablets keep the
+// native camera app (file input with `capture`).
+const canUseWebcam = () => {
+  if (typeof window === "undefined") return false;
+  const phoneOrTablet =
+    window.matchMedia?.("(pointer: coarse)").matches ||
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  return (
+    !phoneOrTablet &&
+    window.isSecureContext &&
+    !!navigator.mediaDevices?.getUserMedia
+  );
+};
 
 // Reads a video's length without uploading it. Resolves null if the
 // browser can't read the metadata (the upload is still allowed then).
@@ -510,6 +525,12 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState(() => new Set());
 
+  // Laptop webcam: null | "photo" | "video"
+  const [useWebcam] = useState(canUseWebcam);
+  const [camera, setCamera] = useState(null);
+  const cameraOpenRef = useRef(false);
+  cameraOpenRef.current = !!camera;
+
   const closeTimerRef = useRef(null);
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -567,7 +588,7 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e) => {
-      if (e.key === "Escape" && !posting) animateClose();
+      if (e.key === "Escape" && !posting && !cameraOpenRef.current) animateClose();
     };
     document.addEventListener("keydown", onKey);
     return () => {
@@ -683,6 +704,22 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
     ]);
     setSel(itemsRef.current.length);
     setSelected(new Set());
+  };
+
+  const handleCameraCapture = (file, { type, duration = null }) => {
+    setCamera(null);
+    setError("");
+    if (itemsRef.current.length >= MAX_ITEMS) {
+      setError(`You can add up to ${MAX_ITEMS} items to a story.`);
+      return;
+    }
+    saveRecent(file, type, duration);
+    const firstNewIndex = itemsRef.current.length;
+    setItems((prev) => [
+      ...prev,
+      { id: newId(), file, preview: URL.createObjectURL(file), type, duration, caption: "" },
+    ]);
+    setSel(firstNewIndex);
   };
 
   const removeItem = (idx) => {
@@ -827,6 +864,7 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
   const visibleRecents = recents.filter((r) => filter === "all" || r.type === filter);
 
   return createPortal(
+    <>
     <div
       className={`pf-modal-overlay${open ? " open" : ""}`}
       onMouseDown={(e) => {
@@ -887,30 +925,61 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
               </div>
 
               <div className="zx-add-grid">
-                {/* Camera tile: opens the phone's camera to take a photo or record a video */}
+                {/* Camera tile.
+                    Laptop: opens the in-app webcam.
+                    Phone / tablet: opens the device's camera app. */}
                 <div className="zx-add-tile zx-cam">
-                  <label className="zx-cam-half">
-                    <span aria-hidden="true">📷</span>
-                    Photo
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="zx-file-input"
-                      onChange={handleFileSelect}
-                    />
-                  </label>
-                  <label className="zx-cam-half">
-                    <span aria-hidden="true">🎥</span>
-                    Video
-                    <input
-                      type="file"
-                      accept="video/*"
-                      capture="environment"
-                      className="zx-file-input"
-                      onChange={handleFileSelect}
-                    />
-                  </label>
+                  {useWebcam ? (
+                    <>
+                      <button
+                        type="button"
+                        className="zx-cam-half"
+                        onClick={() => {
+                          setError("");
+                          setCamera("photo");
+                        }}
+                      >
+                        <span aria-hidden="true">📷</span>
+                        Photo
+                      </button>
+                      <button
+                        type="button"
+                        className="zx-cam-half"
+                        onClick={() => {
+                          setError("");
+                          setCamera("video");
+                        }}
+                      >
+                        <span aria-hidden="true">🎥</span>
+                        Video
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <label className="zx-cam-half">
+                        <span aria-hidden="true">📷</span>
+                        Photo
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="zx-file-input"
+                          onChange={handleFileSelect}
+                        />
+                      </label>
+                      <label className="zx-cam-half">
+                        <span aria-hidden="true">🎥</span>
+                        Video
+                        <input
+                          type="file"
+                          accept="video/*"
+                          capture="environment"
+                          className="zx-file-input"
+                          onChange={handleFileSelect}
+                        />
+                      </label>
+                    </>
+                  )}
                 </div>
 
                 {/* Gallery tile: the browser's own file / photo picker */}
@@ -1201,7 +1270,15 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
           )}
         </div>
       </div>
-    </div>,
+    </div>
+    {camera && (
+      <StoryCamera
+        startMode={camera}
+        onCapture={handleCameraCapture}
+        onClose={() => setCamera(null)}
+      />
+    )}
+    </>,
     document.body
   );
 };

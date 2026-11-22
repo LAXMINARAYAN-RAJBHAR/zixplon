@@ -132,12 +132,19 @@ async function generateNonce() {
 }
 
 // ── Loading Screen ────────────────────────────────────────────────────────────
+// NEW animated version: red glow + ripples, the red Z tile springs in, the
+// Z is drawn as an outline then fills white, a shine sweeps across, a thin
+// ring spins around the logo, the letters Z-I-X-P-L-O-N rise in one by one
+// and a progress bar fills before the screen fades out. Same `onFinish`
+// contract as before. Respects the "reduce motion" system setting.
+const LOADER_LETTERS = "ZIXPLON".split("");
+
 const LoadingScreen = ({ onFinish }) => {
   const [fade, setFade] = useState(false);
 
   useEffect(() => {
-    const fadeTimer = setTimeout(() => setFade(true), 1800);
-    const doneTimer = setTimeout(() => onFinish && onFinish(), 2300);
+    const fadeTimer = setTimeout(() => setFade(true), 2000);
+    const doneTimer = setTimeout(() => onFinish && onFinish(), 2500);
     return () => {
       clearTimeout(fadeTimer);
       clearTimeout(doneTimer);
@@ -146,6 +153,7 @@ const LoadingScreen = ({ onFinish }) => {
 
   return (
     <div
+      className="zxl-root"
       style={{
         // ── FIX: use fixed + explicit 100vw/100vh instead of inset:0
         // so TV browsers (which mishandle inset + height:100% on #root)
@@ -157,7 +165,8 @@ const LoadingScreen = ({ onFinish }) => {
         bottom: "0px",
         width: "100vw",
         height: "100vh",
-        background: "#000000",
+        background:
+          "radial-gradient(ellipse at center, #1a0508 0%, #000000 70%)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -165,64 +174,169 @@ const LoadingScreen = ({ onFinish }) => {
         margin: "0px",
         padding: "0px",
         zIndex: 9999,
+        overflow: "hidden",
         opacity: fade ? 0 : 1,
         transition: "opacity 0.5s ease",
       }}
     >
-      {/* ── Crisp inline SVG logo — no image file, never blurs ── */}
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 512 512"
-        style={{ width: "180px", height: "180px", display: "block" }}
-      >
-        {/* Red rounded square */}
-        <rect x="0" y="0" width="512" height="512" rx="110" ry="110" fill="#CC0000" />
-        {/* Top shine */}
-        <rect x="0" y="0" width="512" height="260" rx="110" ry="110" fill="#E81515" opacity="0.55" />
-        {/* Bold white Z */}
-        <polygon
-          points="108,108 404,108 404,178 220,334 404,334 404,404 108,404 108,334 292,178 108,178"
-          fill="#FFFFFF"
-        />
-      </svg>
+      {/* Logo stage */}
+      <div className="zxl-stage">
+        <span className="zxl-glow" />
+        <span className="zxl-pulse zxl-pulse-1" />
+        <span className="zxl-pulse zxl-pulse-2" />
 
-      {/* ── App name ── */}
-      <p
-        style={{
-          marginTop: "24px",
-          color: "#ffffff",
-          fontSize: "26px",
-          fontWeight: "800",
-          fontFamily: "'Outfit', 'Nunito', sans-serif",
-          letterSpacing: "6px",
-          textTransform: "uppercase",
-          opacity: 0.92,
-          margin: "24px 0 0",
-        }}
-      >
-        ZIXPLON
-      </p>
-
-      {/* ── Subtle loading dots ── */}
-      <div style={{ display: "flex", gap: "8px", marginTop: "40px" }}>
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            style={{
-              width: "7px",
-              height: "7px",
-              borderRadius: "50%",
-              background: "#CC0000",
-              animation: `bounce 1s ease-in-out ${i * 0.18}s infinite`,
-            }}
+        {/* Spinning ring */}
+        <svg className="zxl-ring" viewBox="0 0 240 240" aria-hidden="true">
+          <circle
+            cx="120"
+            cy="120"
+            r="112"
+            fill="none"
+            stroke="#E81515"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray="90 614"
           />
+        </svg>
+
+        {/* Logo — crisp inline SVG, never blurs */}
+        <svg
+          className="zxl-logo"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 512 512"
+          role="img"
+          aria-label="Zixplon"
+        >
+          <defs>
+            <clipPath id="zxl-clip">
+              <rect x="0" y="0" width="512" height="512" rx="110" ry="110" />
+            </clipPath>
+            <linearGradient id="zxl-shine" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0" stopColor="#fff" stopOpacity="0" />
+              <stop offset="0.5" stopColor="#fff" stopOpacity="0.55" />
+              <stop offset="1" stopColor="#fff" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+
+          {/* Red rounded square */}
+          <rect x="0" y="0" width="512" height="512" rx="110" ry="110" fill="#CC0000" />
+          {/* Top shine */}
+          <rect x="0" y="0" width="512" height="260" rx="110" ry="110" fill="#E81515" opacity="0.55" />
+
+          {/* Z: outline draws first... */}
+          <polygon
+            className="zxl-z-draw"
+            points="108,108 404,108 404,178 220,334 404,334 404,404 108,404 108,334 292,178 108,178"
+            pathLength="1"
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth="10"
+            strokeLinejoin="round"
+          />
+          {/* ...then the solid white Z fades in over it */}
+          <polygon
+            className="zxl-z-fill"
+            points="108,108 404,108 404,178 220,334 404,334 404,404 108,404 108,334 292,178 108,178"
+            fill="#FFFFFF"
+          />
+
+          {/* Shine sweep */}
+          <g clipPath="url(#zxl-clip)">
+            <g className="zxl-sweep">
+              <rect
+                x="-200"
+                y="-100"
+                width="110"
+                height="720"
+                fill="url(#zxl-shine)"
+                transform="rotate(20 -145 256)"
+              />
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      {/* App name — letters rise in one by one */}
+      <div className="zxl-word" aria-label="ZIXPLON">
+        {LOADER_LETTERS.map((ch, i) => (
+          <span key={i} style={{ animationDelay: `${1.1 + i * 0.08}s` }}>
+            {ch}
+          </span>
         ))}
       </div>
 
+      {/* Progress bar */}
+      <div className="zxl-bar">
+        <span />
+      </div>
+
       <style>{`
-        @keyframes bounce {
-          0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
-          40%            { transform: scale(1.2); opacity: 1;   }
+        .zxl-stage {
+          position: relative;
+          width: 220px; height: 220px;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .zxl-logo {
+          width: 160px; height: 160px; display: block; position: relative; z-index: 2;
+          animation: zxl-pop 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+        }
+        .zxl-glow {
+          position: absolute; width: 260px; height: 260px; border-radius: 50%;
+          background: radial-gradient(circle, rgba(220,20,20,0.55), transparent 65%);
+          animation: zxl-glow 1.8s ease-in-out infinite;
+        }
+        .zxl-pulse {
+          position: absolute; width: 160px; height: 160px; border-radius: 36px;
+          border: 2px solid rgba(232,21,21,0.7);
+          animation: zxl-pulse 1.8s ease-out infinite;
+        }
+        .zxl-pulse-2 { animation-delay: 0.9s; }
+        .zxl-ring {
+          position: absolute; width: 220px; height: 220px; z-index: 1;
+          animation: zxl-spin 1.4s linear infinite;
+        }
+        .zxl-z-draw {
+          stroke-dasharray: 1; stroke-dashoffset: 0;
+          animation: zxl-draw 0.9s ease-in-out 0.35s both, zxl-hide 0.3s ease 1.2s forwards;
+        }
+        .zxl-z-fill { animation: zxl-fillin 0.45s ease 1s both; }
+        .zxl-sweep  { animation: zxl-sweep 0.9s ease-in-out 1.35s both; }
+
+        .zxl-word {
+          display: flex; gap: 6px; margin-top: 30px;
+          color: #fff; font-size: 26px; font-weight: 800;
+          font-family: 'Outfit', 'Nunito', sans-serif;
+          letter-spacing: 6px; text-transform: uppercase;
+        }
+        .zxl-word span { display: inline-block; animation: zxl-letter 0.5s ease both; }
+
+        .zxl-bar {
+          width: 180px; height: 4px; margin-top: 34px;
+          background: rgba(255,255,255,0.12); border-radius: 4px; overflow: hidden;
+        }
+        .zxl-bar span {
+          display: block; height: 100%; width: 100%; border-radius: 4px;
+          background: linear-gradient(90deg, #CC0000, #ff5a3c);
+          transform-origin: left;
+          animation: zxl-bar 2s cubic-bezier(0.3, 0.6, 0.3, 1) both;
+        }
+
+        @keyframes zxl-pop     { from { transform: scale(0.3) rotate(-12deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+        @keyframes zxl-draw    { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+        @keyframes zxl-hide    { to { opacity: 0; } }
+        @keyframes zxl-fillin  { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes zxl-sweep   { from { transform: translateX(0); } to { transform: translateX(820px); } }
+        @keyframes zxl-spin    { to { transform: rotate(360deg); } }
+        @keyframes zxl-glow    { 0%,100% { transform: scale(0.9); opacity: 0.6; } 50% { transform: scale(1.1); opacity: 1; } }
+        @keyframes zxl-pulse   { from { transform: scale(1); opacity: 0.8; } to { transform: scale(1.7); opacity: 0; } }
+        @keyframes zxl-letter  { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 0.95; } }
+        @keyframes zxl-bar     { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+        /* "Reduce motion" setting: show the finished logo, no movement */
+        @media (prefers-reduced-motion: reduce) {
+          .zxl-root * { animation: none !important; }
+          .zxl-z-draw { opacity: 0; }
+          .zxl-sweep, .zxl-pulse, .zxl-ring { display: none; }
         }
       `}</style>
     </div>

@@ -20,22 +20,22 @@ import ReportModal from "../../Component/Moderation/ReportModal";
 //               ‹ › buttons on desktop; continues into the next person
 //   Music       a story's song plays under photo stories (videos keep
 //               their own sound; the tag still shows)
-//   Link        NEW: a tappable "🔗 label" button when the story has a link
+//   Voice       NEW: a Voice status (song.voice === true) plays its clip
+//               once, drives the progress bar, and advances when it ends
+//   Link        a tappable "🔗 label" button when the story has a link
 //   Connect     a "Connect with …" sticker on other people's stories
 //   Bottom bar  (other people's stories) share, "Send message…" reply,
 //               and quick reactions ❤️ 👍 😂
 //   Own story   👁 count + "Seen by" sheet (views, reactions, replies)
 //   ⋯ menu      own: Delete / Copy link · others: Report / Copy link
 //
-// NEW (perf): the progress bar is no longer React state. It used to call
-// setState on every animation frame (~60×/s) for photos, re-rendering the
-// whole viewer each time. Now the current segment is moved through a ref
-// with a CSS transform (scaleX), so playback causes no re-renders.
+// Perf: the progress bar is not React state. The current segment is moved
+// through a ref with a CSS transform (scaleX), so playback causes no
+// re-renders.
 //
-// NEW (black-box fix): a video story used to show an empty black stage
-// until it had loaded. Now plain mp4/webm stories get "#t=0.001" appended
-// (so mobile browsers paint the first frame) and a spinner shows over the
-// stage until the first frame is ready.
+// Black-box fix: plain mp4/webm stories get "#t=0.001" appended (so mobile
+// browsers paint the first frame) and a spinner shows over the stage until
+// the first frame is ready.
 //
 // `groups` is a snapshot taken when the viewer opened:
 //   [{ username, stories: [{ id, username, media_url, media_type, caption,
@@ -48,7 +48,7 @@ const IMAGE_DURATION_MS = 5000;
 const HOLD_MS = 200;
 const TOAST_MS = 2200;
 
-// NEW (perf): HLS stories keep 10s buffered ahead (hls.js default is 30s).
+// HLS stories keep 10s buffered ahead (hls.js default is 30s).
 const HLS_FORWARD_BUFFER_S = 10;
 
 const REACTIONS = [
@@ -95,7 +95,7 @@ const StoryViewer = ({
   const [sIdx, setSIdx] = useState(startStory);
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
-  // NEW: true once the current video story has its first frame (or has
+  // True once the current video story has its first frame (or has
   // started playing). While false, a spinner is shown over the stage.
   const [mediaReady, setMediaReady] = useState(false);
 
@@ -121,8 +121,8 @@ const StoryViewer = ({
   const holdTimerRef = useRef(null);
   const heldRef = useRef(false);
   const toastTimerRef = useRef(null);
-  // NEW (perf): the current progress segment's fill element. Moved with a
-  // transform instead of React state (see setBar below).
+  // The current progress segment's fill element. Moved with a transform
+  // instead of React state (see setBar below).
   const fillRef = useRef(null);
   // Guards against a reply being sent twice by a double tap / double event.
   const sendingRef = useRef(false);
@@ -136,10 +136,12 @@ const StoryViewer = ({
   // Music plays under photos only; videos keep their own sound.
   const canPlayMusic = !!song && !isVideo;
   const hasSound = isVideo || canPlayMusic;
-  // NEW: only ever a clean http(s) address, or null.
+  // NEW: a voice status plays its clip once and advances when it ends.
+  const isVoice = canPlayMusic && !!song.voice;
+  // Only ever a clean http(s) address, or null.
   const storyLink = story ? normalizeLinkUrl(story.link_url) : null;
 
-  // NEW: plain mp4/webm stories get "#t=0.001" so mobile browsers paint the
+  // Plain mp4/webm stories get "#t=0.001" so mobile browsers paint the
   // first frame instead of an empty black stage. HLS sources are attached
   // through hls.js / Safari, so their src attribute stays unset.
   const videoSrc =
@@ -149,7 +151,7 @@ const StoryViewer = ({
         ? story.media_url
         : `${story.media_url}#t=0.001`;
 
-  // NEW (perf): set the current segment's fill (0..1) without re-rendering.
+  // Set the current segment's fill (0..1) without re-rendering.
   const setBar = (p) => {
     const el = fillRef.current;
     if (el) el.style.transform = `scaleX(${Math.min(1, Math.max(0, p || 0))})`;
@@ -184,6 +186,7 @@ const StoryViewer = ({
       elapsedRef.current = 0;
       setBar(0);
       if (videoRef.current) videoRef.current.currentTime = 0;
+      if (audioRef.current && isVoice) audioRef.current.currentTime = 0;
     }
   };
 
@@ -194,7 +197,7 @@ const StoryViewer = ({
     setPaused(false);
     setMenuOpen(false);
     setReplyText("");
-    setMediaReady(false); // NEW: show the loading spinner for the next video
+    setMediaReady(false); // show the loading spinner for the next video
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 
@@ -205,9 +208,10 @@ const StoryViewer = ({
   }, [story?.id]);
 
   // ── Photo timer (pausable) ──
-  // CHANGED (perf): drives the bar through setBar() — no setState per frame.
+  // Drives the bar through setBar() — no setState per frame.
+  // CHANGED: skipped for voice statuses, which last as long as the clip.
   useEffect(() => {
-    if (!story || story.media_type !== "image" || paused) return;
+    if (!story || story.media_type !== "image" || paused || isVoice) return;
     let raf;
     let last = performance.now();
     const tick = (now) => {
@@ -227,7 +231,7 @@ const StoryViewer = ({
   }, [story?.id, paused]);
 
   // ── Video: HLS source (plain mp4 uses the src attribute directly) ──
-  // CHANGED (perf): 10s forward buffer instead of hls.js's default 30s.
+  // 10s forward buffer instead of hls.js's default 30s.
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid || !isVideo || !isHlsSource(story.media_url)) return;
@@ -247,7 +251,7 @@ const StoryViewer = ({
   }, [story?.id]);
 
   // ── Video: progress + auto-advance ──
-  // CHANGED (perf): progress goes through setBar() — no setState.
+  // Progress goes through setBar() — no setState.
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid || !isVideo) return;
@@ -732,12 +736,12 @@ const StoryViewer = ({
 
       <div className="pf-story-stage">
         {/* Progress segments.
-            CHANGED (perf): each fill is full-width and scaled with a
-            transform. Finished segments are scaleX(1), upcoming ones
-            scaleX(0), and the current one is moved by setBar() through
-            fillRef — so progress never triggers a React render. The key
-            includes the segment's state so a fill remounts cleanly when it
-            changes state (done / current / upcoming). */}
+            Each fill is full-width and scaled with a transform. Finished
+            segments are scaleX(1), upcoming ones scaleX(0), and the current
+            one is moved by setBar() through fillRef — so progress never
+            triggers a React render. The key includes the segment's state so
+            a fill remounts cleanly when it changes state (done / current /
+            upcoming). */}
         <div className="pf-story-bars">
           {group.stories.map((s, i) => {
             const state = i < sIdx ? "done" : i === sIdx ? "current" : "todo";
@@ -816,7 +820,8 @@ const StoryViewer = ({
                 className="pf-story-chip"
                 title={`${song.title}${song.artist ? " · " + song.artist : ""}`}
               >
-                🎵 <span className="pf-story-chip-text">{song.title}</span>
+                {isVoice ? "🎙️" : "🎵"}{" "}
+                <span className="pf-story-chip-text">{song.title}</span>
               </span>
             )}
           </div>
@@ -828,7 +833,7 @@ const StoryViewer = ({
             <video
               key={story.id}
               ref={videoRef}
-              // NEW: videoSrc carries "#t=0.001" for plain files so the
+              // videoSrc carries "#t=0.001" for plain files so the
               // first frame is painted; HLS sources stay unset (hls.js).
               src={videoSrc}
               onLoadedData={() => setMediaReady(true)}
@@ -841,7 +846,7 @@ const StoryViewer = ({
             <img key={story.id} src={story.media_url} alt="" draggable={false} />
           )}
 
-          {/* NEW: loading spinner until the first video frame is ready. */}
+          {/* Loading spinner until the first video frame is ready. */}
           {isVideo && !mediaReady && (
             <div className="pf-story-loading" aria-hidden="true">
               <span className="pf-story-spinner" />
@@ -849,8 +854,25 @@ const StoryViewer = ({
           )}
         </div>
 
+        {/* CHANGED: a voice status plays once (no loop), drives the progress
+            bar from the clip's own time, and moves on when it ends. */}
         {canPlayMusic && (
-          <audio key={`a-${story.id}`} ref={audioRef} src={song.url} loop preload="auto" />
+          <audio
+            key={`a-${story.id}`}
+            ref={audioRef}
+            src={song.url}
+            loop={!isVoice}
+            preload="auto"
+            onEnded={isVoice ? goNext : undefined}
+            onTimeUpdate={
+              isVoice
+                ? (e) => {
+                  const a = e.currentTarget;
+                  if (a.duration) setBar(a.currentTime / a.duration);
+                }
+                : undefined
+            }
+          />
         )}
 
         {story.caption && (
@@ -869,7 +891,7 @@ const StoryViewer = ({
           onContextMenu={(e) => e.preventDefault()}
         />
 
-        {/* NEW: link button — sits above the tap layer so it is clickable.
+        {/* Link button — sits above the tap layer so it is clickable.
             Opens in a new tab; rel keeps the opened page from controlling
             this one. */}
         {storyLink && (

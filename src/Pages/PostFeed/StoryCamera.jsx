@@ -208,25 +208,25 @@ const StoryCamera = ({ startMode = "photo", onCapture, onClose }) => {
   };
 
   return createPortal(
-    <div className="zx-camera" role="dialog" aria-modal="true" aria-label="Camera">
-      <video ref={videoRef} className="zx-camera-video mirrored" playsInline muted autoPlay />
+    <div className="story-cam" role="dialog" aria-modal="true" aria-label="Camera">
+      <video ref={videoRef} className="story-cam-video mirrored" playsInline muted autoPlay />
 
-      <div className="zx-camera-top">
-        <button type="button" className="zx-camera-btn" onClick={onClose} disabled={recording} aria-label="Close camera">
+      <div className="story-cam-top">
+        <button type="button" className="story-cam-btn" onClick={onClose} disabled={recording} aria-label="Close camera">
           ✕
         </button>
         {recording && (
-          <span className="zx-camera-timer">
+          <span className="story-cam-timer">
             ● {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")}
           </span>
         )}
-        <span className="zx-camera-spacer" />
+        <span className="story-cam-spacer" />
       </div>
 
-      {error && <p className="zx-camera-error">{error}</p>}
+      {error && <p className="story-cam-error">{error}</p>}
 
-      <div className="zx-camera-bottom">
-        <div className="zx-camera-modes">
+      <div className="story-cam-bottom">
+        <div className="story-cam-modes">
           <button
             type="button"
             className={mode === "photo" ? "active" : ""}
@@ -246,7 +246,9 @@ const StoryCamera = ({ startMode = "photo", onCapture, onClose }) => {
         </div>
         <button
           type="button"
-          className={`zx-shutter${mode === "video" ? " video" : ""}${recording ? " recording" : ""}`}
+          className={`story-cam-shutter${mode === "video" ? " video" : ""}${recording ? " recording" : ""}`}
+          // Inline size so no other stylesheet can stretch the button.
+          style={{ flex: "none", width: 74, height: 74, minHeight: 74, maxHeight: 74, aspectRatio: "1 / 1" }}
           onClick={onShutter}
           disabled={!ready && !recording}
           aria-label={mode === "photo" ? "Take photo" : recording ? "Stop recording" : "Start recording"}

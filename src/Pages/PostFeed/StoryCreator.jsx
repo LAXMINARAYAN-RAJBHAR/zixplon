@@ -887,7 +887,7 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
               </div>
 
               <div className="zx-add-grid">
-                {/* Camera tile: take a photo or record a video */}
+                {/* Camera tile: opens the phone's camera to take a photo or record a video */}
                 <div className="zx-add-tile zx-cam">
                   <label className="zx-cam-half">
                     <span aria-hidden="true">📷</span>
@@ -896,7 +896,7 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
                       type="file"
                       accept="image/*"
                       capture="environment"
-                      hidden
+                      className="zx-file-input"
                       onChange={handleFileSelect}
                     />
                   </label>
@@ -907,7 +907,7 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
                       type="file"
                       accept="video/*"
                       capture="environment"
-                      hidden
+                      className="zx-file-input"
                       onChange={handleFileSelect}
                     />
                   </label>
@@ -921,7 +921,7 @@ const StoryCreator = ({ currentUser, onClose, onCreated }) => {
                     type="file"
                     accept="image/*,video/*"
                     multiple
-                    hidden
+                    className="zx-file-input"
                     onChange={handleFileSelect}
                   />
                 </label>

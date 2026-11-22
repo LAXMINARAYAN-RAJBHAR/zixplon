@@ -6094,3 +6094,25 @@
 .story-cam-shutter:disabled { opacity: 0.5; }
 .story-cam-shutter.video { background: #e5484d; background-clip: padding-box; }
 .story-cam-shutter.recording { border-radius: 22px; transform: scale(0.8); }
+/* ══════════════════════════════════════════════════════════════════════
+   BLANK-GAP FIXES — APPENDED to the very bottom of PostFeed.css.
+   1) Single-photo posts: the tile has `aspect-ratio: auto` and the image
+      has `height: auto`, so the tile collapsed to 0px tall until the
+      photo finished downloading (the "blank post that appears later").
+      A min-height keeps space reserved while loading. Multi-photo grids
+      (2/3/4) already reserve space via aspect-ratio / fixed height.
+   2) Placeholder for posts with no text / photo / video / link.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.pf-img-grid-1 .pf-img-grid-item {
+  min-height: 220px;
+}
+
+.pf-card-empty {
+  color: var(--zx-text3);
+  font-family: 'Nunito', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 12px 0;
+  margin: 0;
+}

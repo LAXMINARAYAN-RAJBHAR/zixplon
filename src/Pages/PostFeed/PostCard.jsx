@@ -664,10 +664,15 @@ const ImageGrid = ({ images, onOpenViewer }) => {
           onClick={() => onOpenViewer(i)}
         >
           {/* PERF: decoding="async" keeps image decoding off the main
-              thread while scrolling. */}
+              thread while scrolling; loading="lazy" defers off-screen
+              tiles. The tile itself shows a shimmer skeleton (see
+              PostCard.additions.css) until the image paints over it.
+              NOTE: SafeImage must forward these props to its <img>. */}
           <SafeImage
             src={url}
             alt={`Image ${i + 1}`}
+            loading="lazy"
+            decoding="async"
             fallbackStyle={{ width: "100%", height: "100%" }}
           />
           {i === displayCount - 1 && remaining > 0 && (
@@ -1390,6 +1395,10 @@ const PostCard = ({
         ? [post.image_url]
         : null;
 
+  // NEW: true when the post has anything to show in its body. Used below
+  // to render a placeholder instead of a blank gap for empty posts.
+  const hasBody = !!(post.text || photos || post.video_url || post.link);
+
   return (
     <>
       {/* PhotoViewer — launched from ImageGrid taps. */}
@@ -1732,6 +1741,15 @@ const PostCard = ({
                   <p className="pf-link-desc">{post.link.desc}</p>
                 </div>
               </a>
+            )}
+
+            {/* NEW: placeholder for posts with no text, photo, video or
+                link — avoids a blank gap between header and action bar.
+                The ⋯ menu still lets the owner delete it / others report. */}
+            {!hasBody && (
+              <p className="pf-card-empty">
+                ⚠️ This post's content is unavailable.
+              </p>
             )}
           </div>
         )}

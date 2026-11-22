@@ -5554,3 +5554,362 @@
 .zx-shutter:disabled { opacity: 0.5; }
 .zx-shutter.video { background: #e5484d; background-clip: padding-box; }
 .zx-shutter.recording { border-radius: 22px; transform: scale(0.8); }
+
+/* ── Add status screen + composers (append to your Posts/feed CSS) ── */
+
+.zx-add-header { justify-content: flex-start; gap: 12px; }
+.zx-add-header .pf-modal-title { flex: 1; text-align: left; }
+
+/* Text / Music / Layout / Voice */
+.zx-add-modes { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 18px; }
+.zx-mode {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: none; border: 0; cursor: pointer; font: inherit; color: inherit; font-size: 13px;
+}
+.zx-mode-icon {
+  width: 56px; height: 56px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 22px;
+  background: rgba(127, 127, 127, 0.14);
+  transition: background 0.15s, transform 0.15s;
+}
+.zx-mode:hover .zx-mode-icon { background: rgba(127, 127, 127, 0.24); }
+.zx-mode:active .zx-mode-icon { transform: scale(0.94); }
+
+/* Recents dropdown */
+.zx-add-filter { margin-bottom: 10px; }
+.zx-add-filter select {
+  font: inherit; font-size: 16px; font-weight: 600; color: inherit;
+  background: none; border: 0; padding: 4px 0; cursor: pointer;
+}
+
+/* Gallery grid */
+.zx-add-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.zx-add-tile {
+  position: relative; aspect-ratio: 1; overflow: hidden; padding: 0; border: 0;
+  background: rgba(127, 127, 127, 0.14); color: inherit; font: inherit; font-size: 13px; cursor: pointer;
+}
+.zx-gallery {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+}
+.zx-gallery span, .zx-cam-half span { font-size: 24px; }
+.zx-cam { display: grid; grid-template-rows: 1fr 1fr; cursor: default; }
+.zx-cam-half {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; gap: 2px; font-size: 12px;
+}
+.zx-cam-half span { font-size: 20px; }
+.zx-cam-half + .zx-cam-half { border-top: 1px solid rgba(127, 127, 127, 0.25); }
+
+.zx-recent img, .zx-recent video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.zx-recent-badge {
+  position: absolute; left: 6px; bottom: 6px; font-size: 12px; color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+.zx-recent.picked::after { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
+.zx-recent-check {
+  position: absolute; top: 6px; right: 6px; z-index: 1; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; background: #1fa971; color: #fff; font-size: 13px; font-weight: 700;
+}
+
+.zx-add-bar {
+  position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-top: 12px; padding: 10px 0 2px; background: inherit;
+}
+
+.zx-hint { display: block; opacity: 0.65; text-align: center; margin: 10px 0; }
+
+/* Composers */
+.zx-compose { display: flex; flex-direction: column; gap: 14px; }
+
+.zx-text-canvas {
+  aspect-ratio: 9 / 14; max-height: 52vh; border-radius: 14px; display: grid; place-items: center; padding: 22px;
+}
+.zx-text-canvas textarea {
+  width: 100%; height: 100%; resize: none; border: 0; outline: 0; background: transparent;
+  color: #fff; text-align: center; font: 700 26px/1.3 system-ui, sans-serif; align-self: center;
+}
+.zx-text-canvas textarea::placeholder { color: rgba(255, 255, 255, 0.7); }
+
+.zx-swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+.zx-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.zx-swatch.active { border-color: currentColor; box-shadow: 0 0 0 2px rgba(127, 127, 127, 0.35); }
+
+.zx-music-card {
+  aspect-ratio: 1; max-height: 42vh; border-radius: 14px; color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 20px;
+}
+.zx-music-note { font-size: 72px; line-height: 1; }
+
+.zx-layout-options { display: flex; gap: 12px; }
+.zx-layout-opt {
+  position: relative; width: 44px; height: 64px; padding: 0; cursor: pointer; background: none;
+  border: 2px solid rgba(127, 127, 127, 0.4); border-radius: 6px; overflow: hidden;
+}
+.zx-layout-opt.active { border-color: #1fa971; }
+.zx-layout-opt span { position: absolute; box-sizing: border-box; border: 1px solid rgba(127, 127, 127, 0.7); background: rgba(127, 127, 127, 0.2); }
+
+.zx-layout-preview {
+  position: relative; aspect-ratio: 9 / 14; max-height: 48vh; margin: 0 auto; width: auto;
+  border-radius: 12px; overflow: hidden; background: #111;
+}
+.zx-layout-slot { position: absolute; box-sizing: border-box; padding: 2px; }
+.zx-layout-slot > span {
+  width: 100%; height: 100%; display: grid; place-items: center; color: #888; background: #1d1d1d;
+}
+.zx-layout-slot button { width: 100%; height: 100%; padding: 0; border: 0; cursor: pointer; background: none; }
+.zx-layout-slot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.zx-label-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
+
+.zx-voice { align-items: center; text-align: center; }
+.zx-voice-timer { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.zx-voice-timer small { font-size: 16px; font-weight: 400; opacity: 0.6; }
+.zx-record-btn {
+  width: 84px; height: 84px; border-radius: 50%; border: 0; cursor: pointer; font-size: 32px;
+  background: #1fa971; color: #fff; transition: transform 0.15s;
+}
+.zx-record-btn.recording { background: #e5484d; animation: zx-pulse 1.2s ease-in-out infinite; }
+.zx-voice .pf-post-btn { align-self: stretch; }
+.zx-voice audio { width: 100%; }
+
+@keyframes zx-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.5); }
+  50% { box-shadow: 0 0 0 14px rgba(229, 72, 77, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .zx-record-btn.recording { animation: none; }
+}
+
+/* File inputs: visually hidden but still real, so the label tap opens the
+   camera / gallery reliably on phones (display:none can break this). */
+.zx-file-input {
+  position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none;
+}
+.zx-cam-half, .zx-gallery { position: relative; }
+
+/* ── Laptop webcam (StoryCamera) ── */
+.zx-cam-half { background: none; border: 0; color: inherit; font: inherit; font-size: 12px; padding: 0; }
+
+.zx-camera {
+  position: fixed; inset: 0; z-index: 2147483000; background: #000; color: #fff;
+  display: flex; flex-direction: column;
+}
+.zx-camera-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.zx-camera-video.mirrored { transform: scaleX(-1); }
+
+.zx-camera-top {
+  position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 0;
+}
+.zx-camera-spacer { width: 42px; }
+.zx-camera-btn {
+  width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer; font-size: 18px;
+  background: rgba(0, 0, 0, 0.45); color: #fff;
+}
+.zx-camera-btn:disabled { opacity: 0.4; cursor: default; }
+.zx-camera-timer { background: rgba(229, 72, 77, 0.9); padding: 4px 12px; border-radius: 999px; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.zx-camera-error {
+  position: relative; z-index: 1; margin: auto 24px; padding: 14px 16px; text-align: center;
+  background: rgba(0, 0, 0, 0.7); border-radius: 12px;
+}
+
+.zx-camera-bottom {
+  position: relative; z-index: 1; margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 16px;
+  padding: 0 16px 24px;
+}
+.zx-camera-modes { display: flex; gap: 6px; background: rgba(0, 0, 0, 0.45); border-radius: 999px; padding: 4px; }
+.zx-camera-modes button {
+  border: 0; background: none; color: #fff; font: inherit; font-size: 14px; padding: 6px 16px; border-radius: 999px; cursor: pointer; opacity: 0.8;
+}
+.zx-camera-modes button.active { background: #fff; color: #000; opacity: 1; }
+
+.zx-shutter {
+  width: 74px; height: 74px; border-radius: 50%; cursor: pointer; padding: 0;
+  background: #fff; border: 5px solid rgba(255, 255, 255, 0.55); background-clip: padding-box;
+  transition: transform 0.12s;
+}
+.zx-shutter:active { transform: scale(0.92); }
+.zx-shutter:disabled { opacity: 0.5; }
+.zx-shutter.video { background: #e5484d; background-clip: padding-box; }
+.zx-shutter.recording { border-radius: 22px; transform: scale(0.8); }
+
+/* ── Add status screen + composers (append to your Posts/feed CSS) ── */
+
+.zx-add-header { justify-content: flex-start; gap: 12px; }
+.zx-add-header .pf-modal-title { flex: 1; text-align: left; }
+
+/* Text / Music / Layout / Voice */
+.zx-add-modes { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 18px; }
+.zx-mode {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: none; border: 0; cursor: pointer; font: inherit; color: inherit; font-size: 13px;
+}
+.zx-mode-icon {
+  width: 56px; height: 56px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 22px;
+  background: rgba(127, 127, 127, 0.14);
+  transition: background 0.15s, transform 0.15s;
+}
+.zx-mode:hover .zx-mode-icon { background: rgba(127, 127, 127, 0.24); }
+.zx-mode:active .zx-mode-icon { transform: scale(0.94); }
+
+/* Recents dropdown */
+.zx-add-filter { margin-bottom: 10px; }
+.zx-add-filter select {
+  font: inherit; font-size: 16px; font-weight: 600; color: inherit;
+  background: none; border: 0; padding: 4px 0; cursor: pointer;
+}
+
+/* Gallery grid */
+.zx-add-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.zx-add-tile {
+  position: relative; aspect-ratio: 1; overflow: hidden; padding: 0; border: 0;
+  background: rgba(127, 127, 127, 0.14); color: inherit; font: inherit; font-size: 13px; cursor: pointer;
+}
+.zx-gallery {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+}
+.zx-gallery span, .zx-cam-half span { font-size: 24px; }
+.zx-cam { display: grid; grid-template-rows: 1fr 1fr; cursor: default; }
+.zx-cam-half {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; gap: 2px; font-size: 12px;
+}
+.zx-cam-half span { font-size: 20px; }
+.zx-cam-half + .zx-cam-half { border-top: 1px solid rgba(127, 127, 127, 0.25); }
+
+.zx-recent img, .zx-recent video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.zx-recent-badge {
+  position: absolute; left: 6px; bottom: 6px; font-size: 12px; color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+.zx-recent.picked::after { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.35); }
+.zx-recent-check {
+  position: absolute; top: 6px; right: 6px; z-index: 1; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; background: #1fa971; color: #fff; font-size: 13px; font-weight: 700;
+}
+
+.zx-add-bar {
+  position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-top: 12px; padding: 10px 0 2px; background: inherit;
+}
+
+.zx-hint { display: block; opacity: 0.65; text-align: center; margin: 10px 0; }
+
+/* Composers */
+.zx-compose { display: flex; flex-direction: column; gap: 14px; }
+
+.zx-text-canvas {
+  aspect-ratio: 9 / 14; max-height: 52vh; border-radius: 14px; display: grid; place-items: center; padding: 22px;
+}
+.zx-text-canvas textarea {
+  width: 100%; height: 100%; resize: none; border: 0; outline: 0; background: transparent;
+  color: #fff; text-align: center; font: 700 26px/1.3 system-ui, sans-serif; align-self: center;
+}
+.zx-text-canvas textarea::placeholder { color: rgba(255, 255, 255, 0.7); }
+
+.zx-swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+.zx-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.zx-swatch.active { border-color: currentColor; box-shadow: 0 0 0 2px rgba(127, 127, 127, 0.35); }
+
+.zx-music-card {
+  aspect-ratio: 1; max-height: 42vh; border-radius: 14px; color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 20px;
+}
+.zx-music-note { font-size: 72px; line-height: 1; }
+
+.zx-layout-options { display: flex; gap: 12px; }
+.zx-layout-opt {
+  position: relative; width: 44px; height: 64px; padding: 0; cursor: pointer; background: none;
+  border: 2px solid rgba(127, 127, 127, 0.4); border-radius: 6px; overflow: hidden;
+}
+.zx-layout-opt.active { border-color: #1fa971; }
+.zx-layout-opt span { position: absolute; box-sizing: border-box; border: 1px solid rgba(127, 127, 127, 0.7); background: rgba(127, 127, 127, 0.2); }
+
+.zx-layout-preview {
+  position: relative; aspect-ratio: 9 / 14; max-height: 48vh; margin: 0 auto; width: auto;
+  border-radius: 12px; overflow: hidden; background: #111;
+}
+.zx-layout-slot { position: absolute; box-sizing: border-box; padding: 2px; }
+.zx-layout-slot > span {
+  width: 100%; height: 100%; display: grid; place-items: center; color: #888; background: #1d1d1d;
+}
+.zx-layout-slot button { width: 100%; height: 100%; padding: 0; border: 0; cursor: pointer; background: none; }
+.zx-layout-slot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.zx-label-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
+
+.zx-voice { align-items: center; text-align: center; }
+.zx-voice-timer { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.zx-voice-timer small { font-size: 16px; font-weight: 400; opacity: 0.6; }
+.zx-record-btn {
+  width: 84px; height: 84px; border-radius: 50%; border: 0; cursor: pointer; font-size: 32px;
+  background: #1fa971; color: #fff; transition: transform 0.15s;
+}
+.zx-record-btn.recording { background: #e5484d; animation: zx-pulse 1.2s ease-in-out infinite; }
+.zx-voice .pf-post-btn { align-self: stretch; }
+.zx-voice audio { width: 100%; }
+
+@keyframes zx-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.5); }
+  50% { box-shadow: 0 0 0 14px rgba(229, 72, 77, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .zx-record-btn.recording { animation: none; }
+}
+
+/* File inputs: visually hidden but still real, so the label tap opens the
+   camera / gallery reliably on phones (display:none can break this). */
+.zx-file-input {
+  position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none;
+}
+.zx-cam-half, .zx-gallery { position: relative; }
+
+/* ── Laptop webcam (StoryCamera) ── */
+.zx-cam-half { background: none; border: 0; color: inherit; font: inherit; font-size: 12px; padding: 0; }
+
+.zx-camera {
+  position: fixed; inset: 0; z-index: 2147483000; background: #000; color: #fff;
+  display: flex; flex-direction: column;
+}
+.zx-camera-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.zx-camera-video.mirrored { transform: scaleX(-1); }
+
+.zx-camera-top {
+  position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 0;
+}
+.zx-camera-spacer { width: 42px; }
+.zx-camera-btn {
+  flex: none; padding: 0; width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer; font-size: 18px;
+  background: rgba(0, 0, 0, 0.45); color: #fff;
+}
+.zx-camera-btn:disabled { opacity: 0.4; cursor: default; }
+.zx-camera-timer { background: rgba(229, 72, 77, 0.9); padding: 4px 12px; border-radius: 999px; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.zx-camera-error {
+  position: relative; z-index: 1; margin: auto 24px; padding: 14px 16px; text-align: center;
+  background: rgba(0, 0, 0, 0.7); border-radius: 12px;
+}
+
+.zx-camera-bottom {
+  flex: none; position: relative; z-index: 1; margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 16px;
+  padding: 0 16px 24px;
+}
+.zx-camera-modes { display: flex; gap: 6px; background: rgba(0, 0, 0, 0.45); border-radius: 999px; padding: 4px; }
+.zx-camera-modes button {
+  border: 0; background: none; color: #fff; font: inherit; font-size: 14px; padding: 6px 16px; border-radius: 999px; cursor: pointer; opacity: 0.8;
+}
+.zx-camera-modes button.active { background: #fff; color: #000; opacity: 1; }
+
+.zx-shutter {
+  /* Pinned so global button styles can't stretch it into an oval. */
+  flex: none; align-self: center; box-sizing: border-box;
+  width: 74px; height: 74px; min-width: 74px; min-height: 74px; max-width: 74px; max-height: 74px;
+  border-radius: 50%; cursor: pointer; padding: 0; margin: 0;
+  background: #fff; border: 5px solid rgba(255, 255, 255, 0.55); background-clip: padding-box;
+  transition: transform 0.12s;
+}
+.zx-shutter:active { transform: scale(0.92); }
+.zx-shutter:disabled { opacity: 0.5; }
+.zx-shutter.video { background: #e5484d; background-clip: padding-box; }
+.zx-shutter.recording { border-radius: 22px; transform: scale(0.8); }

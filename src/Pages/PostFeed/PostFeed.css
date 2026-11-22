@@ -6116,21 +6116,3 @@
   padding: 12px 0;
   margin: 0;
 }
-
-/* ══════════════════════════════════════════════════════════════════════
-   VIDEO FEED CARD — SHOW THE WHOLE FRAME (no crop)
-   The thumbnail box is a fixed 16:9 and the media used `object-fit:
-   cover`, so any video that is not 16:9 (4:3, square, portrait…) had its
-   top/bottom cut off (e.g. burned-in captions). The playing <video> now
-   uses `contain` on black, so the full frame is always visible, with
-   bars on the sides/top when the shape differs from 16:9.
-   The still thumbnail image keeps `cover` (tidy grid look) until the
-   video plays over it.
-   ══════════════════════════════════════════════════════════════════════ */
-.pf-video-card-thumb-wrap {
-  background: #000;
-}
-.pf-video-card-thumb-video {
-  object-fit: contain;
-  background: #000;
-}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import "./MessagesPanel.css";
@@ -304,6 +304,16 @@ const attachmentTypeFromFile = (file) => {
 let attachmentIdCounter = 0;
 const makeAttachmentId = () => `att-${Date.now()}-${++attachmentIdCounter}`;
 
+// NEW (smooth sending): ids for optimistic "temp-" messages shown instantly
+// while the real insert is still in flight.
+let tempIdCounter = 0;
+
+// NEW: how close (px) to the bottom counts as "following" the chat.
+const NEAR_BOTTOM_PX = 140;
+// NEW: min gap between "typing" broadcasts, and cache-write debounce.
+const TYPING_SEND_GAP_MS = 2000;
+const CACHE_WRITE_DEBOUNCE_MS = 800;
+
 // ── Small three-dot "typing…" bubble, rendered as its own row in the
 // message list, styled to match the other person's bubble shape. ──
 const TypingBubble = () => (
@@ -584,6 +594,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const typingChannelsRef = useRef({});
   const typingClearTimersRef = useRef({});
   const stopTypingTimeoutRef = useRef(null);
+  const lastTypingSentRef = useRef(0); // NEW: throttles "typing" broadcasts
   const otherTyping = !!activeConvo && typingConvos.has(String(activeConvo.id));
 
   // ── NEW: blocking ──
@@ -1641,7 +1652,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   useEffect(() => {
     if (!activeConvo || !currentUser || loadingMessages) return;
     if (messagesConvoIdRef.current !== activeConvo.id) return;
-    setCachedMessages(currentUser, activeConvo.id, messages);
+    // CHANGED: debounced, and unsent/failed local messages are never cached.
+    const convoId = activeConvo.id;
+    const t = setTimeout(
+      () => setCachedMessages(currentUser, convoId, messages.filter((m) => !m._local)),
+      CACHE_WRITE_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(t);
   }, [messages, activeConvo?.id, loadingMessages, currentUser]);
 
   // CHANGED: depends on activeConvo?.id (not the whole object) so that
@@ -1668,6 +1685,21 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
           let wasAppended = false;
           setMessages((prev) => {
             if (prev.some((m) => m.id === incoming.id)) return prev;
+            // NEW: our own optimistic bubble is still showing — swap it for
+            // the real row instead of showing two copies.
+            if (incoming.sender_username === currentUser) {
+              const i = prev.findIndex(
+                (m) =>
+                  m._local === "sending" &&
+                  (m.text || null) === (incoming.text || null) &&
+                  (m.attachment_url || null) === (incoming.attachment_url || null),
+              );
+              if (i !== -1) {
+                const next = prev.slice();
+                next[i] = incoming;
+                return next;
+              }
+            }
             wasAppended = true;
             return [...prev, incoming];
           });
@@ -1809,6 +1841,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
   // Broadcasts OUR typing state on the open conversation's channel.
   const sendTyping = (typing) => {
+    if (!typing) lastTypingSentRef.current = 0;
     const ch = typingChannelsRef.current[String(activeConvo?.id)];
     ch?.send({
       type: "broadcast",
@@ -1823,7 +1856,13 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
   const handleTypingInput = () => {
     if (!activeConvo || isChatBlocked) return;
 
-    sendTyping(true);
+    // CHANGED: at most one "typing" broadcast every TYPING_SEND_GAP_MS
+    // (receivers auto-clear after 4 s, so the indicator stays on).
+    const now = Date.now();
+    if (now - lastTypingSentRef.current > TYPING_SEND_GAP_MS) {
+      lastTypingSentRef.current = now;
+      sendTyping(true);
+    }
 
     clearTimeout(stopTypingTimeoutRef.current);
     stopTypingTimeoutRef.current = setTimeout(
@@ -1862,18 +1901,50 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       });
   }, [messages, activeConvo, currentUser]);
 
-  // Fallback auto-scroll whenever the message list changes (covers
-  // incoming messages from the other person, edits, reactions, etc) —
-  // also fires when the typing bubble appears/disappears so it's never
-  // scrolled out of view.
-  // CHANGED: skipped once when older messages were just prepended, so
-  // "Load earlier messages" doesn't yank the reader to the bottom.
+  // CHANGED (WhatsApp-like scrolling): only follow the bottom when the
+  // reader is already near it (or just sent something), and ignore changes
+  // that don't add a message (reactions, seen-ticks, edits). Opening a chat
+  // jumps straight to the bottom instead of animating.
+  const nearBottomRef = useRef(true);
+  const prevLenRef = useRef(0);
+  const lastIdRef = useRef(null);
+
+  const handleChatScroll = () => {
+    const el = chatBodyRef.current;
+    if (!el) return;
+    nearBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+  };
+
+  // Images / GIFs / videos change height after they load — keep following.
+  const keepBottom = useCallback(() => {
+    if (nearBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ block: "end" });
+    }
+  }, []);
+
   useEffect(() => {
+    const len = messages.length;
+    const first = prevLenRef.current === 0 && len > 0;
+    prevLenRef.current = len;
+    const lastMsg = messages[len - 1];
+    const tailChanged = (lastMsg?.id ?? null) !== lastIdRef.current;
+    lastIdRef.current = lastMsg?.id ?? null;
+
     if (skipAutoScrollRef.current) {
       skipAutoScrollRef.current = false;
       return;
     }
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (first) {
+      nearBottomRef.current = true;
+      bottomRef.current?.scrollIntoView({ block: "end" });
+      return;
+    }
+    const lastIsMine = lastMsg?.sender_username === currentUser;
+    if ((tailChanged || otherTyping) && (nearBottomRef.current || lastIsMine)) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, otherTyping]);
 
   // NEW: fetches the previous page of history (older than what's on
@@ -2404,13 +2475,50 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     }
   };
 
-  // Sends the queued text-only message (no attachments) — the original
-  // fast path, unchanged apart from checking pendingAttachments.length.
-  const sendTextOnlyMessage = async (trimmed, replyToIdSnapshot, replyToTextSnapshot, replyToSenderSnapshot) => {
+  // CHANGED (smooth sending): optimistic. The bubble appears instantly
+  // (🕓), is swapped for the real row when the insert returns, and turns
+  // into a "Not sent · Retry" bubble if it fails — so the text never just
+  // vanishes. `retryTempId` re-sends an existing failed bubble.
+  const sendTextOnlyMessage = async (
+    trimmed,
+    replyToIdSnapshot,
+    replyToTextSnapshot,
+    replyToSenderSnapshot,
+    retryTempId = null,
+  ) => {
+    const convoId = activeConvo.id;
+    const tempId = retryTempId || `temp-${Date.now()}-${++tempIdCounter}`;
+
+    if (retryTempId) {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...m, _local: "sending" } : m)),
+      );
+    } else {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          conversation_id: convoId,
+          sender_username: currentUser,
+          text: trimmed || null,
+          attachment_url: null,
+          attachment_type: null,
+          attachment_name: null,
+          attachment_size: null,
+          reply_to_id: replyToIdSnapshot,
+          reply_to_text: replyToTextSnapshot,
+          reply_to_sender: replyToSenderSnapshot,
+          created_at: new Date().toISOString(),
+          _local: "sending",
+        },
+      ]);
+      playSendSound();
+    }
+
     const { data: inserted, error } = await supabase
       .from("direct_messages")
       .insert({
-        conversation_id: activeConvo.id,
+        conversation_id: convoId,
         sender_username: currentUser,
         text: trimmed || null,
         attachment_url: null,
@@ -2424,27 +2532,45 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       .select()
       .single();
 
-    if (!error && inserted) {
+    if (error || !inserted) {
       setMessages((prev) =>
-        prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted],
+        prev.map((m) => (m.id === tempId ? { ...m, _local: "failed" } : m)),
       );
-      playSendSound();
-      requestAnimationFrame(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-      });
-      await supabase
-        .from("conversations")
-        .update({
-          last_message: trimmed,
-          last_message_at: new Date().toISOString(),
-          last_message_sender: currentUser,
-        })
-        .eq("id", activeConvo.id);
-      return true;
+      return false;
     }
-    setText(trimmed);
-    return false;
+
+    setMessages((prev) => {
+      // The realtime echo may already have swapped it in.
+      if (prev.some((m) => m.id === inserted.id)) {
+        return prev.filter((m) => m.id !== tempId);
+      }
+      return prev.map((m) => (m.id === tempId ? inserted : m));
+    });
+
+    await supabase
+      .from("conversations")
+      .update({
+        last_message: trimmed,
+        last_message_at: new Date().toISOString(),
+        last_message_sender: currentUser,
+      })
+      .eq("id", convoId);
+    return true;
   };
+
+  const retryFailedMessage = (m) => {
+    if (!activeConvo || m._local !== "failed") return;
+    sendTextOnlyMessage(
+      m.text || "",
+      m.reply_to_id || null,
+      m.reply_to_text || null,
+      m.reply_to_sender || null,
+      m.id,
+    );
+  };
+
+  const discardFailedMessage = (m) =>
+    setMessages((prev) => prev.filter((x) => x.id !== m.id));
 
   const handleSend = async () => {
     if (
@@ -2486,7 +2612,9 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
     setReplyTarget(null);
 
     if (pendingAttachments.length === 0) {
-      await sendTextOnlyMessage(trimmed, replyToIdSnapshot, replyToTextSnapshot, replyToSenderSnapshot);
+      // CHANGED: not awaited — the bubble is already on screen, and the
+      // next message can be typed/sent straight away.
+      sendTextOnlyMessage(trimmed, replyToIdSnapshot, replyToTextSnapshot, replyToSenderSnapshot);
       setSending(false);
       return;
     }
@@ -3388,7 +3516,10 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
   // NEW: the list actually rendered — everything except messages this
   // user has hidden with "Hide for me".
-  const visibleMessages = messages.filter((m) => !hiddenIds.has(String(m.id)));
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => !hiddenIds.has(String(m.id))),
+    [messages, hiddenIds],
+  );
 
   // Shared render for a single conversation row in the inbox list —
   // used for both the "Message Requests" section and the regular list,
@@ -3628,6 +3759,520 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
       }))
       : []),
   ].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
+
+  // CHANGED (perf): the message bubbles are memoised, so typing in the
+  // composer (which changes `text` on every keystroke) no longer re-renders
+  // every bubble, link preview and map card. It only rebuilds when one of
+  // the listed values actually changes.
+  const renderedMessages = useMemo(
+    () =>
+      visibleMessages.map((m) => {
+                        const mine = m.sender_username === currentUser;
+
+                        // NEW (voice calling): call history entries render as a
+                        // small centered line, without the react/reply/forward/
+                        // delete menu.
+                        if (m.attachment_type === "call") {
+                          return (
+                            <div key={m.id} className="mp-call-log-row">
+                              <span
+                                className={`mp-call-log ${isMissedCallLog(m, mine) ? "missed" : ""}`}
+                              >
+                                {parseCall(m).video ? "📹" : "📞"} {callLogLabel(m, mine)} · {timeShort(m.created_at)}
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        const fileInfo =
+                          m.attachment_type === "file"
+                            ? getFileTypeInfo(m.attachment_name)
+                            : null;
+                        const reactionEntries = Object.entries(
+                          m.reactions || {},
+                        ).filter(([, users]) => users.length > 0);
+                        const hasContent = !!(m.text || m.attachment_url);
+
+                        // NEW: multi-select state for this row.
+                        const selectable = selectMode && canSelect(m);
+                        const isSelected = selectedIds.has(m.id);
+
+                        return (
+                          <div
+                            key={m.id}
+                            data-msg-id={m.id}
+                            className={`mp-bubble-row ${mine ? "mine" : ""} ${selectMode ? "mp-selecting" : ""} ${selectMode && !canSelect(m) ? "mp-select-disabled" : ""} ${isSelected ? "mp-selected" : ""} ${highlightId === String(m.id) ? "mp-msg-highlight" : ""}`}
+                            onClick={selectMode ? () => toggleSelect(m) : undefined}
+                          >
+                            {selectMode && (
+                              <span
+                                className={`mp-select-check ${isSelected ? "checked" : ""} ${selectable ? "" : "disabled"}`}
+                                aria-hidden="true"
+                              >
+                                {isSelected ? "✓" : ""}
+                              </span>
+                            )}
+                            <div className="mp-bubble-stack">
+                              {!selectMode && editingId !== m.id && !m.deleted_at && !m._local && (
+                                <div className="mp-bubble-actions">
+                                  <button
+                                    type="button"
+                                    className="mp-bubble-action-btn mp-react-trigger"
+                                    onClick={() => {
+                                      setOpenReactionFor(
+                                        openReactionFor === m.id ? null : m.id,
+                                      );
+                                      setOpenMenuFor(null);
+                                    }}
+                                    aria-label="React"
+                                  >
+                                    🙂
+                                  </button>
+
+                                  <div className="mp-menu-wrap">
+                                    <button
+                                      type="button"
+                                      className="mp-bubble-action-btn mp-menu-trigger"
+                                      onClick={() => {
+                                        setOpenMenuFor(
+                                          openMenuFor === m.id ? null : m.id,
+                                        );
+                                        setOpenReactionFor(null);
+                                      }}
+                                      aria-label="More options"
+                                      title="More"
+                                    >
+                                      ⋮
+                                    </button>
+
+                                    {openMenuFor === m.id && (
+                                      <div
+                                        className={`mp-menu ${mine ? "mine" : ""}`}
+                                      >
+                                        {hasContent && (
+                                          <button
+                                            type="button"
+                                            className="mp-menu-item"
+                                            onClick={() => {
+                                              startReply(m);
+                                              setOpenMenuFor(null);
+                                            }}
+                                          >
+                                            ↩ Reply
+                                          </button>
+                                        )}
+                                        {hasContent && (
+                                          <button
+                                            type="button"
+                                            className="mp-menu-item"
+                                            onClick={() => {
+                                              openForward(m);
+                                              setOpenMenuFor(null);
+                                            }}
+                                          >
+                                            ➡ Forward
+                                          </button>
+                                        )}
+                                        {mine && m.text && !m.attachment_url && (
+                                          <button
+                                            type="button"
+                                            className="mp-menu-item"
+                                            onClick={() => {
+                                              startEdit(m);
+                                              setOpenMenuFor(null);
+                                            }}
+                                          >
+                                            ✎ Edit
+                                          </button>
+                                        )}
+                                        {/* NEW: native share sheet */}
+                                        {hasContent && canShare() && (
+                                          <button
+                                            type="button"
+                                            className="mp-menu-item"
+                                            onClick={() => {
+                                              shareContent({
+                                                title: "Zixplon",
+                                                text: m.text || undefined,
+                                                url:
+                                                  m.attachment_url &&
+                                                    m.attachment_type !== "call"
+                                                    ? m.attachment_url
+                                                    : undefined,
+                                              });
+                                              setOpenMenuFor(null);
+                                            }}
+                                          >
+                                            📤 Share
+                                          </button>
+                                        )}
+                                        {/* NEW: enter multi-select delete mode */}
+                                        {canSelect(m) && (
+                                          <button
+                                            type="button"
+                                            className="mp-menu-item"
+                                            onClick={() => enterSelectMode(m)}
+                                          >
+                                            ☑ Select
+                                          </button>
+                                        )}
+                                        {/* NEW: hide this message for me only */}
+                                        <button
+                                          type="button"
+                                          className="mp-menu-item"
+                                          onClick={() => hideMessage(m)}
+                                        >
+                                          🙈 Hide for me
+                                        </button>
+                                        {!mine && (
+                                          <button
+                                            type="button"
+                                            className="mp-menu-item"
+                                            onClick={() => {
+                                              openReport(m);
+                                              setOpenMenuFor(null);
+                                            }}
+                                          >
+                                            🚩 Report
+                                          </button>
+                                        )}
+                                        {mine && (
+                                          <button
+                                            type="button"
+                                            className="mp-menu-item danger"
+                                            onClick={() => {
+                                              deleteMessage(m);
+                                              setOpenMenuFor(null);
+                                            }}
+                                          >
+                                            🗑 Delete
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {openReactionFor === m.id && !m.deleted_at && (
+                                <div
+                                  className={`mp-reaction-picker ${mine ? "mine" : ""}`}
+                                >
+                                  {REACTION_EMOJIS.map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      type="button"
+                                      className="mp-reaction-picker-btn"
+                                      onClick={() => toggleReaction(m, emoji)}
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+
+                              <div
+                                className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""} ${m.attachment_type === "voice"
+                                  ? "mp-bubble-has-voice"
+                                  : ""
+                                  } ${m.attachment_type === "sticker"
+                                    ? "mp-bubble-sticker-wrap"
+                                    : ""
+                                  } ${m.text &&
+                                    !m.attachment_url &&
+                                    isEmojiOnlyMessage(m.text)
+                                    ? "mp-bubble-emoji-only"
+                                    : ""
+                                  } ${m.deleted_at ? "mp-bubble-deleted" : ""}`}
+                              >
+                                {m.deleted_at ? (
+                                  <span className="mp-deleted-text">
+                                    🚫 This message was deleted
+                                  </span>
+                                ) : editingId === m.id ? (
+                                  <div className="mp-edit-box">
+                                    <input
+                                      className="mp-edit-input"
+                                      value={editText}
+                                      autoFocus
+                                      onChange={(e) =>
+                                        setEditText(e.target.value)
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          saveEdit(m);
+                                        }
+                                        if (e.key === "Escape") cancelEdit();
+                                      }}
+                                    />
+                                    <div className="mp-edit-actions">
+                                      <button onClick={() => saveEdit(m)}>
+                                        Save
+                                      </button>
+                                      <button onClick={cancelEdit}>
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    {m.forwarded && (
+                                      <div className="mp-forwarded-tag">
+                                        ↪ Forwarded
+                                      </div>
+                                    )}
+
+                                    {/* CHANGED: the quoted block is now
+                                        tappable — jumps to the original
+                                        message (loading older history if
+                                        needed, or showing a notice if it's
+                                        gone). */}
+                                    {m.reply_to_id && (
+                                      <div
+                                        className={`mp-reply-quote ${mine ? "mine" : ""}`}
+                                        role="button"
+                                        tabIndex={0}
+                                        title="Go to original message"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          jumpToMessage(m.reply_to_id);
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") {
+                                            e.stopPropagation();
+                                            jumpToMessage(m.reply_to_id);
+                                          }
+                                        }}
+                                      >
+                                        <span className="mp-reply-quote-sender">
+                                          {m.reply_to_sender === currentUser
+                                            ? "You"
+                                            : m.reply_to_sender}
+                                        </span>
+                                        <span className="mp-reply-quote-text">
+                                          {m.reply_to_text}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {m.attachment_url &&
+                                      m.attachment_type === "image" && (
+                                        <img
+                                          src={m.attachment_url}
+                                          alt="attachment"
+                                          className="mp-bubble-image"
+                                          onLoad={keepBottom}
+                                          onClick={() =>
+                                            window.open(
+                                              m.attachment_url,
+                                              "_blank",
+                                            )
+                                          }
+                                          onDoubleClick={() =>
+                                            toggleReaction(m, "❤️")
+                                          }
+                                        />
+                                      )}
+
+                                    {m.attachment_url &&
+                                      m.attachment_type === "video" && (
+                                        <video
+                                          src={m.attachment_url}
+                                          controls
+                                          playsInline
+                                          preload="metadata"
+                                          className="mp-bubble-video"
+                                          onLoadedMetadata={keepBottom}
+                                        />
+                                      )}
+
+                                    {m.attachment_url &&
+                                      m.attachment_type === "gif" && (
+                                        <img
+                                          src={m.attachment_url}
+                                          alt="GIF"
+                                          className="mp-bubble-gif"
+                                          onLoad={keepBottom}
+                                          onDoubleClick={() =>
+                                            toggleReaction(m, "❤️")
+                                          }
+                                        />
+                                      )}
+
+                                    {m.attachment_url &&
+                                      m.attachment_type === "sticker" && (
+                                        <img
+                                          src={m.attachment_url}
+                                          alt="sticker"
+                                          className="mp-bubble-sticker"
+                                          onLoad={keepBottom}
+                                          onDoubleClick={() =>
+                                            toggleReaction(m, "❤️")
+                                          }
+                                        />
+                                      )}
+
+                                    {m.attachment_url &&
+                                      m.attachment_type === "voice" && (
+                                        <VoiceMessagePlayer
+                                          src={m.attachment_url}
+                                          mine={mine}
+                                        />
+                                      )}
+
+                                    {/* NEW (location sharing) */}
+                                    {m.attachment_url &&
+                                      m.attachment_type === "location" && (
+                                        <LocationCard message={m} mine={mine} />
+                                      )}
+
+                                    {m.attachment_url &&
+                                      m.attachment_type === "file" && (
+                                        <a
+                                          href={m.attachment_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="mp-bubble-file"
+                                          style={{
+                                            "--file-color": fileInfo.color,
+                                          }}
+                                        >
+                                          <span className="mp-file-icon">
+                                            {fileInfo.icon}
+                                          </span>
+                                          <span className="mp-file-meta">
+                                            <span
+                                              className="mp-file-name"
+                                              title={m.attachment_name}
+                                            >
+                                              {m.attachment_name ||
+                                                "Attachment"}
+                                            </span>
+                                            <span className="mp-file-sub">
+                                              {fileInfo.label}
+                                              {m.attachment_size
+                                                ? ` · ${formatFileSize(m.attachment_size)}`
+                                                : ""}
+                                            </span>
+                                          </span>
+                                          <span className="mp-file-download">
+                                            ⬇
+                                          </span>
+                                        </a>
+                                      )}
+
+                                    {m.text &&
+                                      (isEmojiOnlyMessage(m.text) ? (
+                                        <span className="mp-emoji-only-text">
+                                          {m.text}
+                                        </span>
+                                      ) : (
+                                        <span>
+                                          {renderMessageText(m.text, mine)}
+                                        </span>
+                                      ))}
+
+                                    {m.text &&
+                                      !isEmojiOnlyMessage(m.text) &&
+                                      extractFirstUrl(m.text) && (
+                                        <LinkPreviewCard
+                                          url={extractFirstUrl(m.text)}
+                                          mine={mine}
+                                          classPrefix="mp"
+                                        />
+                                      )}
+
+                                    <span className="mp-bubble-footer">
+                                      {m.edited_at && (
+                                        <span className="mp-edited-tag">
+                                          edited
+                                        </span>
+                                      )}
+                                      <span className="mp-bubble-time">
+                                        {timeShort(m.created_at)}
+                                      </span>
+                                      {mine && m._local === "sending" && (
+                                        <span className="mp-ticks mp-ticks-sent" title="Sending…">
+                                          🕓
+                                        </span>
+                                      )}
+                                      {mine && m._local === "failed" && (
+                                        <span style={{ color: "#dc2626", fontWeight: 800, fontSize: 11 }}>
+                                          Not sent ·{" "}
+                                          <button
+                                            type="button"
+                                            onClick={() => retryFailedMessage(m)}
+                                            style={{ background: "none", border: "none", color: "inherit", font: "inherit", textDecoration: "underline", cursor: "pointer", padding: 0 }}
+                                          >
+                                            Retry
+                                          </button>{" "}
+                                          <button
+                                            type="button"
+                                            onClick={() => discardFailedMessage(m)}
+                                            aria-label="Discard unsent message"
+                                            style={{ background: "none", border: "none", color: "inherit", font: "inherit", cursor: "pointer", padding: 0 }}
+                                          >
+                                            ✕
+                                          </button>
+                                        </span>
+                                      )}
+                                      {mine && !m._local && (
+                                        <span
+                                          className={`mp-ticks mp-ticks-${getTickStatus(m)}`}
+                                        >
+                                          {getTickStatus(m) === "sent"
+                                            ? "✓"
+                                            : "✓✓"}
+                                        </span>
+                                      )}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+
+                              {reactionEntries.length > 0 && !m.deleted_at && (
+                                <div
+                                  className={`mp-reactions-row ${mine ? "mine" : ""}`}
+                                >
+                                  {reactionEntries.map(([emoji, users]) => (
+                                    <button
+                                      key={emoji}
+                                      type="button"
+                                      className={`mp-reaction-pill ${users.includes(currentUser)
+                                        ? "mine-reacted"
+                                        : ""
+                                        }`}
+                                      onClick={() => toggleReaction(m, emoji)}
+                                      title={users.join(", ")}
+                                    >
+                                      {emoji}{" "}
+                                      {users.length > 1 ? users.length : ""}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      visibleMessages,
+      currentUser,
+      selectMode,
+      selectedIds,
+      highlightId,
+      openReactionFor,
+      openMenuFor,
+      editingId,
+      editText,
+      replyTarget,
+      activeConvo,
+      jumping,
+      hiddenIds,
+    ],
+  );
 
   // ── Minimized mini-bar (mobile only) ──
   // Rendered instead of the full panel tree while `minimized` is true.
@@ -4115,7 +4760,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
 
                   {/* CHANGED: chatBodyRef added, plus a "Load earlier
                       messages" button shown while older history exists. */}
-                  <div className="mp-chat-body" ref={chatBodyRef}>
+                  <div className="mp-chat-body" ref={chatBodyRef} onScroll={handleChatScroll}>
                     {hasMoreOlder && !loadingMessages && (
                       <button
                         type="button"
@@ -4131,467 +4776,7 @@ const MessagesPanel = ({ initialUsername, onClose }) => {
                     ) : visibleMessages.length === 0 && !otherTyping ? (
                       <p className="mp-empty">No messages yet. Say hello!</p>
                     ) : (
-                      visibleMessages.map((m) => {
-                        const mine = m.sender_username === currentUser;
-
-                        // NEW (voice calling): call history entries render as a
-                        // small centered line, without the react/reply/forward/
-                        // delete menu.
-                        if (m.attachment_type === "call") {
-                          return (
-                            <div key={m.id} className="mp-call-log-row">
-                              <span
-                                className={`mp-call-log ${isMissedCallLog(m, mine) ? "missed" : ""}`}
-                              >
-                                {parseCall(m).video ? "📹" : "📞"} {callLogLabel(m, mine)} · {timeShort(m.created_at)}
-                              </span>
-                            </div>
-                          );
-                        }
-
-                        const fileInfo =
-                          m.attachment_type === "file"
-                            ? getFileTypeInfo(m.attachment_name)
-                            : null;
-                        const reactionEntries = Object.entries(
-                          m.reactions || {},
-                        ).filter(([, users]) => users.length > 0);
-                        const hasContent = !!(m.text || m.attachment_url);
-
-                        // NEW: multi-select state for this row.
-                        const selectable = selectMode && canSelect(m);
-                        const isSelected = selectedIds.has(m.id);
-
-                        return (
-                          <div
-                            key={m.id}
-                            data-msg-id={m.id}
-                            className={`mp-bubble-row ${mine ? "mine" : ""} ${selectMode ? "mp-selecting" : ""} ${selectMode && !canSelect(m) ? "mp-select-disabled" : ""} ${isSelected ? "mp-selected" : ""} ${highlightId === String(m.id) ? "mp-msg-highlight" : ""}`}
-                            onClick={selectMode ? () => toggleSelect(m) : undefined}
-                          >
-                            {selectMode && (
-                              <span
-                                className={`mp-select-check ${isSelected ? "checked" : ""} ${selectable ? "" : "disabled"}`}
-                                aria-hidden="true"
-                              >
-                                {isSelected ? "✓" : ""}
-                              </span>
-                            )}
-                            <div className="mp-bubble-stack">
-                              {!selectMode && editingId !== m.id && !m.deleted_at && (
-                                <div className="mp-bubble-actions">
-                                  <button
-                                    type="button"
-                                    className="mp-bubble-action-btn mp-react-trigger"
-                                    onClick={() => {
-                                      setOpenReactionFor(
-                                        openReactionFor === m.id ? null : m.id,
-                                      );
-                                      setOpenMenuFor(null);
-                                    }}
-                                    aria-label="React"
-                                  >
-                                    🙂
-                                  </button>
-
-                                  <div className="mp-menu-wrap">
-                                    <button
-                                      type="button"
-                                      className="mp-bubble-action-btn mp-menu-trigger"
-                                      onClick={() => {
-                                        setOpenMenuFor(
-                                          openMenuFor === m.id ? null : m.id,
-                                        );
-                                        setOpenReactionFor(null);
-                                      }}
-                                      aria-label="More options"
-                                      title="More"
-                                    >
-                                      ⋮
-                                    </button>
-
-                                    {openMenuFor === m.id && (
-                                      <div
-                                        className={`mp-menu ${mine ? "mine" : ""}`}
-                                      >
-                                        {hasContent && (
-                                          <button
-                                            type="button"
-                                            className="mp-menu-item"
-                                            onClick={() => {
-                                              startReply(m);
-                                              setOpenMenuFor(null);
-                                            }}
-                                          >
-                                            ↩ Reply
-                                          </button>
-                                        )}
-                                        {hasContent && (
-                                          <button
-                                            type="button"
-                                            className="mp-menu-item"
-                                            onClick={() => {
-                                              openForward(m);
-                                              setOpenMenuFor(null);
-                                            }}
-                                          >
-                                            ➡ Forward
-                                          </button>
-                                        )}
-                                        {mine && m.text && !m.attachment_url && (
-                                          <button
-                                            type="button"
-                                            className="mp-menu-item"
-                                            onClick={() => {
-                                              startEdit(m);
-                                              setOpenMenuFor(null);
-                                            }}
-                                          >
-                                            ✎ Edit
-                                          </button>
-                                        )}
-                                        {/* NEW: native share sheet */}
-                                        {hasContent && canShare() && (
-                                          <button
-                                            type="button"
-                                            className="mp-menu-item"
-                                            onClick={() => {
-                                              shareContent({
-                                                title: "Zixplon",
-                                                text: m.text || undefined,
-                                                url:
-                                                  m.attachment_url &&
-                                                    m.attachment_type !== "call"
-                                                    ? m.attachment_url
-                                                    : undefined,
-                                              });
-                                              setOpenMenuFor(null);
-                                            }}
-                                          >
-                                            📤 Share
-                                          </button>
-                                        )}
-                                        {/* NEW: enter multi-select delete mode */}
-                                        {canSelect(m) && (
-                                          <button
-                                            type="button"
-                                            className="mp-menu-item"
-                                            onClick={() => enterSelectMode(m)}
-                                          >
-                                            ☑ Select
-                                          </button>
-                                        )}
-                                        {/* NEW: hide this message for me only */}
-                                        <button
-                                          type="button"
-                                          className="mp-menu-item"
-                                          onClick={() => hideMessage(m)}
-                                        >
-                                          🙈 Hide for me
-                                        </button>
-                                        {!mine && (
-                                          <button
-                                            type="button"
-                                            className="mp-menu-item"
-                                            onClick={() => {
-                                              openReport(m);
-                                              setOpenMenuFor(null);
-                                            }}
-                                          >
-                                            🚩 Report
-                                          </button>
-                                        )}
-                                        {mine && (
-                                          <button
-                                            type="button"
-                                            className="mp-menu-item danger"
-                                            onClick={() => {
-                                              deleteMessage(m);
-                                              setOpenMenuFor(null);
-                                            }}
-                                          >
-                                            🗑 Delete
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {openReactionFor === m.id && !m.deleted_at && (
-                                <div
-                                  className={`mp-reaction-picker ${mine ? "mine" : ""}`}
-                                >
-                                  {REACTION_EMOJIS.map((emoji) => (
-                                    <button
-                                      key={emoji}
-                                      type="button"
-                                      className="mp-reaction-picker-btn"
-                                      onClick={() => toggleReaction(m, emoji)}
-                                    >
-                                      {emoji}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-
-                              <div
-                                className={`mp-bubble ${m.attachment_url ? "mp-bubble-has-attachment" : ""} ${m.attachment_type === "voice"
-                                  ? "mp-bubble-has-voice"
-                                  : ""
-                                  } ${m.attachment_type === "sticker"
-                                    ? "mp-bubble-sticker-wrap"
-                                    : ""
-                                  } ${m.text &&
-                                    !m.attachment_url &&
-                                    isEmojiOnlyMessage(m.text)
-                                    ? "mp-bubble-emoji-only"
-                                    : ""
-                                  } ${m.deleted_at ? "mp-bubble-deleted" : ""}`}
-                              >
-                                {m.deleted_at ? (
-                                  <span className="mp-deleted-text">
-                                    🚫 This message was deleted
-                                  </span>
-                                ) : editingId === m.id ? (
-                                  <div className="mp-edit-box">
-                                    <input
-                                      className="mp-edit-input"
-                                      value={editText}
-                                      autoFocus
-                                      onChange={(e) =>
-                                        setEditText(e.target.value)
-                                      }
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                          e.preventDefault();
-                                          saveEdit(m);
-                                        }
-                                        if (e.key === "Escape") cancelEdit();
-                                      }}
-                                    />
-                                    <div className="mp-edit-actions">
-                                      <button onClick={() => saveEdit(m)}>
-                                        Save
-                                      </button>
-                                      <button onClick={cancelEdit}>
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    {m.forwarded && (
-                                      <div className="mp-forwarded-tag">
-                                        ↪ Forwarded
-                                      </div>
-                                    )}
-
-                                    {/* CHANGED: the quoted block is now
-                                        tappable — jumps to the original
-                                        message (loading older history if
-                                        needed, or showing a notice if it's
-                                        gone). */}
-                                    {m.reply_to_id && (
-                                      <div
-                                        className={`mp-reply-quote ${mine ? "mine" : ""}`}
-                                        role="button"
-                                        tabIndex={0}
-                                        title="Go to original message"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          jumpToMessage(m.reply_to_id);
-                                        }}
-                                        onKeyDown={(e) => {
-                                          if (e.key === "Enter") {
-                                            e.stopPropagation();
-                                            jumpToMessage(m.reply_to_id);
-                                          }
-                                        }}
-                                      >
-                                        <span className="mp-reply-quote-sender">
-                                          {m.reply_to_sender === currentUser
-                                            ? "You"
-                                            : m.reply_to_sender}
-                                        </span>
-                                        <span className="mp-reply-quote-text">
-                                          {m.reply_to_text}
-                                        </span>
-                                      </div>
-                                    )}
-
-                                    {m.attachment_url &&
-                                      m.attachment_type === "image" && (
-                                        <img
-                                          src={m.attachment_url}
-                                          alt="attachment"
-                                          className="mp-bubble-image"
-                                          onClick={() =>
-                                            window.open(
-                                              m.attachment_url,
-                                              "_blank",
-                                            )
-                                          }
-                                          onDoubleClick={() =>
-                                            toggleReaction(m, "❤️")
-                                          }
-                                        />
-                                      )}
-
-                                    {m.attachment_url &&
-                                      m.attachment_type === "video" && (
-                                        <video
-                                          src={m.attachment_url}
-                                          controls
-                                          playsInline
-                                          preload="metadata"
-                                          className="mp-bubble-video"
-                                        />
-                                      )}
-
-                                    {m.attachment_url &&
-                                      m.attachment_type === "gif" && (
-                                        <img
-                                          src={m.attachment_url}
-                                          alt="GIF"
-                                          className="mp-bubble-gif"
-                                          onDoubleClick={() =>
-                                            toggleReaction(m, "❤️")
-                                          }
-                                        />
-                                      )}
-
-                                    {m.attachment_url &&
-                                      m.attachment_type === "sticker" && (
-                                        <img
-                                          src={m.attachment_url}
-                                          alt="sticker"
-                                          className="mp-bubble-sticker"
-                                          onDoubleClick={() =>
-                                            toggleReaction(m, "❤️")
-                                          }
-                                        />
-                                      )}
-
-                                    {m.attachment_url &&
-                                      m.attachment_type === "voice" && (
-                                        <VoiceMessagePlayer
-                                          src={m.attachment_url}
-                                          mine={mine}
-                                        />
-                                      )}
-
-                                    {/* NEW (location sharing) */}
-                                    {m.attachment_url &&
-                                      m.attachment_type === "location" && (
-                                        <LocationCard message={m} mine={mine} />
-                                      )}
-
-                                    {m.attachment_url &&
-                                      m.attachment_type === "file" && (
-                                        <a
-                                          href={m.attachment_url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="mp-bubble-file"
-                                          style={{
-                                            "--file-color": fileInfo.color,
-                                          }}
-                                        >
-                                          <span className="mp-file-icon">
-                                            {fileInfo.icon}
-                                          </span>
-                                          <span className="mp-file-meta">
-                                            <span
-                                              className="mp-file-name"
-                                              title={m.attachment_name}
-                                            >
-                                              {m.attachment_name ||
-                                                "Attachment"}
-                                            </span>
-                                            <span className="mp-file-sub">
-                                              {fileInfo.label}
-                                              {m.attachment_size
-                                                ? ` · ${formatFileSize(m.attachment_size)}`
-                                                : ""}
-                                            </span>
-                                          </span>
-                                          <span className="mp-file-download">
-                                            ⬇
-                                          </span>
-                                        </a>
-                                      )}
-
-                                    {m.text &&
-                                      (isEmojiOnlyMessage(m.text) ? (
-                                        <span className="mp-emoji-only-text">
-                                          {m.text}
-                                        </span>
-                                      ) : (
-                                        <span>
-                                          {renderMessageText(m.text, mine)}
-                                        </span>
-                                      ))}
-
-                                    {m.text &&
-                                      !isEmojiOnlyMessage(m.text) &&
-                                      extractFirstUrl(m.text) && (
-                                        <LinkPreviewCard
-                                          url={extractFirstUrl(m.text)}
-                                          mine={mine}
-                                          classPrefix="mp"
-                                        />
-                                      )}
-
-                                    <span className="mp-bubble-footer">
-                                      {m.edited_at && (
-                                        <span className="mp-edited-tag">
-                                          edited
-                                        </span>
-                                      )}
-                                      <span className="mp-bubble-time">
-                                        {timeShort(m.created_at)}
-                                      </span>
-                                      {mine && (
-                                        <span
-                                          className={`mp-ticks mp-ticks-${getTickStatus(m)}`}
-                                        >
-                                          {getTickStatus(m) === "sent"
-                                            ? "✓"
-                                            : "✓✓"}
-                                        </span>
-                                      )}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-
-                              {reactionEntries.length > 0 && !m.deleted_at && (
-                                <div
-                                  className={`mp-reactions-row ${mine ? "mine" : ""}`}
-                                >
-                                  {reactionEntries.map(([emoji, users]) => (
-                                    <button
-                                      key={emoji}
-                                      type="button"
-                                      className={`mp-reaction-pill ${users.includes(currentUser)
-                                        ? "mine-reacted"
-                                        : ""
-                                        }`}
-                                      onClick={() => toggleReaction(m, emoji)}
-                                      title={users.join(", ")}
-                                    >
-                                      {emoji}{" "}
-                                      {users.length > 1 ? users.length : ""}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
+                      renderedMessages
                     )}
                     {otherTyping && <TypingBubble />}
                     <div ref={bottomRef} />

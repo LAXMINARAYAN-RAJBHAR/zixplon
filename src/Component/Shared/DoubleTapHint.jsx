@@ -109,7 +109,7 @@ const DoubleTapHint = ({ contentKey, active }) => {
         <span className="dt_hint_heart">❤️</span>
       </div>
       <div className="dt_hint_caption">
-        {isTouch ? "Double tap to like" : "Double click to like"}
+        {isTouch ? "Double tap to like" : "Double Click to Like"}
       </div>
     </div>
   );

@@ -95,10 +95,10 @@ const PREVIEW_META = {
 // NEW: stories disappear after this many hours (set to 0 to never expire).
 const STORY_TTL_HOURS = 24;
 
-// NEW: where a shared story opens in the React app. CHANGE THIS to match your
-// real story route. Receives the story row, returns an absolute URL.
+// Where a shared story opens in the React app (StoryViewer is opened by
+// /?tab=posts&story=<id>). Receives the story row, returns an absolute URL.
 const storyUrlFor = (item, id) =>
-  `${SITE}/stories/${encodeURIComponent(item.username)}?story=${encodeURIComponent(item.id ?? id)}`;
+  `${SITE}/?tab=posts&story=${encodeURIComponent(item.id ?? id)}`;
 
 const FALLBACK_OG_IMAGE = `${SITE}/logo192.png`;
 
@@ -350,9 +350,9 @@ export default async function handler(req) {
       }
       url = `${SITE}/?tab=posts&post=${encodeURIComponent(item.id ?? id)}`;
     } else if (type === "story") {
-      // NEW: STORY PREVIEW. Assumes a `stories` table with (some of):
-      // id, username, text/caption, image_url, media_url, thumbnail_url,
-      // video_url, created_at, expires_at, privacy.
+      // STORY PREVIEW. Reads the `stories` table: id, username, caption,
+      // media_url, media_type, song, created_at (+ optional thumbnail_url,
+      // expires_at, privacy).
       const res = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/stories?id=eq.${encodeURIComponent(id)}&select=*&limit=1`,
         { headers: sbHeaders }
@@ -378,16 +378,24 @@ export default async function handler(req) {
       }
 
       title = withBadge("story", `${item.username}'s story`);
+      // 🎵 / 🎙️ note when the story has music or a voice status.
+      const songNote = item.song?.title
+        ? ` · ${item.song.voice ? "🎙️" : "🎵"} ${item.song.title}`
+        : "";
       description =
-        previewText(item.text || item.caption, 200) ||
-        `Watch ${item.username}'s story on ZIXPLON before it disappears`;
+        (previewText(item.caption, 160) ||
+          `Watch ${item.username}'s story on ZIXPLON before it disappears`) + songNote;
 
+      // Stories store their media in media_url (+ media_type image|video).
+      // Video stories only get a real frame if a thumbnail_url was saved or
+      // the file is a Cloudinary video; otherwise the author's profile
+      // picture is used below.
       candidates = [
         item.thumbnail_url,
-        item.thumbnail,
-        item.image_url,
-        item.media_url,
-        getVideoThumbnailFromCloudinaryUrl(item.video_url),
+        item.media_type === "video" ? null : item.media_url,
+        item.media_type === "video"
+          ? getVideoThumbnailFromCloudinaryUrl(item.media_url)
+          : null,
       ];
       if (!firstImage(candidates)) {
         candidates.push(await fetchProfilePic(SUPABASE_URL, sbHeaders, item.username));

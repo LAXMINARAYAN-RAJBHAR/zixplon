@@ -51,6 +51,14 @@ const TOAST_MS = 2200;
 // HLS stories keep 10s buffered ahead (hls.js default is 30s).
 const HLS_FORWARD_BUFFER_S = 10;
 
+// NEW: story links always use the main site address, not whichever host the
+// sender happened to have open (www.zixplon.in vs zixplon.in). On localhost
+// the current origin is kept so sharing can still be tested in development.
+const SHARE_ORIGIN = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
+  ? window.location.origin
+  : "https://zixplon.in";
+const storyShareUrl = (id) => `${SHARE_ORIGIN}/?tab=posts&story=${id}`;
+
 const REACTIONS = [
   { type: "love", emoji: "❤️", label: "Love" },
   { type: "like", emoji: "👍", label: "Like" },
@@ -494,7 +502,7 @@ const StoryViewer = ({
 
   // ── Share / copy link ──
   const handleShare = async () => {
-    const url = `${window.location.origin}/?tab=posts&story=${story.id}`;
+    const url = storyShareUrl(story.id);
     try {
       if (navigator.share) {
         await navigator.share({ title: `${group.username}'s story`, url });
@@ -512,7 +520,7 @@ const StoryViewer = ({
   };
 
   const handleCopyLink = async () => {
-    const url = `${window.location.origin}/?tab=posts&story=${story.id}`;
+    const url = storyShareUrl(story.id);
     setMenuOpen(false);
     try {
       await navigator.clipboard.writeText(url);

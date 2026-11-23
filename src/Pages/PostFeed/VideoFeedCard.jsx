@@ -17,6 +17,13 @@ import { markSeen } from "../../utils/seenContent";
 
 const HOVER_PREVIEW_DELAY = 400; // ms
 
+// Finger-pointer hint on the Watch pill: shown once per browser, once per session.
+const WATCH_HINT_KEY = "zx_watch_hint_seen";
+let watchHintShownThisSession = false;
+const readHintSeen = () => {
+  try { return localStorage.getItem(WATCH_HINT_KEY) === "1"; } catch { return false; }
+};
+
 // NEW (perf): how far outside the screen a card may be before its
 // view count / like state / watch-later state are fetched.
 const NEAR_SCREEN_MARGIN = "300px 0px";
@@ -81,6 +88,35 @@ const VideoFeedCard = ({ video, onProfileView }) => {
   // screen, and gates the per-card data fetches below.
   const [nearScreen, setNearScreen] = useState(false);
   const cardRef = useRef(null);
+
+  // ── Watch-button finger hint ──
+  const [showHint, setShowHint] = useState(false);
+  useEffect(() => {
+    if (!inView || watchHintShownThisSession || readHintSeen()) return;
+    let hideTimer;
+    const startTimer = setTimeout(() => {
+      watchHintShownThisSession = true;
+      setShowHint(true);
+      hideTimer = setTimeout(() => {
+        setShowHint(false);
+        try { localStorage.setItem(WATCH_HINT_KEY, "1"); } catch { /* ignore */ }
+      }, 4800);
+    }, 1200);
+    return () => {
+      clearTimeout(startTimer);
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        // left view early: allow it to retry on the next card
+        watchHintShownThisSession = false;
+        setShowHint(false);
+      }
+    };
+  }, [inView]);
+  const dismissHint = () => {
+    if (!showHint) return;
+    setShowHint(false);
+    try { localStorage.setItem(WATCH_HINT_KEY, "1"); } catch { /* ignore */ }
+  };
   const timeoutRef = useRef(null);
 
   const loggedInUsername = localStorage.getItem("username") || "";
@@ -378,6 +414,7 @@ const VideoFeedCard = ({ video, onProfileView }) => {
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       onClick={goToVideo}
+      onPointerDown={dismissHint}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
@@ -467,11 +504,12 @@ const VideoFeedCard = ({ video, onProfileView }) => {
         </button>
         <button
           type="button"
-          className="pf-video-card-pill"
+          className={"pf-video-card-pill" + (showHint ? " pf-video-card-pill--hint" : "")}
           onClick={(e) => { e.stopPropagation(); goToVideo(); }}
         >
           <span>▶</span>
           <span className="pf-video-card-pill-label">Watch</span>
+          {showHint && <span className="pf-tap-hint" aria-hidden="true">👆</span>}
         </button>
         <button type="button" className="pf-video-card-pill" onClick={handleSharePill}>
           <span>↗</span>

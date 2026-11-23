@@ -57,7 +57,14 @@ const HLS_FORWARD_BUFFER_S = 10;
 const SHARE_ORIGIN = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
   ? window.location.origin
   : "https://zixplon.in";
-const storyShareUrl = (id) => `${SHARE_ORIGIN}/?tab=posts&story=${id}`;
+// Shared story links go through /s/story/<id> so WhatsApp, Facebook, X etc.
+// get a proper preview (title + thumbnail). The /s/... route redirects real
+// visitors straight into the story. On localhost that rewrite doesn't exist,
+// so the direct app URL is kept there for testing.
+const storyShareUrl = (id) =>
+  SHARE_ORIGIN === "https://zixplon.in"
+    ? `${SHARE_ORIGIN}/s/story/${id}`
+    : `${SHARE_ORIGIN}/?tab=posts&story=${id}`;
 
 const REACTIONS = [
   { type: "love", emoji: "❤️", label: "Love" },

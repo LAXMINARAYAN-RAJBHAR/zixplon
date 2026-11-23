@@ -1247,7 +1247,9 @@ const PostCard = ({
   };
 
   const handleCopyLink = () => {
-    const shareUrl = `https://zixplon.in/api/og?type=post&id=${post.id}`;
+    // CHANGED: same short /s/<type>/<id> form that reel links use
+    // (vercel.json rewrites it to /api/og).
+    const shareUrl = `https://zixplon.in/s/post/${post.id}`;
     navigator.clipboard?.writeText(shareUrl).catch(() => { });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

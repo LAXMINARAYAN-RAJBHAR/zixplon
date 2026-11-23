@@ -337,7 +337,9 @@ export default async function handler(req) {
       title = item?.username ? `${item.username} on ZIXPLON` : "Post on ZIXPLON";
       // Markdown markers (**bold**, _italic_ ...) are converted/stripped so the
       // preview doesn't show literal asterisks.
-      description = previewText(item?.text, 200) || "Check out this post on ZIXPLON";
+      description =
+        previewText(item?.text, 200) ||
+        (item?.video_url ? "Watch this video post on ZIXPLON" : "Check out this post on ZIXPLON");
       // Also reads image_urls when it is a JSON string, and `thumbnail`.
       candidates = [
         item?.image_url,
@@ -346,6 +348,23 @@ export default async function handler(req) {
         item?.thumbnail,
         getVideoThumbnailFromCloudinaryUrl(item?.video_url),
       ];
+      // NEW: a post with no usable image (text-only, or a video post with no
+      // stored thumbnail) used to show the generic logo. Use the author's
+      // profile picture instead — best effort, never blocks the preview.
+      if (!firstImage(candidates) && item?.username) {
+        try {
+          const pr = await fetchWithTimeout(
+            `${SUPABASE_URL}/rest/v1/profiles?username=eq.${encodeURIComponent(item.username)}&select=profile_pic&limit=1`,
+            { headers: sbHeaders }
+          );
+          if (pr.ok) {
+            const rows = await pr.json();
+            candidates.push(rows?.[0]?.profile_pic);
+          }
+        } catch (_) {
+          /* keep the logo fallback */
+        }
+      }
       // CHANGED: opens the Posts tab and highlights this post
       // (PostFeed reads ?tab=posts&post=<id>).
       url = `${SITE}/?tab=posts&post=${encodeURIComponent(item.id ?? id)}`;

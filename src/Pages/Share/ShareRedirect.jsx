@@ -16,11 +16,13 @@ const TYPE_TABLE = {
   post: "posts",
 };
 
-// type + id  ->  the app route that shows it.
-const routeFor = (type, id) => {
+// type + id  ->  the app route that shows it. Reels from the database use
+// the "db_<id>" form in the URL (same as /api/og builds); `fromDb` is false
+// when the lookup found nothing and we are passing the raw code through.
+const routeFor = (type, id, fromDb = true) => {
   const enc = encodeURIComponent(id);
   if (type === "video") return `/video/${enc}`;
-  if (type === "reel" || type === "short") return `/reels/${enc}`;
+  if (type === "reel" || type === "short") return `/reels/${fromDb ? "db_" : ""}${enc}`;
   if (type === "post") return `/?tab=posts&post=${enc}`;
   return null;
 };
@@ -87,7 +89,7 @@ const ShareRedirect = () => {
       // If the lookup finds nothing (or the table/column names differ),
       // still pass the code through so the destination page can decide —
       // never leave the visitor on a blank screen.
-      navigate(routeFor(t, realId ?? code), { replace: true });
+      navigate(routeFor(t, realId ?? code, realId != null), { replace: true });
     })();
     return () => {
       cancelled = true;

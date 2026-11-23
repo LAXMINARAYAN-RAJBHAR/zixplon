@@ -87,6 +87,9 @@ import SignInPage from "./Pages/SignIn/SignInPage";
 // registers the `beforeinstallprompt` listener early so the event isn't
 // missed while the loading screen is showing.
 import InstallPage from "./Pages/Install/InstallPage";
+// NEW: shared links (/s/reel/<code>, /s/video/<code>, /s/post/<code>) and a
+// catch-all "not found" page so an unknown URL never renders a blank screen.
+import ShareRedirect, { NotFoundPage } from "./Pages/Share/ShareRedirect";
 // NEW: "A new version is available — Refresh" banner. Compares this
 // bundle's BUILD_ID (src/buildInfo.js) with /version.json on the server;
 // both are written by scripts/generate-version.cjs on every build.
@@ -1011,6 +1014,10 @@ function App() {
                 {/* NEW: shareable PWA install page. Share this link:
                   https://zixplon-tawny.vercel.app/install */}
                 <Route path="/install" element={<InstallPage />} />
+                {/* NEW: shared links from /api/og -> real page. */}
+                <Route path="/s/:type/:code" element={<ShareRedirect />} />
+                {/* NEW: anything else shows a message instead of a blank page. */}
+                <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </div>
           </div>

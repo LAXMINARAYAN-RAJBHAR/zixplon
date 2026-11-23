@@ -46,6 +46,18 @@
     { "source": "/api/process-recharge", "destination": "/api/payments?action=process-recharge" },
     { "source": "/s/:type/:id", "destination": "/api/og?type=:type&id=:id" },
     {
+      "source": "/",
+      "has": [
+        { "type": "query", "key": "story", "value": "(?<id>.+)" },
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(WhatsApp|facebookexternalhit|Facebot|Twitterbot|TelegramBot|LinkedInBot|Slackbot|Discordbot).*"
+        }
+      ],
+      "destination": "/api/og?type=story&id=:id"
+    },
+    {
       "source": "/((?!api/|static/|version\\.json|sw\\.js|about\\.html|privacy\\.html|terms\\.html).*)",
       "destination": "/index.html"
     }

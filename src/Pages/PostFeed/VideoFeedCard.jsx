@@ -17,12 +17,10 @@ import { markSeen } from "../../utils/seenContent";
 
 const HOVER_PREVIEW_DELAY = 400; // ms
 
-// Finger-pointer hint on the Watch pill: shown once per browser, once per session.
-const WATCH_HINT_KEY = "zx_watch_hint_seen";
-let watchHintShownThisSession = false;
-const readHintSeen = () => {
-  try { return localStorage.getItem(WATCH_HINT_KEY) === "1"; } catch { return false; }
-};
+// Finger-pointer hint on the Watch pill: shown on every video card each time
+// it scrolls into view (hides after HINT_VISIBLE_MS, or on any tap).
+const HINT_START_DELAY = 1200; // ms after the card is in view
+const HINT_VISIBLE_MS = 4800;  // ms the hint stays on screen
 
 // NEW (perf): how far outside the screen a card may be before its
 // view count / like state / watch-later state are fetched.
@@ -89,34 +87,18 @@ const VideoFeedCard = ({ video, onProfileView }) => {
   const [nearScreen, setNearScreen] = useState(false);
   const cardRef = useRef(null);
 
-  // ── Watch-button finger hint ──
+  // ── Watch-button finger hint (every card, each time it comes into view) ──
   const [showHint, setShowHint] = useState(false);
   useEffect(() => {
-    if (!inView || watchHintShownThisSession || readHintSeen()) return;
+    if (!inView) { setShowHint(false); return; }
     let hideTimer;
     const startTimer = setTimeout(() => {
-      watchHintShownThisSession = true;
       setShowHint(true);
-      hideTimer = setTimeout(() => {
-        setShowHint(false);
-        try { localStorage.setItem(WATCH_HINT_KEY, "1"); } catch { /* ignore */ }
-      }, 4800);
-    }, 1200);
-    return () => {
-      clearTimeout(startTimer);
-      if (hideTimer) {
-        clearTimeout(hideTimer);
-        // left view early: allow it to retry on the next card
-        watchHintShownThisSession = false;
-        setShowHint(false);
-      }
-    };
+      hideTimer = setTimeout(() => setShowHint(false), HINT_VISIBLE_MS);
+    }, HINT_START_DELAY);
+    return () => { clearTimeout(startTimer); clearTimeout(hideTimer); };
   }, [inView]);
-  const dismissHint = () => {
-    if (!showHint) return;
-    setShowHint(false);
-    try { localStorage.setItem(WATCH_HINT_KEY, "1"); } catch { /* ignore */ }
-  };
+  const dismissHint = () => { if (showHint) setShowHint(false); };
   const timeoutRef = useRef(null);
 
   const loggedInUsername = localStorage.getItem("username") || "";

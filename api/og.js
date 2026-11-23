@@ -372,6 +372,21 @@ export default async function handler(req) {
 
       // Missing, private, or expired stories never leak a preview.
       if (!item || (item.privacy && item.privacy !== "public") || expired) {
+        if (debug) {
+          return debugJson({
+            type,
+            id,
+            reason: !item
+              ? "No story row returned. Wrong id, story deleted, or Supabase RLS blocks anonymous (anon key) reads on `stories`."
+              : expired
+                ? "Story is older than STORY_TTL_HOURS / past expires_at."
+                : `Story privacy is "${item.privacy}", not public.`,
+            rowFound: !!item,
+            privacy: item?.privacy ?? null,
+            created_at: item?.created_at ?? null,
+            expires_at: item?.expires_at ?? null,
+          });
+        }
         return new Response(fallbackHtml(type, genericFallbackUrl, shareUrl), {
           headers: notFoundHeaders,
         });

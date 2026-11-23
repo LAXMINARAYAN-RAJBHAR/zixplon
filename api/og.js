@@ -9,15 +9,10 @@ function escapeHtml(str = "") {
     .replace(/'/g, "&#39;");
 }
 
-// Share-preview text. Link previews (WhatsApp, Facebook, X ...) are plain
-// text and don't render markdown, so text typed as **bold** used to show
-// literal asterisks. Instead, the marked words are converted to Unicode "bold"
-// (or "italic") look-alike letters, which DO look bold in any preview:
-//     **Happy Diwali**  ->  𝗛𝗮𝗽𝗽𝘆 𝗗𝗶𝘄𝗮𝗹        *wish*  ->  𝘸𝘪𝘴𝘩
-// Only A-Z, a-z and 0-9 have such letters; other scripts (Hindi, accented
-// letters, emoji) are kept as typed, just without the asterisks.
-// Things like @snake_case_names, URLs with underscores and "5 * 3" are left
-// alone. Long text is cut at a word boundary with "…".
+// ---------------------------------------------------------------------------
+// Share-preview text: **bold** / *italic* are converted to Unicode look-alike
+// letters so they look formatted in plain-text link previews.
+// ---------------------------------------------------------------------------
 function mapChars(str, upper, lower, digit) {
   return Array.from(str)
     .map((ch) => {
@@ -29,33 +24,25 @@ function mapChars(str, upper, lower, digit) {
     })
     .join("");
 }
-const toBold = (t) => mapChars(t, 0x1d5d4, 0x1d5ee, 0x1d7ec); // sans-serif bold
-const toItalic = (t) => mapChars(t, 0x1d608, 0x1d622, 0); // sans-serif italic (no digits)
+const toBold = (t) => mapChars(t, 0x1d5d4, 0x1d5ee, 0x1d7ec);
+const toItalic = (t) => mapChars(t, 0x1d608, 0x1d622, 0);
 
 function previewText(input = "", max = 200) {
   let s = String(input || "").replace(/\r\n?/g, "\n");
-  s = s.replace(/```[\s\S]*?```/g, " "); // code blocks
-  s = s.replace(/`([^`\n]+)`/g, "$1"); // inline code
-
-  // CHANGED: **bold**, now tolerating spaces just inside the markers
-  // (e.g. "** Happy Diwali **"). [^\n] keeps a stray ** from bolding
-  // everything up to a distant ** several lines later.
+  s = s.replace(/```[\s\S]*?```/g, " ");
+  s = s.replace(/`([^`\n]+)`/g, "$1");
   s = s.replace(/\*\*\s*([^\n]*?\S)\s*\*\*/g, (_, t) => toBold(t));
-  // CHANGED: __bold__ only at word edges, so snake__case__names are left alone
   s = s.replace(
     /(^|[\s(])__\s*([^\n]*?\S)\s*__(?=$|[\s).,!?:;])/g,
     (_, pre, t) => pre + toBold(t)
   );
-
-  s = s.replace(/~~(?=\S)([\s\S]+?)(?<=\S)~~/g, "$1"); // ~~strike~~ (no look-alike: just unwrap)
-  s = s.replace(/(^|[\s(])\*(?=\S)([^*\n]+?)(?<=\S)\*(?=$|[\s).,!?:;])/g, (_, pre, t) => pre + toItalic(t)); // *italic*
-  s = s.replace(/(^|[\s(])_(?=\S)([^_\n]+?)(?<=\S)_(?=$|[\s).,!?:;])/g, (_, pre, t) => pre + toItalic(t)); // _italic_
-  s = s.replace(/^\s{0,3}#{1,6}\s+/gm, ""); // # headings
-  s = s.replace(/\*{2,}/g, ""); // leftover **
-  s = s.replace(/(^|\s)\*+(?=\S)/g, "$1").replace(/(?<=\S)\*+(?=\s|$)/g, ""); // stray * hugging a word
+  s = s.replace(/~~(?=\S)([\s\S]+?)(?<=\S)~~/g, "$1");
+  s = s.replace(/(^|[\s(])\*(?=\S)([^*\n]+?)(?<=\S)\*(?=$|[\s).,!?:;])/g, (_, pre, t) => pre + toItalic(t));
+  s = s.replace(/(^|[\s(])_(?=\S)([^_\n]+?)(?<=\S)_(?=$|[\s).,!?:;])/g, (_, pre, t) => pre + toItalic(t));
+  s = s.replace(/^\s{0,3}#{1,6}\s+/gm, "");
+  s = s.replace(/\*{2,}/g, "");
+  s = s.replace(/(^|\s)\*+(?=\S)/g, "$1").replace(/(?<=\S)\*+(?=\s|$)/g, "");
   s = s.replace(/\s+/g, " ").trim();
-  // count characters, not UTF-16 units: the bold letters are 2 units each, and
-  // slicing between the halves would produce a broken character
   const chars = Array.from(s);
   if (chars.length > max) {
     s = chars.slice(0, max).join("").replace(/\s+\S*$/, "").trim() + "…";
@@ -63,9 +50,6 @@ function previewText(input = "", max = 200) {
   return s;
 }
 
-// Kept as a documented no-op for R2 URLs (R2 has no "grab a frame" transform).
-// Only matches legacy Cloudinary video URLs. Real thumbnails must be stored
-// at upload time (thumbnail_url / thumbnail columns).
 function getVideoThumbnailFromCloudinaryUrl(videoUrl) {
   if (!videoUrl) return null;
   if (videoUrl.includes("/upload/")) {
@@ -89,25 +73,35 @@ async function fetchWithTimeout(url, options, timeoutMs = FETCH_TIMEOUT_MS) {
 }
 
 const SITE = "https://zixplon.in";
-const ALLOWED_TYPES = ["post", "reel", "video", "profile"];
+const ALLOWED_TYPES = ["post", "reel", "video", "story", "profile"];
 
-// CHANGED: the path of the React profile route, WITHOUT the username.
-// The app links profiles as /user/<username> (was "/profile", which
-// doesn't exist in the app, so shared profile links landed on a dead page).
 const PROFILE_PATH = "/user";
-
-// CHANGED: where a shared post opens. The app shows posts on the Posts tab
-// of the home page, and PostFeed reads ?post=<id> to scroll to / highlight
-// it. (Was "/feed?post=<id>", which isn't a route in the app.)
 const POSTS_TAB_URL = `${SITE}/?tab=posts`;
 
-// Ideally replace with a real 1200x630 branded image: put it in /public
-// and change this to `${SITE}/og-fallback.jpg`.
+// ---------------------------------------------------------------------------
+// NEW: per-type look & feel of the preview. Edit these to restyle a type.
+//   siteName   -> og:site_name (the small grey line above/below the title)
+//   badge      -> emoji put in front of the title
+//   ogType     -> og:type
+// ---------------------------------------------------------------------------
+const PREVIEW_META = {
+  post:    { siteName: "ZIXPLON · Posts",   badge: "📝", ogType: "article" },
+  video:   { siteName: "ZIXPLON · Videos",  badge: "▶️", ogType: "video.other" },
+  reel:    { siteName: "ZIXPLON · Reels",   badge: "🎬", ogType: "video.other" },
+  story:   { siteName: "ZIXPLON · Stories", badge: "📸", ogType: "article" },
+  profile: { siteName: "ZIXPLON",           badge: "",   ogType: "profile" },
+};
+
+// NEW: stories disappear after this many hours (set to 0 to never expire).
+const STORY_TTL_HOURS = 24;
+
+// NEW: where a shared story opens in the React app. CHANGE THIS to match your
+// real story route. Receives the story row, returns an absolute URL.
+const storyUrlFor = (item, id) =>
+  `${SITE}/stories/${encodeURIComponent(item.username)}?story=${encodeURIComponent(item.id ?? id)}`;
+
 const FALLBACK_OG_IMAGE = `${SITE}/logo192.png`;
 
-// Returns a clean absolute https URL, or null when the value can't be
-// used by a crawler (empty, data:/blob: URLs, or not a valid URL at all).
-// Crawlers (WhatsApp, Facebook, X...) cannot use data: URIs as og:image.
 function cleanImage(url) {
   if (!url || typeof url !== "string") return null;
   let u = url.trim();
@@ -116,13 +110,12 @@ function cleanImage(url) {
   else if (u.startsWith("/")) u = `${SITE}${u}`;
   else if (u.startsWith("http://")) u = u.replace("http://", "https://");
   try {
-    return new URL(u).href; // also percent-encodes spaces etc.
+    return new URL(u).href;
   } catch {
     return null;
   }
 }
 
-// First usable image from a list of candidates, or null.
 function firstImage(candidates) {
   for (const c of candidates) {
     const img = cleanImage(c);
@@ -131,18 +124,11 @@ function firstImage(candidates) {
   return null;
 }
 
-// NEW: routes any thumbnail through the wsrv.nl proxy so crawlers always get a
-// small JPEG (keeps tall 9:16 / square images under WhatsApp's ~300 KB limit).
-// fit=cover crops to the target size; a=attention picks the interesting area.
-// CHANGED: landscape cards use fit=contain (whole image visible, dark side bars
-// for vertical/square media) so text on posters is never cropped. Square
-// profile avatars still use cover.
 function ogImage(url, w = 1200, h = 630) {
   const fit = w === h ? "fit=cover&a=attention" : "fit=contain&cbg=111111";
   return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${w}&h=${h}&${fit}&output=jpg&q=80`;
 }
 
-// image_urls may be a real array, a JSON string, or empty.
 function parseList(v) {
   if (Array.isArray(v)) return v;
   if (typeof v === "string") {
@@ -156,17 +142,18 @@ function parseList(v) {
   return [];
 }
 
-// Escape LIKE wildcards so a username is matched literally by ilike
-// (mirrors escapeLike() in Profile.jsx). "*" is PostgREST's own wildcard.
 function ilikeValue(str = "") {
   return encodeURIComponent(String(str).replace(/\*/g, "").replace(/[\\%_]/g, "\\$&"));
 }
 
-function ogTypeFor(type) {
-  if (type === "post") return "article";
-  if (type === "profile") return "profile";
-  return "video.other";
-}
+// NEW: "badge + title" helper, skips the badge when there is none.
+const withBadge = (type, text) => {
+  const b = PREVIEW_META[type]?.badge;
+  return b ? `${b} ${text}` : text;
+};
+
+// NEW: joins non-empty parts with " · " for compact descriptions.
+const joinParts = (...parts) => parts.filter(Boolean).join(" · ");
 
 function renderHtml({ type, title, description, image, url, shareUrl, card = "summary_large_image", imageSize = null }) {
   const safeTitle = escapeHtml(title);
@@ -174,6 +161,8 @@ function renderHtml({ type, title, description, image, url, shareUrl, card = "su
   const safeImage = escapeHtml(image);
   const safeUrl = escapeHtml(url);
   const safeShareUrl = escapeHtml(shareUrl || url);
+  const meta = PREVIEW_META[type] || PREVIEW_META.post;
+  const safeSite = escapeHtml(meta.siteName);
 
   return `<!DOCTYPE html>
 <html>
@@ -181,7 +170,7 @@ function renderHtml({ type, title, description, image, url, shareUrl, card = "su
     <meta charset="UTF-8" />
     <title>${safeTitle} — ZIXPLON</title>
     <meta name="description" content="${safeDescription}" />
-    <meta property="og:type" content="${ogTypeFor(type)}" />
+    <meta property="og:type" content="${meta.ogType}" />
     <meta property="og:title" content="${safeTitle}" />
     <meta property="og:description" content="${safeDescription}" />
     <meta property="og:image" content="${safeImage}" />
@@ -191,7 +180,7 @@ function renderHtml({ type, title, description, image, url, shareUrl, card = "su
     <meta property="og:image:type" content="image/jpeg" />` : ""}
     <meta property="og:image:alt" content="${safeTitle}" />
     <meta property="og:url" content="${safeShareUrl}" />
-    <meta property="og:site_name" content="ZIXPLON" />
+    <meta property="og:site_name" content="${safeSite}" />
     <meta name="twitter:card" content="${card}" />
     <meta name="twitter:title" content="${safeTitle}" />
     <meta name="twitter:description" content="${safeDescription}" />
@@ -209,15 +198,13 @@ function fallbackHtml(type, url, shareUrl) {
   return renderHtml({
     type,
     title: "ZIXPLON",
-    description: "Watch videos, reels, and posts on ZIXPLON",
+    description: "Watch videos, reels, stories and posts on ZIXPLON",
     image: FALLBACK_OG_IMAGE,
     url,
     shareUrl,
   });
 }
 
-// Used by ?debug=1 — fetches the chosen image the way a crawler would and
-// reports status / content-type / size, so you can see WHY a thumbnail fails.
 async function probeImage(imageUrl) {
   try {
     const res = await fetchWithTimeout(imageUrl, {
@@ -238,12 +225,27 @@ async function probeImage(imageUrl) {
 
 const short = (v) => (typeof v === "string" ? (v.length > 220 ? v.slice(0, 220) + "…(" + v.length + " chars)" : v) : v ?? null);
 
-// NEW: JSON response used by ?debug=1 when something goes wrong, so the
-// real cause is visible instead of silently falling back to the home page.
 const debugJson = (obj) =>
   new Response(JSON.stringify(obj, null, 2), {
     headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
   });
+
+// NEW: author's profile picture (best effort) — used when a post / story has
+// no image of its own.
+async function fetchProfilePic(SUPABASE_URL, sbHeaders, username) {
+  if (!username) return null;
+  try {
+    const pr = await fetchWithTimeout(
+      `${SUPABASE_URL}/rest/v1/profiles?username=eq.${encodeURIComponent(username)}&select=profile_pic&limit=1`,
+      { headers: sbHeaders }
+    );
+    if (!pr.ok) return null;
+    const rows = await pr.json();
+    return rows?.[0]?.profile_pic || null;
+  } catch (_) {
+    return null;
+  }
+}
 
 export default async function handler(req) {
   const { searchParams } = new URL(req.url);
@@ -251,11 +253,6 @@ export default async function handler(req) {
   const id = searchParams.get("id");
   const debug = searchParams.get("debug") === "1";
 
-  // NOTE: Edge functions read RUNTIME environment variables. Names that start
-  // with REACT_APP_ are normally only baked into the browser bundle at build
-  // time, so make sure SUPABASE_URL and SUPABASE_ANON_KEY (no prefix) are set
-  // in your hosting dashboard (Vercel -> Project -> Settings -> Environment
-  // Variables) and redeploy.
   const SUPABASE_URL = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
   const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
 
@@ -266,6 +263,11 @@ export default async function handler(req) {
   const notFoundHeaders = {
     "content-type": "text/html; charset=utf-8",
     "cache-control": "public, max-age=60, s-maxage=60",
+  };
+  // NEW: stories expire, so their previews are cached for a short time only.
+  const storyHeaders = {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "public, max-age=300, s-maxage=300",
   };
 
   const genericFallbackUrl = SITE;
@@ -283,15 +285,10 @@ export default async function handler(req) {
     });
   }
 
-  // The pretty URL people actually share (rewritten to this function).
   const shareUrl = `${SITE}/s/${type}/${encodeURIComponent(id)}`;
 
-  // NEW: without these two values every lookup below would fail and every
-  // link would quietly redirect to the home page. Say so loudly instead.
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.error(
-      "og handler: SUPABASE_URL / SUPABASE_ANON_KEY are not set for this deployment."
-    );
+    console.error("og handler: SUPABASE_URL / SUPABASE_ANON_KEY are not set for this deployment.");
     if (debug) {
       return debugJson({
         error: "Missing environment variables",
@@ -313,7 +310,7 @@ export default async function handler(req) {
 
   try {
     let title, description, url;
-    let candidates = [];           // raw image candidates, in priority order
+    let candidates = [];
     let card = "summary_large_image";
 
     if (type === "post") {
@@ -326,21 +323,21 @@ export default async function handler(req) {
       const data = await res.json();
       const item = data?.[0];
 
-      // Never leak "friends" / "only_me" posts into a public preview.
-      // CHANGED: falls back to the Posts tab (was /feed, which isn't a route).
       if (!item || (item.privacy && item.privacy !== "public")) {
         return new Response(fallbackHtml(type, POSTS_TAB_URL, shareUrl), {
           headers: notFoundHeaders,
         });
       }
 
-      title = item?.username ? `${item.username} on ZIXPLON` : "Post on ZIXPLON";
-      // Markdown markers (**bold**, _italic_ ...) are converted/stripped so the
-      // preview doesn't show literal asterisks.
+      // CUSTOM POST PREVIEW: "📝 username shared a post"
+      title = withBadge(
+        "post",
+        item?.username ? `${item.username} shared a post` : "New post on ZIXPLON"
+      );
       description =
         previewText(item?.text, 200) ||
         (item?.video_url ? "Watch this video post on ZIXPLON" : "Check out this post on ZIXPLON");
-      // Also reads image_urls when it is a JSON string, and `thumbnail`.
+
       candidates = [
         item?.image_url,
         parseList(item?.image_urls)[0],
@@ -348,26 +345,54 @@ export default async function handler(req) {
         item?.thumbnail,
         getVideoThumbnailFromCloudinaryUrl(item?.video_url),
       ];
-      // NEW: a post with no usable image (text-only, or a video post with no
-      // stored thumbnail) used to show the generic logo. Use the author's
-      // profile picture instead — best effort, never blocks the preview.
-      if (!firstImage(candidates) && item?.username) {
-        try {
-          const pr = await fetchWithTimeout(
-            `${SUPABASE_URL}/rest/v1/profiles?username=eq.${encodeURIComponent(item.username)}&select=profile_pic&limit=1`,
-            { headers: sbHeaders }
-          );
-          if (pr.ok) {
-            const rows = await pr.json();
-            candidates.push(rows?.[0]?.profile_pic);
-          }
-        } catch (_) {
-          /* keep the logo fallback */
-        }
+      if (!firstImage(candidates)) {
+        candidates.push(await fetchProfilePic(SUPABASE_URL, sbHeaders, item?.username));
       }
-      // CHANGED: opens the Posts tab and highlights this post
-      // (PostFeed reads ?tab=posts&post=<id>).
       url = `${SITE}/?tab=posts&post=${encodeURIComponent(item.id ?? id)}`;
+    } else if (type === "story") {
+      // NEW: STORY PREVIEW. Assumes a `stories` table with (some of):
+      // id, username, text/caption, image_url, media_url, thumbnail_url,
+      // video_url, created_at, expires_at, privacy.
+      const res = await fetchWithTimeout(
+        `${SUPABASE_URL}/rest/v1/stories?id=eq.${encodeURIComponent(id)}&select=*&limit=1`,
+        { headers: sbHeaders }
+      );
+
+      if (!res.ok) throw new Error(`Supabase responded ${res.status}`);
+      const data = await res.json();
+      const item = data?.[0];
+
+      const expired = (() => {
+        if (item?.expires_at) return new Date(item.expires_at).getTime() < Date.now();
+        if (STORY_TTL_HOURS > 0 && item?.created_at) {
+          return Date.now() - new Date(item.created_at).getTime() > STORY_TTL_HOURS * 3600 * 1000;
+        }
+        return false;
+      })();
+
+      // Missing, private, or expired stories never leak a preview.
+      if (!item || (item.privacy && item.privacy !== "public") || expired) {
+        return new Response(fallbackHtml(type, genericFallbackUrl, shareUrl), {
+          headers: notFoundHeaders,
+        });
+      }
+
+      title = withBadge("story", `${item.username}'s story`);
+      description =
+        previewText(item.text || item.caption, 200) ||
+        `Watch ${item.username}'s story on ZIXPLON before it disappears`;
+
+      candidates = [
+        item.thumbnail_url,
+        item.thumbnail,
+        item.image_url,
+        item.media_url,
+        getVideoThumbnailFromCloudinaryUrl(item.video_url),
+      ];
+      if (!firstImage(candidates)) {
+        candidates.push(await fetchProfilePic(SUPABASE_URL, sbHeaders, item.username));
+      }
+      url = storyUrlFor(item, id);
     } else if (type === "profile") {
       const res = await fetchWithTimeout(
         `${SUPABASE_URL}/rest/v1/profiles?username=ilike.${ilikeValue(id)}&select=username,channel_name,about,profile_pic,banner_pic&limit=1`,
@@ -392,15 +417,13 @@ export default async function handler(req) {
         item.banner_pic,
         `https://ui-avatars.com/api/?name=${encodeURIComponent(item.username)}&background=7c3aed&color=fff&size=600`,
       ];
-      // CHANGED: PROFILE_PATH is now "/user" (the app's real profile route).
       url = `${SITE}${PROFILE_PATH}/${encodeURIComponent(item.username)}`;
-      card = "summary"; // square avatar
+      card = "summary";
     } else {
+      // video or reel
       const table = type === "reel" ? "reels" : "videos";
       const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const isUuid = UUID_RE.test(id);
-      // `id` may be a uuid OR a numeric id depending on the table; only use
-      // id.eq when it can't cause a type-cast error, and fall back to short_id.
       const isNumeric = /^\d+$/.test(id);
       const filter = isUuid || isNumeric
         ? `or=(id.eq.${encodeURIComponent(id)},short_id.eq.${encodeURIComponent(id)})`
@@ -421,10 +444,23 @@ export default async function handler(req) {
         });
       }
 
-      title = previewText(item?.title, 100) || "Watch on ZIXPLON";
-      description = previewText(item?.description, 200) || item?.channel || "Watch videos and reels on ZIXPLON";
-      // Tries both column names for both tables (videos use
-      // thumbnail_url, reels use thumbnail) and skips unusable values.
+      const rawTitle = previewText(item?.title, 100);
+      const by = item?.channel || item?.username || "";
+
+      if (type === "reel") {
+        // CUSTOM REEL PREVIEW: "🎬 Title" or "🎬 Reel by channel"
+        title = withBadge("reel", rawTitle || (by ? `Reel by ${by}` : "Watch this reel"));
+        description =
+          previewText(item?.description, 200) ||
+          (by ? `Watch this reel by ${by} on ZIXPLON` : "Watch short reels on ZIXPLON");
+      } else {
+        // CUSTOM VIDEO PREVIEW: "▶️ Title" + "channel · description"
+        title = withBadge("video", rawTitle || "Watch on ZIXPLON");
+        description =
+          joinParts(by, previewText(item?.description, 180)) ||
+          "Watch videos on ZIXPLON";
+      }
+
       candidates = [
         item?.thumbnail_url,
         item?.thumbnail,
@@ -438,18 +474,15 @@ export default async function handler(req) {
     }
 
     const picked = firstImage(candidates);
-    // Profiles use the square "summary" card, everything else is landscape.
     const imageSize = card === "summary" ? { w: 600, h: 600 } : { w: 1200, h: 630 };
     const image = picked ? ogImage(picked, imageSize.w, imageSize.h) : FALLBACK_OG_IMAGE;
 
-    // ?debug=1 → JSON report instead of HTML.
     if (debug) {
       return debugJson({
         type,
         id,
-        // NEW: where the browser will be sent — check this first when a
-        // shared link opens the wrong page.
         redirectsTo: url,
+        title,
         usedFallback: !picked,
         originalImage: picked,
         originalImageCheck: picked ? await probeImage(picked) : null,
@@ -462,19 +495,16 @@ export default async function handler(req) {
     }
 
     const commentId = searchParams.get("comment");
-    if (commentId && url && type !== "profile") {
+    if (commentId && url && type !== "profile" && type !== "story") {
       url += (url.includes("?") ? "&" : "?") + `comment=${encodeURIComponent(commentId)}`;
     }
 
-    // When we had to use the fallback logo, cache for only 60s so a
-    // thumbnail added/fixed later isn't hidden behind an hour-long cache.
     return new Response(
       renderHtml({ type, title, description, image, url, shareUrl, card, imageSize: picked ? imageSize : null }),
-      { headers: picked ? headers : notFoundHeaders }
+      { headers: !picked ? notFoundHeaders : type === "story" ? storyHeaders : headers }
     );
   } catch (err) {
     console.error("og handler error:", err);
-    // NEW: with ?debug=1 show the real error instead of silently falling back.
     if (debug) {
       return debugJson({
         error: String(err?.message || err),

@@ -176,7 +176,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
       provider: "google",
       options: {
         redirectTo: window.location.origin + "/",
-        queryParams: { access_type: "offline", prompt: "consent" },
+        queryParams: { access_type: "offline", prompt: "select_account consent" },
       },
     });
     if (error) {

@@ -4,6 +4,32 @@ import { Link } from "react-router-dom";
 import { supabase } from "../../config/supabase";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
+import { EXPECTED_GOOGLE_EMAIL_KEY } from "../../utils/googleEmailCheck";
+
+/**
+ * Call this AFTER the Google OAuth redirect, wherever you handle the session
+ * (e.g. inside supabase.auth.onAuthStateChange in App.jsx).
+ *
+ * Returns { mismatch: boolean, expected: string, actual: string }.
+ * If mismatch is true, show a message and (optionally) sign the user out.
+ */
+export const checkGoogleEmailMatch = (session) => {
+  let expected = "";
+  try {
+    expected = (sessionStorage.getItem(EXPECTED_GOOGLE_EMAIL_KEY) || "")
+      .trim()
+      .toLowerCase();
+    sessionStorage.removeItem(EXPECTED_GOOGLE_EMAIL_KEY); // one-time check
+  } catch (_) {}
+
+  const actual = (session?.user?.email || "").trim().toLowerCase();
+
+  return {
+    mismatch: Boolean(expected && actual && expected !== actual),
+    expected,
+    actual,
+  };
+};
 
 const Login = ({ setLoginModal, onLoginSuccess }) => {
   const [mode, setMode] = useState("login");
@@ -25,6 +51,22 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
     setError("");
     setSuccess("");
   }, []);
+
+  // ── Ask the database which provider this email uses ────────────────────
+  // Needs the `auth_provider_for` SQL function (see instructions).
+  // If the function doesn't exist or fails, we return "unknown" and show
+  // the generic message — we never guess.
+  const getAuthProvider = async (emailToCheck) => {
+    try {
+      const { data, error: rpcErr } = await supabase.rpc("auth_provider_for", {
+        p_email: emailToCheck,
+      });
+      if (rpcErr) return "unknown";
+      return data || "unknown"; // 'google' | 'email' | 'none' | other
+    } catch (_) {
+      return "unknown";
+    }
+  };
 
   const handleLogin = useCallback(async () => {
     // Read from refs — guaranteed fresh even on mobile tap lag
@@ -65,28 +107,22 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
           msg.includes("invalid_credentials") ||
           err.code === "invalid_credentials"
         ) {
-          // ── Detect Google-only accounts via profiles table (no OTP side-effect) ──
-          try {
-            const { data: profileData } = await supabase
-              .from("profiles")
-              .select("id, username")
-              .eq("email", currentEmail)   // only works if you store email in profiles
-              .maybeSingle();
+          // ── Real provider check instead of guessing from the profiles table ──
+          const provider = await getAuthProvider(currentEmail);
 
-            if (!profileData) {
-              // No profile row = Google OAuth user who never set a password
-              setErrorType("google");
-              setError(
-                "This email is registered with Google. Please use 'Continue with Google' to sign in."
-              );
-            } else {
-              setErrorType("generic");
-              setError("Incorrect password. Please try again or reset it below.");
-            }
-          } catch (_) {
-            // Fallback if profiles query fails
+          if (provider === "google") {
+            // Account exists and is Google-only (no email/password identity)
+            setErrorType("google");
+            setError(
+              "This email is registered with Google. Please use 'Continue with Google' to sign in."
+            );
+          } else {
+            // Wrong password, unregistered email, or unknown — same message
+            // for all of them, so we don't reveal which emails have accounts.
             setErrorType("generic");
-            setError("Incorrect email or password. Please try again.");
+            setError(
+              "Incorrect email or password. If you signed up with Google, use 'Continue with Google'."
+            );
           }
           return;
         }
@@ -147,7 +183,7 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
       setErrorType("generic");
       setError("Something went wrong. Please try again.");
     }
-  }, [onLoginSuccess, setLoginModal]); // removed email/password — using refs instead
+  }, [onLoginSuccess, setLoginModal]); // email/password are read from refs
 
   const handleForgot = useCallback(async () => {
     const currentEmail = emailRef.current.trim();
@@ -169,27 +205,43 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
   }, []);
 
   const handleGoogleLogin = useCallback(async () => {
-  setError("");
-  setErrorType("");
-  try {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin + "/",
-        queryParams: { access_type: "offline", prompt: "select_account consent" },
-      },
-    });
-    if (error) {
-      alert(`Google OAuth Error: ${error.message}`);
+    setError("");
+    setErrorType("");
+
+    const typedEmail = emailRef.current.trim();
+
+    // Remember the typed email so it can be compared after the redirect
+    try {
+      if (typedEmail) {
+        sessionStorage.setItem(EXPECTED_GOOGLE_EMAIL_KEY, typedEmail);
+      } else {
+        sessionStorage.removeItem(EXPECTED_GOOGLE_EMAIL_KEY);
+      }
+    } catch (_) {}
+
+    try {
+      const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + "/",
+          queryParams: {
+            // Pre-selects (or prompts to add) the email the user typed
+            ...(typedEmail && { login_hint: typedEmail }),
+            // Always let the user pick/add an account; remove this line if you
+            // want Google to go straight to the hinted account.
+            prompt: "select_account",
+          },
+        },
+      });
+      if (oauthErr) {
+        setErrorType("generic");
+        setError(oauthErr.message);
+      }
+    } catch (e) {
       setErrorType("generic");
-      setError(error.message);
+      setError("Google login failed. Please try again.");
     }
-  } catch (e) {
-    alert(`Google OAuth Exception: ${e.message || e}`);
-    setErrorType("generic");
-    setError("Google login failed. Please try again.");
-  }
-}, []);
+  }, []);
 
   // ── Use onPointerDown on overlay to prevent mobile tap-through ──────────
   const handleOverlayPointerDown = useCallback(

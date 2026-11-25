@@ -95,6 +95,10 @@ import ShareRedirect, { NotFoundPage } from "./Pages/Share/ShareRedirect";
 // both are written by scripts/generate-version.cjs on every build.
 import UpdateNotifier from "./Component/Shared/UpdateNotifier";
 import OfflineBanner from "./Component/Shared/OfflineBanner";
+// NEW: compares the email typed in the Login form with the Google account
+// the user actually picked after the OAuth redirect.
+// TODO: adjust this path to wherever your Login.jsx file lives.
+import { checkGoogleEmailMatch } from "./utils/googleEmailCheck";
 
 // ── FeedRedirect ──────────────────────────────────────────────────────────
 // FIX: old links to /feed?post=<id> — from the navbar's post-notification
@@ -374,6 +378,57 @@ const ExitToast = ({ visible }) => (
   </div>
 );
 
+// ── NEW: Wrong Google account notice ─────────────────────────────────────────
+// Shown when the Google account the user picked after the OAuth redirect
+// differs from the email they typed in the Login form. The session has
+// already been signed out by the time this renders.
+const WrongGoogleAccountNotice = ({ expected, actual, onClose }) => (
+  <div
+    role="alert"
+    style={{
+      position: "fixed",
+      top: "16px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      width: "min(440px, 92%)",
+      background: "#fff3e0",
+      borderLeft: "4px solid #f97316",
+      color: "#c2410c",
+      padding: "12px 16px",
+      borderRadius: "10px",
+      fontSize: "14px",
+      lineHeight: 1.5,
+      fontFamily: "'Outfit', 'Nunito', sans-serif",
+      zIndex: 1000000,
+      boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+      boxSizing: "border-box",
+    }}
+  >
+    <div style={{ fontWeight: 700, marginBottom: "4px" }}>Different Google account selected</div>
+    <div>
+      You entered {expected}, but signed in with Google as {actual}. You have
+      been signed out. Please try again and choose {expected}
+      {" "}(use “Use another account” if it isn’t in the list).
+    </div>
+    <button
+      onClick={onClose}
+      style={{
+        marginTop: "10px",
+        background: "#fff",
+        border: "1px solid #e5e7eb",
+        borderRadius: "8px",
+        padding: "6px 14px",
+        fontSize: "13px",
+        fontWeight: 600,
+        cursor: "pointer",
+        color: "#374151",
+      }}
+    >
+      Got it
+    </button>
+  </div>
+);
+
 // ── Floating Admin Panel Button ─────────────────────────────────────────────
 // Only rendered when useIsAdmin() resolves true for the logged-in user
 // (root email OR granted via the admin_users table). This is purely a
@@ -426,6 +481,16 @@ function App() {
   // link). Rendered as a floating modal, same pattern as LoginOptionsModal
   // and UsernameSetupModal below. ──
   const [showResetPassword, setShowResetPassword] = useState(false);
+
+  // ── NEW: wrong-Google-account check ──
+  // googleCheckDoneRef: the typed-email check runs once per page load
+  //   (checkGoogleEmailMatch consumes its sessionStorage key).
+  // googleMismatchTokenRef: access token of the rejected session, so BOTH
+  //   getSession() and onAuthStateChange() skip it, without blocking a
+  //   later legitimate login in the same page load.
+  const [googleMismatch, setGoogleMismatch] = useState(null);
+  const googleCheckDoneRef = useRef(false);
+  const googleMismatchTokenRef = useRef(null);
 
   // ── Google One Tap state ──
   const [oneTapAttempted, setOneTapAttempted] = useState(false);
@@ -489,6 +554,29 @@ function App() {
     };
     window.addEventListener("openMessages", handler);
     return () => window.removeEventListener("openMessages", handler);
+  }, []);
+
+  // ── NEW: returns true if this session belongs to a Google account
+  // different from the email the user typed before the redirect. On the
+  // first mismatch it signs the user out (this device only) and shows the
+  // notice. Safe to call from both getSession() and onAuthStateChange(). ──
+  const isWrongGoogleAccount = useCallback((session) => {
+    if (!session?.user) return false;
+
+    if (!googleCheckDoneRef.current) {
+      googleCheckDoneRef.current = true;
+      const { mismatch, expected, actual } = checkGoogleEmailMatch(session);
+      if (mismatch) {
+        googleMismatchTokenRef.current = session.access_token;
+        setGoogleMismatch({ expected, actual });
+        supabase.auth.signOut({ scope: "local" });
+      }
+    }
+
+    return (
+      googleMismatchTokenRef.current !== null &&
+      session.access_token === googleMismatchTokenRef.current
+    );
   }, []);
 
   // ── Shared: resolve/create the profile row for a Supabase auth user ──
@@ -589,6 +677,15 @@ function App() {
       }
 
       if (session?.user) {
+        // NEW: reject a Google session that doesn't match the typed email
+        if (isWrongGoogleAccount(session)) {
+          if (window.location.hash?.includes("access_token")) {
+            window.history.replaceState({}, document.title, "/");
+          }
+          setSessionChecked(true);
+          return;
+        }
+
         const name = await resolveUsername(session.user);
         setCurrentUser(name);
         setShowLoginModal(false);
@@ -628,6 +725,15 @@ function App() {
           localStorage.removeItem("userName");
           return;
         }
+
+        // NEW: reject a Google session that doesn't match the typed email
+        if (isWrongGoogleAccount(session)) {
+          if (window.location.hash?.includes("access_token")) {
+            window.history.replaceState({}, document.title, "/");
+          }
+          return;
+        }
+
         resolveUsername(session.user).then((name) => {
           setCurrentUser(name);
           setShowLoginModal(false);
@@ -639,7 +745,7 @@ function App() {
     );
 
     return () => subscription.unsubscribe();
-  }, [resolveUsername]);
+  }, [resolveUsername, isWrongGoogleAccount]);
 
   // ── Load the Google Identity Services script once ──
   useEffect(() => {
@@ -664,6 +770,9 @@ function App() {
     if (!sessionChecked || currentUser) return;
     if (oneTapAttempted) return;
     if (suppressAutoModalRoutes.includes(location.pathname)) return;
+    // NEW: don't auto-sign the user straight back in with One Tap right
+    // after we rejected a wrong Google account — let them read the notice.
+    if (googleMismatch) return;
 
     // Don't race with an in-flight OAuth redirect that's still resolving
     // its own #access_token hash (this is the exact race you're chasing
@@ -882,6 +991,20 @@ function App() {
 
           {/* Mobile exit toast */}
           <ExitToast visible={showExitToast} />
+
+          {/* NEW: shown when the Google account picked after the redirect
+            doesn't match the email typed in the Login form. */}
+          {googleMismatch && (
+            <WrongGoogleAccountNotice
+              expected={googleMismatch.expected}
+              actual={googleMismatch.actual}
+              onClose={() => {
+                setGoogleMismatch(null);
+                // Let the normal login prompt come back after the notice.
+                setShowLoginModal(true);
+              }}
+            />
+          )}
 
           {/* NEW: "New version available — Refresh" banner. Checks
             /version.json on load, every 5 minutes, and whenever the tab

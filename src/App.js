@@ -14,7 +14,6 @@ import Reels from "./Component/Reels/reels";
 import Footer from "./Component/Footer/footer";
 import SearchResults from "./Component/SearchResults/searchResults";
 import Notifications from "./Component/Notifications/notifications";
-import ComingSoon from "./Pages/ComingSoon/comingSoon";
 import ScrollToTop from "./ScrollToTop";
 import LiveTVPage from "./Pages/LiveTV/LiveTVPage";
 import LocalMediaPlayer from "./Pages/LocalMediaPlayer/LocalMediaPlayer";
@@ -97,8 +96,10 @@ import UpdateNotifier from "./Component/Shared/UpdateNotifier";
 import OfflineBanner from "./Component/Shared/OfflineBanner";
 // NEW: compares the email typed in the Login form with the Google account
 // the user actually picked after the OAuth redirect.
-// TODO: adjust this path to wherever your Login.jsx file lives.
-import { checkGoogleEmailMatch } from "./utils/googleEmailCheck";
+import {
+  checkGoogleEmailMatch,
+  EXPECTED_GOOGLE_EMAIL_KEY,
+} from "./utils/googleEmailCheck";
 
 // ── FeedRedirect ──────────────────────────────────────────────────────────
 // FIX: old links to /feed?post=<id> — from the navbar's post-notification
@@ -483,12 +484,21 @@ function App() {
   const [showResetPassword, setShowResetPassword] = useState(false);
 
   // ── NEW: wrong-Google-account check ──
+  // returnedFromOAuthRef: true only if this page load came back from an
+  //   OAuth redirect (tokens in the hash, or ?code=). Captured once on
+  //   first render, before the hash is cleaned. Without this, a stale
+  //   "typed email" left in sessionStorage by an abandoned Google attempt
+  //   could wrongly sign out a legitimate user on a later reload.
   // googleCheckDoneRef: the typed-email check runs once per page load
   //   (checkGoogleEmailMatch consumes its sessionStorage key).
   // googleMismatchTokenRef: access token of the rejected session, so BOTH
   //   getSession() and onAuthStateChange() skip it, without blocking a
   //   later legitimate login in the same page load.
   const [googleMismatch, setGoogleMismatch] = useState(null);
+  const returnedFromOAuthRef = useRef(
+    window.location.hash.includes("access_token") ||
+      new URLSearchParams(window.location.search).has("code")
+  );
   const googleCheckDoneRef = useRef(false);
   const googleMismatchTokenRef = useRef(null);
 
@@ -559,17 +569,31 @@ function App() {
   // ── NEW: returns true if this session belongs to a Google account
   // different from the email the user typed before the redirect. On the
   // first mismatch it signs the user out (this device only) and shows the
-  // notice. Safe to call from both getSession() and onAuthStateChange(). ──
+  // notice. Safe to call from both getSession() and onAuthStateChange().
+  // The check only runs when this page load really came back from an
+  // OAuth redirect; otherwise any stale saved email is discarded. ──
   const isWrongGoogleAccount = useCallback((session) => {
     if (!session?.user) return false;
 
     if (!googleCheckDoneRef.current) {
       googleCheckDoneRef.current = true;
-      const { mismatch, expected, actual } = checkGoogleEmailMatch(session);
-      if (mismatch) {
-        googleMismatchTokenRef.current = session.access_token;
-        setGoogleMismatch({ expected, actual });
-        supabase.auth.signOut({ scope: "local" });
+
+      if (!returnedFromOAuthRef.current) {
+        // Not coming back from Google: discard any stale saved email.
+        try {
+          sessionStorage.removeItem(EXPECTED_GOOGLE_EMAIL_KEY);
+        } catch (_) {}
+      } else {
+        const { mismatch, expected, actual } = checkGoogleEmailMatch(session);
+        if (mismatch) {
+          googleMismatchTokenRef.current = session.access_token;
+          setGoogleMismatch({ expected, actual });
+          // Deferred: Supabase advises against calling its auth methods
+          // synchronously inside onAuthStateChange (can deadlock).
+          setTimeout(() => {
+            supabase.auth.signOut({ scope: "local" });
+          }, 0);
+        }
       }
     }
 

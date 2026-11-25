@@ -171,21 +171,31 @@ const Login = ({ setLoginModal, onLoginSuccess }) => {
   const handleGoogleLogin = useCallback(async () => {
   setError("");
   setErrorType("");
+
+  const typedEmail = emailRef.current.trim();
+  const queryParams = { access_type: "offline" };
+
+  if (typedEmail) {
+    // Opens Google directly for this email, even if it is not in the phone's list
+    queryParams.login_hint = typedEmail;
+    queryParams.prompt = "consent";
+  } else {
+    queryParams.prompt = "select_account consent";
+  }
+
   try {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: window.location.origin + "/",
-        queryParams: { access_type: "offline", prompt: "select_account consent" },
+        queryParams,
       },
     });
     if (error) {
-      alert(`Google OAuth Error: ${error.message}`);
       setErrorType("generic");
       setError(error.message);
     }
   } catch (e) {
-    alert(`Google OAuth Exception: ${e.message || e}`);
     setErrorType("generic");
     setError("Google login failed. Please try again.");
   }

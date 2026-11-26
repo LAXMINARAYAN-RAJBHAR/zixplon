@@ -8,7 +8,11 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { supabase } from "../../config/supabase";
 import RecordModal from "../RecordModal/RecordModal";
 import { checkContent } from "../../Component/Moderation/useModerationFilter";
-import { uploadToR2, buildTransformUrl, uploadVideoToR2 } from "../../utils/mediaUpload";
+// CHANGED: uploadVideoToR2 is no longer used here — the video goes through
+// the resumable multipart uploader below.
+import { uploadToR2, buildTransformUrl } from "../../utils/mediaUpload";
+// NEW: resumable video upload (progress survives connection loss / reloads).
+import { uploadVideoResumable } from "../../utils/resumableUpload";
 import MusicPicker from "../../Component/Shared/MusicPicker";
 import LocationPicker from "../../Component/Shared/LocationPicker";
 import SongAttachmentCard from "../../Component/Shared/SongAttachmentCard";
@@ -362,6 +366,13 @@ const VideoUpload = () => {
   const [uploadProgress,  setUploadProgress]  = useState(0);
   const [uploadSpeed,     setUploadSpeed]     = useState(0);
   const [timeRemaining,   setTimeRemaining]   = useState("");
+  // NEW: "" | "waiting" (connection lost - continues automatically when
+  // back online) | "resuming" (continuing an earlier, interrupted upload
+  // of the same file).
+  const [uploadStatus,    setUploadStatus]    = useState("");
+  // NEW: true after an upload was interrupted but its progress is saved —
+  // shows the "Resume upload" button and auto-resumes when online again.
+  const [canResume,       setCanResume]       = useState(false);
   // ── Local, client-side preview of the picked video file. This is
   // independent of server-side thumbnail capture/upload, so the user
   // always gets a visual "your video is in" confirmation the moment
@@ -391,15 +402,22 @@ const VideoUpload = () => {
   const [originalAudioVolume, setOriginalAudioVolume] = useState(1);
 
   const uploadStartTime  = useRef(null);
+  // NEW: bytes already uploaded when this run started (non-zero when an
+  // earlier upload is being continued) — keeps the MB/s and ETA honest.
+  const uploadBaseBytesRef = useRef(null);
   const uploadedBytesRef = useRef(0);
   const durationRef      = useRef("00:00");
   const wakeLockRef      = useRef(null);
   const localPreviewRef  = useRef(""); // mirrors localPreviewUrl for safe cleanup
   // NEW: the picked video file (kept so handleSubmit can still produce a
-  // thumbnail if the one made during upload is somehow missing) and its
-  // orientation (used to size reel thumbnails portrait instead of 16:9).
+  // thumbnail if the one made during upload is somehow missing, and so an
+  // interrupted upload can be resumed without picking the file again) and
+  // its orientation (used to size reel thumbnails portrait instead of 16:9).
   const fileRef          = useRef(null);
   const portraitRef      = useRef(null);
+  // Always points at the latest startUpload (so the "online" listener never
+  // runs a stale copy with old form values).
+  const startUploadRef   = useRef(null);
 
   const requestWakeLock = async () => {
     try {
@@ -427,6 +445,18 @@ const VideoUpload = () => {
     };
   }, []);
 
+  // NEW: after an interrupted upload, continue automatically the moment the
+  // browser reports it is back online (the "Resume upload" button does the
+  // same thing manually).
+  useEffect(() => {
+    if (!canResume) return undefined;
+    const onOnline = () => {
+      if (fileRef.current && startUploadRef.current) startUploadRef.current(fileRef.current);
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [canResume]);
+
   const clearLocalPreview = () => {
     if (localPreviewRef.current) URL.revokeObjectURL(localPreviewRef.current);
     localPreviewRef.current = "";
@@ -442,6 +472,8 @@ const VideoUpload = () => {
     setUploadProgress(0);
     setUploadSpeed(0);
     setTimeRemaining("");
+    setUploadStatus("");
+    setCanResume(false);
     setSong(null);
     setLocationName(null);
     setShowMusicPicker(false);
@@ -449,21 +481,28 @@ const VideoUpload = () => {
     setFeeling("");
     setShowFeelings(false);
     setOriginalAudioVolume(1);
-    uploadStartTime.current  = null;
-    uploadedBytesRef.current = 0;
-    durationRef.current      = "00:00";
-    fileRef.current          = null;
-    portraitRef.current      = null;
+    uploadStartTime.current    = null;
+    uploadBaseBytesRef.current = null;
+    uploadedBytesRef.current   = 0;
+    durationRef.current        = "00:00";
+    fileRef.current            = null;
+    portraitRef.current        = null;
     clearLocalPreview();
   };
 
   const switchMode = (mode) => { setUploadMode(mode); resetState(); };
 
+  // CHANGED: speed/ETA are measured from the bytes sent in THIS run only,
+  // so a continued upload (which starts at e.g. 40%) doesn't report a
+  // wildly inflated MB/s.
   const updateSpeedAndETA = (loadedBytes, totalBytes) => {
     if (!uploadStartTime.current) return;
-    const elapsed    = (Date.now() - uploadStartTime.current) / 1000;
+    const elapsed = (Date.now() - uploadStartTime.current) / 1000;
     if (elapsed < 1) return;
-    const speedBps   = loadedBytes / elapsed;
+    const base = uploadBaseBytesRef.current || 0;
+    const sentThisRun = loadedBytes - base;
+    if (sentThisRun <= 0) return;
+    const speedBps   = sentThisRun / elapsed;
     const speedMBps  = speedBps / (1024 * 1024);
     const remaining  = totalBytes - loadedBytes;
     const remainSecs = remaining / speedBps;
@@ -559,15 +598,30 @@ const VideoUpload = () => {
     setError("");
   };
 
-  const uploadVideo = async (e) => {
-    setLoader(true); setError(""); setUploadProgress(0); setUploadSpeed(0); setTimeRemaining("");
-    uploadStartTime.current  = Date.now();
-    uploadedBytesRef.current = 0;
+  // ── Resumable video upload ──────────────────────────────────────────────
+  // Progress is saved after every 10 MiB part. If the connection drops the
+  // upload waits and continues by itself. If it gives up (or the page is
+  // reloaded), picking the SAME file again — or tapping "Resume upload" —
+  // continues from the level that was already uploaded.
+  const startUpload = async (file) => {
+    if (!file) return;
+
+    if (file.size > 4 * 1024 * 1024 * 1024) {
+      setError("File too large. Maximum size is 4GB.");
+      return;
+    }
+
+    // Continuing the same file keeps the bar where it was instead of
+    // flashing back to 0%.
+    const isSameFile = fileRef.current === file;
+
+    setLoader(true); setError(""); setCanResume(false); setUploadStatus("");
+    if (!isSameFile) setUploadProgress(0);
+    setUploadSpeed(0); setTimeRemaining("");
+    uploadStartTime.current    = Date.now();
+    uploadBaseBytesRef.current = null;
+    uploadedBytesRef.current   = 0;
     await requestWakeLock();
-    const files = e.target.files;
-    if (!files || files.length === 0) { setLoader(false); return; }
-    const file = files[0];
-    if (file.size > 4 * 1024 * 1024 * 1024) { setError("File too large. Maximum size is 4GB."); setLoader(false); return; }
 
     fileRef.current = file;
     portraitRef.current = null;
@@ -575,10 +629,12 @@ const VideoUpload = () => {
     // Show a confirmation preview immediately from the local file — this
     // does not depend on thumbnail capture or any network call, so it
     // always shows up the moment the upload finishes.
-    clearLocalPreview();
-    const localUrl = URL.createObjectURL(file);
-    localPreviewRef.current = localUrl;
-    setLocalPreviewUrl(localUrl);
+    if (!isSameFile || !localPreviewRef.current) {
+      clearLocalPreview();
+      const localUrl = URL.createObjectURL(file);
+      localPreviewRef.current = localUrl;
+      setLocalPreviewUrl(localUrl);
+    }
 
     try {
       // Duration + thumbnail capture run IN PARALLEL WITH the upload, so
@@ -586,12 +642,20 @@ const VideoUpload = () => {
       const durationPromise = getVideoDuration(file);
       const thumbPromise = captureBestThumbnail(file);
 
-      const { url: videoUrl } = await uploadVideoToR2(file, (pct) => {
-        setUploadProgress(pct);
-        updateSpeedAndETA((pct / 100) * file.size, file.size);
+      const { url: videoUrl } = await uploadVideoResumable(file, {
+        onProgress: (pct) => {
+          setUploadProgress(pct);
+          if (uploadBaseBytesRef.current === null) {
+            // First report of this run = how much was already uploaded.
+            uploadBaseBytesRef.current = (pct / 100) * file.size;
+          }
+          updateSpeedAndETA((pct / 100) * file.size, file.size);
+        },
+        onStatus: (s) => setUploadStatus(s === "uploading" ? "" : s),
       });
 
       // Video is uploaded - now finish the thumbnail (usually already done).
+      setUploadStatus("");
       setThumbLoader(true);
       await durationPromise;
 
@@ -609,10 +673,30 @@ const VideoUpload = () => {
       setInputField((prev) => ({ ...prev, videoLink: videoUrl, thumbnail: thumbnailUrl }));
       setVideoUploaded(true); setUploadProgress(100); setLoader(false); setThumbLoader(false); releaseWakeLock();
     } catch (err) {
-      setLoader(false); setThumbLoader(false); setUploadProgress(0); setTimeRemaining("");
-      setError(err.message || "Upload failed. Please try again.");
-      console.error("Upload error:", err); releaseWakeLock();
+      setLoader(false); setThumbLoader(false); setTimeRemaining(""); setUploadStatus("");
+      releaseWakeLock();
+      console.error("Upload error:", err);
+
+      if (err && err.code === "UPLOAD_INTERRUPTED") {
+        // Progress is saved. Keep the bar where it stopped and offer to continue.
+        setCanResume(true);
+        setError("Connection lost. Your upload progress is saved — it will continue automatically when you're back online, or tap “Resume upload”.");
+      } else {
+        setUploadProgress(0);
+        setError((err && err.message) || "Upload failed. Please try again.");
+      }
     }
+  };
+  // Keep the ref pointing at the newest version (used by the "online" listener).
+  startUploadRef.current = startUpload;
+
+  // File-picker handler. The input's value is cleared so choosing the SAME
+  // file again (to resume) still fires onChange.
+  const uploadVideo = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    startUpload(file);
   };
 
   // ── Manual thumbnail upload — goes to R2 ──
@@ -1178,16 +1262,48 @@ const VideoUpload = () => {
             <Box sx={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
               <Box sx={{ display:"flex", alignItems:"center", gap:"12px" }}>
                 <CircularProgress size={28} sx={{ color:"orange" }} />
-                <span style={{ color:"#aaa", fontSize:"0.9rem" }}>☁️ Uploading to ZIXPLON...</span>
+                <span style={{ color:"#aaa", fontSize:"0.9rem" }}>
+                  {uploadStatus === "waiting"
+                    ? "⏸ Connection lost — waiting to continue…"
+                    : uploadStatus === "resuming"
+                      ? "▶ Continuing your earlier upload…"
+                      : "☁️ Uploading to ZIXPLON..."}
+                </span>
               </Box>
               <div style={{ width:"100%", background:"#333", borderRadius:"8px", height:"8px" }}>
                 <div style={{ width:`${uploadProgress}%`, background:"orange", height:"100%", borderRadius:"8px", transition:"width 0.3s" }} />
               </div>
               <Box sx={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <span style={{ color:"#666", fontSize:"0.8rem" }}>
-                  {uploadProgress}% complete{uploadSpeed > 0 ? ` • ${uploadSpeed} MB/s` : ""}
+                  {uploadProgress}% complete{uploadSpeed > 0 && uploadStatus !== "waiting" ? ` • ${uploadSpeed} MB/s` : ""}
                 </span>
-                {timeRemaining && <span style={{ color:"orange", fontSize:"0.8rem", fontWeight:500 }}>⏱ {timeRemaining}</span>}
+                {timeRemaining && uploadStatus !== "waiting" && (
+                  <span style={{ color:"orange", fontSize:"0.8rem", fontWeight:500 }}>⏱ {timeRemaining}</span>
+                )}
+              </Box>
+              {uploadStatus === "waiting" && (
+                <span style={{ color:"#888", fontSize:"0.78rem" }}>
+                  Your progress is saved. The upload will continue by itself from {uploadProgress}% as soon as your internet is back.
+                </span>
+              )}
+            </Box>
+          )}
+
+          {/* NEW: shown after an interrupted upload — progress is saved.
+              Also resumes automatically when the browser comes back online. */}
+          {canResume && !loader && (
+            <Box sx={{ display:"flex", flexDirection:"column", gap:"8px", width:"100%" }}>
+              <div style={{ width:"100%", background:"#333", borderRadius:"8px", height:"8px" }}>
+                <div style={{ width:`${uploadProgress}%`, background:"orange", height:"100%", borderRadius:"8px" }} />
+              </div>
+              <Box sx={{ display:"flex", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
+                <span style={{ color:"#666", fontSize:"0.8rem" }}>⏸ Paused at {uploadProgress}%</span>
+                <span
+                  className="upload_file_btn"
+                  onClick={() => fileRef.current && startUpload(fileRef.current)}
+                >
+                  ▶ Resume upload
+                </span>
               </Box>
             </Box>
           )}

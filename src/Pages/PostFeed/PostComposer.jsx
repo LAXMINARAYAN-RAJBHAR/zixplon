@@ -4,11 +4,7 @@ import axios from "axios";
 import CommentMediaPicker from "../../Component/Shared/CommentMediaPicker";
 import MusicPicker from "../../Component/Shared/MusicPicker";
 import LocationPicker from "../../Component/Shared/LocationPicker";
-// CHANGED: uploadVideoToR2 is no longer used here — videos go through the
-// resumable multipart uploader below.
-import { uploadToR2, buildTransformUrl } from "../../utils/mediaUpload";
-// NEW: resumable video upload (progress survives connection loss / reloads).
-import { uploadVideoResumable } from "../../utils/resumableUpload";
+import { uploadToR2, buildTransformUrl, uploadVideoToR2 } from "../../utils/mediaUpload";
 import { getInitials } from "../../utils/initials";
 // NEW (Reel mode): same moderation helper the Upload page (VideoUpload.jsx)
 // uses when it saves a reel.
@@ -48,17 +44,18 @@ const FEELINGS = [
 // ─────────────────────────────────────────────────────────────────────────────
 // captureThumbnail — v3: real frame from the video, every time it's possible.
 //
-// • Tries several seek points (10% / 1s / 25% / 50% of the duration) instead
-//   of a single 0.5s seek, because the very start of many videos is a black
-//   fade-in frame.
-// • Measures each captured frame's brightness; if a frame is (almost) black
-//   it tries the next seek point. If every point is dark, the BRIGHTEST
-//   captured frame is used — still a real frame from the video.
-// • Downscales big frames (4K etc.) to max 1280px wide before JPEG encoding.
-// • Waits for the frame to actually be painted (requestVideoFrameCallback)
-//   after each seek instead of relying on a play()/pause() trick.
-// • Callers run this BEFORE the upload starts (not in parallel with it),
-//   so a multi-GB upload can't starve the decoder and cause a timeout.
+// What changed vs v2:
+//  • Tries several seek points (10% / 1s / 25% / 50% of the duration) instead
+//    of a single 0.5s seek, because the very start of many videos is a black
+//    fade-in frame.
+//  • Measures each captured frame's brightness; if a frame is (almost) black
+//    it tries the next seek point. If every point is dark, the BRIGHTEST
+//    captured frame is used — still a real frame from the video.
+//  • Downscales big frames (4K etc.) to max 1280px wide before JPEG encoding.
+//  • Waits for the frame to actually be painted (requestVideoFrameCallback)
+//    after each seek instead of relying on a play()/pause() trick.
+//  • Callers now run this BEFORE the upload starts (not in parallel with it),
+//    so a multi-GB upload can't starve the decoder and cause a timeout.
 //
 // It still rejects if the browser genuinely can't decode the file (e.g. an
 // HEVC/H.265 .mov in a browser without that codec) — then the caller falls
@@ -322,13 +319,6 @@ const generatePlaceholderThumbnail = (title, portrait) =>
 const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
   const { t } = useT();
 
-  // Translation with an English fallback for keys that aren't in the
-  // language files yet (t() returns the key itself when it's missing).
-  const tr = (key, fallback, vars) => {
-    const v = t(key, vars);
-    return !v || v === key ? fallback : v;
-  };
-
   // NEW: what is being created — "post" (normal post), "reel" (saved to the
   // reels table) or "video" (saved to the videos table, like the Upload page).
   // "Live / Record" is not a mode: it opens the RecordModal popup instead.
@@ -359,9 +349,6 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
   const [privacy, setPrivacy] = useState("public");
   const [posting, setPosting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  // NEW: "" | "waiting" (offline, will resume by itself) | "resuming"
-  // (continuing an earlier, interrupted upload of the same file).
-  const [uploadStatus, setUploadStatus] = useState("");
   const [error, setError] = useState("");
 
   // Song ({ title, artist, cover, url }) and location-name attachments.
@@ -569,16 +556,6 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
     return buildTransformUrl(url, { width: 800, quality: 85 });
   };
 
-  // ── NEW: resumable video upload (post video, reel and video all use it).
-  // Progress is saved after every 10 MiB part. If the connection drops the
-  // upload waits and continues by itself; if it gives up (or the page is
-  // reloaded), sharing the SAME file again continues from where it stopped. ──
-  const uploadVideoFile = (file) =>
-    uploadVideoResumable(file, {
-      onProgress: (pct) => setUploadProgress(pct),
-      onStatus: (s) => setUploadStatus(s === "uploading" ? "" : s),
-    });
-
   // ── Thumbnail upload. format: "jpeg" (not the default "webp") because
   // this becomes the og:image for shared links, and WhatsApp's link-preview
   // crawler does not render webp images. `portrait` makes reel thumbnails
@@ -613,7 +590,6 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
     setOriginalAudioVolume(1);
     setVideoCategory("");
     setUploadProgress(0);
-    setUploadStatus("");
   };
 
   // ── NEW: share the picked video as a REEL or a VIDEO ──
@@ -657,8 +633,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
     // ── Capture the thumbnail from the actual video FIRST (before the
     // upload starts), together with the duration/orientation metadata.
     // Running this while a large upload is in flight used to starve the
-    // decoder and time out, which forced the generic placeholder cover.
-    // (Both are local, so this also works while offline when resuming.) ──
+    // decoder and time out, which forced the generic placeholder cover. ──
     const [meta, capturedBlob] = await Promise.all([
       getVideoMeta(videoFile.file),
       captureThumbnail(videoFile.file).catch((err) => {
@@ -667,9 +642,9 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
       }),
     ]);
 
-    // Resumable upload — continues from the saved level if this same file
-    // was partly uploaded before.
-    const { url: videoUrl } = await uploadVideoFile(videoFile.file);
+    const { url: videoUrl } = await uploadVideoToR2(videoFile.file, (pct) =>
+      setUploadProgress(pct)
+    );
 
     // Use the frame captured from the video. Only if the browser genuinely
     // couldn't decode the file do we fall back to a generated cover so the
@@ -742,7 +717,6 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
     setError("");
     setReelSuccess(false);
     setUploadProgress(0);
-    setUploadStatus("");
 
     try {
       // ── Reel / Video mode ──
@@ -783,8 +757,9 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
           return null;
         });
 
-        // Resumable upload (see uploadVideoFile above).
-        const { url } = await uploadVideoFile(videoFile.file);
+        const { url } = await uploadVideoToR2(videoFile.file, (pct) => {
+          setUploadProgress(pct);
+        });
         videoUrl = url;
 
         if (thumbnailBlob) {
@@ -828,25 +803,14 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
 
       resetAfterSuccess();
     } catch (err) {
-      if (err?.code === "UPLOAD_INTERRUPTED") {
-        // Progress is saved — the same file continues from here next time.
-        setError(
-          tr(
-            "err.uploadInterrupted",
-            "Upload interrupted. Your progress is saved — check your connection and share again to resume."
-          )
-        );
-      } else {
-        setError(
-          err.message ||
-          (isMedia
-            ? t("err.shareFailed", { kind: t("kind." + postAs) })
-            : t("err.postFailed"))
-        );
-      }
+      setError(
+        err.message ||
+        (isMedia
+          ? t("err.shareFailed", { kind: t("kind." + postAs) })
+          : t("err.postFailed"))
+      );
     } finally {
       setPosting(false);
-      setUploadStatus("");
     }
   };
 
@@ -1073,28 +1037,13 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
             </div>
           )}
 
-          {posting && (uploadProgress > 0 || uploadStatus) && (
-            <>
-              <div className="pf-progress-wrap">
-                <div className="pf-progress-bar-track">
-                  <div className="pf-progress-bar" style={{ width: `${uploadProgress}%` }} />
-                </div>
-                <span className="pf-progress-label">{uploadProgress}%</span>
+          {posting && uploadProgress > 0 && (
+            <div className="pf-progress-wrap">
+              <div className="pf-progress-bar-track">
+                <div className="pf-progress-bar" style={{ width: `${uploadProgress}%` }} />
               </div>
-              {uploadStatus === "waiting" && (
-                <p className="pf-reel-hint">
-                  ⏸ {tr(
-                    "composer.waitingConnection",
-                    "Connection lost — your upload will continue automatically when you're back online."
-                  )}
-                </p>
-              )}
-              {uploadStatus === "resuming" && (
-                <p className="pf-reel-hint">
-                  ▶ {tr("composer.resumingUpload", "Continuing your earlier upload…")}
-                </p>
-              )}
-            </>
+              <span className="pf-progress-label">{uploadProgress}%</span>
+            </div>
           )}
 
           {reelSuccess && (

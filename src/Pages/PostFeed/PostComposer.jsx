@@ -42,137 +42,186 @@ const FEELINGS = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// captureThumbnail — v2: seeked-timeout fallback. Ports the same fixed
-// approach from VideoUpload.jsx over to post-video uploads.
+// captureThumbnail — v3: real frame from the video, every time it's possible.
 //
-// v1 root cause (black thumbnail): a video element that's never attached
-// to the DOM can report a "successful" seek without actually decoding a
-// real frame at that position, so ctx.drawImage() grabs whatever's left
-// in the decode buffer (usually black) instead of the real frame. v1 fix:
-// attach off-screen (not display:none — some browsers skip decoding those
-// too), force a decode by briefly play()-ing then pause()-ing after the
-// seek, and always clean up the element whether capture succeeds or fails.
+// What changed vs v2:
+//  • Tries several seek points (10% / 1s / 25% / 50% of the duration) instead
+//    of a single 0.5s seek, because the very start of many videos is a black
+//    fade-in frame.
+//  • Measures each captured frame's brightness; if a frame is (almost) black
+//    it tries the next seek point. If every point is dark, the BRIGHTEST
+//    captured frame is used — still a real frame from the video.
+//  • Downscales big frames (4K etc.) to max 1280px wide before JPEG encoding.
+//  • Waits for the frame to actually be painted (requestVideoFrameCallback)
+//    after each seek instead of relying on a play()/pause() trick.
+//  • Callers now run this BEFORE the upload starts (not in parallel with it),
+//    so a multi-GB upload can't starve the decoder and cause a timeout.
 //
-// v2 root cause ("Thumbnail capture timed out."): MP4 files where the
-// moov atom sits at the END of the file make the browser stall on any
-// seek. v2 fix: seek closer to the start, and add a 5s fallback that
-// grabs whatever frame is currently decoded.
+// It still rejects if the browser genuinely can't decode the file (e.g. an
+// HEVC/H.265 .mov in a browser without that codec) — then the caller falls
+// back to a generated cover so the post/reel always has *a* thumbnail.
 // ─────────────────────────────────────────────────────────────────────────────
-const captureThumbnail = (file) => new Promise((resolve, reject) => {
-  const video = document.createElement("video");
-  const canvas = document.createElement("canvas");
-  video.preload = "auto";
-  video.muted = true;
-  video.playsInline = true;
+const BLACK_FRAME_THRESHOLD = 20; // average luminance (0–255) below this = "black"
 
-  video.style.position = "fixed";
-  video.style.top = "-9999px";
-  video.style.left = "-9999px";
-  video.style.width = "1px";
-  video.style.height = "1px";
-  video.setAttribute("aria-hidden", "true");
-  document.body.appendChild(video);
+const captureThumbnail = (file, { maxWidth = 1280, timeoutMs = 15000 } = {}) =>
+  new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    video.preload = "auto";
+    video.muted = true;
+    video.playsInline = true;
 
-  let settled = false;
-  let seekAttempted = false;
+    // Attach off-screen (NOT display:none — some browsers skip decoding
+    // frames for hidden video elements).
+    video.style.position = "fixed";
+    video.style.top = "-9999px";
+    video.style.left = "-9999px";
+    video.style.width = "1px";
+    video.style.height = "1px";
+    video.setAttribute("aria-hidden", "true");
+    document.body.appendChild(video);
 
-  const cleanup = () => {
-    URL.revokeObjectURL(video.src);
-    if (video.parentNode) video.parentNode.removeChild(video);
-  };
-  const finish = (result, err) => {
-    if (settled) return;
-    settled = true; cleanup();
-    if (err) reject(err); else resolve(result);
-  };
+    let settled = false;
+    let best = null; // { canvas, score } — brightest real frame seen so far
 
-  const grabFrame = () => {
-    try {
-      canvas.width = video.videoWidth || 320;
-      canvas.height = video.videoHeight || 180;
-      if (canvas.width === 0 || canvas.height === 0) {
-        finish(null, new Error("Video has no dimensions yet."));
-        return;
-      }
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => {
-        if (!blob) { finish(null, new Error("Thumbnail capture failed.")); return; }
-        finish(blob, null);
-      }, "image/jpeg", 0.85);
-    } catch (err) { finish(null, err); }
-  };
+    const cleanup = () => {
+      try { video.pause(); } catch (_) { }
+      video.removeAttribute("src");
+      try { video.load(); } catch (_) { }
+      URL.revokeObjectURL(objectUrl);
+      if (video.parentNode) video.parentNode.removeChild(video);
+    };
 
-  const trySeek = () => {
-    if (seekAttempted || settled) return;
-    const dur = video.duration;
-    if (!isFinite(dur) || dur <= 0) return; // not ready yet — wait for next event
-    seekAttempted = true;
-    const seekTo = Math.min(0.5, dur / 2);
-    try {
-      video.currentTime = seekTo || 0.1;
-    } catch (_) {
-      grabFrame();
-    }
-  };
+    const fail = (err) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(err);
+    };
 
-  video.onloadedmetadata = trySeek;
-  video.ondurationchange = trySeek;
-  video.onloadeddata = trySeek;
+    const finishWith = async (canvas) => {
+      if (settled) return;
+      settled = true;
+      const blob = await new Promise((res) => canvas.toBlob(res, "image/jpeg", 0.85));
+      cleanup();
+      if (blob) resolve(blob);
+      else reject(new Error("Thumbnail capture failed."));
+    };
 
-  // Shared decode-forcing grab: play → pause → grab, so every code path
-  // reads a real decoded frame instead of a stale (black) buffer.
-  const grabWithDecodeForce = () => {
-    const grabAfterDecode = () => {
-      if ("requestVideoFrameCallback" in video) {
-        video.requestVideoFrameCallback(() => grabFrame());
-      } else {
-        setTimeout(grabFrame, 200);
+    // Draw the current frame to a (downscaled) canvas.
+    const drawFrame = () => {
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (!vw || !vh) return null;
+      const scale = Math.min(1, maxWidth / vw);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(vw * scale);
+      canvas.height = Math.round(vh * scale);
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas;
+    };
+
+    // Average luminance of a tiny copy of the frame (0 = black, 255 = white).
+    const brightness = (canvas) => {
+      try {
+        const s = document.createElement("canvas");
+        s.width = 24;
+        s.height = 24;
+        const sctx = s.getContext("2d");
+        sctx.drawImage(canvas, 0, 0, 24, 24);
+        const d = sctx.getImageData(0, 0, 24, 24).data;
+        let sum = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        }
+        return sum / (d.length / 4);
+      } catch (_) {
+        return 255; // can't measure → assume the frame is fine
       }
     };
 
-    const playAttempt = video.play();
-    if (playAttempt && typeof playAttempt.then === "function") {
-      playAttempt
-        .then(() => {
-          setTimeout(() => {
-            try { video.pause(); } catch (_) { }
-            grabAfterDecode();
-          }, 50);
-        })
-        .catch(() => {
-          grabAfterDecode();
-        });
-    } else {
-      grabAfterDecode();
-    }
-  };
+    // Seek and resolve once `seeked` fires (or after 3s, so we never hang).
+    const seekTo = (time) =>
+      new Promise((res) => {
+        let done = false;
+        const finishSeek = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          video.removeEventListener("seeked", finishSeek);
+          res();
+        };
+        const timer = setTimeout(finishSeek, 3000);
+        video.addEventListener("seeked", finishSeek);
+        try {
+          video.currentTime = time;
+        } catch (_) {
+          finishSeek();
+        }
+      });
 
-  video.onseeked = () => {
-    grabWithDecodeForce();
-  };
+    // Wait until the seeked frame has actually been painted.
+    const waitForFrame = () =>
+      new Promise((res) => {
+        let done = false;
+        const go = () => {
+          if (!done) { done = true; res(); }
+        };
+        setTimeout(go, 350);
+        if ("requestVideoFrameCallback" in video) {
+          video.requestVideoFrameCallback(go);
+        }
+      });
 
-  video.onerror = () => finish(null, new Error("Failed to load video for thumbnail."));
+    const run = async () => {
+      // Wait for the first decoded frame.
+      await new Promise((res, rej) => {
+        const to = setTimeout(
+          () => rej(new Error("Video metadata timed out.")),
+          8000
+        );
+        video.onloadeddata = () => { clearTimeout(to); res(); };
+        video.onerror = () => {
+          clearTimeout(to);
+          rej(new Error("Failed to load video for thumbnail."));
+        };
+      });
 
-  // Nothing seeked yet at all — grab whatever's loaded.
-  setTimeout(() => {
-    if (!settled && !seekAttempted && video.readyState >= 2) grabWithDecodeForce();
-  }, 3000);
+      const dur = isFinite(video.duration) ? video.duration : 0;
+      const clamp = (t) =>
+        dur > 0 ? Math.min(Math.max(t, 0.05), Math.max(dur - 0.1, 0.05)) : t;
+      const raw = dur > 0 ? [dur * 0.1, 1, dur * 0.25, dur * 0.5] : [0.1, 0.5, 1];
+      const times = [...new Set(raw.map((t) => clamp(t).toFixed(2)))].map(Number);
 
-  // A seek WAS attempted but `seeked` never fired — grab the current frame.
-  setTimeout(() => {
-    if (!settled && seekAttempted && video.readyState >= 2) {
-      console.warn("seeked event never fired — grabbing current frame as fallback");
-      grabWithDecodeForce();
-    }
-  }, 5000);
+      for (const time of times) {
+        if (settled) return;
+        await seekTo(time);
+        await waitForFrame();
+        if (settled) return;
 
-  // Final fallback if truly nothing worked.
-  setTimeout(() => { if (!settled) finish(null, new Error("Thumbnail capture timed out.")); }, 10000);
+        const canvas = drawFrame();
+        if (!canvas) continue;
 
-  video.src = URL.createObjectURL(file);
-  video.load();
-});
+        const score = brightness(canvas);
+        if (!best || score > best.score) best = { canvas, score };
+        if (score >= BLACK_FRAME_THRESHOLD) break; // good frame — stop here
+      }
+
+      if (best) await finishWith(best.canvas);
+      else fail(new Error("Could not read a frame from this video (unsupported format?)."));
+    };
+
+    // Overall safety net: use the best frame we have, otherwise give up.
+    setTimeout(() => {
+      if (settled) return;
+      if (best) finishWith(best.canvas);
+      else fail(new Error("Thumbnail capture timed out."));
+    }, timeoutMs);
+
+    video.src = objectUrl;
+    video.load();
+    run().catch(fail);
+  });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NEW (Reel mode) helpers
@@ -215,6 +264,7 @@ const getVideoMeta = (file) =>
 
 // Last-resort cover drawn on a canvas so a reel ALWAYS has a thumbnail,
 // even when no frame could be captured (same idea as VideoUpload.jsx).
+// Only used when captureThumbnail() above genuinely can't decode the file.
 const generatePlaceholderThumbnail = (title, portrait) =>
   new Promise((resolve) => {
     const W = portrait ? 360 : 640;
@@ -580,8 +630,11 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
       console.warn("Moderation check failed, proceeding:", moderationErr);
     }
 
-    const [{ url: videoUrl }, meta, capturedBlob] = await Promise.all([
-      uploadVideoToR2(videoFile.file, (pct) => setUploadProgress(pct)),
+    // ── Capture the thumbnail from the actual video FIRST (before the
+    // upload starts), together with the duration/orientation metadata.
+    // Running this while a large upload is in flight used to starve the
+    // decoder and time out, which forced the generic placeholder cover. ──
+    const [meta, capturedBlob] = await Promise.all([
       getVideoMeta(videoFile.file),
       captureThumbnail(videoFile.file).catch((err) => {
         console.warn("Thumbnail capture failed:", err.message);
@@ -589,7 +642,13 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
       }),
     ]);
 
-    // Always end up with a thumbnail: captured frame, else a generated cover.
+    const { url: videoUrl } = await uploadVideoToR2(videoFile.file, (pct) =>
+      setUploadProgress(pct)
+    );
+
+    // Use the frame captured from the video. Only if the browser genuinely
+    // couldn't decode the file do we fall back to a generated cover so the
+    // reel/video still gets a thumbnail.
     // Reels use portrait thumbnails when the video is portrait; long videos
     // are always 16:9.
     const portrait = isReel && meta.portrait;
@@ -660,7 +719,7 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
     setUploadProgress(0);
 
     try {
-      // ── Reel mode ──
+      // ── Reel / Video mode ──
       if (isMedia) {
         const saved = await submitVideoContent();
         resetAfterSuccess();
@@ -689,19 +748,20 @@ const PostComposer = ({ currentUser, onPost, onReelPosted, onVideoPosted }) => {
           imageUrls.push(url);
         }
       } else if (videoFile) {
-        // Capture a thumbnail in parallel with the video upload itself.
+        // Capture the thumbnail from the video BEFORE the upload starts
+        // (a big upload running at the same time can starve the decoder).
         // If capture fails we log it and continue — the post still goes
         // out with video_url set.
-        const [{ url }, thumbnailBlob] = await Promise.all([
-          uploadVideoToR2(videoFile.file, (pct) => {
-            setUploadProgress(pct);
-          }),
-          captureThumbnail(videoFile.file).catch((err) => {
-            console.warn("Post video thumbnail capture failed:", err.message);
-            return null;
-          }),
-        ]);
+        const thumbnailBlob = await captureThumbnail(videoFile.file).catch((err) => {
+          console.warn("Post video thumbnail capture failed:", err.message);
+          return null;
+        });
+
+        const { url } = await uploadVideoToR2(videoFile.file, (pct) => {
+          setUploadProgress(pct);
+        });
         videoUrl = url;
+
         if (thumbnailBlob) {
           thumbnailUrl = await uploadThumbnail(thumbnailBlob);
         }
